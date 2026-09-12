@@ -86,3 +86,33 @@ jobs:
           name: spirula-strategy-port-linux-cuda
           path: build/spirula
           retention-days: 30
+
+  # Native Windows CUDA build. build_develop.bat locates VS (vcvars64),
+  # picks Ninja and auto-detects the CUDA toolkit under
+  # "Program Files\NVIDIA GPU Computing Toolkit\CUDA\v*", which is exactly
+  # where the cuda-toolkit action installs it.
+  cuda-windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@v0.2.20
+        with:
+          cuda: '12.8.0'
+          sub-packages: '["nvcc", "cudart"]'
+
+      - name: Build
+        shell: cmd
+        run: build_develop.bat -DSS_BUILD_GUI=OFF -DTORCH_CUDA_ARCH_LIST=8.9;12.0
+
+      - name: Smoke
+        shell: cmd
+        run: build\spirula.exe train --help
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spirula-strategy-port-windows-cuda
+          path: build/spirula.exe
+          retention-days: 30
