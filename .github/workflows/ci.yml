@@ -125,3 +125,10 @@ jobs:
       - name: Smoke
         shell: cmd
         run: build\spirula.exe train --help
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spirula-strategy-port-vulkan-windows
+          path: build/spirula.exe
+          retention-days: 30
