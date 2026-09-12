@@ -97,7 +97,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install CUDA toolkit
-        uses: Jimver/cuda-toolkit@v0.2.20
+        uses: Jimver/cuda-toolkit@v0.2.36
         with:
           # CUDA 13 ships MSVC support current enough for windows-2025's VS;
           # 12.8 crashed nvcc (cudafe++ ACCESS_VIOLATION) on its headers.
