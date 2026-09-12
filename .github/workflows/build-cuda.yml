@@ -106,7 +106,10 @@ jobs:
 
       - name: Build
         shell: cmd
-        run: build_develop.bat -DSS_BUILD_GUI=OFF -DTORCH_CUDA_ARCH_LIST=8.9;12.0
+        # GUI builds the GLFW/ImGui window app (SS_BUILD_GUI defaults to ON);
+        # the cuda-toolkit action's CUDA 13.2 + windows-2025 MSVC toolchain
+        # compiles it the same way the upstream Vulkan CI does.
+        run: build_develop.bat -DTORCH_CUDA_ARCH_LIST=8.9;12.0
 
       - name: Smoke
         shell: cmd
