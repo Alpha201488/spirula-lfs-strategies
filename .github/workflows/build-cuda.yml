@@ -104,7 +104,10 @@ jobs:
 
       - name: Build
         shell: cmd
-        run: build_develop.bat -DSS_BUILD_GUI=OFF -DTORCH_CUDA_ARCH_LIST=8.9;12.0
+        # windows-2025 ships a VS newer than CUDA 12.8's supported range;
+        # the port uses only standard cooperative_groups kernels, so the
+        # unsupported-compiler bypass is safe here.
+        run: build_develop.bat -DSS_BUILD_GUI=OFF -DTORCH_CUDA_ARCH_LIST=8.9;12.0 -DCMAKE_CUDA_FLAGS=-allow-unsupported-compiler
 
       - name: Smoke
         shell: cmd
