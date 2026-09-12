@@ -37,7 +37,7 @@ jobs:
   cuda-linux:
     runs-on: ubuntu-24.04
     container:
-      image: nvidia/cuda:12.8.0-devel-ubuntu24.04
+      image: nvidia/cuda:13.0.0-devel-ubuntu24.04
     env:
       # RTX 50-series (Blackwell, sm_120) is the port's primary target; the
       # 8.9 arch keeps the artifact runnable on 40-series cards too.
@@ -99,15 +99,14 @@ jobs:
       - name: Install CUDA toolkit
         uses: Jimver/cuda-toolkit@v0.2.20
         with:
-          cuda: '12.8.0'
+          # CUDA 13 ships MSVC support current enough for windows-2025's VS;
+          # 12.8 crashed nvcc (cudafe++ ACCESS_VIOLATION) on its headers.
+          cuda: '13.0.0'
           sub-packages: '["nvcc", "cudart"]'
 
       - name: Build
         shell: cmd
-        # windows-2025 ships a VS newer than CUDA 12.8's supported range;
-        # the port uses only standard cooperative_groups kernels, so the
-        # unsupported-compiler bypass is safe here.
-        run: build_develop.bat -DSS_BUILD_GUI=OFF -DTORCH_CUDA_ARCH_LIST=8.9;12.0 -DCMAKE_CUDA_FLAGS=-allow-unsupported-compiler
+        run: build_develop.bat -DSS_BUILD_GUI=OFF -DTORCH_CUDA_ARCH_LIST=8.9;12.0
 
       - name: Smoke
         shell: cmd
