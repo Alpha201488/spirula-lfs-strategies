@@ -101,7 +101,8 @@ jobs:
         with:
           # CUDA 13 ships MSVC support current enough for windows-2025's VS;
           # 12.8 crashed nvcc (cudafe++ ACCESS_VIOLATION) on its headers.
-          cuda: '13.0.0'
+          # 13.0.0 is not in the action's version table; 13.2.0 is its default.
+          cuda: '13.2.0'
           sub-packages: '["nvcc", "cudart"]'
 
       - name: Build
