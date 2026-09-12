@@ -189,6 +189,22 @@ inline int train_tier_rank(const char* tier) {
     X(float, max_screen_size_clip_hardness, 1.5f, "detail", "basic", "")     \
     X(float, max_screen_size_penalty, 1.0f, "detail", "basic", "")           \
     X(float, max_world_size, kTrainInf, "detail", "expert", "")              \
+    /* ---- LFS-style densification strategy (IGS+ / MRNF / MCMC port) ---- */ \
+    X(std::string, densify_strategy, "revised", "detail", "expert", "revised|igs+|mrnf|mcmc") \
+    X(int, densify_strategy_max_cap, 0, "detail", "expert", "0 = engine pool cap") \
+    X(float, igs_edge_score_weight, 0.25f, "detail", "expert", "")           \
+    X(int, igs_error_candidate_factor, 4, "detail", "expert", "")            \
+    X(float, igs_prune_opacity, 0.005f, "detail", "expert", "")              \
+    X(int, igs_reset_opacity_every, 3000, "detail", "expert", "")            \
+    X(float, mrnf_grow_fraction, 0.07f, "detail", "expert", "")              \
+    X(float, mrnf_min_opacity, 0.005f, "detail", "expert", "")               \
+    X(float, mrnf_far_growth_cap, 0.3f, "detail", "expert", "")              \
+    X(float, mrnf_far_decay_scale, 0.25f, "detail", "expert", "")            \
+    X(int, mrnf_fill_target_iter, 15000, "detail", "expert", "")             \
+    X(int, mrnf_far_seed_dose, 2000, "detail", "expert", "")                 \
+    X(bool, mrnf_explore_starvation_weighting, true, "detail", "expert", "") \
+    X(float, mrnf_growth_ratio_pow, 0.75f, "detail", "expert", "")           \
+    X(float, mrnf_max_screen_share, 0.3f, "detail", "expert", "")            \
                                                                              \
     /* ==== loss -- how the render is compared against the photo ==== */     \
     X(float, ssim_lambda, 0.2f, "loss", "basic", "")                         \

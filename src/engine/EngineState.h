@@ -7,6 +7,8 @@
 
 #include "core/Tensor.h"
 
+#include "engine/EngineConfig.h"  // StrategyId / DensifyConfig
+
 #include "kernels/background/BackgroundSphericalHarmonics.cuh"
 #include "kernels/bilagrid/BilagridUtils.cuh"
 #include "kernels/densify/Densify.cuh"
@@ -281,6 +283,47 @@ struct SplatOptim {
     bool   skip_grad_zero = false;     // _alloc_grad_buffers skips zeroing
     float  grad_scale     = 1.0f;      // multiplied into v_* inside optim
     bool   zero_grad_in_optim = false; // optim zeroes v_* after consuming
+};
+
+// LFS-style densification strategy state (IGS+ / MRNF / MCMC port).
+//
+// Owned by the engine, managed exclusively from EngineStrategy.cpp. Buffers
+// are sized to the splat pool (engine().max_num_splats) on first use and
+// released by engine_reset() (which drops the whole DevicePool). Host fields
+// carry the per-strategy schedules / windows that do not need to live on the
+// device.
+struct StrategyState {
+    // meta
+    StrategyId id     = StrategyId::Revised;
+    bool       active = false;   // id != Revised
+    bool       inited = false;   // buffers allocated + schedule built
+
+    // ---- scratch (all sized [max_num_splats] unless noted) ----
+    DeviceVector<bool>    mask_a;            // generic bool scratch
+    DeviceVector<bool>    mask_b;            // generic bool scratch
+    DeviceVector<float>   score_scratch;     // [N] sampling-score algebra scratch
+    DeviceVector<float2>  score_pair;        // [N,2] sampling weights (lane 0)
+    DeviceVector<float>   error_scores;      // [N] plain copy of accum_buffer lane 0
+    DeviceVector<float>   edge_score_sum;    // windowed edge accumulation (IGS+/MRNF)
+    DeviceVector<float>   edge_view_score;   // per-view edge scratch (zeroed per camera)
+    DeviceVector<int32_t> idx_scratch;       // compacted indices / sampled parents
+    DeviceVector<int32_t> idx_scratch2;      // second index scratch (dst slots)
+    DeviceVector<int64_t> count_scratch;     // [1] kernel scalar outputs
+    DeviceVector<float>   sum_scratch;       // [1] kernel scalar outputs
+
+    // ---- IGS+ ----
+    std::vector<int64_t> budget_schedule;    // host: Taming-3DGS Eq. (2) ramp
+    int64_t              initial_splats  = 0;
+    int                  refine_step_idx = 0;   // i-th refine step executed
+    bool                 max_cap_reached = false;
+
+    // ---- MRNF ----
+    float cam_centroid[3] = {0.0f, 0.0f, 0.0f};
+    float orbit_radius    = 0.0f;   // max camera distance to centroid
+    bool  camera_hull_valid = false;
+    float far_starvation  = 1.0f;   // far-field starvation multiplier
+    int   edge_view_count = 0;      // edge accumulation window counter
+    int   refine_count    = 0;      // refine steps executed (MRNF pacing)
 };
 
 // One bilagrid channel (RGB / depth / normal).
@@ -576,6 +619,9 @@ struct EngineState {
     GTData         gt;
     SplatGrad      grad;
     SplatOptim     optim;
+    // LFS-style densification strategy state (IGS+ / MRNF / MCMC port).
+    // Only touched when EngineStrategy is active; engine_reset() clears it.
+    StrategyState  strategy;
 
     BilagridRGB    bilagrid_rgb;
     BilagridDepth  bilagrid_depth;

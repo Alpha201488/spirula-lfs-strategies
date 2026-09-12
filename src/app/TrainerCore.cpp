@@ -8,6 +8,7 @@
 #include "config/TrainConfigJson.h"
 #include "core/ColorSpace.h"
 #include "core/ExrImage.h"
+#include "engine/EngineStrategy.h"
 #include "i18n/catalog/Log.h"
 #include "data/CameraMath.h"
 #include "data/ImageProbe.h"
@@ -449,6 +450,23 @@ EngineStepConfig build_step_config(const TrainConfig& c, const RunState& st, int
     cfg.densify.las_split_opacity_k_init   = c.long_axis_split_opacity_k[0];
     cfg.densify.las_split_opacity_k_final  = c.long_axis_split_opacity_k[1];
     cfg.densify.las_split_opacity_k_warmup = (int)c.long_axis_split_opacity_k[2];
+
+    // ---- LFS-style strategy (IGS+ / MRNF / MCMC port) --------------------
+    cfg.densify.strategy = engine_strategy_id_from_string(c.densify_strategy);
+    cfg.densify.strategy_max_cap        = c.densify_strategy_max_cap;
+    cfg.densify.igs_edge_score_weight   = c.igs_edge_score_weight;
+    cfg.densify.igs_error_candidate_factor = c.igs_error_candidate_factor;
+    cfg.densify.igs_prune_opacity       = c.igs_prune_opacity;
+    cfg.densify.igs_reset_opacity_every = c.igs_reset_opacity_every;
+    cfg.densify.mrnf_grow_fraction      = c.mrnf_grow_fraction;
+    cfg.densify.mrnf_min_opacity        = c.mrnf_min_opacity;
+    cfg.densify.mrnf_far_growth_cap     = c.mrnf_far_growth_cap;
+    cfg.densify.mrnf_far_decay_scale    = c.mrnf_far_decay_scale;
+    cfg.densify.mrnf_fill_target_iter   = c.mrnf_fill_target_iter;
+    cfg.densify.mrnf_far_seed_dose      = c.mrnf_far_seed_dose;
+    cfg.densify.mrnf_explore_starvation_weighting = c.mrnf_explore_starvation_weighting;
+    cfg.densify.mrnf_growth_ratio_pow   = c.mrnf_growth_ratio_pow;
+    cfg.densify.mrnf_max_screen_share   = c.mrnf_max_screen_share;
 
     // ---- bilagrid LRs + TV ---------------------------------------------
     if (st.bilagrid_rgb_init) {

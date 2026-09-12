@@ -23,6 +23,7 @@ src/kernels/background/*.cu
 src/kernels/bilagrid/*.cu
 src/kernels/bilagrid/*.cpp
 src/kernels/densify/*.cu
+src/kernels/strategy/*.cu
 src/kernels/loss/*.cu
 src/kernels/optim/*.cu
 src/kernels/pixelwise/*.cu

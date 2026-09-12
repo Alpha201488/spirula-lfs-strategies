@@ -12,6 +12,19 @@
 #include <array>
 
 
+// LFS-style densification strategies (ported from LichtFeld Studio, GPL-3.0;
+// see src/engine/EngineStrategy.cpp). Revised keeps Spirula's stock
+// densification; the other three are the engine-level ports of LFS's
+// ImprovedGSPlus / MRNF / MCMC strategy logic adapted to Spirula's
+// out-of-core splat storage.
+enum class StrategyId {
+    Revised = 0,
+    IgsPlus = 1,
+    Mrnf    = 2,
+    Mcmc    = 3,
+};
+
+
 // Bundles the scalars engine_compute_loss_backward takes, for the call path
 // that reaches it through engine_train_step.
 struct LossConfig {
@@ -238,6 +251,30 @@ struct DensifyConfig {
     float las_split_opacity_k_init      = 0.5f;
     float las_split_opacity_k_final     = 0.6f;
     int   las_split_opacity_k_warmup    = 4500;
+
+    // ---- LFS-style strategy (StrategyId) and its per-strategy controls ----
+    // revised = stock Spirula; igs+ / mrnf / mcmc = ported LFS strategies
+    // (see EngineStrategy.cpp). Any non-Revised value routes the whole
+    // densify cadence through the strategy engine.
+    StrategyId strategy                 = StrategyId::Revised;
+    // Densification budget cap used by the strategies. 0 = the engine pool
+    // size (engine().max_num_splats), the same cap the stock paths enforce.
+    int64_t strategy_max_cap           = 0;
+    // IGS+ (LFS improved_gs_plus.cpp)
+    float igs_edge_score_weight        = 0.25f;   // EDGE_SCORE_WEIGHT
+    int   igs_error_candidate_factor   = 4;       // ERROR_CANDIDATE_FACTOR
+    float igs_prune_opacity            = 0.005f;  // prune_opacity
+    int   igs_reset_opacity_every      = 3000;    // reset_every
+    // MRNF (LFS mrnf.cpp)
+    float mrnf_grow_fraction           = 0.07f;   // grow_fraction
+    float mrnf_min_opacity             = 0.005f;  // min_opacity
+    float mrnf_far_growth_cap          = 0.3f;    // kFarGrowthCap
+    float mrnf_far_decay_scale         = 0.25f;   // kFarDecayScale
+    int   mrnf_fill_target_iter        = 15000;   // fill_pacing_iter
+    int   mrnf_far_seed_dose           = 2000;    // far_seed_dose
+    bool  mrnf_explore_starvation_weighting = true;
+    float mrnf_growth_ratio_pow        = 0.75f;   // growth_ratio_pow
+    float mrnf_max_screen_share        = 0.3f;    // max_screen_share
 };
 
 

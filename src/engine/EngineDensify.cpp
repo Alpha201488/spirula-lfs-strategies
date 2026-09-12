@@ -3,6 +3,7 @@
 #include "engine/Engine.h"
 #include "engine/EngineCommon.h"
 #include "engine/EngineState.h"
+#include "engine/EngineStrategy.h"
 
 #include <algorithm>
 #include <cmath>
@@ -33,6 +34,13 @@ static inline DeviceVector<T> _dv_flat(const TorchTensorView& tv) {
 
 
 int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg) {
+    // LFS-style strategy modes own the whole densify cadence (accumulate
+    // every step, densify at refine, zero the window); the stock revised /
+    // MCMC paths below stay untouched for StrategyId::Revised.
+    if (cfg.strategy != StrategyId::Revised) {
+        return engine_strategy_densify(step, max_steps, cfg);
+    }
+
     int64_t cur_num_splats = engine().cur_num_splats;
     int64_t max_num_splats = engine().max_num_splats;
     bool quantize_sh = engine().optim.sh_quantize_enabled();

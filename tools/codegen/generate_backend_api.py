@@ -52,6 +52,12 @@ MODULES = {
         "Densification: MCMC and long-axis-split add/relocate, edge filters,"
         " scatter utilities.",
     ),
+    "Strategy.h": (
+        ["kernels/strategy/StrategyOps.cuh"],
+        "LFS-style densification strategy kernels (IGS+ / MRNF / MCMC port):"
+        " prune masks, dual scores, weight algebra, far-field masks,"
+        " slot-wise long-axis split, render-edge accumulation.",
+    ),
     "Loss.h": (
         ["kernels/loss/FusedSSIM.cuh", "kernels/loss/PerPixelLoss.cuh", "kernels/loss/PerSplatLoss.cuh"],
         "Fused SSIM, multi-scale per-pixel losses, per-splat losses.",

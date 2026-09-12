@@ -131,6 +131,9 @@ HEADER_SOURCES = dict([
          "Relocation.cu",
          "McmcRelocation.cu",      # MCMC relocation + noise
          "DensifySplitFilter.cu"), # long-axis split, image edge filters
+
+    # LFS-style strategy kernels (IGS+ / MRNF / MCMC port).
+    _fam("kernels/strategy", "StrategyOps", "StrategyOps.cu"),
 ])
 
 # Image-space per-pixel operations, split by function. PixelWise.cuh is the one

@@ -129,6 +129,13 @@ enum class SaveClass : uint8_t {
   X(EngDensifySampleScore          , "eng.densify.sample_score",          Splat    , Never) \
   X(EngDensifyOversize             , "eng.densify.oversize",              Splat    , Never) \
   X(EngDensifyOversizeWeight       , "eng.densify.oversize_weight",       Splat    , Never) \
+  /* ---- LFS-style strategy scratch ---- */ \
+  X(EngStrategyMask                , "eng.strategy.mask",                 Splat    , Never) \
+  X(EngStrategyScore               , "eng.strategy.score",                Splat    , Never) \
+  X(EngStrategyScorePair           , "eng.strategy.score.pair",           Splat    , Never) \
+  X(EngStrategyEdge                , "eng.strategy.edge",                 Splat    , Never) \
+  X(EngStrategyIdx                 , "eng.strategy.idx",                  Splat    , Never) \
+  X(EngStrategyScalar              , "eng.strategy.scalar",               Splat    , Never) \
   /* ---- sub-batch scratch ---- */ \
   X(EngSubbatchAccumWeightSum      , "eng.subbatch.accum_weight_sum",     Splat    , Never) \
   /* ---- gradients ---- */ \

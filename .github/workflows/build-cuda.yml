@@ -1,0 +1,88 @@
+# CUDA build for the Spirula strategy port (IGS+ / MRNF / MCMC).
+#
+# The sandbox that produced this port has no CUDA toolchain, so the Linux
+# CUDA binary is built here on GitHub-hosted runners, in an NVIDIA CUDA dev
+# container (the same approach LichtFeld Studio uses; see the LFS fork's
+# .github/workflows/ubuntu.yml for the original).
+#
+# Pitfalls avoided (all learned the hard way upstream):
+#   * GitHub runners have no NVIDIA GPU inside the container, and Spirula's
+#     CMake queries nvidia-smi for the target architecture -- without an
+#     explicit TORCH_CUDA_ARCH_LIST the configure step fails with
+#     "Could not detect a CUDA GPU".
+#   * The runner container has no GUI libs; build with SS_BUILD_GUI=OFF to
+#     skip the glfw/imgui/OpenGL fetch-and-build entirely (the CLI trains,
+#     evaluates and exports; the GUI can be built locally with
+#     -DSS_BUILD_GUI=ON).
+#   * Keep the tree's generated files current: the lint job runs the codegen
+#     scripts and `git diff --exit-code`, so the commit must contain exactly
+#     what tools/codegen produces.
+
+name: build-cuda
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-cuda-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cuda-linux:
+    runs-on: ubuntu-24.04
+    container:
+      image: nvidia/cuda:12.8.0-devel-ubuntu24.04
+    env:
+      # RTX 50-series (Blackwell, sm_120) is the port's primary target; the
+      # 8.9 arch keeps the artifact runnable on 40-series cards too.
+      TORCH_CUDA_ARCH_LIST: "8.9;12.0"
+      CMAKE_BUILD_TYPE: Release
+    steps:
+      - name: Install Git
+        run: apt-get update && apt-get install -y git
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space
+        run: |
+          apt-get clean
+          rm -rf /var/lib/apt/lists/*
+          rm -rf /usr/local/cuda/nsight* /usr/local/cuda/compute-sanitizer \
+                 /usr/local/cuda/extras /usr/local/cuda/tools /usr/local/cuda/doc
+          find /usr/local/cuda/targets/x86_64-linux/lib -name '*.a' \
+            ! -name 'libcudart_static.a' ! -name 'libcudadevrt.a' \
+            ! -name 'libculibos.a' -delete 2>/dev/null || true
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y cmake ninja-build pkg-config ccache
+
+      - name: Configure
+        run: |
+          cmake -B build -S . -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
+            -DSS_BUILD_GUI=OFF \
+            -DTORCH_CUDA_ARCH_LIST=${{ env.TORCH_CUDA_ARCH_LIST }}
+
+      - name: Build
+        run: cmake --build build -j $(nproc)
+
+      - name: Smoke test
+        run: ./build/spirula train --help
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spirula-strategy-port-linux-cuda
+          path: build/spirula
+          retention-days: 30
