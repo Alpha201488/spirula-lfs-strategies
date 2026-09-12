@@ -15,6 +15,9 @@
 
 #include "backend/vulkan/kernels/KernelCommon.h"
 
+#include <cstdint>
+#include <vector>
+
 namespace {
 
 using backend::MemcpyKind;
@@ -907,6 +910,13 @@ int batch_quantile_positive_radix_select(const float* d_x, int B, int N,
                                          uint32_t* temp,
                                          backend::Stream stream);
 
+// Masked variant (|x| population) used by the IGS+/MRNF strategy ports.
+template <bool invert_quantile>
+int batch_quantile_masked_radix_select(const float* d_x, int B, int N,
+                                       float q, float* d_out,
+                                       uint32_t* temp,
+                                       backend::Stream stream);
+
 void normalize_clip_map_inplace_tensor(
     TorchTensorView data,
     bool normalize_median,
@@ -1008,4 +1018,72 @@ void densify_clip_score_tensor(int64_t num_splats,
     p.num_splats = (uint32_t)num_splats;
     vkk::dispatch_flat("densify.densify_clip_score", {}, num_splats, 256, &p,
                        sizeof(p), &p.wgs_per_row);
+}
+
+// ---- LFS strategy-port helpers (Densify.cuh exports; the CUDA launchers
+// live in DensifySampling.cu). The quantile path reuses the masked
+// radix-select (abs population, optional reciprocal); the weighted sample
+// converts the CUDA-style bool mask to the int32 mask the efraimidis shader
+// expects. Densify runs once per refinement round, so the host round-trip
+// for the mask is negligible here.
+
+void quantile_of_abs_of_finite_elements_tensor(
+    DeviceVector<float> inputs,
+    float q,
+    bool return_reciprocal,
+    DeviceVector<float> outputs
+) {
+    int64_t total = inputs.size();
+    int64_t B = outputs.size();
+    if (B == 0) return;
+    int N = (int)(total / B);
+    if (B <= 0 || N <= 0) return;
+    float* temp = DevicePool::global().acquire<float>(
+        PoolSlot::DensifyQuantileTemp, 1024 * (size_t)B);
+    int rc;
+    if (return_reciprocal)
+        rc = batch_quantile_masked_radix_select<true>(
+            inputs.data_ptr(), (int)B, N, q, outputs.data_ptr(),
+            (uint32_t*)temp, backend::kDefaultStream);
+    else
+        rc = batch_quantile_masked_radix_select<false>(
+            inputs.data_ptr(), (int)B, N, q, outputs.data_ptr(),
+            (uint32_t*)temp, backend::kDefaultStream);
+    (void)rc;
+}
+
+void weighted_sample_without_replacement_tensor(
+    int64_t numel,
+    DeviceVector<float> weights,
+    bool* masks_ptr,
+    uint32_t num_sample,
+    uint32_t seed,
+    DeviceVector<int32_t> out_idx
+) {
+    if (numel == -1)
+        numel = weights.size();
+    if (numel <= 0 || num_sample == 0) return;
+
+    const int32_t* mask_dev = nullptr;
+    if (masks_ptr != nullptr) {
+        std::vector<uint8_t> mask8((size_t)numel);
+        backend::memcpy_sync(mask8.data(), masks_ptr, (size_t)numel,
+                             MemcpyKind::DeviceToHost);
+        int32_t* mask32 = DevicePool::global().acquire<int32_t>(
+            PoolSlot::DensifyWswrMask, (size_t)numel);
+        std::vector<int32_t> mask32h((size_t)numel);
+        for (int64_t i = 0; i < numel; i++)
+            mask32h[(size_t)i] = mask8[(size_t)i] ? 1 : 0;
+        backend::memcpy_sync(mask32, mask32h.data(),
+                             sizeof(int32_t) * (size_t)numel,
+                             MemcpyKind::HostToDevice);
+        mask_dev = mask32;
+    }
+
+    const int32_t* src = wswr_sample(
+        numel, weights.data_ptr(), mask_dev, num_sample, seed);
+    if (src != nullptr && out_idx.data_ptr() != nullptr)
+        backend::memcpy_sync(out_idx.data_ptr(), src,
+                             sizeof(int32_t) * num_sample,
+                             MemcpyKind::DeviceToDevice);
 }

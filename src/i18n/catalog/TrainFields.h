@@ -4684,6 +4684,23 @@ SS_MSG(max_world_size_help,
        "uzakta devasa uçuşan artıklar belirdiğinde ayarlayın."));
 
 
+SS_MSG_EN(densify_strategy_help, "Densification strategy: revised (Spirula native), igs+ / mrnf / mcmc (LichtFeld Studio ports).");
+SS_MSG_EN(densify_strategy_max_cap_help, "Hard cap on the splat count for the selected strategy; 0 = engine pool cap.");
+SS_MSG_EN(igs_edge_score_weight_help, "IGS+: weight of the edge-aware score blended into the growth score.");
+SS_MSG_EN(igs_error_candidate_factor_help, "IGS+: how many error candidates to spawn per splat slot on expansion.");
+SS_MSG_EN(igs_prune_opacity_help, "IGS+: splats whose opacity falls below this value are pruned.");
+SS_MSG_EN(igs_reset_opacity_every_help, "IGS+: reset the opacity of stale splats every N iterations.");
+SS_MSG_EN(mrnf_grow_fraction_help, "MRNF: fraction of splats grown each refinement round.");
+SS_MSG_EN(mrnf_min_opacity_help, "MRNF: opacity floor for keeping a splat.");
+SS_MSG_EN(mrnf_far_growth_cap_help, "MRNF: cap on far-splat growth to keep distant floaters in check.");
+SS_MSG_EN(mrnf_far_decay_scale_help, "MRNF: decay applied to far-splat scores.");
+SS_MSG_EN(mrnf_fill_target_iter_help, "MRNF: iteration by which the splat budget should be filled.");
+SS_MSG_EN(mrnf_far_seed_dose_help, "MRNF: how many far splats are seeded each round.");
+SS_MSG_EN(mrnf_explore_starvation_weighting_help, "MRNF: weight scores to steer growth into under-covered regions.");
+SS_MSG_EN(mrnf_growth_ratio_pow_help, "MRNF: exponent applied to the growth ratio.");
+SS_MSG_EN(mrnf_max_screen_share_help, "MRNF: a splat covering more than this fraction of the screen is pruned.");
+
+
 // ===========================================================================
 // Image Loss
 // ===========================================================================

@@ -328,6 +328,7 @@ enum class SaveClass : uint8_t {
   X(DensifyRelocMask               , "densify_reloc_mask",                Other    , Never) \
   X(DensifyRelocCount              , "densify_reloc_count",               Other    , Never) \
   X(DensifyRelocDstIndices         , "densify_reloc_dst_indices",         Other    , Never) \
+  X(DensifyWswrMask                , "densify_wswr_mask",                 Other    , Never) \
   X(DensifyMcmcSampleProbs         , "densify_mcmc_sample_probs",         Other    , Never) \
   X(DensifyMcmcSampleProbsCumsum   , "densify_mcmc_sample_probs_cumsum",  Other    , Never) \
   X(DensifyMcmcIndexMap            , "densify_mcmc_index_map",            Other    , Never) \
