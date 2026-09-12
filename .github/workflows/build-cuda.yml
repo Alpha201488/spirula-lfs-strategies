@@ -104,6 +104,18 @@ jobs:
           # Full install: the nvcc+cudart sub-packages missed crt/host_config.h.
           cuda: '13.2.0'
 
+      - name: Vulkan SDK
+        # The GUI builds the SfM Geometry panel, whose VkContext.h includes
+        # <vulkan/vulkan.h>; without the SDK the GUI build fails with C1083.
+        # Same pinned version and silent-install the upstream Vulkan CI uses.
+        shell: pwsh
+        run: |
+          curl.exe -sSL -o vulkan_sdk.exe https://sdk.lunarg.com/sdk/download/1.4.357.0/windows/vulkan_sdk.exe
+          $p = Start-Process -FilePath .\vulkan_sdk.exe -NoNewWindow -Wait -PassThru `
+               -ArgumentList '--root','C:\VulkanSDK','--accept-licenses','--default-answer','--confirm-command','install'
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          "VULKAN_SDK=C:\VulkanSDK" >> $env:GITHUB_ENV
+
       - name: Build
         shell: cmd
         # GUI builds the GLFW/ImGui window app (SS_BUILD_GUI defaults to ON);
