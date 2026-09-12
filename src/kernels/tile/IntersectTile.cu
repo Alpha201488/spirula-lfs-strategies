@@ -119,14 +119,6 @@ inline __device__ int count_ellipse_grid_overlaps(
 }
 
 
-// cub::Sum takes one accumulator type, so widen the int32 counts on the way
-// in rather than summing them in the type that overflows.
-struct WidenToI64 {
-    __host__ __device__ int64_t operator()(int32_t v) const {
-        return (int64_t)v;
-    }
-};
-
 template<bool is_counting_pass, bool is_ellipse>
 __global__ void intersect_tile_kernel(
     const uint32_t I,  // or 1 in packed mode
@@ -349,6 +341,26 @@ __global__ void intersect_offset_kernel(
 // engine_train_parity case moves, at 1 it is bit-identical.
 static constexpr int kMaskPad = 1;
 
+// int64 exact sum of an int32 array, block-reduced then atomically added.
+// Replaces the CUB 1.x idiom TransformInputIterator + DeviceReduce::Sum,
+// which CUB 2.x (CUDA 13) removed; the int32 scan below wraps silently past
+// 2^31, so the sum must stay in int64. `out` must be zeroed before launch.
+__global__ void intersect_sum_i32_as_i64_kernel(
+    const int32_t* __restrict__ in, int64_t* __restrict__ out, int n) {
+    __shared__ int64_t sh[256];
+    int64_t v = 0;
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n;
+         i += gridDim.x * blockDim.x)
+        v += (int64_t)in[i];
+    sh[threadIdx.x] = v;
+    __syncthreads();
+    for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+        if (threadIdx.x < s) sh[threadIdx.x] += sh[threadIdx.x + s];
+        __syncthreads();
+    }
+    if (threadIdx.x == 0) atomicAdd(out, sh[0]);
+}
+
 // One thread per tile: live when any render pixel of it (grown by kMaskPad) is
 // unmasked, sampled exactly as the loss samples the mask (core/Interpolation.cuh).
 
@@ -492,10 +504,10 @@ std::tuple<
         if (total_count > 0) {
             DeviceVector<int64_t> isect_total;
             isect_total.resize(PoolSlot::IsectTotal, 1);
-            cub::TransformInputIterator<int64_t, WidenToI64, const int32_t*>
-                widened(tiles_per_splat.data_ptr(), WidenToI64{});
-            CUB_WRAPPER(cub::DeviceReduce::Sum, widened, isect_total.data_ptr(),
-                        (int)total_count);
+            cudaMemsetAsync(isect_total.data_ptr(), 0, sizeof(int64_t), 0);
+            intersect_sum_i32_as_i64_kernel<<<_LAUNCH_ARGS_1D(total_count, 256)>>>(
+                tiles_per_splat.data_ptr(), isect_total.data_ptr(),
+                (int)total_count);
             CHECK_DEVICE_ERROR(cudaGetLastError());
             cudaMemcpy(&n_isects64, isect_total.data_ptr(), sizeof(int64_t),
                        cudaMemcpyDeviceToHost);
