@@ -268,6 +268,11 @@ target_compile_definitions(spirula PRIVATE
     ${SS_TOOL_DEFS} SS_VERSION="${SS_VERSION}" ${SS_I18N_DEFS})
 if(WIN32)
     target_link_libraries(spirula PRIVATE ws2_32)
+    # /MAP on the app target only: a global CMAKE_EXE_LINKER_FLAGS would be
+    # shared by every test exe, and parallel ninja links would fight over the
+    # same spirula.map (LNK1104). The map lets us translate crash.log RVAs
+    # into function names without a PDB.
+    target_link_options(spirula PRIVATE "/MAP:spirula.map")
 endif()
 
 # A regional build ships its face beside the executable; Fonts.cpp looks
