@@ -22,17 +22,26 @@ namespace backend {
 // counter/table are shared across all translation units. Allocation is pooled
 // upstream (Tensor.h), so this map is touched rarely, not per frame.
 namespace detail {
+// Exit-safe singletons: all three are touched by device_free()/device_malloc()
+// from the destructors of DevicePool/DeviceScratch static locals, which run in
+// the CRT onexit table at process shutdown. A plain function-static there is a
+// Meyers singleton whose own destructor ALSO runs in the onexit table -- and
+// when it happens to run before the pool's destructor, device_free() reads a
+// destroyed std::unordered_map (ACCESS_VIOLATION reading this+0x58/0x1728,
+// seen in the field). Leaking them on the heap keeps them alive for the whole
+// process, so the teardown path can never touch a dead object. The leak is a
+// few dozen bytes per process; the OS reclaims it at exit.
 inline std::mutex& alloc_mutex() {
-    static std::mutex m;
-    return m;
+    static auto* m = new std::mutex();
+    return *m;
 }
 inline std::unordered_map<void*, size_t>& alloc_sizes() {
-    static std::unordered_map<void*, size_t> m;
-    return m;
+    static auto* m = new std::unordered_map<void*, size_t>();
+    return *m;
 }
 inline std::atomic<uint64_t>& device_bytes() {
-    static std::atomic<uint64_t> v{0};
-    return v;
+    static auto* v = new std::atomic<uint64_t>{0};
+    return *v;
 }
 }  // namespace detail
 
