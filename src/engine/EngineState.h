@@ -335,6 +335,14 @@ struct StrategyState {
     std::vector<float>  explore_err_map;      // host [H*W] |render-target|
     std::vector<float>  explore_render;       // host [H*W*3] render rgb copy
     std::vector<float>  explore_target;       // host [H*W*3] gt rgb copy
+    // Host copies of the device arrays the per-view projection reads. The
+    // projection runs on the CPU (that is the point of the CPU-RAM path), so
+    // dereferencing the device pointers directly faults -- CUDA UVA addresses
+    // are not readable from host code. Copied DeviceToHost once per refine
+    // step; means is the big one (~N*12 bytes at 1.8M splats).
+    std::vector<float3> explore_means;        // host [N] splat means
+    std::vector<float4> explore_viewmats;     // host [C*4] c2w table
+    std::vector<float4> explore_intrins;      // host [C] pinhole intrinsics
     DeviceVector<float> explore_gpu;          // [N] (1+min(avg,cap)) modulator
     int  explore_sample_count = 0;            // views accumulated
 };

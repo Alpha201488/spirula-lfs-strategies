@@ -367,11 +367,27 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
     }
 
     // Project every splat into this view (same c2w math as the edge kernel)
-    // and gather the local 5-point error average.
+    // and gather the local 5-point error average. The projection is CPU-side
+    // (the whole point of the CPU-RAM path), so the device arrays it reads
+    // must first be copied DeviceToHost -- dereferencing the CUDA UVA device
+    // pointers from host code faults with an access violation.
     st.explore_view_scores.resize((size_t)cur);
-    const float4* viewmats = (const float4*)cam.viewmats.data_ptr();
-    const float4* intrins = (const float4*)cam.intrins.data_ptr();
-    const float3* means = engine().world.means.data_ptr();
+    st.explore_means.resize((size_t)cur);
+    backend::memcpy_sync(st.explore_means.data(),
+                         engine().world.means.data_ptr(),
+                         (size_t)cur * sizeof(float3),
+                         backend::MemcpyKind::DeviceToHost);
+    st.explore_viewmats.resize((size_t)C * 4);
+    backend::memcpy_sync(st.explore_viewmats.data(), cam.viewmats.data_ptr(),
+                         (size_t)C * 4 * sizeof(float4),
+                         backend::MemcpyKind::DeviceToHost);
+    st.explore_intrins.resize((size_t)C);
+    backend::memcpy_sync(st.explore_intrins.data(), cam.intrins.data_ptr(),
+                         (size_t)C * sizeof(float4),
+                         backend::MemcpyKind::DeviceToHost);
+    const float4* viewmats = st.explore_viewmats.data();
+    const float4* intrins  = st.explore_intrins.data();
+    const float3* means    = st.explore_means.data();
     const float4* vm = viewmats + (int64_t)cam_idx * 4;
     const float3 t0 = make_float3(vm[3].x, vm[3].y, vm[3].z);
     const float3 R0 = make_float3(vm[0].x, vm[0].y, vm[0].z);
@@ -1150,6 +1166,9 @@ void engine_strategy_reset() {
     st.explore_err_map.clear();
     st.explore_render.clear();
     st.explore_target.clear();
+    st.explore_means.clear();
+    st.explore_viewmats.clear();
+    st.explore_intrins.clear();
     st.explore_gpu = DeviceVector<float>();
     st.explore_sample_count = 0;
 }
