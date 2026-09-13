@@ -324,6 +324,19 @@ struct StrategyState {
     float far_starvation  = 1.0f;   // far-field starvation multiplier
     int   edge_view_count = 0;      // edge accumulation window counter
     int   refine_count    = 0;      // refine steps executed (MRNF pacing)
+
+    // ---- MRNF seed-view exploration (LFS explore, CPU RAM) ----
+    // Per-splat image-space under-coverage scores. Error map, render and
+    // target copies live in host memory (32GB+ RAM machines) so the VRAM
+    // budget is untouched; gathered once per refine step, windowed across
+    // views, fused multiplicatively into the growth score when enabled.
+    std::vector<float>  explore_score_sum;    // host [N] windowed explore score
+    std::vector<float>  explore_view_scores;  // host [N] per-view scratch
+    std::vector<float>  explore_err_map;      // host [H*W] |render-target|
+    std::vector<float>  explore_render;       // host [H*W*3] render rgb copy
+    std::vector<float>  explore_target;       // host [H*W*3] gt rgb copy
+    DeviceVector<float> explore_gpu;          // [N] (1+min(avg,cap)) modulator
+    int  explore_sample_count = 0;            // views accumulated
 };
 
 // One bilagrid channel (RGB / depth / normal).

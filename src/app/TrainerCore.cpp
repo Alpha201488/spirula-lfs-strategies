@@ -465,6 +465,7 @@ EngineStepConfig build_step_config(const TrainConfig& c, const RunState& st, int
     cfg.densify.mrnf_fill_target_iter   = c.mrnf_fill_target_iter;
     cfg.densify.mrnf_far_seed_dose      = c.mrnf_far_seed_dose;
     cfg.densify.mrnf_explore_starvation_weighting = c.mrnf_explore_starvation_weighting;
+    cfg.densify.mrnf_explore = c.mrnf_explore;
     cfg.densify.mrnf_growth_ratio_pow   = c.mrnf_growth_ratio_pow;
     cfg.densify.mrnf_max_screen_share   = c.mrnf_max_screen_share;
 

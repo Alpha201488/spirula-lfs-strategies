@@ -273,6 +273,7 @@ struct DensifyConfig {
     int   mrnf_fill_target_iter        = 15000;   // fill_pacing_iter
     int   mrnf_far_seed_dose           = 2000;    // far_seed_dose
     bool  mrnf_explore_starvation_weighting = true;
+    bool  mrnf_explore                 = false;   // LFS seed-view explore, error map kept in CPU RAM
     float mrnf_growth_ratio_pow        = 0.75f;   // growth_ratio_pow
     float mrnf_max_screen_share        = 0.3f;    // max_screen_share
 };

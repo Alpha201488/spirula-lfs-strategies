@@ -203,6 +203,7 @@ inline int train_tier_rank(const char* tier) {
     X(int, mrnf_fill_target_iter, 15000, "detail", "basic", "")             \
     X(int, mrnf_far_seed_dose, 2000, "detail", "basic", "")                 \
     X(bool, mrnf_explore_starvation_weighting, true, "detail", "basic", "") \
+    X(bool, mrnf_explore, false, "detail", "basic", "CPU-RAM seed-view exploration") \
     X(float, mrnf_growth_ratio_pow, 0.75f, "detail", "basic", "")           \
     X(float, mrnf_max_screen_share, 0.3f, "detail", "basic", "")            \
                                                                              \

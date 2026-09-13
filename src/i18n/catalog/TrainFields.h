@@ -4784,6 +4784,14 @@ SS_MSG(mrnf_explore_starvation_weighting,
     EN("MRNF starvation weighting"), ZH_HANS("MRNF 探索饥饿加权"), ZH_HANT("MRNF 探索饥饿加权"),
     JA("MRNF starvation weighting"), KO("MRNF starvation weighting"), DE("MRNF starvation weighting"), FR("MRNF starvation weighting"), ES("MRNF starvation weighting"),
     PT("MRNF starvation weighting"), IT("MRNF starvation weighting"), NL("MRNF starvation weighting"), RU("MRNF starvation weighting"), TR("MRNF starvation weighting"));
+SS_MSG(mrnf_explore,
+    EN("MRNF CPU explore"), ZH_HANS("MRNF 内存探索"), ZH_HANT("MRNF 記憶體探索"),
+    JA("MRNF CPU explore"), KO("MRNF CPU explore"), DE("MRNF CPU explore"), FR("MRNF CPU explore"), ES("MRNF CPU explore"),
+    PT("MRNF CPU explore"), IT("MRNF CPU explore"), NL("MRNF CPU explore"), RU("MRNF CPU explore"), TR("MRNF CPU explore"));
+SS_MSG(mrnf_explore_help,
+    EN("MRNF: LFS seed-view exploration in CPU RAM - error map gathered per projected splat, zero VRAM cost (enable on 32GB+ RAM machines)."), ZH_HANS("MRNF：LFS 种子视图探索，误差图与投影在 CPU 内存中计算，不占显存（32GB+ 内存机器建议开启）。"), ZH_HANT("MRNF：LFS 種子視圖探索，誤差圖與投影在 CPU 記憶體中計算，不佔顯存（32GB+ 記憶體機器建議開啟）。"),
+    JA("MRNF: LFS seed-view exploration in CPU RAM"), KO("MRNF: LFS seed-view exploration in CPU RAM"), DE("MRNF: LFS seed-view exploration in CPU RAM"), FR("MRNF: LFS seed-view exploration in CPU RAM"), ES("MRNF: LFS seed-view exploration in CPU RAM"),
+    PT("MRNF: LFS seed-view exploration in CPU RAM"), IT("MRNF: LFS seed-view exploration in CPU RAM"), NL("MRNF: LFS seed-view exploration in CPU RAM"), RU("MRNF: LFS seed-view exploration in CPU RAM"), TR("MRNF: LFS seed-view exploration in CPU RAM"));
 SS_MSG(mrnf_explore_starvation_weighting_help,
     EN("MRNF: weight scores to steer growth into under-covered regions."), ZH_HANS("MRNF：对得分加权，引导生长进入覆盖不足的区域。"), ZH_HANT("MRNF：对得分加权，引导生长进入覆盖不足的区域。"),
     JA("MRNF: weight scores to steer growth into under-covered regions."), KO("MRNF: weight scores to steer growth into under-covered regions."), DE("MRNF: weight scores to steer growth into under-covered regions."), FR("MRNF: weight scores to steer growth into under-covered regions."), ES("MRNF: weight scores to steer growth into under-covered regions."),

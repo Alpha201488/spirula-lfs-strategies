@@ -134,6 +134,7 @@ enum class SaveClass : uint8_t {
   X(EngStrategyScore               , "eng.strategy.score",                Splat    , Never) \
   X(EngStrategyScorePair           , "eng.strategy.score.pair",           Splat    , Never) \
   X(EngStrategyEdge                , "eng.strategy.edge",                 Splat    , Never) \
+  X(EngStrategyExplore             , "eng.strategy.explore",              Splat    , Never) \
   X(EngStrategyIdx                 , "eng.strategy.idx",                  Splat    , Never) \
   X(EngStrategyScalar              , "eng.strategy.scalar",               Splat    , Never) \
   /* ---- sub-batch scratch ---- */ \

@@ -204,6 +204,7 @@ void _ensure_strategy_state(const DensifyConfig& cfg, int64_t cur_num_splats) {
     st.edge_view_score.resize(PoolSlot::EngStrategyEdge, max_n);
     st.idx_scratch.resize(PoolSlot::EngStrategyIdx, max_n);
     st.idx_scratch2.resize(PoolSlot::EngStrategyIdx, max_n);
+    st.explore_gpu.resize(PoolSlot::EngStrategyExplore, max_n);
     st.count_scratch.resize(PoolSlot::EngStrategyScalar, 1);
     st.sum_scratch.resize(PoolSlot::EngStrategyScalar, 1);
     st.mask_a.zero();
@@ -313,6 +314,111 @@ void _accumulate_error_scores(const DensifyConfig& cfg, int64_t cur) {
     if (S().error_scores.data_ptr() != nullptr) {
         strat_extract_lane0_tensor(cur, dv_accum_buf, S().error_scores);
     }
+}
+
+// ---- LFS seed-view exploration in CPU RAM (mrnf_explore) ----
+// Gathers per-splat image-space under-coverage scores: project every splat
+// into one view of the current batch, read the |render - target| error map,
+// and accumulate a windowed host-side score (median-normalized per view).
+// Render/target copies and the error map live in host memory, so the VRAM
+// budget is untouched -- the point of the feature. Called once per refine
+// step (not per train step) to keep the D->H copies cheap; each call adds
+// one more view to the window.
+void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
+    StrategyState& st = S();
+    if (!cfg.mrnf_explore || cur <= 0) return;
+    auto& cam = engine().camera;
+    if (cam.num <= 0 || cam.width <= 1 || cam.height <= 1) return;
+    const auto& renders = engine().fwd.renders;
+    if (std::get<0>(renders).data_ptr() == nullptr ||
+        engine().gt.rgb.data_ptr() == nullptr)
+        return;
+
+    const int C = cam.num;
+    const int W = cam.width, H = cam.height;
+    const int cam_idx = (int)(st.explore_sample_count % C);
+    const size_t npix = (size_t)H * (size_t)W;
+
+    st.explore_render.resize(npix * 3);
+    st.explore_target.resize(npix * 3);
+    st.explore_err_map.resize(npix);
+
+    const float3* rsrc = (const float3*)std::get<0>(renders).data_ptr()
+        + (int64_t)cam_idx * (int64_t)npix;
+    const float3* gsrc = (const float3*)engine().gt.rgb.data_ptr()
+        + (int64_t)cam_idx * (int64_t)npix;
+    backend::memcpy_sync(st.explore_render.data(), rsrc,
+                         npix * 3 * sizeof(float),
+                         backend::MemcpyKind::DeviceToHost);
+    backend::memcpy_sync(st.explore_target.data(), gsrc,
+                         npix * 3 * sizeof(float),
+                         backend::MemcpyKind::DeviceToHost);
+
+    // CPU error map: mean absolute per-channel error
+    {
+        const float* r = st.explore_render.data();
+        const float* t = st.explore_target.data();
+        float* e = st.explore_err_map.data();
+        for (size_t p = 0; p < npix; ++p) {
+            e[p] = (std::fabs(r[3*p+0] - t[3*p+0]) +
+                    std::fabs(r[3*p+1] - t[3*p+1]) +
+                    std::fabs(r[3*p+2] - t[3*p+2])) * (1.0f / 3.0f);
+        }
+    }
+
+    // Project every splat into this view (same c2w math as the edge kernel)
+    // and gather the local 5-point error average.
+    st.explore_view_scores.resize((size_t)cur);
+    const float4* viewmats = (const float4*)cam.viewmats.data_ptr();
+    const float4* intrins = (const float4*)cam.intrins.data_ptr();
+    const float3* means = engine().world.means.data_ptr();
+    const float4* vm = viewmats + (int64_t)cam_idx * 4;
+    const float3 t0 = make_float3(vm[3].x, vm[3].y, vm[3].z);
+    const float3 R0 = make_float3(vm[0].x, vm[0].y, vm[0].z);
+    const float3 R1 = make_float3(vm[1].x, vm[1].y, vm[1].z);
+    const float3 R2 = make_float3(vm[2].x, vm[2].y, vm[2].z);
+    const float4 intr = intrins[cam_idx];
+    const float fx = intr.x, fy = intr.y, cx = intr.z, cy = intr.w;
+    const float* err = st.explore_err_map.data();
+    float* out = st.explore_view_scores.data();
+    for (int64_t i = 0; i < cur; ++i) {
+        const float3 p = means[i];
+        const float3 d = make_float3(p.x - t0.x, p.y - t0.y, p.z - t0.z);
+        const float pcx = R0.x*d.x + R0.y*d.y + R0.z*d.z;
+        const float pcy = R1.x*d.x + R1.y*d.y + R1.z*d.z;
+        const float pcz = R2.x*d.x + R2.y*d.y + R2.z*d.z;
+        float score = 0.0f;
+        if (pcz > 1e-3f) {
+            const float sx = fx * pcx / pcz + cx;
+            const float sy = fy * pcy / pcz + cy;
+            const int x = (int)std::floor(sx);
+            const int y = (int)std::floor(sy);
+            if (x >= 1 && y >= 1 && x <= W - 2 && y <= H - 2) {
+                score = err[(size_t)y*W + x];
+                score += err[(size_t)y*W + (size_t)(x-1)];
+                score += err[(size_t)y*W + (size_t)(x+1)];
+                score += err[(size_t)(y-1)*W + (size_t)x];
+                score += err[(size_t)(y+1)*W + (size_t)x];
+                score *= (1.0f / 5.0f);
+            }
+        }
+        out[i] = score;
+    }
+
+    // Per-view median normalization (LFS: normalize_by_positive_median)
+    std::vector<float> tmp(out, out + cur);
+    std::nth_element(tmp.begin(), tmp.begin() + cur / 2, tmp.end());
+    const float med = tmp[cur / 2];
+    if (med > 1e-9f) {
+        for (int64_t i = 0; i < cur; ++i) out[i] /= med;
+    }
+
+    // Accumulate into the windowed sum
+    if (st.explore_score_sum.size() != (size_t)cur)
+        st.explore_score_sum.assign((size_t)cur, 0.0f);
+    for (int64_t i = 0; i < cur; ++i)
+        st.explore_score_sum[(size_t)i] += out[i];
+    st.explore_sample_count++;
 }
 
 // ---- common zero-out of the accumulation window at refine time ----
@@ -745,6 +851,23 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
                              backend::MemcpyKind::DeviceToDevice);
     }
     strat_ew_clamp_min_inplace_tensor(cur, st.score_scratch, 1e-12f);
+
+    // ---- LFS explore modulation (CPU-RAM seed-view scores) ----
+    // score_i *= (1 + min(windowed_explore_avg_i, 4)), steering growth into
+    // under-covered image regions at zero VRAM cost.
+    if (cfg.mrnf_explore && st.explore_sample_count > 0 &&
+        st.explore_score_sum.size() == (size_t)cur) {
+        const float inv_n = 1.0f / (float)st.explore_sample_count;
+        std::vector<float> h((size_t)cur);
+        for (int64_t i = 0; i < cur; ++i)
+            h[(size_t)i] = std::min(st.explore_score_sum[(size_t)i] * inv_n, 4.0f);
+        backend::memcpy_sync(st.explore_gpu.data_ptr(), h.data(),
+                             (size_t)cur * sizeof(float),
+                             backend::MemcpyKind::HostToDevice);
+        strat_ew_add_scalar_inplace_tensor(cur, st.explore_gpu, 1.0f);
+        strat_ew_mul_inplace_tensor(cur, st.score_scratch, st.explore_gpu);
+    }
+
     _zero_count(st.count_scratch);
     strat_count_nonzero_tensor(cur, st.score_scratch, st.count_scratch);
     int64_t selectable = _host_count(st.count_scratch);
@@ -1022,6 +1145,13 @@ void engine_strategy_reset() {
     st.far_starvation = 1.0f;
     st.edge_view_count = 0;
     st.refine_count = 0;
+    st.explore_score_sum.clear();
+    st.explore_view_scores.clear();
+    st.explore_err_map.clear();
+    st.explore_render.clear();
+    st.explore_target.clear();
+    st.explore_gpu = DeviceVector<float>();
+    st.explore_sample_count = 0;
 }
 
 int engine_strategy_densify(int step, int max_steps, const DensifyConfig& cfg) {
@@ -1050,6 +1180,9 @@ int engine_strategy_densify(int step, int max_steps, const DensifyConfig& cfg) {
     _accumulate_error_scores(cfg, cur);
     if (st.id == StrategyId::IgsPlus || st.id == StrategyId::Mrnf)
         _accumulate_edge_scores(cfg);
+    // seed-view explore (CPU RAM): one more view per refine step
+    if (do_densify && st.id == StrategyId::Mrnf)
+        _accumulate_explore_cpu(cfg, cur);
 
     if (!do_densify)
         return 0;
