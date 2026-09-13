@@ -67,11 +67,29 @@ jobs:
           apt-get update
           apt-get install -y cmake ninja-build pkg-config ccache
 
+      - name: Restore ccache
+        # Every push lands on a fresh runner, so without a compiler cache each
+        # run recompiles the whole tree (~2.5h on Windows). ccache persists
+        # object hashes across runs; only files that actually changed rebuild.
+        # Fixed key (not sha-based): the concurrency group guarantees a single
+        # build per branch, so the entry is simply refreshed each run instead
+        # of accumulating many near-identical cache entries.
+        uses: actions/cache@v4
+        with:
+          path: /github/home/.cache/ccache
+          key: ccache-linux-${{ runner.arch }}-cuda13
+          restore-keys: ccache-linux-
+
       - name: Configure
         run: |
+          ccache --set-config=max_size=6G
+          ccache --set-config=compression=true
           cmake -B build -S . -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} \
             -DSS_BUILD_GUI=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache \
             -DTORCH_CUDA_ARCH_LIST="${{ env.TORCH_CUDA_ARCH_LIST }}"
 
       - name: Build
@@ -116,6 +134,24 @@ jobs:
           if ($p.ExitCode -ne 0) { exit $p.ExitCode }
           "VULKAN_SDK=C:\VulkanSDK" >> $env:GITHUB_ENV
 
+      - name: Install ccache
+        # MSVC+nvcc support landed in ccache 4.x; 4.10.2 is a pinned, known
+        # good Windows release. nvcc shells out to cl.exe, so cache hits are
+        # partial, but the GUI's C++ bulk (imgui/glfw/app code) hits hard.
+        shell: pwsh
+        run: |
+          curl.exe -sSL -o ccache.zip https://github.com/ccache/ccache/releases/download/v4.10.2/ccache-4.10.2-windows-x86_64.zip
+          Expand-Archive -Force ccache.zip -DestinationPath C:\ccache
+          "C:\ccache\ccache-4.10.2-windows-x86_64" >> $env:GITHUB_PATH
+          ccache --version
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: C:\Users\runneradmin\AppData\Local\ccache
+          key: ccache-windows-${{ runner.arch }}-cuda13
+          restore-keys: ccache-windows-
+
       - name: Build
         shell: cmd
         # GUI builds the GLFW/ImGui window app (SS_BUILD_GUI defaults to ON).
@@ -124,7 +160,10 @@ jobs:
         # SegmentPanel -> nn/ + sam/), so the CUDA build must opt both in
         # (default OFF under SS_BACKEND=cuda); slangc is auto-fetched by
         # ss_find_slangc when missing.
-        run: build_develop.bat -DSS_BUILD_SFM=ON -DSS_BUILD_SAM=ON -DTORCH_CUDA_ARCH_LIST=8.9;12.0
+        run: |
+          ccache --set-config=max_size=8G
+          ccache --set-config=compression=true
+          build_develop.bat -DSS_BUILD_SFM=ON -DSS_BUILD_SAM=ON -DTORCH_CUDA_ARCH_LIST=8.9;12.0 -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache
 
       - name: Smoke
         shell: cmd
