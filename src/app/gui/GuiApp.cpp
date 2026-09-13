@@ -6085,12 +6085,15 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
 
     if (_ram.has_process || _ram.has_used || _ram.has_total)
         draw_usage_readout(right - vram_w, _ram, "RAM", msg::ram_help, true);
-    draw_usage_readout(right, _vram, nullptr, msg::vram_help, false);
+    // VRAM's bar is load-bearing (it is the readout the training decision
+    // rides on), so it must never give up its bar to a space contest. The RAM
+    // readout to its left is the optional one and yields first.
+    draw_usage_readout(right, _vram, nullptr, msg::vram_help, false, true);
 }
 
 float GuiApp::draw_usage_readout(float right, const backend::MemoryUsage& m,
                                  const char* prefix, const Msg& help,
-                                 bool optional) {
+                                 bool optional, bool keep_bar) {
     // Nothing queryable (no device / all queries failed): stay silent rather
     // than show a confusing "n/a".
     if (!m.has_process && !m.has_used && !m.has_total) return right;
@@ -6139,8 +6142,9 @@ float GuiApp::draw_usage_readout(float right, const backend::MemoryUsage& m,
     // so the VRAM bar's start lands exactly on the cursor left behind by the
     // RAM text. With <= that "just fits" case was misread as "no room" and the
     // VRAM bar was dropped every frame (numbers only), while the RAM bar next
-    // to it survived. Only a real shortfall (<) should drop the bar.
-    if (target < ImGui::GetCursorPosX()) {
+    // to it survived. Only a real shortfall (<) should drop the bar -- and
+    // keep_bar (the VRAM readout) never drops it at all.
+    if (target < ImGui::GetCursorPosX() && !keep_bar) {
         bar_w = gap = 0.0f;
         target = right - text_w;
         if (target < ImGui::GetCursorPosX()) {

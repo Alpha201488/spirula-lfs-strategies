@@ -339,7 +339,7 @@ private:
     void draw_vram_readout(float x0, float avail);
     float draw_usage_readout(float right, const backend::MemoryUsage& m,
                              const char* prefix, const spirula::i18n::Msg& help,
-                             bool optional);
+                             bool optional, bool keep_bar = false);
 
     // ---- layout ----
     // The height the log panel gets when `avail` vertical pixels are shared
