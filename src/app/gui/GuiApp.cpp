@@ -6135,10 +6135,15 @@ float GuiApp::draw_usage_readout(float right, const backend::MemoryUsage& m,
     float bar_w = sized ? px(120.0f) : 0.0f;
     float gap = sized ? st.ItemInnerSpacing.x : 0.0f;
     float target = right - bar_w - gap - text_w;
-    if (target <= ImGui::GetCursorPosX()) {
+    // Strict <, not <=: the RAM readout sits immediately left of the VRAM one,
+    // so the VRAM bar's start lands exactly on the cursor left behind by the
+    // RAM text. With <= that "just fits" case was misread as "no room" and the
+    // VRAM bar was dropped every frame (numbers only), while the RAM bar next
+    // to it survived. Only a real shortfall (<) should drop the bar.
+    if (target < ImGui::GetCursorPosX()) {
         bar_w = gap = 0.0f;
         target = right - text_w;
-        if (target <= ImGui::GetCursorPosX()) {
+        if (target < ImGui::GetCursorPosX()) {
             if (optional) return right;  // give up the whole readout
             target = ImGui::GetCursorPosX();  // squeeze; caller row is full
         }
