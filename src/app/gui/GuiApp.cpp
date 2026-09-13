@@ -5798,6 +5798,13 @@ void GuiApp::draw_basic_options() {
     macro_option("quality", _cfg.quality, fld::quality, fld::quality_help,
                  {"low", "medium", "high", "ultra"});
 
+    // The densification strategy sits at the same level as quality: it is the
+    // second thing a run is chosen by (revised native, or one of the three
+    // LFS ports). Its per-strategy tuning lives in the "Densify" section.
+    macro_option("densify_strategy", _cfg.densify_strategy,
+                 fld::densify_strategy, fld::densify_strategy_help,
+                 {"revised", "igs+", "mrnf", "mcmc"});
+
     ImGui::SetNextItemWidth(w);
     if (ui::InputInt(msg::opt_steps, &_cfg.num_iterations))
         _cfg_ui.touched.insert("num_iterations");
@@ -6049,12 +6056,35 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
         _vram_polled_at = now;
     }
 
-    // RAM readout left of the VRAM one; the RAM bar is the first to give up
-    // its bar (then itself) when the strip is short -- VRAM is the readout
-    // the training decision actually rides on.
+    // Text width of one readout, mirroring draw_usage_readout's label.
+    auto readout_label = [](const backend::MemoryUsage& m, const char* prefix) {
+        auto part = [](bool has, uint64_t bytes) {
+            return has ? format_gib(bytes) : std::string("?");
+        };
+        std::string body =
+            (m.has_total && m.total_bytes > 0)
+                ? part(m.has_process, m.process_bytes) + " / " +
+                      part(m.has_used, m.used_bytes) + " / " +
+                      format_gib(m.total_bytes) + " GiB"
+                : part(m.has_process, m.process_bytes) + " GiB";
+        return prefix ? std::string(prefix) + " " + body : body;
+    };
+
+    const ImGuiStyle& st = ImGui::GetStyle();
     float right = x0 + avail - px(8.0f);
+
+    // Reserve the VRAM readout's full footprint first: it is the readout the
+    // training decision actually rides on, so it must never be pushed off the
+    // right edge by the RAM one. The RAM readout is placed to its left and,
+    // being optional, gives up its bar then itself when the strip is short.
+    const bool vram_sized = _vram.has_total && _vram.total_bytes > 0;
+    const float vram_w =
+        (vram_sized ? px(120.0f) : 0.0f) + st.ItemInnerSpacing.x +
+        ImGui::CalcTextSize(
+            readout_label(_vram, nullptr).c_str()).x;
+
     if (_ram.has_process || _ram.has_used || _ram.has_total)
-        right = draw_usage_readout(right, _ram, "RAM", msg::ram_help, true);
+        draw_usage_readout(right - vram_w, _ram, "RAM", msg::ram_help, true);
     draw_usage_readout(right, _vram, nullptr, msg::vram_help, false);
 }
 

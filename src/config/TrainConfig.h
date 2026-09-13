@@ -58,7 +58,7 @@ inline constexpr float kTrainInf = std::numeric_limits<float>::infinity();
 // The headings, in the order they are listed. Their labels live in
 // i18n/catalog/Train.h (section_*), which this header must not include.
 inline constexpr const char* kTrainSections[] = {
-    "run", "dataset", "scene", "splats", "detail", "loss",
+    "run", "dataset", "scene", "splats", "detail", "densify", "loss",
     "geometry", "shape", "correction", "colorspace", "perf", "rates",
 };
 inline constexpr int kTrainNumSections =
@@ -190,22 +190,22 @@ inline int train_tier_rank(const char* tier) {
     X(float, max_screen_size_penalty, 1.0f, "detail", "basic", "")           \
     X(float, max_world_size, kTrainInf, "detail", "expert", "")              \
     /* ---- LFS-style densification strategy (IGS+ / MRNF / MCMC port) ---- */ \
-    X(std::string, densify_strategy, "revised", "detail", "basic", "revised|igs+|mrnf|mcmc") \
-    X(int, densify_strategy_max_cap, 0, "detail", "basic", "0 = engine pool cap") \
-    X(float, igs_edge_score_weight, 0.25f, "detail", "basic", "")           \
-    X(int, igs_error_candidate_factor, 4, "detail", "basic", "")            \
-    X(float, igs_prune_opacity, 0.005f, "detail", "basic", "")              \
-    X(int, igs_reset_opacity_every, 3000, "detail", "basic", "")            \
-    X(float, mrnf_grow_fraction, 0.07f, "detail", "basic", "")              \
-    X(float, mrnf_min_opacity, 0.005f, "detail", "basic", "")               \
-    X(float, mrnf_far_growth_cap, 0.3f, "detail", "basic", "")              \
-    X(float, mrnf_far_decay_scale, 0.25f, "detail", "basic", "")            \
-    X(int, mrnf_fill_target_iter, 15000, "detail", "basic", "")             \
-    X(int, mrnf_far_seed_dose, 2000, "detail", "basic", "")                 \
-    X(bool, mrnf_explore_starvation_weighting, true, "detail", "basic", "") \
-    X(bool, mrnf_explore, false, "detail", "basic", "CPU-RAM seed-view exploration") \
-    X(float, mrnf_growth_ratio_pow, 0.75f, "detail", "basic", "")           \
-    X(float, mrnf_max_screen_share, 0.3f, "detail", "basic", "")            \
+    X(std::string, densify_strategy, "revised", "densify", "basic", "revised|igs+|mrnf|mcmc") \
+    X(int, densify_strategy_max_cap, 0, "densify", "basic", "0 = engine pool cap") \
+    X(float, igs_edge_score_weight, 0.25f, "densify", "basic", "")           \
+    X(int, igs_error_candidate_factor, 4, "densify", "basic", "")            \
+    X(float, igs_prune_opacity, 0.005f, "densify", "basic", "")              \
+    X(int, igs_reset_opacity_every, 3000, "densify", "basic", "")            \
+    X(float, mrnf_grow_fraction, 0.07f, "densify", "basic", "")              \
+    X(float, mrnf_min_opacity, 0.005f, "densify", "basic", "")               \
+    X(float, mrnf_far_growth_cap, 0.3f, "densify", "basic", "")              \
+    X(float, mrnf_far_decay_scale, 0.25f, "densify", "basic", "")            \
+    X(int, mrnf_fill_target_iter, 15000, "densify", "basic", "")             \
+    X(int, mrnf_far_seed_dose, 2000, "densify", "basic", "")                 \
+    X(bool, mrnf_explore_starvation_weighting, true, "densify", "basic", "") \
+    X(bool, mrnf_explore, false, "densify", "basic", "CPU-RAM seed-view exploration") \
+    X(float, mrnf_growth_ratio_pow, 0.75f, "densify", "basic", "")           \
+    X(float, mrnf_max_screen_share, 0.3f, "densify", "basic", "")            \
                                                                              \
     /* ==== loss -- how the render is compared against the photo ==== */     \
     X(float, ssim_lambda, 0.2f, "loss", "basic", "")                         \
