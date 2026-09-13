@@ -6,6 +6,7 @@
 
 #include "backend/api/BackendRuntime.h"
 #include "config/TrainConfig.h"
+#include "i18n/Message.h"
 #include "app/gui/BatchTrain.h"
 #include "app/gui/ColmapRunner.h"
 #include "app/gui/CompareView.h"
@@ -331,9 +332,14 @@ private:
     void draw_train_controls();
     void draw_metrics();
     void draw_status_strip();
-    // Right-aligned VRAM readout on the status strip; x0/avail describe the
-    // strip's content region (window-local left edge and width).
+    // Right-aligned readouts on the status strip; x0/avail describe the
+    // strip's content region (window-local left edge and width). The RAM
+    // readout is painted left of the VRAM one. draw_usage_readout draws one
+    // right-aligned bar+label and returns the left edge it consumed.
     void draw_vram_readout(float x0, float avail);
+    float draw_usage_readout(float right, const backend::MemoryUsage& m,
+                             const char* prefix, const spirula::i18n::Msg& help,
+                             bool optional);
 
     // ---- layout ----
     // The height the log panel gets when `avail` vertical pixels are shared
@@ -659,6 +665,8 @@ private:
     // VRAM readout on the status strip, polled from the backend at ~2 Hz.
     backend::MemoryUsage _vram;
     double _vram_polled_at = -1.0;
+    // Host RAM readout (drawn left of the VRAM one), polled at the same rate.
+    backend::MemoryUsage _ram;
 };
 
 }  // namespace gui

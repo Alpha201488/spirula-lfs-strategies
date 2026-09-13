@@ -1828,6 +1828,38 @@ SS_MSG(status_metrics,
     RU("сплатов: {0}   ssim: {1}   потери: {2}"),
     TR("splat: {0}   ssim: {1}   kayıp: {2}"));
 
+SS_MSG(ram_help,
+    EN("System memory (GiB): used by this process / total in use system-wide / "
+       "physical RAM capacity. '?' means the OS query failed."),
+    JA("システムメモリ（GiB）: このプロセスの使用量 / システム全体の使用量 / "
+       "物理 RAM 容量。「?」は OS クエリが失敗したことを示します。"),
+    ZH_HANS("内存（GiB）：本进程占用 / 系统整体占用 / 物理内存容量。“?”表示"
+            "系统查询失败。"),
+    ZH_HANT("記憶體（GiB）：本行程佔用 / 系統整體佔用 / 實體記憶體容量。「?」表示"
+            "系統查詢失敗。"),
+    KO("시스템 메모리(GiB): 이 프로세스 사용량 / 시스템 전체 사용량 / 물리 RAM "
+       "용량. '?'는 OS 조회 실패를 뜻합니다."),
+    DE("Arbeitsspeicher (GiB): von diesem Prozess belegt / systemweit belegt / "
+       "physische RAM-Kapazität. „?“ heißt, die OS-Abfrage ist fehlgeschlagen."),
+    FR("Mémoire système (Gio) : utilisée par ce processus / utilisée à l'échelle "
+       "du système / capacité physique de la RAM. « ? » signifie que la requête "
+       "système a échoué."),
+    ES("Memoria del sistema (GiB): usada por este proceso / usada en todo el "
+       "sistema / capacidad física de RAM. «?» significa que la consulta al "
+       "sistema falló."),
+    PT("Memória do sistema (GiB): usada por este processo / usada em todo o "
+       "sistema / capacidade física de RAM. «?» significa que a consulta ao "
+       "sistema falhou."),
+    IT("Memoria di sistema (GiB): usata da questo processo / usata a livello di "
+       "sistema / capacità fisica della RAM. «?» significa che la query di "
+       "sistema è fallita."),
+    NL("Systeemgeheugen (GiB): gebruikt door dit proces / systeembreed gebruikt / "
+       "fysieke RAM-capaciteit. '?' betekent dat de systeemquery is mislukt."),
+    RU("Память системы (ГиБ): занято этим процессом / занято всей системой / "
+       "физический объём ОЗУ. «?» означает, что системный запрос не удался."),
+    TR("Sistem belleği (GiB): bu işlem tarafından kullanılan / sistem genelinde "
+       "kullanılan / fiziksel RAM kapasitesi. '?' sistem sorgusunun başarısız "
+       "olduğu anlamına gelir."));
 SS_MSG(vram_help,
     EN("GPU memory (GiB): used by this process / total in use system-wide / "
        "device capacity. '?' means the backend could not query that value."),

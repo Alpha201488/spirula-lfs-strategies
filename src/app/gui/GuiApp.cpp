@@ -2,6 +2,7 @@
 
 #include "app/gui/GuiApp.h"
 
+#include "backend/common/SystemMemory.h"
 #include "core/ColorSpace.h"
 #include "core/ExrImage.h"
 
@@ -6039,18 +6040,30 @@ void GuiApp::draw_status_strip() {
 }
 
 void GuiApp::draw_vram_readout(float x0, float avail) {
-    // Poll the backend at ~2 Hz; the driver queries are cheap but there is no
-    // reason to hit them every frame.
+    // Poll the backend (and the host RAM counters) at ~2 Hz; the driver and
+    // OS queries are cheap but there is no reason to hit them every frame.
     double now = ImGui::GetTime();
     if (_vram_polled_at < 0.0 || now - _vram_polled_at > 0.5) {
         _vram = backend::memory_usage();
+        _ram = backend::host_memory_usage();
         _vram_polled_at = now;
     }
-    const backend::MemoryUsage& m = _vram;
 
+    // RAM readout left of the VRAM one; the RAM bar is the first to give up
+    // its bar (then itself) when the strip is short -- VRAM is the readout
+    // the training decision actually rides on.
+    float right = x0 + avail - px(8.0f);
+    if (_ram.has_process || _ram.has_used || _ram.has_total)
+        right = draw_usage_readout(right, _ram, "RAM", msg::ram_help, true);
+    draw_usage_readout(right, _vram, nullptr, msg::vram_help, false);
+}
+
+float GuiApp::draw_usage_readout(float right, const backend::MemoryUsage& m,
+                                 const char* prefix, const Msg& help,
+                                 bool optional) {
     // Nothing queryable (no device / all queries failed): stay silent rather
     // than show a confusing "n/a".
-    if (!m.has_process && !m.has_used && !m.has_total) return;
+    if (!m.has_process && !m.has_used && !m.has_total) return right;
 
     auto part = [](bool has, uint64_t bytes) {
         return has ? format_gib(bytes) : std::string("?");
@@ -6058,7 +6071,7 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
 
     // A bar, because what matters here is a proportion: how close the device
     // is to full, and how much of that is this program rather than everything
-    // else on the card. Three numbers in a row said neither without arithmetic.
+    // else. Three numbers in a row said neither without arithmetic.
     const bool sized = m.has_total && m.total_bytes > 0;
     const double total = sized ? (double)m.total_bytes : 0.0;
     const double used = m.has_used ? (double)m.used_bytes : (double)m.process_bytes;
@@ -6066,20 +6079,22 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
     const float used_f = sized ? (float)std::min(used / total, 1.0) : 0.0f;
     const float proc_f = sized ? (float)std::min(proc / total, (double)used_f) : 0.0f;
 
-    // Pressure is a property of the whole device, so the fill colour follows
+    // Pressure is a property of the whole system, so the fill colour follows
     // system-wide use even though the bright segment is this process's share.
     ImVec4 color = kDim;
     if (sized && m.has_used)
         color = used_f >= 0.9f ? kErr : used_f >= 0.7f ? kWarn : kOk;
 
-    // The same three numbers vram_help names, in that order: what this run
+    // The same three numbers the help names, in that order: what this run
     // costs is the one a user is deciding on, and it is not recoverable from
     // the other two.
-    const std::string label =
+    std::string body =
         sized ? part(m.has_process, m.process_bytes) + " / " +
                     part(m.has_used, m.used_bytes) + " / " +
                     format_gib(m.total_bytes) + " GiB"
-              : "VRAM " + part(m.has_process, m.process_bytes) + " GiB";
+              : part(m.has_process, m.process_bytes) + " GiB";
+    const std::string label =
+        prefix ? std::string(prefix) + " " + body : body;
 
     const ImGuiStyle& st = ImGui::GetStyle();
     const float text_w = ImGui::CalcTextSize(label.c_str()).x;
@@ -6089,10 +6104,14 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
     // right edge of a narrow panel, or of any panel at a large interface size.
     float bar_w = sized ? px(120.0f) : 0.0f;
     float gap = sized ? st.ItemInnerSpacing.x : 0.0f;
-    float target = x0 + avail - bar_w - gap - text_w - px(8.0f);
+    float target = right - bar_w - gap - text_w;
     if (target <= ImGui::GetCursorPosX()) {
         bar_w = gap = 0.0f;
-        target = x0 + avail - text_w - px(8.0f);
+        target = right - text_w;
+        if (target <= ImGui::GetCursorPosX()) {
+            if (optional) return right;  // give up the whole readout
+            target = ImGui::GetCursorPosX();  // squeeze; caller row is full
+        }
     }
     if (target > ImGui::GetCursorPosX()) ImGui::SetCursorPosX(target);
 
@@ -6114,12 +6133,13 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
                               ImGui::GetColorU32(color), r);
         dl->AddRect(p, ImVec2(p.x + bar_w, p.y + h),
                     ImGui::GetColorU32(ImGuiCol_Border), r);
-        ui::InvisibleButtonRaw("##vram", ImVec2(bar_w, h));
-        ui::help_on_hover(msg::vram_help);
+        ui::InvisibleButtonRaw("##mem", ImVec2(bar_w, h));
+        ui::help_on_hover(help);
         ImGui::SameLine(0.0f, gap);
     }
     ui::TextColoredRaw(sized ? kDim : color, label);
-    ui::help_on_hover(msg::vram_help);
+    ui::help_on_hover(help);
+    return target;
 }
 
 // ---------------------------------------------------------------------------

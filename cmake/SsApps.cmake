@@ -220,7 +220,7 @@ if(SS_BUILD_GUI)
     # macOS need the platform toolkit for it; Linux spawns zenity/kdialog and
     # links nothing.
     if(WIN32)
-        list(APPEND SS_TOOL_LIBS ole32 uuid shell32)
+        list(APPEND SS_TOOL_LIBS ole32 uuid shell32 psapi)
     elseif(APPLE)
         # Deliberately no enable_language(OBJCXX): CMake would then hand every
         # .m in the build to clang as Objective-C++, and GLFW's whole Cocoa
