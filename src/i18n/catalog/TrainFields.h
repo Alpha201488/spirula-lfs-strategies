@@ -4684,35 +4684,80 @@ SS_MSG(max_world_size_help,
        "uzakta devasa uçuşan artıklar belirdiğinde ayarlayın."));
 
 
-SS_MSG_EN(densify_strategy, "Densify strategy");
+SS_MSG(densify_strategy,
+    EN("Densify strategy"), ZH_HANS("密集化策略"), ZH_HANT("密集化策略"),
+    JA("Densify strategy"), KO("Densify strategy"), DE("Densify strategy"), FR("Densify strategy"), ES("Densify strategy"),
+    PT("Densify strategy"), IT("Densify strategy"), NL("Densify strategy"), RU("Densify strategy"), TR("Densify strategy"));
 SS_MSG_EN(densify_strategy_help, "Densification strategy: revised (Spirula native), igs+ / mrnf / mcmc (LichtFeld Studio ports).");
-SS_MSG_EN(densify_strategy_max_cap, "Strategy max cap");
+SS_MSG(densify_strategy_max_cap,
+    EN("Strategy max cap"), ZH_HANS("策略最大容量"), ZH_HANT("策略最大容量"),
+    JA("Strategy max cap"), KO("Strategy max cap"), DE("Strategy max cap"), FR("Strategy max cap"), ES("Strategy max cap"),
+    PT("Strategy max cap"), IT("Strategy max cap"), NL("Strategy max cap"), RU("Strategy max cap"), TR("Strategy max cap"));
 SS_MSG_EN(densify_strategy_max_cap_help, "Hard cap on the splat count for the selected strategy; 0 = engine pool cap.");
-SS_MSG_EN(igs_edge_score_weight, "IGS+ edge score weight");
+SS_MSG(igs_edge_score_weight,
+    EN("IGS+ edge score weight"), ZH_HANS("IGS+ 边缘得分权重"), ZH_HANT("IGS+ 边缘得分权重"),
+    JA("IGS+ edge score weight"), KO("IGS+ edge score weight"), DE("IGS+ edge score weight"), FR("IGS+ edge score weight"), ES("IGS+ edge score weight"),
+    PT("IGS+ edge score weight"), IT("IGS+ edge score weight"), NL("IGS+ edge score weight"), RU("IGS+ edge score weight"), TR("IGS+ edge score weight"));
 SS_MSG_EN(igs_edge_score_weight_help, "IGS+: weight of the edge-aware score blended into the growth score.");
-SS_MSG_EN(igs_error_candidate_factor, "IGS+ error candidates");
+SS_MSG(igs_error_candidate_factor,
+    EN("IGS+ error candidates"), ZH_HANS("IGS+ 误差候选系数"), ZH_HANT("IGS+ 误差候选系数"),
+    JA("IGS+ error candidates"), KO("IGS+ error candidates"), DE("IGS+ error candidates"), FR("IGS+ error candidates"), ES("IGS+ error candidates"),
+    PT("IGS+ error candidates"), IT("IGS+ error candidates"), NL("IGS+ error candidates"), RU("IGS+ error candidates"), TR("IGS+ error candidates"));
 SS_MSG_EN(igs_error_candidate_factor_help, "IGS+: how many error candidates to spawn per splat slot on expansion.");
-SS_MSG_EN(igs_prune_opacity, "IGS+ prune opacity");
+SS_MSG(igs_prune_opacity,
+    EN("IGS+ prune opacity"), ZH_HANS("IGS+ 修剪不透明度"), ZH_HANT("IGS+ 修剪不透明度"),
+    JA("IGS+ prune opacity"), KO("IGS+ prune opacity"), DE("IGS+ prune opacity"), FR("IGS+ prune opacity"), ES("IGS+ prune opacity"),
+    PT("IGS+ prune opacity"), IT("IGS+ prune opacity"), NL("IGS+ prune opacity"), RU("IGS+ prune opacity"), TR("IGS+ prune opacity"));
 SS_MSG_EN(igs_prune_opacity_help, "IGS+: splats whose opacity falls below this value are pruned.");
-SS_MSG_EN(igs_reset_opacity_every, "IGS+ reset opacity every");
+SS_MSG(igs_reset_opacity_every,
+    EN("IGS+ reset opacity every"), ZH_HANS("IGS+ 重置不透明度间隔"), ZH_HANT("IGS+ 重置不透明度间隔"),
+    JA("IGS+ reset opacity every"), KO("IGS+ reset opacity every"), DE("IGS+ reset opacity every"), FR("IGS+ reset opacity every"), ES("IGS+ reset opacity every"),
+    PT("IGS+ reset opacity every"), IT("IGS+ reset opacity every"), NL("IGS+ reset opacity every"), RU("IGS+ reset opacity every"), TR("IGS+ reset opacity every"));
 SS_MSG_EN(igs_reset_opacity_every_help, "IGS+: reset the opacity of stale splats every N iterations.");
-SS_MSG_EN(mrnf_grow_fraction, "MRNF grow fraction");
+SS_MSG(mrnf_grow_fraction,
+    EN("MRNF grow fraction"), ZH_HANS("MRNF 生长比例"), ZH_HANT("MRNF 生长比例"),
+    JA("MRNF grow fraction"), KO("MRNF grow fraction"), DE("MRNF grow fraction"), FR("MRNF grow fraction"), ES("MRNF grow fraction"),
+    PT("MRNF grow fraction"), IT("MRNF grow fraction"), NL("MRNF grow fraction"), RU("MRNF grow fraction"), TR("MRNF grow fraction"));
 SS_MSG_EN(mrnf_grow_fraction_help, "MRNF: fraction of splats grown each refinement round.");
-SS_MSG_EN(mrnf_min_opacity, "MRNF min opacity");
+SS_MSG(mrnf_min_opacity,
+    EN("MRNF min opacity"), ZH_HANS("MRNF 最小不透明度"), ZH_HANT("MRNF 最小不透明度"),
+    JA("MRNF min opacity"), KO("MRNF min opacity"), DE("MRNF min opacity"), FR("MRNF min opacity"), ES("MRNF min opacity"),
+    PT("MRNF min opacity"), IT("MRNF min opacity"), NL("MRNF min opacity"), RU("MRNF min opacity"), TR("MRNF min opacity"));
 SS_MSG_EN(mrnf_min_opacity_help, "MRNF: opacity floor for keeping a splat.");
-SS_MSG_EN(mrnf_far_growth_cap, "MRNF far growth cap");
+SS_MSG(mrnf_far_growth_cap,
+    EN("MRNF far growth cap"), ZH_HANS("MRNF 远处生长上限"), ZH_HANT("MRNF 远处生长上限"),
+    JA("MRNF far growth cap"), KO("MRNF far growth cap"), DE("MRNF far growth cap"), FR("MRNF far growth cap"), ES("MRNF far growth cap"),
+    PT("MRNF far growth cap"), IT("MRNF far growth cap"), NL("MRNF far growth cap"), RU("MRNF far growth cap"), TR("MRNF far growth cap"));
 SS_MSG_EN(mrnf_far_growth_cap_help, "MRNF: cap on far-splat growth to keep distant floaters in check.");
-SS_MSG_EN(mrnf_far_decay_scale, "MRNF far decay scale");
+SS_MSG(mrnf_far_decay_scale,
+    EN("MRNF far decay scale"), ZH_HANS("MRNF 远处衰减尺度"), ZH_HANT("MRNF 远处衰减尺度"),
+    JA("MRNF far decay scale"), KO("MRNF far decay scale"), DE("MRNF far decay scale"), FR("MRNF far decay scale"), ES("MRNF far decay scale"),
+    PT("MRNF far decay scale"), IT("MRNF far decay scale"), NL("MRNF far decay scale"), RU("MRNF far decay scale"), TR("MRNF far decay scale"));
 SS_MSG_EN(mrnf_far_decay_scale_help, "MRNF: decay applied to far-splat scores.");
-SS_MSG_EN(mrnf_fill_target_iter, "MRNF fill target iter");
+SS_MSG(mrnf_fill_target_iter,
+    EN("MRNF fill target iter"), ZH_HANS("MRNF 填充目标迭代"), ZH_HANT("MRNF 填充目标迭代"),
+    JA("MRNF fill target iter"), KO("MRNF fill target iter"), DE("MRNF fill target iter"), FR("MRNF fill target iter"), ES("MRNF fill target iter"),
+    PT("MRNF fill target iter"), IT("MRNF fill target iter"), NL("MRNF fill target iter"), RU("MRNF fill target iter"), TR("MRNF fill target iter"));
 SS_MSG_EN(mrnf_fill_target_iter_help, "MRNF: iteration by which the splat budget should be filled.");
-SS_MSG_EN(mrnf_far_seed_dose, "MRNF far seed dose");
+SS_MSG(mrnf_far_seed_dose,
+    EN("MRNF far seed dose"), ZH_HANS("MRNF 远处播种量"), ZH_HANT("MRNF 远处播种量"),
+    JA("MRNF far seed dose"), KO("MRNF far seed dose"), DE("MRNF far seed dose"), FR("MRNF far seed dose"), ES("MRNF far seed dose"),
+    PT("MRNF far seed dose"), IT("MRNF far seed dose"), NL("MRNF far seed dose"), RU("MRNF far seed dose"), TR("MRNF far seed dose"));
 SS_MSG_EN(mrnf_far_seed_dose_help, "MRNF: how many far splats are seeded each round.");
-SS_MSG_EN(mrnf_explore_starvation_weighting, "MRNF starvation weighting");
+SS_MSG(mrnf_explore_starvation_weighting,
+    EN("MRNF starvation weighting"), ZH_HANS("MRNF 探索饥饿加权"), ZH_HANT("MRNF 探索饥饿加权"),
+    JA("MRNF starvation weighting"), KO("MRNF starvation weighting"), DE("MRNF starvation weighting"), FR("MRNF starvation weighting"), ES("MRNF starvation weighting"),
+    PT("MRNF starvation weighting"), IT("MRNF starvation weighting"), NL("MRNF starvation weighting"), RU("MRNF starvation weighting"), TR("MRNF starvation weighting"));
 SS_MSG_EN(mrnf_explore_starvation_weighting_help, "MRNF: weight scores to steer growth into under-covered regions.");
-SS_MSG_EN(mrnf_growth_ratio_pow, "MRNF growth ratio pow");
+SS_MSG(mrnf_growth_ratio_pow,
+    EN("MRNF growth ratio pow"), ZH_HANS("MRNF 生长比例幂"), ZH_HANT("MRNF 生长比例幂"),
+    JA("MRNF growth ratio pow"), KO("MRNF growth ratio pow"), DE("MRNF growth ratio pow"), FR("MRNF growth ratio pow"), ES("MRNF growth ratio pow"),
+    PT("MRNF growth ratio pow"), IT("MRNF growth ratio pow"), NL("MRNF growth ratio pow"), RU("MRNF growth ratio pow"), TR("MRNF growth ratio pow"));
 SS_MSG_EN(mrnf_growth_ratio_pow_help, "MRNF: exponent applied to the growth ratio.");
-SS_MSG_EN(mrnf_max_screen_share, "MRNF max screen share");
+SS_MSG(mrnf_max_screen_share,
+    EN("MRNF max screen share"), ZH_HANS("MRNF 最大屏幕占比"), ZH_HANT("MRNF 最大屏幕占比"),
+    JA("MRNF max screen share"), KO("MRNF max screen share"), DE("MRNF max screen share"), FR("MRNF max screen share"), ES("MRNF max screen share"),
+    PT("MRNF max screen share"), IT("MRNF max screen share"), NL("MRNF max screen share"), RU("MRNF max screen share"), TR("MRNF max screen share"));
 SS_MSG_EN(mrnf_max_screen_share_help, "MRNF: a splat covering more than this fraction of the screen is pruned.");
 
 
