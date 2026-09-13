@@ -6172,7 +6172,12 @@ float GuiApp::draw_usage_readout(float right, const backend::MemoryUsage& m,
                               ImGui::GetColorU32(color), r);
         dl->AddRect(p, ImVec2(p.x + bar_w, p.y + h),
                     ImGui::GetColorU32(ImGuiCol_Border), r);
-        ui::InvisibleButtonRaw("##mem", ImVec2(bar_w, h));
+        // Unique ID per readout: RAM and VRAM bars are both visible in the
+        // same strip, and two InvisibleButtons sharing "##mem" trip ImGui's
+        // "2 visible items with conflicting ID" programmer error (a popup that
+        // stays up until dismissed). key off the prefix so each has its own.
+        ui::InvisibleButtonRaw(
+            prefix ? "##mem_ram" : "##mem_vram", ImVec2(bar_w, h));
         ui::help_on_hover(help);
         ImGui::SameLine(0.0f, gap);
     }
