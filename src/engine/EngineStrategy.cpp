@@ -888,12 +888,23 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     strat_count_nonzero_tensor(cur, st.score_scratch, st.count_scratch);
     int64_t selectable = _host_count(st.count_scratch);
 
-    // ---- growth target (paced until fill_target_iter) ----
+    // ---- growth target (LFS fill pacing) ----
+    // LFS (mrnf.cpp) grows at full grow_fraction from the very first refine
+    // window (no step ramp), and while step < fill_target_iter it caps the
+    // window's growth at ceil(remaining_slots / windows_left), which
+    // guarantees the pool is filled up to cap by fill_target_iter. The old
+    // port ramped 0 -> 7% linearly over fill_target_iter, which produced
+    // ~2/3 of LFS's splat count at the same iteration count (exported PLYs:
+    // 1.35M vs LFS's 2.05M at 11k-30k steps) -- measurably less dense fine
+    // detail like text. Align with LFS so the count trajectory matches.
     int64_t n_grow = (int64_t)std::lround((float)cur * cfg.mrnf_grow_fraction);
     if (cfg.mrnf_fill_target_iter > 0 && step < cfg.mrnf_fill_target_iter) {
-        float t = std::max(0.0f, std::min(1.0f,
-            (float)step / (float)cfg.mrnf_fill_target_iter));
-        n_grow = (int64_t)std::lround((float)n_grow * t);
+        const int64_t refine_every = std::max<int64_t>(1, cfg.refine_every);
+        int64_t windows_left = std::max<int64_t>(
+            1, (cfg.mrnf_fill_target_iter - step) / refine_every);
+        int64_t remaining = std::max<int64_t>(0, cap - cur);
+        int64_t paced = (remaining + windows_left - 1) / windows_left;  // ceil
+        if (paced < n_grow) n_grow = paced;
     }
     n_grow = std::min<int64_t>(n_grow, std::max<int64_t>(0, cap - cur));
     n_grow = std::min<int64_t>(n_grow, selectable);
