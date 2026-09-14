@@ -1030,7 +1030,8 @@ void TrainerSession::save_checkpoint(int step) {
     std::snprintf(name, sizeof name, "step-%09d.ckpt", step);
     fs::path ckpt = out_dir / name;
     fs::create_directories(ckpt);
-    engine_save_checkpoint(ckpt.string(), cfg.save_full_checkpoint, step);
+    engine_save_checkpoint(ckpt.string(), cfg.save_full_checkpoint, step,
+                           cfg.export_keep_low_opacity);
     if (cfg.save_only_latest_checkpoint) {
         std::vector<fs::path> stale;
         for (const auto& e : fs::directory_iterator(out_dir)) {

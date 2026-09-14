@@ -99,6 +99,7 @@ inline int train_tier_rank(const char* tier) {
     X(int, steps_per_save, 2000, "run", "advanced", "")                      \
     X(bool, save_only_latest_checkpoint, true, "run", "advanced", "")        \
     X(bool, save_full_checkpoint, false, "run", "advanced", "")              \
+    X(bool, export_keep_low_opacity, true, "run", "basic", "")               \
     X(bool, save_eval_images, false, "run", "advanced", "")                  \
     X(int, viewer_port, 7007, "run", "advanced", "")                         \
     X(bool, disable_viewer, false, "run", "advanced", "")                    \

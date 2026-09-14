@@ -681,10 +681,13 @@ void engine_profile_capture_vram();
 //   full_dump=true  -> Always+Resume (world raw params + all optimizer state,
 //                                      i.e. sufficient to resume training)
 // The device->host copy is chunked, using no extra device memory.
+// keep_low_opacity=true keeps every valid splat in splat.ply (LFS-consistent,
+// no opacity threshold); false additionally drops logit(opacity) < ~-5.5373.
 void engine_save_checkpoint(
     std::string output_dir,
     bool full_dump,
-    int step
+    int step,
+    bool keep_low_opacity = true
 );
 
 // Restore engine state from `input_dir`/state.tar (resume training). The engine

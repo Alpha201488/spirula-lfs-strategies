@@ -413,6 +413,71 @@ SS_MSG(save_full_checkpoint_help,
        "her şeyi de kaydeder. Denetim noktaları çok daha büyür, çünkü her splat "
        "yuvasını ve iyileştirici durumunu taşırlar. Yalnızca dışa aktarılmış "
        "splat dosyasını istiyorsanız kapalı bırakın."));
+SS_MSG(export_keep_low_opacity,
+    EN("Export faint splats"),
+    JA("薄いスプラットを書き出す"),
+    ZH_HANS("导出保留半透明点"), ZH_HANT("匯出保留半透明點"),
+    KO("흐린 스플랫 내보내기"),
+    DE("Schwach sichtbare Splats exportieren"),
+    FR("Exporter les splats peu opaques"),
+    ES("Exportar splats tenues"),
+    PT("Exportar splats pouco opacos"),
+    IT("Esporta splat poco opachi"),
+    NL("Zwak zichtbare splats exporteren"),
+    RU("Выгружать полупрозрачные сплаты"),
+    TR("Soluk splat'ları dışa aktar"));
+SS_MSG(export_keep_low_opacity_help,
+    EN("Keep splats whose opacity is very low in the exported splat.ply, like the "
+       "original LFS does (it only removes deleted splats). Turn off to drop splats "
+       "below ~0.4% opacity during export; on by default so fine detail such as "
+       "text is not lost."),
+    JA("書き出す splat.ply に、不透明度が非常に低いスプラットも残します（元の "
+       "LFS と同じく、削除済みスプラットだけを取り除きます）。オフにすると、"
+       "書き出し時に不透明度が約0.4%未満のスプラットを落とします。文字などの"
+       "細かいディテールを失わないよう、初期状態ではオンです。"),
+    ZH_HANS("导出 splat.ply 时保留不透明度极低的点，和 LFS 原版一致（它只移除已删"
+            "除的点）。关闭则在导出时丢弃透明度约 0.4% 以下的点；默认开启，避免文字"
+            "等精细细节丢失。"),
+    ZH_HANT("匯出 splat.ply 時保留不透明度極低的點，與 LFS 原版一致（它只移除已刪"
+            "除的點）。關閉則在匯出時丟棄透明度約 0.4% 以下的點；預設開啟，避免文字"
+            "等精細細節遺失。"),
+    KO("내보내는 splat.ply에 불투명도가 매우 낮은 스플랫도 남깁니다(원래 LFS와 "
+       "같이 삭제된 스플랫만 제거합니다). 끄면 내보내기 시 불투명도 약 0.4% "
+       "미만의 스플랫을 버립니다. 텍스트 같은 미세 디테일이 사라지지 않도록 "
+       "기본적으로 켜져 있습니다."),
+    DE("Behält Splats mit sehr geringer Opazität in der exportierten splat.ply, "
+       "wie das Original-LFS (es entfernt nur gelöschte Splats). Aus schaltet "
+       "das Verwerfen von Splats unter ~0,4 % Opazität beim Export; standardmäßig "
+       "an, damit feine Details wie Text nicht verloren gehen."),
+    FR("Conserve dans le splat.ply exporté les splats dont l'opacité est très "
+       "faible, comme le fait le LFS original (qui ne retire que les splats "
+       "supprimés). Désactivez pour écarter à l'export les splats sous ~0,4 % "
+       "d'opacité ; activé par défaut pour ne pas perdre les détails fins tels "
+       "que le texte."),
+    ES("Mantiene en el splat.ply exportado los splats con opacidad muy baja, como "
+       "hace el LFS original (solo elimina los splats borrados). Desactívelo para "
+       "descartar en la exportación los splats por debajo de ~0,4 % de opacidad; "
+       "activado por defecto para no perder detalles finos como el texto."),
+    PT("Mantém no splat.ply exportado os splats com opacidade muito baixa, como o "
+       "LFS original faz (remove apenas os splats apagados). Desative para descartar "
+       "na exportação os splats abaixo de ~0,4 % de opacidade; ativado por padrão "
+       "para não perder detalhes finos como texto."),
+    IT("Conserva gli splat con opacità molto bassa nel splat.ply esportato, come "
+       "fa l'LFS originale (rimuove solo gli splat cancellati). Disattiva per "
+       "scartare in esportazione gli splat sotto ~0,4 % di opacità; attivo per "
+       "impostazione predefinita per non perdere dettagli fini come il testo."),
+    NL("Bewaart splats met een zeer lage dekking in het geëxporteerde splat.ply, "
+       "zoals het originele LFS (dat alleen verwijderde splats weggooit). Uitzetten "
+       "laat de export splats onder ~0,4 % dekking weglaten; standaard aan, zodat "
+       "fijne details zoals tekst niet verloren gaan."),
+    RU("Оставляет в выгруженном splat.ply сплаты с очень низкой непрозрачностью, "
+       "как оригинальный LFS (он удаляет только помеченные). Выключите, чтобы при "
+       "выгрузке отбрасывать сплаты ниже ~0,4 % непрозрачности; включено по "
+       "умолчанию, чтобы не терять мелкие детали вроде текста."),
+    TR("Dışa aktarılan splat.ply'de opaklığı çok düşük splat'ları da korur, tıpkı "
+       "orijinal LFS gibi (yalnızca silinmiş splat'ları atar). Kapatılırsa dışa "
+       "aktarımda ~%0,4 opaklık altı splat'lar atılır; metin gibi ince ayrıntıların "
+       "kaybolmaması için varsayılan olarak açıktır."));
 
 SS_MSG(save_eval_images,
     EN("Save evaluation images"), JA("評価用画像を保存"),

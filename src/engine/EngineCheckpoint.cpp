@@ -158,7 +158,8 @@ static std::string _json_str(const std::string& s, const std::string& key) {
 void engine_save_checkpoint(
     std::string output_dir,
     bool full_dump,
-    int step
+    int step,
+    bool keep_low_opacity
 ) {
     EngineState& s = engine();
 
@@ -265,21 +266,21 @@ void engine_save_checkpoint(
         }
     };
 
-    // --- Filter mask: NaN/Inf + dead scale only.
+    // --- Filter mask: NaN/Inf + dead scale; optional low-opacity filter.
     // LFS's PLY export drops only the deleted-mask points; it applies no
-    // opacity threshold. We previously also dropped logit(opacity) < -5.5373
-    // (~0.4% real alpha) on top of the in-training prune (min_opacity 0.005),
-    // which double-filtered the faintest detail splats and measurably lost
-    // fine detail (user: export "删得太猛，丢了很多细节"). Align with LFS:
-    // keep every valid splat; the renderer's ALPHA_THRESHOLD already skips
-    // invisible ones at draw time.
+    // opacity threshold. By default we match that (keep_low_opacity=true):
+    // keep every valid splat -- the renderer's ALPHA_THRESHOLD already skips
+    // invisible ones at draw time. When keep_low_opacity=false we additionally
+    // drop logit(opacity) < -5.5373 (~0.4% real alpha), the previous
+    // behaviour which users found too aggressive ("删得太猛，丢了很多细节").
+    const float OPA_MIN = -5.5373f;
     const float SCALE_MIN = -40.0f;  // == kDeadLogScale, shaders/densify.slang
     auto fin1 = [](float v) { return std::isfinite(v); };
     auto fin3 = [&](const float3& v) { return fin1(v.x) && fin1(v.y) && fin1(v.z); };
     auto fin4 = [&](const float4& v) { return fin1(v.x) && fin1(v.y) && fin1(v.z) && fin1(v.w); };
 
     std::vector<char> keep((size_t)N, 1);
-    int64_t kept = 0, nan_dropped = 0, deadscale_dropped = 0;
+    int64_t kept = 0, nan_dropped = 0, lowopa_dropped = 0, deadscale_dropped = 0;
     for (int64_t i = 0; i < N; i++) {
         bool ok = fin3(h_means[i]) && fin4(h_quats[i]) && fin3(h_scales[i])
                   && fin1(h_opacities[i]) && fin3(h_features_dc[i]);
@@ -292,6 +293,9 @@ void engine_save_checkpoint(
             }
         }
         if (!ok) { keep[i] = 0; nan_dropped++; continue; }
+        if (!keep_low_opacity && h_opacities[i] < OPA_MIN) {
+            keep[i] = 0; lowopa_dropped++; continue;
+        }
         const float3& sc = h_scales[i];
         if (std::max(std::max(sc.x, sc.y), sc.z) <= SCALE_MIN) {
             keep[i] = 0; deadscale_dropped++; continue;
@@ -357,9 +361,11 @@ void engine_save_checkpoint(
 
     std::fprintf(stderr,
                  "[spirula] splat.ply: %lld splats kept (%lld NaN/Inf dropped, "
-                 "%lld dead-scale dropped; no opacity filtering, LFS-consistent)\n",
+                 "%lld low-opacity dropped, %lld dead-scale dropped; "
+                 "opacity filter %s)\n",
                  (long long)kept, (long long)nan_dropped,
-                 (long long)deadscale_dropped);
+                 (long long)lowopa_dropped, (long long)deadscale_dropped,
+                 keep_low_opacity ? "off (LFS-consistent)" : "on");
 
     // --- state.tar: metadata-driven resume payload (see file header) ---------
     // Which buffers to serialize: Always (base) or Always+Resume (full resume).
