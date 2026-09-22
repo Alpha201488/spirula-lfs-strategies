@@ -275,13 +275,21 @@ void engine_save_checkpoint(
     // behaviour which users found too aggressive ("删得太猛，丢了很多细节").
     const float OPA_MIN = -5.5373f;
     const float SCALE_MIN = -40.0f;  // == kDeadLogScale, shaders/densify.slang
+    const float FREE_MARK = -20.0f;  // free-slot marker written by _free_slots
     auto fin1 = [](float v) { return std::isfinite(v); };
     auto fin3 = [&](const float3& v) { return fin1(v.x) && fin1(v.y) && fin1(v.z); };
     auto fin4 = [&](const float4& v) { return fin1(v.x) && fin1(v.y) && fin1(v.z) && fin1(v.w); };
 
     std::vector<char> keep((size_t)N, 1);
-    int64_t kept = 0, nan_dropped = 0, lowopa_dropped = 0, deadscale_dropped = 0;
+    int64_t kept = 0, nan_dropped = 0, lowopa_dropped = 0, freed_dropped = 0,
+             deadscale_dropped = 0;
     for (int64_t i = 0; i < N; i++) {
+        // Free slots (opacity <= -20, the _free_slots marker) are deleted
+        // splats whose slot was never reused -- the equivalent of LFS's
+        // deleted-mask rows, which LFS's PLY export drops unconditionally.
+        // They are not "faint" splats, so this is independent of the
+        // keep_low_opacity toggle.
+        if (h_opacities[i] <= FREE_MARK) { keep[i] = 0; freed_dropped++; continue; }
         bool ok = fin3(h_means[i]) && fin4(h_quats[i]) && fin3(h_scales[i])
                   && fin1(h_opacities[i]) && fin3(h_features_dc[i]);
         // Quant-decoded SH values are finite by construction (byte to fp32
@@ -361,10 +369,11 @@ void engine_save_checkpoint(
 
     std::fprintf(stderr,
                  "[spirula] splat.ply: %lld splats kept (%lld NaN/Inf dropped, "
-                 "%lld low-opacity dropped, %lld dead-scale dropped; "
-                 "opacity filter %s)\n",
+                 "%lld freed-slot dropped, %lld low-opacity dropped, "
+                 "%lld dead-scale dropped; opacity filter %s)\n",
                  (long long)kept, (long long)nan_dropped,
-                 (long long)lowopa_dropped, (long long)deadscale_dropped,
+                 (long long)freed_dropped, (long long)lowopa_dropped,
+                 (long long)deadscale_dropped,
                  keep_low_opacity ? "off (LFS-consistent)" : "on");
 
     // --- state.tar: metadata-driven resume payload (see file header) ---------

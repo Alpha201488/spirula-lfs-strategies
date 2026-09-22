@@ -897,21 +897,47 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     // ~2/3 of LFS's splat count at the same iteration count (exported PLYs:
     // 1.35M vs LFS's 2.05M at 11k-30k steps) -- measurably less dense fine
     // detail like text. Align with LFS so the count trajectory matches.
-    int64_t n_grow = (int64_t)std::lround((float)cur * cfg.mrnf_grow_fraction);
+
+    // ---- live count (LFS active_count: size - free_count) ----
+    // cur_num_splats is a high-water mark: prune frees a slot by writing
+    // opacity = -30 (free marker) but never shrinks the pool, so once the
+    // pool fills, (cap - cur) is 0 forever and any growth/replacement gated
+    // on it stalls permanently. LFS's active_count() counts live splats
+    // (free_mask excluded), so its budget = max_cap - active reopens as soon
+    // as prune frees slots. Mirror that here: budget growth and replacement
+    // against the live count, keep append bounded by the physical pool cap.
+    int64_t active = cur;
+    {
+        strat_mask_ge_tensor(cur, b.opacities, -20.0f, st.mask_b.data_ptr());
+        _zero_count(st.count_scratch);
+        strat_mask_count_tensor(cur, st.mask_b.data_ptr(), st.count_scratch);
+        active = _host_count(st.count_scratch);
+    }
+
+    int64_t n_grow_base =
+        (int64_t)std::lround((float)active * cfg.mrnf_grow_fraction);
     if (cfg.mrnf_fill_target_iter > 0 && step < cfg.mrnf_fill_target_iter) {
         const int64_t refine_every = std::max<int64_t>(1, cfg.refine_every);
         int64_t windows_left = std::max<int64_t>(
             1, (cfg.mrnf_fill_target_iter - step) / refine_every);
-        int64_t remaining = std::max<int64_t>(0, cap - cur);
+        int64_t remaining = std::max<int64_t>(0, cap - active);
         int64_t paced = (remaining + windows_left - 1) / windows_left;  // ceil
-        if (paced < n_grow) n_grow = paced;
+        if (paced < n_grow_base) n_grow_base = paced;
     }
-    n_grow = std::min<int64_t>(n_grow, std::max<int64_t>(0, cap - cur));
+    // Replacement budget follows the grow fraction (LFS requested_replace =
+    // min(pruned_count, budget)), clamped to the selectable candidates
+    // (LFS actual_replace = min(requested_replace, selectable_replace)); the
+    // append budget stays bounded by the physical pool high-water mark so we
+    // never exceed cap.
+    int64_t n_replace = std::min<int64_t>(n_pruned, n_grow_base);
+    n_replace = std::min<int64_t>(n_replace, selectable);
+    int64_t n_grow = std::min<int64_t>(
+        std::max<int64_t>(0, n_grow_base - n_replace),
+        std::max<int64_t>(0, cap - cur));
     n_grow = std::min<int64_t>(n_grow, selectable);
 
     // ---- replace pruned first (LFS replace_pruned) ----
     int64_t added = 0;
-    int64_t n_replace = std::min<int64_t>(n_pruned, n_grow);
     if (n_replace > 0) {
         _sample_scores(cur, st.idx_scratch, n_replace,
                        (uint32_t)(0x85ebca6bu ^ (uint32_t)step), nullptr);
