@@ -81,7 +81,12 @@ bool extract_track(const FrameExtractJob& o, const FrameExtractSinks& sinks,
 
     video::ConvertOpts conv;
     conv.scale = o.scale;
-    conv.rotate = o.rotate;
+    // Apply the container-declared rotation (tkhd display matrix) so phone
+    // footage stored sideways comes out upright. An explicit user rotation
+    // wins over the metadata (legacy CLI callers pass --rotate to compensate
+    // for the old behaviour); the GUI never sets it, so GUI extraction is
+    // auto-rotated. Both are clockwise multiples of 90 degrees.
+    conv.rotate = o.rotate != 0 ? o.rotate : (pipe.track().rotation_deg % 360);
 
     struct Buffered {
         video::FrameHandle h;

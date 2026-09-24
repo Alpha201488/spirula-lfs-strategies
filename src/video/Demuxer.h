@@ -33,6 +33,12 @@ struct TrackInfo {
     // Length in bytes of the size prefix on each NAL unit; 0 means the frame
     // data is already Annex-B (start codes) or, for AV1, a stream of OBUs.
     int      nal_length_size = 4;
+    // Clockwise rotation the container declares for this track, decoded from
+    // the MP4/MOV track-header display matrix (tkhd). Phone footage (H.264/
+    // H.265) stores the upright orientation here even though the coded frames
+    // are stored rotated; extractors must apply it or the frames come out
+    // sideways. 0/90/180/270.
+    int      rotation_deg = 0;
 };
 
 struct Packet {

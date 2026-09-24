@@ -164,6 +164,28 @@ bool Mp4Demuxer::parseTrak(const uint8_t* data, size_t size) {
     }
 
     Track tk;
+    // Track-header display matrix (tkhd): phones record the upright
+    // orientation here while the coded frames stay rotated. The matrix is
+    // nine 16.16 fixed-point ints at payload+44 (version 0) or payload+56
+    // (version 1); only the 2x2 corner matters for multiples of 90 degrees.
+    {
+        Box tkhd;
+        if (find_box(data, size, fourcc("tkhd"), tkhd) && tkhd.payload_size >= 80) {
+            const size_t off = (tkhd.payload[0] == 1) ? 56 : 44;
+            if (off + 36 <= tkhd.payload_size) {
+                const int32_t a = (int32_t)rd32(tkhd.payload + off + 0);
+                const int32_t b = (int32_t)rd32(tkhd.payload + off + 4);
+                const int32_t c = (int32_t)rd32(tkhd.payload + off + 12);
+                const int32_t d = (int32_t)rd32(tkhd.payload + off + 16);
+                // identity: [1 0; 0 1]; 90 CW: [0 1; -1 0]; 180: [-1 0; 0 -1];
+                // 270 CW: [0 -1; 1 0]  (same convention as av_display_rotation_set)
+                if (b == 0x00010000 && c == -0x00010000) tk.info.rotation_deg = 90;
+                else if (a == -0x00010000 && d == -0x00010000) tk.info.rotation_deg = 180;
+                else if (b == -0x00010000 && c == 0x00010000) tk.info.rotation_deg = 270;
+                // default 0 (identity or unknown)
+            }
+        }
+    }
     {
         Box mdhd;
         if (find_box(mdia.payload, mdia.payload_size, fourcc("mdhd"), mdhd) &&
