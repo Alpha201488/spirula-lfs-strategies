@@ -435,5 +435,6 @@ int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg) {
     }
 
     engine().cur_num_splats = cur_num_splats + num_added;
+    _reset_shader_attrs_if_on();
     return num_added;
 }

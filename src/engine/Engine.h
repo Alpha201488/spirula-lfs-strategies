@@ -114,6 +114,14 @@ void set_training_data_warped(
 // Sticky; throws on a size that is not a supported power of two.
 void engine_set_bin_tile_size(int pixels);
 
+// GaussianShader reflective model. When `use_shader` is true this allocates
+// the per-splat shading attributes (tint=1, roughness=0.5, normal_res=0) and
+// an environment cube map (6 faces x env_size x env_size x 3, row-major per
+// face, +X -X +Y -Y +Z -Z), and the projection path switches to the shading
+// colour. When false (or env_size <= 0) the base SH path is used. Must be
+// called after set_data_3dgs(); idempotent per reset cycle.
+void engine_set_shader(bool use_shader, int env_size);
+
 // One training step's fwd+bwd wall time, which the automatic binning search
 // compares between granularities. Training only -- a viewport render must not
 // feed it. No-op when a size is forced.

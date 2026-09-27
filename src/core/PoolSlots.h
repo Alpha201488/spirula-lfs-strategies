@@ -94,6 +94,10 @@ enum class SaveClass : uint8_t {
   X(WorldOpacities                 , "world.opacities",                   Splat    , Resume) \
   X(WorldFeaturesDc                , "world.features_dc",                 Splat    , Resume) \
   X(WorldFeaturesSh                , "world.features_sh",                 Splat    , Resume) \
+  X(WorldFeaturesTint              , "world.features_tint",               Splat    , Resume) \
+  X(WorldFeaturesRoughness         , "world.features_roughness",          Splat    , Resume) \
+  X(WorldFeaturesNormalRes         , "world.features_normal_res",         Splat    , Resume) \
+  X(WorldEnvmap                    , "world.envmap",                      Splat    , Resume) \
   /* ---- Adam moments (fp32) ---- */ \
   X(EngG1Means                     , "eng.g1_means",                      Splat    , Resume) \
   X(EngG1Quats                     , "eng.g1_quats",                      Splat    , Resume) \

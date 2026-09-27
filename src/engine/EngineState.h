@@ -90,6 +90,15 @@ struct WorldSplats {
     DeviceVector<float3>   features_dc;
     DeviceTensor2D<float3> features_sh;   // [max_N, num_sh] when sh_value_bits == 32
 
+    // GaussianShader (CVPR 2024) shading attributes. Populated (and consumed
+    // by the shading projection path) only when cfg.use_shader is true.
+    //   features_tint:       specular tint s, colour domain, init 1
+    //   features_roughness:  0..1, init 0.5
+    //   features_normal_res: normal residual dn1, init 0
+    DeviceVector<float3>   features_tint;
+    DeviceVector<float>    features_roughness;
+    DeviceVector<float3>   features_normal_res;
+
     // Packed value quantization (sh_value_bits in {8, 16}). Two layouts mirror
     // the optim-state quant pattern (see SplatOptim::sh_quant_state*):
     //
@@ -635,6 +644,11 @@ struct EngineState {
     bool    v_losses_uploaded = false;
 
     WorldSplats    world;
+    // GaussianShader environment cube map. Layout: 6 faces x envmap_size x
+    // envmap_size x 3 (row-major per face, +X -X +Y -Y +Z -Z). envmap_size 0
+    // (or an empty tensor) disables the shading path.
+    DeviceVector<float3> envmap;
+    int envmap_size = 0;
     CameraTable    camera;
     ForwardCache   fwd;
     GTData         gt;

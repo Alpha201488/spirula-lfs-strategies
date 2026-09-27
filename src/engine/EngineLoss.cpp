@@ -184,6 +184,14 @@ static void _engine_raster_proj_backward(
     //     -- 3dgs/mip empty (screen-only), 3dgut mean/quat/scale into the fp32
     //     world buffer; the projection contribution is folded in by the
     //     requantize-accumulate projection-bwd kernel below.
+    // The raster backward consumes the splat screen gradients and folds its
+    // own world gradients into `v_splats_w`. The projection backward below
+    // consumes the same buffer. GaussianShader mode uses a 9-slot world
+    // buffer: the trailing shading-attribute gradient slots are empty
+    // (null data), which the atomic guards skip, so tint/roughness/normal_res
+    // stay frozen this phase.
+    const bool shader_on = (engine().envmap_size > 0 &&
+                            engine().fwd.splats_w.size() == 9);
     const bool grad_q = engine().grad.quantize_grad;
     std::vector<DeviceTensorFloatND> v_splats_w;
     if (!engine().optim.use_fused_proj_bwd_optim && !grad_q) {
@@ -201,6 +209,11 @@ static void _engine_raster_proj_backward(
             DeviceTensorFloatND(engine().grad.features_dc),   // [N, 3]
             DeviceTensorFloatND(engine().grad.features_sh),   // [N, K, 3]
         };
+        if (shader_on) {
+            v_splats_w.push_back(DeviceTensorFloatND());  // features_tint -- null
+            v_splats_w.push_back(DeviceTensorFloatND());  // features_roughness -- null
+            v_splats_w.push_back(DeviceTensorFloatND());  // features_normal_res -- null
+        }
     } else if (engine().primitive == "3dgut") {
         v_splats_w = {
             DeviceTensorFloatND(engine().grad.means),         // [N, 3]
@@ -214,7 +227,44 @@ static void _engine_raster_proj_backward(
 
     std::vector<DeviceTensorFloatND> v_splats_w_out, v_splats_s_out;
 
+    if (shader_on && (engine().optim.use_fused_proj_bwd_optim || grad_q))
+        throw std::runtime_error(
+            "engine_loss: GaussianShader shading requires fused-proj-bwd and "
+            "grad-quant to be off");
+
     if (engine().primitive == "3dgs" || engine().primitive == "mip") {
+        if (shader_on && engine().primitive == "3dgs") {
+            auto [vw, vs, accum_weight] = rasterize_to_pixels_3dgshader_bwd(
+                engine().cur_num_splats,
+                engine().fwd.splats_w,
+                engine().fwd.splats_s,
+                engine().fwd.gaussian_ids,
+                (uint32_t)engine().camera.width,
+                (uint32_t)engine().camera.height,
+                engine().fwd.tile_offsets,
+                engine().fwd.flatten_ids,
+                engine().fwd.macro_log2,
+                engine().fwd.render_Ts,
+                engine().fwd.last_ids,
+                engine().fwd.renders,
+                distortion_fwd_opt,  // forward distortion D (for S reconstruction)
+                dist_type,
+                accum_weight_map,
+                accum_mode,
+                v_render_outputs,
+                v_render_Ts,
+                v_median,
+                v_distortion_opt,  // gradient w.r.t. distortion image
+                std::make_optional(v_splats_w),
+                std::nullopt
+            );
+            v_splats_w_out = vw;
+            v_splats_s_out = vs;
+            if (accum_weight.data_ptr()) {
+                engine().fwd.accum_weight = accum_weight;
+                engine().fwd.accum_mode = accum_mode;
+            }
+        } else {
         auto [vw, vs, accum_weight] = rasterize_to_pixels_3dgs_bwd(
             engine().cur_num_splats,
             engine().fwd.splats_w,
@@ -244,6 +294,7 @@ static void _engine_raster_proj_backward(
         if (accum_weight.data_ptr()) {
             engine().fwd.accum_weight = accum_weight;
             engine().fwd.accum_mode = accum_mode;
+        }
         }
     } else if (engine().primitive == "3dgut") {
         auto [vw, vs, vviewmats, accum_weight] = rasterize_to_pixels_3dgut_bwd(
@@ -359,6 +410,17 @@ static void _engine_raster_proj_backward(
             else if (engine().primitive == "3dgut") call_qg(projection_3dgut_backward_quantgrad);
             else throw std::runtime_error("grad-quant projection backward: unknown primitive: " + engine().primitive);
         } else if (engine().primitive == "3dgs") {
+            if (shader_on) {
+                projection_3dgs_shader_backward(
+                    engine().cur_num_splats, engine().sh_degree, engine().fwd.splats_w,
+                    _dt2d_tv(engine().camera.viewmats), _dv_tv(engine().camera.intrins),
+                    (uint32_t)engine().camera.width, (uint32_t)engine().camera.height,
+                    engine().camera.model_str,
+        engine().camera.distortion_str, _dt2d_tv(engine().camera.dist_coeffs),
+                    engine().fwd.camera_ids, engine().fwd.gaussian_ids,
+                    engine().fwd.aabb, v_splats_s_out, v_splats_w_out, nullptr,
+                    vp_opt, vb_opt, num_sh_buffer, sh_value_bits, sh_bounds_stride);
+            } else {
             projection_3dgs_backward(
                 engine().cur_num_splats, engine().sh_degree, engine().fwd.splats_w,
                 _dt2d_tv(engine().camera.viewmats), _dv_tv(engine().camera.intrins),
@@ -368,6 +430,7 @@ static void _engine_raster_proj_backward(
                 engine().fwd.camera_ids, engine().fwd.gaussian_ids,
                 engine().fwd.aabb, v_splats_s_out, v_splats_w_out, nullptr,
                 vp_opt, vb_opt, num_sh_buffer, sh_value_bits, sh_bounds_stride);
+            }
         } else if (engine().primitive == "mip") {
             projection_mip_backward(
                 engine().cur_num_splats, engine().sh_degree, engine().fwd.splats_w,

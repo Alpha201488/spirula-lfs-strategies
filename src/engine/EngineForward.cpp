@@ -172,6 +172,17 @@ void forward_3dgs(
         DeviceTensorFloatND(engine().world.features_dc),   // [N, 3]
         DeviceTensorFloatND(engine().world.features_sh),   // [N, K, 3]
     };
+    // GaussianShader: append the shading attributes (9-slot WorldBuffer) when
+    // the shading path is active (engine_set_shader with envmap_size > 0).
+    const bool shader_on = (engine().envmap_size > 0 &&
+                            engine().world.features_tint.data_ptr() != nullptr);
+    if (shader_on) {
+        in_splats.push_back(DeviceTensorFloatND(engine().world.features_tint));  // [N, 3]
+        TorchTensorView rough_tv((uint64_t)engine().world.features_roughness.data_ptr(),
+            4, {engine().world.features_roughness.size(), 1LL, 1LL});
+        in_splats.push_back(DeviceTensorFloatND(rough_tv));                       // [N, 1]
+        in_splats.push_back(DeviceTensorFloatND(engine().world.features_normal_res));  // [N, 3]
+    }
     engine().fwd.splats_w = in_splats;
 
     DeviceTensor2D<uint2> aabb_q;
@@ -242,6 +253,11 @@ void forward_3dgs(
         DeviceVector<uint2> aabb_vec;
         DeviceVector<float> depths_vec;
 
+        if (shader_on)
+            throw std::runtime_error(
+                "engine_forward: GaussianShader shading requires the non-packed "
+                "projection path (packed training is not supported)");
+
         if (primitive == "3dgs") {
             auto [a, b, c, d, e] = projection_3dgs_packed_forward(
                 engine().cur_num_splats, sh_degree, in_splats,
@@ -289,16 +305,35 @@ void forward_3dgs(
         DeviceTensor2D<float> depths_2d;  // [C, N] — sorting depths per camera
 
         if (primitive == "3dgs") {
-            auto [a, b, c] = projection_3dgs_forward(
-                engine().cur_num_splats, sh_degree, in_splats,
-                _dt2d_tv(engine().camera.viewmats), _dv_tv(engine().camera.intrins),
-                (uint32_t)engine().camera.width, (uint32_t)engine().camera.height,
-                engine().camera.model_str,
-        engine().camera.distortion_str, _dt2d_tv(engine().camera.dist_coeffs),
-                engine().optim.radii,
-                sh_value_packed_opt, sh_value_bounds_opt, num_sh_buffer, sh_value_bits, sh_bounds_stride);
-            aabb_2d = a; depths_2d = b;
-            engine().fwd.splats_s = c;
+            if (shader_on) {
+                TorchTensorView env_tv((uint64_t)engine().envmap.data_ptr(), 4,
+                    {6LL * engine().envmap_size * engine().envmap_size, 3LL});
+                std::optional<TorchTensorView> env_opt =
+                    sh_value_bits == 32 ? std::optional<TorchTensorView>(env_tv)
+                                        : std::nullopt;
+                auto [a, b, c] = projection_3dgs_shader_forward(
+                    engine().cur_num_splats, sh_degree, in_splats,
+                    _dt2d_tv(engine().camera.viewmats), _dv_tv(engine().camera.intrins),
+                    (uint32_t)engine().camera.width, (uint32_t)engine().camera.height,
+                    engine().camera.model_str,
+                    engine().camera.distortion_str, _dt2d_tv(engine().camera.dist_coeffs),
+                    engine().optim.radii,
+                    sh_value_packed_opt, sh_value_bounds_opt, num_sh_buffer, sh_value_bits, sh_bounds_stride,
+                    env_opt, engine().envmap_size);
+                aabb_2d = a; depths_2d = b;
+                engine().fwd.splats_s = c;
+            } else {
+                auto [a, b, c] = projection_3dgs_forward(
+                    engine().cur_num_splats, sh_degree, in_splats,
+                    _dt2d_tv(engine().camera.viewmats), _dv_tv(engine().camera.intrins),
+                    (uint32_t)engine().camera.width, (uint32_t)engine().camera.height,
+                    engine().camera.model_str,
+                    engine().camera.distortion_str, _dt2d_tv(engine().camera.dist_coeffs),
+                    engine().optim.radii,
+                    sh_value_packed_opt, sh_value_bounds_opt, num_sh_buffer, sh_value_bits, sh_bounds_stride);
+                aabb_2d = a; depths_2d = b;
+                engine().fwd.splats_s = c;
+            }
         } else if (primitive == "mip") {
             auto [a, b, c] = projection_mip_forward(
                 engine().cur_num_splats, sh_degree, in_splats,

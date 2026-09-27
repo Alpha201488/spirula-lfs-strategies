@@ -827,6 +827,22 @@ void TrainerSession::setup_engine() {
                   tv(seed.features_dc, {cap, 3}),
                   tv(seed.features_sh, {cap, dim_sh - 1, 3}));
 
+    // GaussianShader reflective model (CVPR 2024). Stage B: forward shading +
+    // approximate backward, envmap fixed at setup. Requires the non-packed,
+    // non-quantized, non-fused projection path; the engine throws otherwise.
+    if (cfg.use_shader) {
+        if (cfg.quantization_level != 0)
+            throw std::runtime_error("use_shader requires quantization_level=0 "
+                                     "(SH value quantization is not supported "
+                                     "by the shading path yet)");
+        if (cfg.use_fused_proj_bwd_optim)
+            throw std::runtime_error("use_shader requires "
+                                     "use_fused_proj_bwd_optim=false");
+        engine_set_shader(true, 64);   // 64x64 per face, 6 faces
+    } else {
+        engine_set_shader(false, 0);
+    }
+
     // Binning granularity for the splat-tile intersection (0 = automatic).
     engine_set_bin_tile_size(cfg.bin_tile_size);
 

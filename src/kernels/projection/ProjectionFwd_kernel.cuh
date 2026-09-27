@@ -39,7 +39,11 @@ __global__ void projection_fused_fwd_kernel(
     const uint8_t* __restrict__ sh_value_packed,
     const float2* __restrict__ sh_value_bounds,
     const uint32_t num_sh_buffer,
-    const int64_t  sh_bounds_stride
+    const int64_t  sh_bounds_stride,
+    // GaussianShader envmap (6 faces x env_size x env_size x 3, row-major per
+    // face, +X -X +Y -Y +Z -Z). Null disables the shading path.
+    const float* __restrict__ envmap,
+    const int env_size
 ) {
     // parallelize over C * N.
     uint32_t idx = cg::this_grid().thread_rank();
@@ -82,7 +86,9 @@ __global__ void projection_fused_fwd_kernel(
     typename SplatPrimitive::Screen splat_screen;
     if constexpr (VALUE_BITS == 32) {
         splat_world.template project<camera_model, distortion, 32>(
-            cam, splat_screen, aabb, sorting_depth, radius);
+            cam, splat_screen, aabb, sorting_depth, radius,
+            nullptr, nullptr, 0, 256, 0,
+            envmap, env_size);
     } else {
         const ShQuantAddr sha = sh_quant_addr(num_sh_buffer, sh_bounds_stride);
         const int64_t sh_base = sha.base(gid);
@@ -90,7 +96,8 @@ __global__ void projection_fused_fwd_kernel(
             cam, splat_screen, aabb, sorting_depth, radius,
             const_cast<uint8_t*>(sh_value_packed),
             const_cast<float2*>(sh_value_bounds),
-            sh_base, sha.bounds_stride, sha.pair_pitch);
+            sh_base, sha.bounds_stride, sha.pair_pitch,
+            envmap, env_size);
     }
 
     // Save results
@@ -135,7 +142,10 @@ void projection_fused_fwd_kernel_wrapper(
     const int sh_value_bits,
     // 0 -> FPBO per-splat-block layout (256 * 3 * num_sh_buffer cells/bound);
     // 256 -> non-FPBO per-cell-block layout. See projection_fused_fwd_kernel.
-    const int64_t sh_bounds_stride
+    const int64_t sh_bounds_stride,
+    // GaussianShader envmap (null disables the shading path).
+    const float* __restrict__ envmap,
+    const int env_size
 ) {
     constexpr uint block = 128;
     #define _LAUNCH(VB) \
@@ -145,7 +155,8 @@ void projection_fused_fwd_kernel_wrapper(
             splats_world, viewmats, intrins, dist_coeffs_buffer, \
             image_width, image_height, \
             aabbs, sorting_depths, radii, splats_screen, \
-            sh_value_packed, sh_value_bounds, num_sh_buffer, sh_bounds_stride)
+            sh_value_packed, sh_value_bounds, num_sh_buffer, sh_bounds_stride, \
+            envmap, env_size)
     if      (sh_value_bits == 8)  { _LAUNCH(8); }
     else if (sh_value_bits == 16) { _LAUNCH(16); }
     else                          { _LAUNCH(32); }

@@ -60,7 +60,10 @@ inline std::tuple<
     const float2* sh_value_bounds,
     const uint32_t num_sh_buffer,
     const int sh_value_bits,
-    const int64_t sh_bounds_stride
+    const int64_t sh_bounds_stride,
+    // GaussianShader envmap (null disables the shading path).
+    const float* envmap,
+    const int env_size
 ) {
     typename SplatPrimitive::WorldBuffer splats_world(in_splats);
 
@@ -78,7 +81,7 @@ inline std::tuple<
             aabb.data_ptr(), sorting_depths.data_ptr(), radii.data_ptr(), \
             splats_screen, \
             sh_value_packed, sh_value_bounds, num_sh_buffer, sh_value_bits, \
-            sh_bounds_stride \
+            sh_bounds_stride, envmap, env_size \
         )
 
     #define _DISPATCH(M, D) \
@@ -132,7 +135,57 @@ std::tuple<
     #define LAUNCH(n) if (sh_degree == (n)) \
         return launch_projection_fused_fwd_kernel<Vanilla3DGS<n>>( \
             num_splats, in_splats, vm, intr, C, image_width, image_height, cmt(camera_model), cdt(distortion), dist_coeffs, radii, \
-            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride);
+            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride, \
+            nullptr, 0);
+    LAUNCH(3) LAUNCH(2) LAUNCH(1) LAUNCH(0) LAUNCH(4)
+    #undef LAUNCH
+    return {};
+}
+
+
+// ================
+// Shader3DGS (GaussianShader, CVPR 2024)
+// ================
+
+/*[AutoHeaderGeneratorExport]*/
+std::tuple<
+    DeviceTensor2D<uint2>, DeviceTensor2D<float>, std::vector<DeviceTensorFloatND>
+> projection_3dgs_shader_forward(
+    const int64_t num_splats, const int max_sh_degree,
+    const std::vector<DeviceTensorFloatND> &in_splats,
+    TorchTensorView viewmats, TorchTensorView intrins,
+    const uint32_t image_width, const uint32_t image_height,
+    const std::string camera_model, const std::string distortion,
+    const TorchTensorView dist_coeffs,
+    DeviceVector<float> radii,
+    const std::optional<TorchTensorView> sh_value_packed,
+    const std::optional<TorchTensorView> sh_value_bounds,
+    const uint32_t num_sh_buffer,
+    const int sh_value_bits,
+    // SH value-bounds cell stride (see projection_3dgs_forward).
+    const int64_t sh_bounds_stride,
+    // GaussianShader environment cube map. Layout: 6 faces x env_size x
+    // env_size x 3, row-major per face (+X -X +Y -Y +Z -Z). Null disables the
+    // shading path (output equals the base SH colour).
+    const std::optional<TorchTensorView> envmap,
+    const int env_size
+) {
+    int sh_degree = Shader3DGS<0>::WorldBuffer(in_splats).sh_degree();
+    sh_degree = min(sh_degree, max_sh_degree);
+    uint32_t C = (uint32_t)std::get<2>(viewmats)[0];
+    const float* vm = (const float*)std::get<0>(viewmats);
+    const float4* intr = (const float4*)std::get<0>(intrins);
+    const uint8_t* vp = sh_value_packed.has_value()
+        ? (const uint8_t*)std::get<0>(sh_value_packed.value()) : nullptr;
+    const float2* vb = sh_value_bounds.has_value()
+        ? (const float2*)std::get<0>(sh_value_bounds.value()) : nullptr;
+    const float* em = envmap.has_value()
+        ? (const float*)std::get<0>(envmap.value()) : nullptr;
+    #define LAUNCH(n) if (sh_degree == (n)) \
+        return launch_projection_fused_fwd_kernel<Shader3DGS<n>>( \
+            num_splats, in_splats, vm, intr, C, image_width, image_height, cmt(camera_model), cdt(distortion), dist_coeffs, radii, \
+            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride, \
+            em, env_size);
     LAUNCH(3) LAUNCH(2) LAUNCH(1) LAUNCH(0) LAUNCH(4)
     #undef LAUNCH
     return {};
@@ -175,7 +228,8 @@ std::tuple<
     #define LAUNCH(n) if (sh_degree == (n)) \
         return launch_projection_fused_fwd_kernel<MipSplatting<n>>( \
             num_splats, in_splats, vm, intr, C, image_width, image_height, cmt(camera_model), cdt(distortion), dist_coeffs, radii, \
-            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride);
+            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride,
+            nullptr, 0);
     LAUNCH(3) LAUNCH(2) LAUNCH(1) LAUNCH(0) LAUNCH(4)
     #undef LAUNCH
     return {};
@@ -219,7 +273,8 @@ std::tuple<
     #define LAUNCH(n) if (sh_degree == (n)) \
         return launch_projection_fused_fwd_kernel<Vanilla3DGUT<n>>( \
             num_splats, in_splats, vm, intr, C, image_width, image_height, cmt(camera_model), cdt(distortion), dist_coeffs, radii, \
-            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride);
+            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride,
+            nullptr, 0);
     LAUNCH(3) LAUNCH(2) LAUNCH(1) LAUNCH(0) LAUNCH(4)
     #undef LAUNCH
     return {};

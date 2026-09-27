@@ -124,3 +124,50 @@ void set_training_data(
     // was configured.
     _engine_color_space_apply_to_gt();
 }
+
+
+// GaussianShader reflective model setup. Allocates + initialises the shading
+// attributes and the environment cube map; idempotent per engine_reset cycle.
+// The envmap starts as a dim neutral environment so the specular term is
+// visible but does not wash out the diffuse base (full envmap learning /
+// importing is staged).
+void engine_set_shader(bool use_shader, int env_size) {
+    engine().envmap_size = (use_shader && env_size > 0) ? env_size : 0;
+    if (engine().envmap_size == 0) return;
+
+    const int64_t N = engine().max_num_splats;
+    if (N <= 0) throw std::runtime_error("engine_set_shader: splat pool not allocated");
+
+    // Host->device TV helper: elements are 4-byte units (float / float3).
+    auto htv = [](const void* p, int64_t n, int64_t d) -> TorchTensorView {
+        return {(uint64_t)(uintptr_t)p, 4, {n, d}};
+    };
+
+    // tint = 1, roughness = 0.5, normal_res = 0.
+    {
+        std::vector<float3> tint((size_t)N, make_float3(1.0f, 1.0f, 1.0f));
+        engine().world.features_tint = _hv_to_dv<float3>(
+            PoolSlot::WorldFeaturesTint, htv(tint.data(), N, 3));
+        std::vector<float> rough((size_t)N, 0.5f);
+        engine().world.features_roughness = _hv_to_dv<float>(
+            PoolSlot::WorldFeaturesRoughness, htv(rough.data(), N, 1));
+        std::vector<float3> nres((size_t)N, make_float3(0.0f, 0.0f, 0.0f));
+        engine().world.features_normal_res = _hv_to_dv<float3>(
+            PoolSlot::WorldFeaturesNormalRes, htv(nres.data(), N, 3));
+    }
+
+    // Environment cube map: dim neutral grey with a gentle +Y (up) bias.
+    const int s = env_size;
+    const int64_t face_texels = (int64_t)s * s;
+    std::vector<float3> env((size_t)(6 * face_texels));
+    for (int f = 0; f < 6; ++f) {
+        for (int64_t i = 0; i < face_texels; ++i) {
+            float lum = 0.15f;
+            if (f == 2) lum = 0.30f;   // +Y (up) face brighter
+            if (f == 3) lum = 0.08f;   // -Y (down) face dimmer
+            env[(size_t)(f * face_texels + i)] = make_float3(lum, lum, lum);
+        }
+    }
+    engine().envmap = _hv_to_dv<float3>(PoolSlot::WorldEnvmap,
+        htv(env.data(), 6 * face_texels, 3));
+}

@@ -10,6 +10,7 @@
 // section .cpp files can each `#include "engine/EngineCommon.h"` without ODR issues.
 
 #include "engine/EngineInternal.h"
+#include "engine/EngineState.h"
 #include "core/Tensor.h"
 
 #include <cstdint>
@@ -293,4 +294,28 @@ inline void _zero_tv(const TorchTensorView& tv) {
     int64_t bytes = std::get<1>(tv);
     for (auto s : std::get<2>(tv)) bytes *= s;
     backend::memset_sync((void*)std::get<0>(tv), 0, bytes);
+}
+
+// GaussianShader shading attributes are fixed this stage (tint=1,
+// roughness=0.5, normal_res=0; their gradient slots stay null so nothing
+// updates them). After every densify the freshly created / relocated splats
+// must not inherit stale memory in those slots, so we re-fill the active
+// prefix [0, cur_num_splats) with the defaults. No-op when shading is off.
+inline void _reset_shader_attrs_if_on() {
+    if (engine().envmap_size <= 0) return;
+    if (engine().world.features_tint.data_ptr() == nullptr) return;
+    const int64_t N = engine().cur_num_splats;
+    if (N <= 0) return;
+    std::vector<float3> tint((size_t)N, make_float3(1.0f, 1.0f, 1.0f));
+    backend::memcpy_sync(engine().world.features_tint.data_ptr(), tint.data(),
+                         (size_t)N * sizeof(float3),
+                         backend::MemcpyKind::HostToDevice);
+    std::vector<float> rough((size_t)N, 0.5f);
+    backend::memcpy_sync(engine().world.features_roughness.data_ptr(),
+                         rough.data(), (size_t)N * sizeof(float),
+                         backend::MemcpyKind::HostToDevice);
+    std::vector<float3> nres((size_t)N, make_float3(0.0f, 0.0f, 0.0f));
+    backend::memcpy_sync(engine().world.features_normal_res.data_ptr(),
+                         nres.data(), (size_t)N * sizeof(float3),
+                         backend::MemcpyKind::HostToDevice);
 }

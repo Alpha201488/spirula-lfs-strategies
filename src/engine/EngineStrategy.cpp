@@ -1259,5 +1259,6 @@ int engine_strategy_densify(int step, int max_steps, const DensifyConfig& cfg) {
             break;
     }
     engine().cur_num_splats = cur + added;
+    _reset_shader_attrs_if_on();
     return added;
 }

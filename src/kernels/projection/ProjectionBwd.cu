@@ -178,6 +178,59 @@ void projection_3dgs_backward(
 
 
 // ================
+// Shader3DGS (GaussianShader, CVPR 2024)
+// ================
+
+
+/*[AutoHeaderGeneratorExport]*/
+void projection_3dgs_shader_backward(
+    // fwd inputs
+    const int64_t num_splats,
+    const int max_sh_degree,
+    const std::vector<DeviceTensorFloatND> &splats_world,
+    TorchTensorView viewmats,  // [C, 4, 4]
+    TorchTensorView intrins,   // [C, 4], fx, fy, cx, cy
+    const uint32_t image_width,
+    const uint32_t image_height,
+    const std::string camera_model,
+    const std::string distortion,
+    const TorchTensorView dist_coeffs,
+    // fwd outputs
+    const DeviceVector<int32_t> camera_ids,  // [nnz] or null
+    const DeviceVector<int32_t> gaussian_ids,  // [nnz] or null
+    const DeviceTensor2D<uint2> aabb,  // [C, N]
+    // grad outputs
+    const std::vector<DeviceTensorFloatND> &v_splats_screen,
+    // returns: gradient buffer. For the shading mode the trailing three
+    // shading-attribute gradient slots may be empty tensors (null data) -- the
+    // atomic guards then skip them, leaving tint/roughness/normal_res frozen.
+    const std::vector<DeviceTensorFloatND> &v_splats_world,
+    DeviceTensor2D<float>* v_viewmats,
+    // SH VALUE-quant (see projection_3dgs_backward).
+    const std::optional<TorchTensorView> sh_value_packed,
+    const std::optional<TorchTensorView> sh_value_bounds,
+    const uint32_t num_sh_buffer,
+    const int sh_value_bits,
+    const int64_t sh_bounds_stride
+) {
+    int sh_degree = Shader3DGS<0>::WorldBuffer(splats_world).sh_degree();
+    sh_degree = min(sh_degree, max_sh_degree);
+    const uint8_t* vp = sh_value_packed.has_value()
+        ? (const uint8_t*)std::get<0>(sh_value_packed.value()) : nullptr;
+    const float2* vb = sh_value_bounds.has_value()
+        ? (const float2*)std::get<0>(sh_value_bounds.value()) : nullptr;
+    #define LAUNCH(n) if (sh_degree == (n)) \
+        return launch_projection_projection_fused_bwd_kernel<Shader3DGS<n>>( \
+            num_splats, splats_world, viewmats, intrins, image_width, image_height, cmt(camera_model), cdt(distortion), dist_coeffs, \
+            camera_ids, gaussian_ids, aabb, v_splats_screen, \
+            v_splats_world, v_viewmats, \
+            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride);
+    LAUNCH(3) LAUNCH(2) LAUNCH(1) LAUNCH(0) LAUNCH(4)
+    #undef LAUNCH
+}
+
+
+// ================
 // MipSplatting
 // ================
 
