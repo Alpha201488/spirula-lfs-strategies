@@ -155,6 +155,12 @@ inline int train_tier_rank(const char* tier) {
     X(std::optional<float>, opacity_init, std::nullopt, "splats", "advanced", "") \
     X(bool, suppress_initial_scales, false, "splats", "expert", "")          \
     X(bool, use_camera_optimizer, false, "splats", "stub", "")               \
+    X(bool, use_shader, false, "splats", "basic", "GaussianShader reflective model") \
+    X(float, shader_roughness_scale, 1.0f, "splats", "expert", "")           \
+    X(int, shader_diffuse_only_iters, 3000, "splats", "expert", "")          \
+    X(float, shader_normal_loss_weight, 0.01f, "loss", "expert", "")          \
+    X(float, shader_sparse_loss_weight, 0.001f, "loss", "expert", "")         \
+    X(float, shader_reg_loss_weight, 0.001f, "loss", "expert", "")            \
                                                                              \
     /* ==== detail -- how many splats there are and where they go ==== */    \
     X(std::string, quality, "medium", "detail", "basic", "low|medium|high|ultra") \

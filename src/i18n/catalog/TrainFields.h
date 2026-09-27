@@ -2826,8 +2826,7 @@ SS_MSG(use_camera_optimizer,
     PT("Ajustar as poses das câmeras"), IT("Affinare le pose delle camere"),
     NL("Cameraposes bijstellen"), RU("Уточнять положения камер"),
     TR("Kamera duruşlarını ince ayarla"));
-SS_MSG(use_camera_optimizer_help,
-    EN("Let training nudge the camera poses to absorb small pose errors. Not "
+SS_MSG(use_camera_optimizer_help,    EN("Let training nudge the camera poses to absorb small pose errors. Not "
        "supported yet."),
     JA("小さな姿勢の誤差を吸収できるよう、学習中にカメラの位置をわずかに動かし"
        "ます。まだ対応していません。"),
@@ -2851,6 +2850,237 @@ SS_MSG(use_camera_optimizer_help,
        "мелкие ошибки поз. Пока не поддерживается."),
     TR("Küçük duruş hatalarını soğurmak için eğitimin kamera duruşlarını hafifçe "
        "kaydırmasına izin verir. Henüz desteklenmiyor."));
+
+// ===========================================================================
+// GaussianShader (CVPR 2024) -- reflective shading model
+// ===========================================================================
+
+SS_MSG(use_shader,
+    EN("Reflective shading (GaussianShader)"),
+    ZH_HANS("反射着色（GaussianShader）"), ZH_HANT("反射著色（GaussianShader）"),
+    JA("反射シェーディング（GaussianShader）"),
+    KO("반사 셰이딩 (GaussianShader)"),
+    DE("Reflektive Schattierung (GaussianShader)"),
+    FR("Ombrage réfléchissant (GaussianShader)"),
+    ES("Sombreado reflectante (GaussianShader)"),
+    PT("Sombreamento reflexivo (GaussianShader)"),
+    IT("Ombreggiatura riflettente (GaussianShader)"),
+    NL("Reflecterende schaduw (GaussianShader)"),
+    RU("Отражающее затенение (GaussianShader)"),
+    TR("Yansıtıcı gölgelendirme (GaussianShader)"));
+SS_MSG(use_shader_help,
+    EN("Replace spherical-harmonic colors with the GaussianShader reflective "
+       "model: per-splat diffuse, specular tint, roughness and normals, lit by a "
+       "trainable environment cube map (CVPR 2024). Improves specular/reflective "
+       "surfaces and enables relighting by swapping the environment map."),
+    ZH_HANS("用 GaussianShader 反射模型替代球谐颜色：每个高斯带漫反射色、镜面色、"
+            "粗糙度与法线，由可训练环境立方体贴图照明（CVPR 2024）。改善高光/反射"
+            "表面，并可通过替换环境贴图实现重打光。"),
+    ZH_HANT("用 GaussianShader 反射模型替代球諧顏色：每個高斯帶漫反射色、鏡面色、"
+            "粗糙度與法線，由可訓練環境立方體貼圖照明（CVPR 2024）。改善高光/反射"
+            "表面，並可透過替換環境貼圖實現重打光。"),
+    JA("球面調和色を GaussianShader の反射モデル（各スプラットの拡散色・鏡面色・"
+       "粗さ・法線、学習可能な環境キューブマップ照明、CVPR 2024）に置き換えます。"
+       "鏡面・反射面の品質を高め、環境マップの差し替えでリライティングできます。"),
+    KO("구면 조화 색상을 GaussianShader 반사 모델(각 스플랫의 확산색·반사색·거칠기·"
+       "법선, 학습 가능한 환경 큐브맵 조명, CVPR 2024)로 대체합니다. 반사면 품질을 "
+       "높이고 환경 맵 교체로 재조명할 수 있습니다."),
+    DE("Ersetzt die sphärisch-harmonischen Farben durch das reflektive "
+       "GaussianShader-Modell (CVPR 2024): diffuse Farbe, Spiegel-Tönung, Rauheit "
+       "und Normalen pro Splat, beleuchtet durch eine trainierbare Umgebungs-Cubemap. "
+       "Verbessert spiegelnde/reflektive Oberflächen und erlaubt Relighting durch "
+       "Austausch der Umgebungs-Cubemap."),
+    FR("Remplace les couleurs d'harmoniques sphériques par le modèle réfléchissant "
+       "GaussianShader (CVPR 2024) : couleur diffuse, teinte spéculaire, rugosité et "
+       "normales par splat, éclairées par une carte cubique d'environnement entraînable. "
+       "Améliore les surfaces spéculaires/réfléchissantes et permet le relighting en "
+       "remplaçant la carte cubique."),
+    ES("Reemplaza los colores de armónicos esféricos por el modelo reflectante "
+       "GaussianShader (CVPR 2024): color difuso, tinte especular, rugosidad y normales "
+       "por splat, iluminados por un cubemap de entorno entrenable. Mejora las superficies "
+       "especulares/reflectantes y permite reiluminar al cambiar el cubemap."),
+    PT("Substitui as cores de harmônicos esféricos pelo modelo reflexivo GaussianShader "
+       "(CVPR 2024): cor difusa, tonalidade especular, rugosidade e normais por splat, "
+       "iluminados por um cubemap de ambiente treinável. Melhora superfícies especulares/"
+       "refletivas e permite reiluminar ao trocar o cubemap."),
+    IT("Sostituisce i colori a armoniche sferiche con il modello riflettente "
+       "GaussianShader (CVPR 2024): colore diffuso, tinta speculare, rugosità e normali "
+       "per splat, illuminati da una cubemap ambientale addestrabile. Migliora le "
+       "superfici speculari/riflettenti e consente il relighting sostituendo la cubemap."),
+    NL("Vervangt de sferisch-harmonische kleuren door het reflecterende "
+       "GaussianShader-model (CVPR 2024): diffuse kleur, spiegelende tint, ruwheid en "
+       "normalen per splat, belicht door een trainbare omgevings-cubemap. Verbetert "
+       "spiegelende/reflecterende oppervlakken en maakt relighting mogelijk door de "
+       "cubemap te vervangen."),
+    RU("Заменяет сферические гармоники на отражающую модель GaussianShader (CVPR 2024): "
+       "диффузный цвет, зеркальный оттенок, шероховатость и нормали для каждого сплата, "
+       "освещаемые обучаемой кубической картой окружения. Улучшает зеркальные/отражающие "
+       "поверхности и позволяет пересветить сцену заменой карты окружения."),
+    TR("Küresel harmonik renkleri GaussianShader yansıtıcı modeliyle (CVPR 2024) değiştirir: "
+       "splat başına difüz renk, aynasal ton, pürüzlülük ve normaller; eğitilebilir bir ortam "
+       "küp haritasıyla aydınlatılır. Aynasal/yansıtıcı yüzeyleri iyileştirir ve ortam haritasını "
+       "değiştirerek yeniden aydınlatma sağlar."));
+SS_MSG(shader_roughness_scale,
+    EN("Shader roughness scale"), ZH_HANS("着色粗糙度缩放"), ZH_HANT("著色粗糙度縮放"),
+    JA("シェーダーの粗さスケール"), KO("셰이더 거칠기 배율"),
+    DE("Shader-Rauheitsfaktor"), FR("Échelle de rugosité du shader"),
+    ES("Escala de rugosidad del shader"), PT("Escala de rugosidade do shader"),
+    IT("Scala di rugosità dello shader"), NL("Shader ruwheidsschaal"),
+    RU("Масштаб шероховатости шейдера"), TR("Gölgelendirici pürüzlülük ölçeği"));
+SS_MSG(shader_roughness_scale_help,
+    EN("Multiplier on the per-splat roughness before it feeds the GGX specular "
+       "lobe. Lower values make highlights tighter and shinier."),
+    ZH_HANS("每高斯粗糙度输入 GGX 高光瓣前的乘数。值越小，高光越紧、越亮。"),
+    ZH_HANT("每高斯粗糙度輸入 GGX 高光瓣前的乘數。值越小，高光越緊、越亮。"),
+    JA("GGX スペキュラローブに入る各スプラットの粗さへの乗数。値が小さいほど"
+       "ハイライトが鋭く光ります。"),
+    KO("GGX 반사 로브에 들어가는 각 스플랫 거칠기의 배율. 값이 작을수록 하이라이트가 "
+       "더 좁고 반짝입니다."),
+    DE("Multiplikator für die Rauheit jedes Splats vor der GGX-Spiegellobe. Kleinere "
+       "Werte ergeben engere, glänzendere Highlights."),
+    FR("Multiplicateur de la rugosité de chaque splat avant le lobe spéculaire GGX. "
+       "Des valeurs plus faibles donnent des reflets plus nets et plus brillants."),
+    ES("Multiplicador de la rugosidad de cada splat antes del lóbulo especular GGX. "
+       "Los valores más bajos dan reflejos más nítidos y brillantes."),
+    PT("Multiplicador da rugosidade de cada splat antes do lobo especular GGX. "
+       "Valores menores dão reflexos mais nítidos e brilhantes."),
+    IT("Moltiplicatore della rugosità di ogni splat prima del lobo speculare GGX. "
+       "Valori più bassi producono riflessi più netti e lucidi."),
+    NL("Vermenigvuldiger voor de ruwheid van elke splat vóór de GGX-spiegelende lobe. "
+       "Lagere waarden geven strakkere, glanzendere highlights."),
+    RU("Множитель шероховатости каждого сплата перед зеркальной долей GGX. "
+       "Меньшие значения дают более узкие и блестящие блики."),
+    TR("GGX aynasal lobuna girmeden önce her splatın pürüzlülüğüne uygulanan çarpan. "
+       "Daha düşük değerler daha dar ve parlak vurgular verir."));
+SS_MSG(shader_diffuse_only_iters,
+    EN("Diffuse-only iterations"), ZH_HANS("仅漫反射迭代数"), ZH_HANT("僅漫反射疊代數"),
+    JA("拡散のみの反復回数"), KO("확산 전용 반복 수"),
+    DE("Diffus-only-Itrationen"), FR("Itérations diffuse uniquement"),
+    ES("Iteraciones solo difusas"), PT("Iterações somente difusas"),
+    IT("Iterazioni solo diffuse"), NL("Alleen-diffuus iteraties"),
+    RU("Итерации только с диффузным освещением"), TR("Yalnızca difüz yineleme sayısı"));
+SS_MSG(shader_diffuse_only_iters_help,
+    EN("First iterations train only diffuse colors; specular/envmap terms kick "
+       "in afterwards. Matches the paper's warm-up."),
+    ZH_HANS("前若干步只训练漫反射色；之后才启用镜面/环境光项。对应论文的预热阶段。"),
+    ZH_HANT("前若干步只訓練漫反射色；之後才啟用鏡面/環境光項。對應論文的預熱階段。"),
+    JA("最初の反復では拡散色のみを学習し、その後鏡面・環境マップ項が効き始めます。"
+       "論文のウォームアップに対応します。"),
+    KO("처음 반복에서는 확산 색상만 학습하고 이후에 반사/환경 맵 항이 작동합니다. "
+       "논문의 워밍업에 해당합니다."),
+    DE("Die ersten Iterationen trainieren nur diffuse Farben; Spiegel- und "
+       "Umgebungs-Terme greifen danach. Entspricht dem Warm-up der Arbeit."),
+    FR("Les premières itérations n'entraînent que les couleurs diffuses ; les termes "
+       "spéculaires/environnement s'activent ensuite. Correspond au warm-up de l'article."),
+    ES("Las primeras iteraciones entrenan solo colores difusos; los términos "
+       "especular/entorno se activan después. Coincide con el calentamiento del artículo."),
+    PT("As primeiras iterações treinam apenas cores difusas; os termos especular/"
+       "ambiente entram depois. Corresponde ao aquecimento do artigo."),
+    IT("Le prime iterazioni addestrano solo i colori diffusi; i termini "
+       "speculare/ambiente subentrano dopo. Corrisponde al riscaldamento dell'articolo."),
+    NL("De eerste iteraties trainen alleen diffuse kleuren; de speculaire/omgevings-"
+       "termen komen daarna. Komt overeen met de opwarming uit het artikel."),
+    RU("Первые итерации обучают только диффузные цвета; зеркальные члены и карта "
+       "окружения включаются позже. Соответствует разогреву из статьи."),
+    TR("İlk yinelemeler yalnızca difüz renkleri eğitir; aynasal/ortam terimleri sonradan "
+       "devreye girer. Makaledeki ısınma aşamasına karşılık gelir."));
+SS_MSG(shader_normal_loss_weight,
+    EN("Shader normal loss weight"), ZH_HANS("着色法线损失权重"), ZH_HANT("著色法線損失權重"),
+    JA("シェーダー法線損失の重み"), KO("셰이더 법선 손실 가중치"),
+    DE("Shader-Normalenverlust-Gewicht"), FR("Poids de la perte de normales du shader"),
+    ES("Peso de pérdida de normales del shader"),
+    PT("Peso da perda de normais do shader"),
+    IT("Peso della perdita normali dello shader"),
+    NL("Shader normalenverliesgewicht"), RU("Вес потери нормалей шейдера"),
+    TR("Gölgelendirici normal kayıp ağırlığı"));
+SS_MSG(shader_normal_loss_weight_help,
+    EN("Weight of the normal-geometry consistency loss: rendered normals vs. "
+       "Sobel normals of the rendered depth. Paper default 0.01."),
+    ZH_HANS("法线-几何一致性损失的权重：渲染法线图与渲染深度图的 Sobel 法线之差。"
+            "论文默认 0.01。"),
+    ZH_HANT("法線-幾何一致性損失的權重：渲染法線圖與渲染深度圖的 Sobel 法線之差。"
+            "論文預設 0.01。"),
+    JA("法線-幾何整合性損失の重み：レンダリング法線マップとレンダリング深度マップの"
+       "Sobel 法線の差。論文のデフォルトは 0.01。"),
+    KO("법선-기하 일관성 손실의 가중치: 렌더링 법선 맵과 렌더링 깊이 맵의 Sobel "
+       "법선 차이. 논문 기본값 0.01."),
+    DE("Gewicht des Normalen-Geometrie-Konsistenzverlusts: gerenderte Normalen vs. "
+       "Sobel-Normalen der gerenderten Tiefe. Papier-Default 0.01."),
+    FR("Poids de la perte de cohérence normale-géométrie : normales rendues vs. normales "
+       "Sobel de la profondeur rendue. Défaut de l'article 0.01."),
+    ES("Peso de la pérdida de coherencia normal-geometría: normales renderizadas vs. "
+       "normales Sobel de la profundidad renderizada. Valor por defecto del artículo 0.01."),
+    PT("Peso da perda de consistência normal-geometria: normais renderizadas vs. normais "
+       "Sobel da profundidade renderizada. Padrão do artigo 0.01."),
+    IT("Peso della perdita di coerenza normale-geometria: normali renderizzate vs. normali "
+       "Sobel della profondità renderizzata. Default dell'articolo 0.01."),
+    NL("Gewicht van het normalen-geometrieconsistentieverlies: gerenderde normalen vs. "
+       "Sobel-normalen van de gerenderde diepte. Artikelstandaard 0.01."),
+    RU("Вес потери согласованности нормалей с геометрией: рендеренные нормали против "
+       "собелевских нормалей рендеренной глубины. По умолчанию 0.01 из статьи."),
+    TR("Normal-geometri tutarlılık kaybının ağırlığı: işlenmiş normaller ile işlenmiş "
+       "derinliğin Sobel normalleri. Makale varsayılanı 0.01."));
+SS_MSG(shader_sparse_loss_weight,
+    EN("Shader sparse loss weight"), ZH_HANS("着色稀疏损失权重"), ZH_HANT("著色稀疏損失權重"),
+    JA("シェーダー疎損失の重み"), KO("셰이더 희소 손실 가중치"),
+    DE("Shader-Sparse-Verlust-Gewicht"), FR("Poids de la perte sparse du shader"),
+    ES("Peso de pérdida dispersa del shader"), PT("Peso da perda esparsa do shader"),
+    IT("Peso della perdita sparsa dello shader"), NL("Shader sparse verliesgewicht"),
+    RU("Вес разреженной потери шейдера"), TR("Gölgelendirici seyrek kayıp ağırlığı"));
+SS_MSG(shader_sparse_loss_weight_help,
+    EN("Weight of the opacity sparsity loss, pushing opacities toward 0 or 1. "
+       "Paper default 0.001."),
+    ZH_HANS("不透明度稀疏损失的权重，促使不透明度趋近 0 或 1。论文默认 0.001。"),
+    ZH_HANT("不透明度稀疏損失的權重，促使不透明度趨近 0 或 1。論文預設 0.001。"),
+    JA("不透明度の疎損失の重みで、不透明度を 0 か 1 に近づけます。論文デフォルト 0.001。"),
+    KO("불투명도를 0 또는 1로 밀어붙이는 희소 손실의 가중치. 논문 기본값 0.001."),
+    DE("Gewicht des Opazitäts-Sparse-Verlusts, der Opazitäten gegen 0 oder 1 drückt. "
+       "Papier-Default 0.001."),
+    FR("Poids de la perte sparse d'opacité, poussant les opacités vers 0 ou 1. "
+       "Défaut de l'article 0.001."),
+    ES("Peso de la pérdida dispersa de opacidad, que empuja las opacidades hacia 0 o 1. "
+       "Valor por defecto del artículo 0.001."),
+    PT("Peso da perda esparsa de opacidade, empurrando as opacidades para 0 ou 1. "
+       "Padrão do artigo 0.001."),
+    IT("Peso della perdita sparsa di opacità, che spinge le opacità verso 0 o 1. "
+       "Default dell'articolo 0.001."),
+    NL("Gewicht van het sparse-opaciteitsverlies, dat opaciteiten naar 0 of 1 duwt. "
+       "Artikelstandaard 0.001."),
+    RU("Вес разреженной потери непрозрачности, подталкивающей непрозрачности к 0 или 1. "
+       "По умолчанию 0.001 из статьи."),
+    TR("Opaklıkları 0 veya 1'e iten seyrek kaybın ağırlığı. Makale varsayılanı 0.001."));
+SS_MSG(shader_reg_loss_weight,
+    EN("Shader normal-reg loss weight"), ZH_HANS("着色法线正则权重"), ZH_HANT("著色法線正則權重"),
+    JA("シェーダー法線正則化の重み"), KO("셰이더 법선 정규화 가중치"),
+    DE("Shader-Normalen-Reg-Gewicht"), FR("Poids de régularisation des normales"),
+    ES("Peso de regularización de normales del shader"),
+    PT("Peso da regularização de normais do shader"),
+    IT("Peso della regolarizzazione normali dello shader"),
+    NL("Shader normalen-reggewicht"), RU("Вес регуляризации нормалей шейдера"),
+    TR("Gölgelendirici normal düzenlileştirme ağırlığı"));
+SS_MSG(shader_reg_loss_weight_help,
+    EN("Weight penalizing the normal residuals' deviation from the shortest "
+       "Gaussian axis. Paper default 0.001."),
+    ZH_HANS("惩罚法线残差偏离高斯最短轴的权重。论文默认 0.001。"),
+    ZH_HANT("懲罰法線殘差偏離高斯最短軸的權重。論文預設 0.001。"),
+    JA("法線残差がガウスの最短軸からずれるのを罰する重み。論文デフォルト 0.001。"),
+    KO("법선 잔차가 가우스 최단 축에서 벗어나는 것을 패널티로 주는 가중치. 논문 기본값 0.001."),
+    DE("Gewicht, das die Abweichung der Normalen-Residuen von der kürzesten "
+       "Gauss-Achse bestraft. Papier-Default 0.001."),
+    FR("Poids pénalisant l'écart des résidus de normales par rapport à l'axe le plus "
+       "court de la gaussienne. Défaut de l'article 0.001."),
+    ES("Peso que penaliza la desviación de los residuos de normal respecto al eje más "
+       "corto de la gaussiana. Valor por defecto del artículo 0.001."),
+    PT("Peso que penaliza o desvio dos resíduos de normais do eixo mais curto da "
+       "gaussiana. Padrão do artigo 0.001."),
+    IT("Peso che penalizza lo scostamento dei residui di normale dall'asse più corto "
+       "della gaussiana. Default dell'articolo 0.001."),
+    NL("Gewicht dat de afwijking van de normalenresiduen van de kortste Gauss-as "
+       "bestraft. Artikelstandaard 0.001."),
+    RU("Вес, штрафующий отклонение остатков нормалей от кратчайшей оси гаусса. "
+       "По умолчанию 0.001 из статьи."),
+    TR("Normal kalıntılarının en kısa Gauss ekseninden sapmasını cezalandıran ağırlık. "
+       "Makale varsayılanı 0.001."));
 
 
 // ===========================================================================
