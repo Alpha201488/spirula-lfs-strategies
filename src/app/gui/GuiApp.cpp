@@ -811,6 +811,7 @@ void GuiApp::append_logs() {
 bool GuiApp::training_busy() const {
     TrainRunner::Phase ph = _runner.phase();
     return ph == TrainRunner::Phase::Training ||
+           ph == TrainRunner::Phase::Evaluating ||
            ph == TrainRunner::Phase::Preparing;
 }
 
@@ -1710,7 +1711,8 @@ bool GuiApp::batch_stage_busy(BatchStage stage) const {
         case BatchStage::Train: {
             const TrainRunner::Phase ph = _runner.phase();
             return ph == TrainRunner::Phase::Preparing ||
-                   ph == TrainRunner::Phase::Training;
+                   ph == TrainRunner::Phase::Training ||
+                   ph == TrainRunner::Phase::Evaluating;
         }
     }
     return false;
@@ -3072,7 +3074,7 @@ std::string GuiApp::state_json() {
     static const char* kScreens[] = {"home", "new_dataset", "train", "viewer",
                                      "batch", "mesh"};
     static const char* kPhases[] = {"idle", "loading", "ready", "load_error",
-                                    "preparing", "training", "done",
+                                    "preparing", "training", "evaluating", "done",
                                     "train_error"};
     std::string out = "\"screen\":\"";
     out += kScreens[(int)_screen];
@@ -3981,7 +3983,8 @@ bool GuiApp::native_work_busy() const {
     return _mesh.busy() || dataset_busy() ||
            phase == TrainRunner::Phase::Loading ||
            phase == TrainRunner::Phase::Preparing ||
-           phase == TrainRunner::Phase::Training;
+           phase == TrainRunner::Phase::Training ||
+           phase == TrainRunner::Phase::Evaluating;
 }
 
 RunProgress* GuiApp::dataset_steps() {
@@ -6650,7 +6653,8 @@ int64_t GuiApp::starting_points() {
     }
     const auto ph = _runner.phase();
     if (const auto* s = _runner.session();
-        s && (ph == TrainRunner::Phase::Ready || ph == TrainRunner::Phase::Training || ph == TrainRunner::Phase::Done))
+        s && (ph == TrainRunner::Phase::Ready || ph == TrainRunner::Phase::Training ||
+              ph == TrainRunner::Phase::Evaluating || ph == TrainRunner::Phase::Done))
         return s->ds.points.num();
     return -1;
 }
@@ -10106,7 +10110,8 @@ void GuiApp::draw_train_settings() {
     TrainRunner::Phase ph = _runner.phase();
     bool busy = ph == TrainRunner::Phase::Loading ||
                 ph == TrainRunner::Phase::Preparing ||
-                ph == TrainRunner::Phase::Training;
+                ph == TrainRunner::Phase::Training ||
+                ph == TrainRunner::Phase::Evaluating;
 
     // ---- dataset ----
     ui::SeparatorText(msg::section_dataset);
@@ -10123,6 +10128,7 @@ void GuiApp::draw_train_settings() {
             if (auto* s = _runner.session()) {
                 if (ph == TrainRunner::Phase::Ready ||
                     ph == TrainRunner::Phase::Training ||
+                    ph == TrainRunner::Phase::Evaluating ||
                     ph == TrainRunner::Phase::Done) {
                     ui::Text(msg::dataset_summary,
                              {(long long)s->ds.num_cameras,
@@ -10629,6 +10635,7 @@ void GuiApp::draw_train_mask_mode(float width) {
     const TrainRunner::Phase ph = _runner.phase();
     if (!_cfg.apply_loss_for_mask.has_value() &&
         (ph == TrainRunner::Phase::Ready || ph == TrainRunner::Phase::Training ||
+         ph == TrainRunner::Phase::Evaluating ||
          ph == TrainRunner::Phase::Done))
         if (auto* s = _runner.session())
             cut_out = s->cfg.apply_loss_for_mask.value_or(false);
@@ -10982,6 +10989,19 @@ void GuiApp::draw_train_controls() {
         case TrainRunner::Phase::Preparing:
             ui::TextColored(kDim, msg::preparing_engine);
             break;
+        case TrainRunner::Phase::Evaluating: {
+            ui::TextColored(kDim, msg::status_evaluating);
+            const bool stopping = _runner.session() &&
+                                  _runner.session()->stop_requested.load();
+            ImGui::BeginDisabled(stopping);
+            if (ui::Button(stopping ? msg::stopping : msg::stop, ImVec2(-8, 32))) {
+                _pending = Pending::StopHere;
+                _open_confirm = true;
+            }
+            ImGui::EndDisabled();
+            ui::help_on_hover(msg::stop_help);
+            break;
+        }
         case TrainRunner::Phase::Training: {
             bool paused = _runner.paused();
             // While a batch runs, stopping is the batch panel's business --
@@ -11090,6 +11110,10 @@ void GuiApp::draw_status_strip() {
         ui::ProgressBar(-(float)ImGui::GetTime(), ImVec2(-8, 0),
                         msg::status_preparing);
         ui::TextDisabledRaw(" ");
+    } else if (ph == TrainRunner::Phase::Evaluating) {
+        ui::ProgressBar(-(float)ImGui::GetTime(), ImVec2(-8, 0),
+                        msg::status_evaluating);
+        ui::TextDisabledRaw(" ");
     } else if (ph == TrainRunner::Phase::Ready) {
         ui::ProgressBar(0.0f, ImVec2(-8, 0), msg::status_ready);
         ui::TextDisabled(msg::status_ready_hint);
@@ -11149,7 +11173,8 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
     spirula::TrainerSession* session = nullptr;
     {
         const TrainRunner::Phase ph = _runner.phase();
-        if ((ph == TrainRunner::Phase::Training || ph == TrainRunner::Phase::Done) &&
+        if ((ph == TrainRunner::Phase::Training || ph == TrainRunner::Phase::Evaluating ||
+             ph == TrainRunner::Phase::Done) &&
             _runner.engine_ready())
             session = _runner.session();
     }
