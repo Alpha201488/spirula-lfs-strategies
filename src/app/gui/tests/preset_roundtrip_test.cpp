@@ -135,7 +135,6 @@ static void test_dataset_preset() {
     s.sfm.pairs = 3;
     s.sfm.overlap = 25;
     s.sfm.loop_closure = false;
-    s.sfm.use_sequence = false;
     s.sfm.init_focal_px = 1500.0f;
     s.sfm.init_distortion = "0.1,0.02";
     s.sfm.distortion_refine = 2;
@@ -257,7 +256,6 @@ static void test_dataset_preset() {
     CHECK_EQ(b.sfm.pairs, s.sfm.pairs);
     CHECK_EQ(b.sfm.overlap, s.sfm.overlap);
     CHECK_EQ(b.sfm.loop_closure, s.sfm.loop_closure);
-    CHECK_EQ(b.sfm.use_sequence, s.sfm.use_sequence);
     CHECK_EQ(b.sfm.init_focal_px, s.sfm.init_focal_px);
     CHECK_EQ(b.sfm.init_distortion, s.sfm.init_distortion);
     CHECK_EQ(b.sfm.distortion_refine, s.sfm.distortion_refine);
