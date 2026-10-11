@@ -451,6 +451,7 @@ private:
     std::shared_ptr<const std::vector<uint8_t>> _roi_points_inside;
     bool _show_grid = false;         // axes + ground-plane grid overlay
     float _frustum_scale = 1.0f;     // camera-frustum size multiplier
+    float _point_px = 2.0f;          // preview cloud's point size, pixels across
     // 0 = auto (see render_scale), 1 = 50%, 2 = 75%, 3 = 100%
     int _scale_idx = 0;
     float _last_pose[13] = {};       // pos + rot + target + ortho + lens, to spot motion
