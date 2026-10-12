@@ -80,6 +80,7 @@ inline void read_config(DenseConfig& config, const JsonValue& object) {
         if (!is_dense_preset(config.preset)) config.pairs.reference_coverage = 0;
         config.keep_cache = false;
     }
+    config.migrate_pairing();
     config.validate();
 }
 

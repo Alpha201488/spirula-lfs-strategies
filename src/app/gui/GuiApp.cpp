@@ -55,6 +55,7 @@
 #include "core/Env.h"
 #include "core/LicenseConsent.h"
 #include "core/LicenseFamilies.h"
+#include "core/LongPath.h"
 #if defined(SS_BUILD_SAM) || defined(SS_TOOL_SFM) || defined(SS_BACKEND_VULKAN)
 #include "core/VulkanDeviceSelection.h"
 #endif
@@ -7014,7 +7015,7 @@ void GuiApp::draw_clear_project_modal() {
         reset_dataset_preview();
         for (const std::string& path : _clear_targets) {
             std::error_code ec;
-            fs::remove_all(path, ec);
+            fs::remove_all(spirula::long_path(path), ec);
             if (ec) log(i18n::format(dmsg::clear_project_failed,
                                      {path, ec.message()}));
         }
