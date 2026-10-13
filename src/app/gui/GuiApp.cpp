@@ -6,6 +6,7 @@
 #include "dense/ConfigFields.h"
 #include "dense/Artifact.h"
 
+#include "core/ColorBasis.h"
 #include "core/ColorSpace.h"
 #include "core/ImageFile.h"
 
@@ -10904,6 +10905,19 @@ void GuiApp::draw_basic_options() {
     if (ui::SliderInt(msg::opt_sh_degree, &_cfg.sh_degree, 0, 4))
         _cfg_ui.touched.insert("sh_degree");
     ui::help_on_hover(msg::opt_sh_degree_help);
+
+#ifdef SS_BACKEND_VULKAN
+    // Shows the SH degree the lobes leave (train_resolve_macros), rather
+    // than the one the run would quietly replace.
+    ImGui::SetNextItemWidth(w);
+    if (ui::SliderInt(fld::sb_lobes, &_cfg.sb_lobes, 0,
+                      ColorBasis::kMaxSbLobes)) {
+        _cfg_ui.touched.insert("sb_lobes");
+        if (!_cfg_ui.touched.count("sh_degree"))
+            _cfg.sh_degree = _cfg.sb_lobes > 0 ? 0 : _defaults.sh_degree;
+    }
+    ui::help_on_hover(fld::sb_lobes_help);
+#endif
 
     if (ui::Checkbox(msg::opt_bilateral_grid, &_cfg.use_bilateral_grid))
         _cfg_ui.touched.insert("use_bilateral_grid");
