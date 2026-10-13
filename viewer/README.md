@@ -42,7 +42,9 @@ plain C++17 with no CUDA dependency (see `csrc/CameraModel.h`).
   - **Color gamut** (Rec.709 / DCI-P3 / Rec.2020 / AdobeRGB / ACEScg /
     ACES2065-1) and a **linear-color** toggle, matching the training pipeline's
     `rgb_to_srgb` conventions.
-  - Spherical harmonics up to degree 4, exposure.
+  - Spherical harmonics up to degree 4, spherical-beta lobes (`sb_params_*`,
+    up to 8, activated at load into two half-float texels each and added to
+    the clamped colour, with a toggle), exposure.
   - Depth sorting matches the training code's `get_sorting_depth`: planar for
     perspective/orthographic, distance for equirectangular, and a smooth
     |z|/radial blend for fisheye — content behind the camera composites

@@ -95,6 +95,7 @@ void SplatViewer::open(const std::string& path, int scene_slot,
     }
     _num_splats = 0;
     _sh_degree = 0;
+    _sb_lobes = 0;
     _engine_mutex = engine_mutex;
     _pending_slot = scene_slot;
     _state = State::Loading;
@@ -273,6 +274,7 @@ void SplatViewer::run(std::string path) {
             _num_splats = nv;
             _num_faces = nf;
             _sh_degree = 0;
+            _sb_lobes = 0;
             log(format(msg::viewer_loaded_mesh,
                        {(long long)nv, (long long)nf}));
             _state = State::Ready;
@@ -322,6 +324,7 @@ void SplatViewer::run(std::string path) {
             _kind = Kind::Points;
             _num_splats = n;
             _sh_degree = 0;
+            _sb_lobes = 0;
             log(format(msg::viewer_loaded_points, {(long long)n}));
             _state = State::Ready;
             return;
@@ -360,6 +363,7 @@ void SplatViewer::run(std::string path) {
             _kind = Kind::Points;
             _num_splats = n;
             _sh_degree = 0;
+            _sb_lobes = 0;
             log(format(msg::viewer_loaded_points, {(long long)n}));
             _state = State::Ready;
             return;
@@ -434,7 +438,7 @@ void SplatViewer::run(std::string path) {
                     "thread; restart the application or choose another GPU");
 #endif
             std::lock_guard<std::mutex> lk(*_engine_mutex);
-            const int64_t K = c.dim_sh() - 1;
+            const int64_t K = c.coeffs();
             // Claimed before the upload, not after: an upload that throws part
             // way still leaves buffers for close() to free.
             _scene_slot = _pending_slot;
@@ -445,7 +449,7 @@ void SplatViewer::run(std::string path) {
                           tv(c.scales,      {c.num, 3}),
                           tv(c.opacities,   {c.num, 1}),
                           tv(c.features_dc, {c.num, 3}),
-                          tv(c.features_sh, {c.num, K, 3}));
+                          tv(c.features_sh, {c.num, K, 3}), c.sb_lobes);
             const bool cs_on = color.splat_on();
             auto vec = [](const spirula::Mat3f& m) {
                 return std::vector<float>(m.begin(), m.end());
@@ -459,11 +463,17 @@ void SplatViewer::run(std::string path) {
 
         _num_splats = c.num;
         _sh_degree = c.sh_degree;
+        _sb_lobes = c.sb_lobes;
         {
             std::lock_guard<std::mutex> lk(_mu);
             _cfg = vc;
         }
-        log(format(msg::viewer_loaded, {(long long)c.num, (long long)c.sh_degree}));
+        if (c.sb_lobes > 0)
+            log(format(msg::viewer_loaded_sb, {(long long)c.num,
+                                               (long long)c.sh_degree,
+                                               (long long)c.sb_lobes}));
+        else
+            log(format(msg::viewer_loaded, {(long long)c.num, (long long)c.sh_degree}));
         _state = State::Ready;
     } catch (const std::exception& e) {
         fail(e.what());
