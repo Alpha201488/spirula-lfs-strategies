@@ -42,7 +42,7 @@ What does know the split:
 | what | where |
 |---|---|
 | colour and its VJP | `src/shaders/spherical_beta.slang` (one lobe), `backend/vulkan/shaders/view_color.slang` (the row, fp32 or codec), shared by projection fwd / bwd / grad-quant / FPBO |
-| per-cell optimizers | `sb_cells.slang` + `SbOptimCells`: own rate, the regularizer on the amplitude only, no colour trust region; FPBO the same per splat |
+| per-cell optimizers | `sb_cells.slang` + `SbOptimCells`: own rate, no regularizer, no colour trust region; FPBO the same per splat |
 | the file | `checkpoint/SplatPly.{h,cpp}`, `EngineCheckpoint.cpp` |
 | a placement baked on save | `checkpoint/SplatTransform.cpp`: the axis turns with the model |
 | seeding, resume, merge | `TrainerCore.cpp`, `checkpoint/Adapt.cpp`, `checkpoint/SplatMerge.cpp` |
@@ -54,10 +54,8 @@ A fresh lobe starts at amplitude 0 (0.1 after the softplus) and sharpness 0
 (exponent 4), as the reference trainers seed it, but with its axis uniform on
 the sphere (`theta = acos(1 - 2u)`) where they draw theta uniformly, which
 crowds the poles. All six numbers share one Adam rate, `--features-sb-lr`.
-`--sh-reg` regularizes the lobes too, as an L2 on the activated amplitude
-averaged over the lobes, which is the bands' L2 on their coefficients carried
-over: it pulls unseen view dependence toward zero and leaves the axis and
-sharpness alone.
+`--sh-reg` does not reach the lobes, which generalize to held-out views
+without it.
 
 Every gradient flows: amplitude, axis, sharpness, and through the view
 direction to the mean, as the SH bands' does. The weight's slope `n d^(n-1)`
@@ -133,27 +131,28 @@ level 1, FPBO; `images_2` (`images_4` for garden), every 8th view held out.
 
 | scene | SH 3: psnr / cc_psnr / ssim | 2 lobes: psnr / cc_psnr / ssim |
 |---|---|---|
-| bonsai | 31.31 / 33.03 / 0.949 | 31.48 / 33.21 / 0.948 |
-| counter | 28.70 / 29.62 / 0.917 | 29.44 / 30.06 / 0.919 |
-| garden | 26.68 / 27.45 / 0.854 | 27.01 / 27.45 / 0.852 |
-| room | 31.35 / 32.31 / 0.929 | 31.42 / 32.38 / 0.929 |
+| bonsai | 31.31 / 33.03 / 0.949 | 31.57 / 33.29 / 0.949 |
+| counter | 28.70 / 29.62 / 0.917 | 29.55 / 30.15 / 0.920 |
+| garden | 26.68 / 27.45 / 0.854 | 27.07 / 27.46 / 0.852 |
+| room | 31.35 / 32.31 / 0.929 | 31.36 / 32.35 / 0.929 |
 
 Two lobes match or beat SH 3 in psnr on all four, and ssim is within
-0.002. On bonsai (the level 0 rows are from a build before the edge slope
-cap):
+0.002. With `--sh-reg` also applied to the lobes, as an earlier build did,
+2 lobes scored 31.48 / 29.44 / 27.01 / 31.42 psnr. On bonsai (the last two
+rows are from that build):
 
 | bonsai | psnr | cc_psnr |
 |---|---|---|
 | SH 3 | 31.31 | 33.03 |
-| 2 lobes | 31.48 | 33.21 |
-| 4 lobes | 31.62 | 33.34 |
-| SH 3 + 2 lobes | 32.04 | 33.61 |
+| 2 lobes | 31.57 | 33.29 |
+| 4 lobes | 31.67 | 33.29 |
+| SH 3 + 2 lobes | 31.95 | 33.59 |
+| 2 lobes, split path | 31.51 | 33.26 |
+| SH 3, split path | 31.19 | 33.02 |
+| 2 lobes, level 0 | 31.54 | 33.27 |
+| SH 3, level 0 | 31.20 | 32.95 |
 | 2 lobes, `--features-sb-lr 0.005` | 31.50 | 33.12 |
 | 2 lobes, lobe trust region | 31.40 | 33.09 |
-| 2 lobes, split path | 31.30 | 33.08 |
-| SH 3, split path | 31.19 | 33.02 |
-| 2 lobes, level 0 | 31.55 | 33.30 |
-| SH 3, level 0 | 31.20 | 32.95 |
 
 Private dataset (hdr preset, 10k steps, 2 lobes, two runs each): cc_psnr
 31.759 / 31.748 without the lobe trust region, 31.741 / 31.778 with it.
@@ -164,11 +163,11 @@ buffers' high-water at 1M splats:
 | bonsai | FPBO | all kernels | splat VRAM |
 |---|---|---|---|
 | SH 3 | 201 s | 539 s | 351 MiB |
-| 2 lobes | 59 s | 391 s | 222 MiB |
-| 4 lobes | 82 s | 407 s | 267 MiB |
-| SH 3 + 2 lobes | 269 s | 613 s | 397 MiB |
+| 2 lobes | 59 s | 388 s | 222 MiB |
+| 4 lobes | 82 s | 410 s | 267 MiB |
+| SH 3 + 2 lobes | 259 s | 597 s | 397 MiB |
 
-In the split path the projection backward and optimizers take 91 s with
+In the split path the projection backward and optimizers take 77 s with
 2 lobes against 218 s for SH 3. `fpbo_bench 2000000 40 <sh> <lobes>` times
 the kernel alone: 20.7 ms (SH 3), 5.9 ms (2 lobes), 8.3 ms (4 lobes). An
 SH-only model costs what it did before lobes existed (21.0 ms here against

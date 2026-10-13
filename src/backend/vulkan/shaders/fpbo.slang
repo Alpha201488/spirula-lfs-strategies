@@ -562,8 +562,6 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
     float lr_sb = p.lr_features_sb * ibc1;
     const float reg_weight =
         p.sh_reg_weight * (1.0f / max(float(num_sh), 1.0f));
-    const float sb_reg_weight =
-        p.sh_reg_weight * (1.0f / max(float(kSbLobes), 1.0f));
 
     // Per-channel DC color + clip radius for the trust-region SH update.
     float3 c_dc = float3(0.0f);
@@ -622,8 +620,7 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
             for (int i = 0; i < 6; i++) {
                 const int k = 6 * l + i;
                 const float x = sh_v[sb_c0 + k];
-                float v = g.v_sb[k / 3][k % 3] +
-                          sb_cell_reg_grad(uint(i), x, sb_reg_weight);
+                const float v = g.v_sb[k / 3][k % 3];
                 float g1 =
                     kFpboBeta1 * sh_g1[sb_c0 + k] + (1.0f - kFpboBeta1) * v;
                 float g2 = kFpboBeta2 * sh_g2[sb_c0 + k] +
@@ -736,8 +733,7 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
                         qadam_decode_g1g2<8>(p.sh_packed, cell, quant_bounds);
                     const float x = qtensor_decode_v<16>(
                         p.sh_value_packed, cell, sh_value_old_mm);
-                    float v = g.v_sb[k / 3][k % 3] +
-                              sb_cell_reg_grad(uint(i), x, sb_reg_weight);
+                    const float v = g.v_sb[k / 3][k % 3];
                     float g1 = kFpboBeta1 * ab.x + (1.0f - kFpboBeta1) * v;
                     float g2 = kFpboBeta2 * ab.y + (1.0f - kFpboBeta2) * v * v;
                     const float x_new = x - lr_sb * g1 /

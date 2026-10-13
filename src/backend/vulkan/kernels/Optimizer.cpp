@@ -24,10 +24,9 @@ struct FusedAdamParams {
     int32_t scalar_step;
     uint32_t has_steps, numel, stride, zero_grad, wgs_per_row;
     uint32_t sb_first;
-    float sb_lr, sb_decay;
-    uint32_t _pad0;
+    float sb_lr;
 };
-static_assert(sizeof(FusedAdamParams) == 5 * 8 + 14 * 4,
+static_assert(sizeof(FusedAdamParams) == 5 * 8 + 12 * 4,
               "params layout must match the slang struct");
 
 // Mirrors AdagradParams.
@@ -47,9 +46,9 @@ struct QAdamParams {
     int32_t scalar_step;
     uint32_t has_steps, numel, stride, zero_grad, num_blocks, wgs_per_row;
     uint32_t sb_first;
-    float sb_lr, sb_decay;
+    float sb_lr;
 };
-static_assert(sizeof(QAdamParams) == 7 * 8 + 15 * 4 + 4 /*pad*/,
+static_assert(sizeof(QAdamParams) == 7 * 8 + 14 * 4,
               "params layout must match the slang struct");
 
 // Mirrors QQAdamParams.
@@ -61,9 +60,9 @@ struct QQAdamParams {
     int32_t scalar_step;
     uint32_t has_steps, grad_quant, numel, stride, zero_grad, num_blocks,
         wgs_per_row, sb_first;
-    float sb_lr, sb_decay;
+    float sb_lr;
 };
-static_assert(sizeof(QQAdamParams) == 10 * 8 + 16 * 4,
+static_assert(sizeof(QQAdamParams) == 10 * 8 + 15 * 4 + 4 /*pad*/,
               "params layout must match the slang struct");
 
 // Mirrors FloatAddParams.
@@ -102,18 +101,18 @@ int64_t optim_slice_cells(int64_t stride) {
 }
 
 // The lobe fields of a per-cell optimizer's params, and the SH regularizer
-// rescaled to average over a row's SH cells only, as FPBO does. Returns the
-// SH cells' decay.
+// rescaled to average over a row's SH cells only, as FPBO does; the lobes
+// take none. Returns the SH cells' decay.
 struct SbFields {
     uint32_t first;
-    float lr, decay;
+    float lr;
 };
 
 SbFields sb_fields(const SbOptimCells& sb, int64_t num_splats, int64_t stride,
                    float l2_reg, float* decay) {
     *decay = 2.0f * l2_reg / (float)(num_splats * stride);
     if (sb.first_cell < 0)
-        return {0xffffffffu, 0.0f, 0.0f};
+        return {0xffffffffu, 0.0f};
     const int64_t lobe_cells = stride - sb.first_cell;
     if (sb.first_cell > stride || lobe_cells % 6 != 0)
         throw std::runtime_error(
@@ -122,9 +121,7 @@ SbFields sb_fields(const SbOptimCells& sb, int64_t num_splats, int64_t stride,
             " are not whole lobes");
     if (sb.first_cell > 0)
         *decay = 2.0f * l2_reg / (float)(num_splats * sb.first_cell);
-    const float amp_cells = (float)(num_splats * (lobe_cells / 2));
-    return {(uint32_t)sb.first_cell, sb.lr,
-            amp_cells > 0 ? 2.0f * l2_reg / amp_cells : 0.0f};
+    return {(uint32_t)sb.first_cell, sb.lr};
 }
 
 }  // namespace
@@ -154,7 +151,6 @@ void fused_adam_step(
     const SbFields sbf = sb_fields(sb, num_splats, stride, l2_reg, &p.decay);
     p.sb_first = sbf.first;
     p.sb_lr = sbf.lr;
-    p.sb_decay = sbf.decay;
     p.param = (uint64_t)param.data_ptr();
     p.grad = (uint64_t)grad.data_ptr();
     p.exp_avg = (uint64_t)exp_avg.data_ptr();
@@ -230,7 +226,6 @@ void fused_adam_step_quantized(
     const SbFields sbf = sb_fields(sb, num_splats, stride, l2_reg, &p.decay);
     p.sb_first = sbf.first;
     p.sb_lr = sbf.lr;
-    p.sb_decay = sbf.decay;
     p.param = (uint64_t)param.data_ptr();
     p.grad = (uint64_t)grad.data_ptr();
     p.packed = (uint64_t)packed;
@@ -312,7 +307,6 @@ void fused_adam_step_quantized_value(
     const SbFields sbf = sb_fields(sb, num_splats, stride, l2_reg, &p.decay);
     p.sb_first = sbf.first;
     p.sb_lr = sbf.lr;
-    p.sb_decay = sbf.decay;
     p.grad = vkk::or_fallback(grad.data_ptr());
     p.grad_q_packed = vkk::or_fallback(grad_q_packed);
     p.grad_q_bounds = vkk::or_fallback(grad_q_bounds);
@@ -423,9 +417,9 @@ struct AdamTrRgbShParams {
     float lr, bias_correction1, bias_correction2, eps, eps_tr,
         sh_reg_weight, grad_scale;
     uint32_t zero_grad, num_params, num_sh, wgs_per_row, sb_first;
-    float sb_lr, sb_decay;
+    float sb_lr;
 };
-static_assert(sizeof(AdamTrRgbShParams) == 6 * 8 + 14 * 4,
+static_assert(sizeof(AdamTrRgbShParams) == 6 * 8 + 13 * 4 + 4 /*pad*/,
               "params layout must match the slang struct");
 
 // Mirrors OptimGeoParams in shaders/optim_geometry.slang.
@@ -512,7 +506,6 @@ void launch_adamtr_rgb_sh(bool is_linear, TorchTensorView param,
         sb_fields(sb, num_gs, num_sh * 3, sh_reg_weight, &p.sh_reg_weight);
     p.sb_first = sbf.first;
     p.sb_lr = sbf.lr;
-    p.sb_decay = sbf.decay;
     p.param = std::get<0>(param);
     p.grad = std::get<0>(grad);
     p.exp_avg = std::get<0>(exp_avg);

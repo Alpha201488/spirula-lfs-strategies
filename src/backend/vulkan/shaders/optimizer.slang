@@ -82,8 +82,6 @@ struct FusedAdamParams {  // 96 bytes: pushed directly
     uint wgs_per_row;
     uint sb_first;       // first lobe cell of a row; kSbNoLobes: none
     float sb_lr;
-    float sb_decay;
-    uint _pad0;
 };
 
 [shader("compute")]
@@ -103,9 +101,7 @@ void fused_adam_fwd(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
     v *= p.grad_scale;
     uint c = idx % p.stride;
     bool lobe = c >= p.sb_first;
-    if (lobe)
-        v += sb_cell_reg_grad(c - p.sb_first, x, p.sb_decay);
-    else
+    if (!lobe)
         v += p.decay *
              (max(x - p.decay_offset, 0.0f) + min(x + p.decay_offset, 0.0f));
     float g1 = p.exp_avg[idx];
@@ -188,7 +184,6 @@ struct QAdamParams {  // 120 bytes: pushed directly
     uint wgs_per_row;
     uint sb_first;         // first lobe cell of a row; kSbNoLobes: none
     float sb_lr;
-    float sb_decay;
 };
 
 [ForceInline]
@@ -210,9 +205,7 @@ void _adam_q_impl<let BITS : int>(uint3 wg, uint tid, QAdamParams p) {
     v *= p.grad_scale;
     uint c = min(idx, p.numel - 1) % p.stride;
     bool lobe = c >= p.sb_first;
-    if (lobe)
-        v += sb_cell_reg_grad(c - p.sb_first, x, p.sb_decay);
-    else
+    if (!lobe)
         v += p.decay *
              (max(x - p.decay_offset, 0.0f) + min(x + p.decay_offset, 0.0f));
 
@@ -292,7 +285,6 @@ struct QQAdamParams {  // 144 bytes: above the push floor, passed by ring
     uint wgs_per_row;
     uint sb_first;          // first lobe cell of a row; kSbNoLobes: none
     float sb_lr;
-    float sb_decay;
 };
 
 [ForceInline]
@@ -326,9 +318,7 @@ void _adam_qq_impl<let OPTIM_BITS : int, let VALUE_BITS : int>(
     v *= p.grad_scale;
     uint c = min(idx, p.numel - 1) % p.stride;
     bool lobe = c >= p.sb_first;
-    if (lobe)
-        v += sb_cell_reg_grad(c - p.sb_first, x, p.sb_decay);
-    else
+    if (!lobe)
         v += p.decay *
              (max(x - p.decay_offset, 0.0f) + min(x + p.decay_offset, 0.0f));
 

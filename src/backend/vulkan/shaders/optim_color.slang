@@ -152,7 +152,6 @@ struct AdamTrRgbShParams {  // 104 bytes: pushed directly
     uint wgs_per_row;
     uint sb_first;    // first lobe cell of a row; kSbNoLobes: none
     float sb_lr;
-    float sb_decay;
 };
 
 [shader("compute")]
@@ -171,8 +170,7 @@ void fused_adamtr_rgb_sh(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
 
     uint c_row = idx % (3 * p.num_sh);
     if (c_row >= p.sb_first) {
-        v = v * p.grad_scale + sb_cell_reg_grad(c_row - p.sb_first, x,
-                                                p.sb_decay);
+        v *= p.grad_scale;
         m_val = kTrBeta1 * m_val + (1.0f - kTrBeta1) * v;
         v_val = kTrBeta2 * v_val + (1.0f - kTrBeta2) * v * v;
         float d = -(p.sb_lr / p.bias_correction1) * m_val /
