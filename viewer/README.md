@@ -164,7 +164,8 @@ the browser sees exactly what the reconstruction pipeline sees —
 - Per-file verdicts come from the same checks the trainer runs: sample-rate
   regularity, the gravity norm, cross-stream gravity agreement, and whether the
   GPS moves rather than repeating one stale fix. The full text report is in the
-  panel.
+  panel. Fixes at 0, 0 -- a receiver with no fix -- are dropped on read, as
+  the trainer drops them.
 
 English only, by design — this is a diagnostic, and the model viewer's i18n
 would be overkill.

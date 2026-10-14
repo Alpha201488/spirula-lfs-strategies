@@ -185,6 +185,9 @@ src/
 │   ├── CrashLog.{h,cpp}    the stack trace every tool leaves in <config>/crash.log
 │   │                         when it faults -- armed for all of them in Main.cpp
 │   ├── gui/                Dear ImGui desktop app (`spirula` with no arguments)
+│   │                         SourcePreview.h: the dataset screen's look at an
+│   │                         input before it runs -- frames and the clip, photos,
+│   │                         GPS/IMU, scans -- docs/notes/source-preview.md
 │   │   └── edit/             selecting parts of a model (by region, by
 │   │                           attribute, by colour), deleting them, and
 │   │                           placing the whole model: one document /

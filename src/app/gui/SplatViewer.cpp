@@ -1,6 +1,7 @@
 // SplatViewer.cpp -- see SplatViewer.h.
 
 #include "app/gui/SplatViewer.h"
+#include "app/gui/SceneFrame.h"
 
 #include "backend/api/BackendRuntime.h"
 #include "checkpoint/Resume.h"
@@ -29,52 +30,6 @@ namespace {
 TorchTensorView tv(std::vector<float>& v, std::vector<int64_t> shape) {
     return {(uint64_t)(uintptr_t)v.data(), (uint32_t)sizeof(float), std::move(shape)};
 }
-
-// Where the model is and how big it is, robustly -- a port of the standalone
-// web viewer's ssv_fit_sphere + fitModel (viewer/src/viewer.cpp,
-// viewer/js/main.js), so a file framed here and the same file framed there
-// open on the same view.
-//
-// A trained scene has floaters: a handful of splats parked far outside
-// anything a camera saw. A bounding box is therefore useless -- it puts the
-// viewer a kilometre away looking at a dot -- and the median is what is left.
-// `radius` comes back as the web viewer's model radius, twice the MEDIAN
-// distance from the centre.
-template <typename T>
-void scene_extent(const std::vector<T>& xyz, int64_t n,
-                  float center[3], float& radius) {
-    center[0] = center[1] = center[2] = 0.0f;
-    radius = 1.0f;
-    if (n <= 0) return;
-    // Subsampled above a million points, as the web viewer does: a median does
-    // not get more accurate for being taken over more of the same cloud.
-    const int64_t step = std::max<int64_t>(1, n / (1 << 20));
-    std::vector<float> tmp;
-    tmp.reserve((size_t)(n / step + 1));
-    for (int d = 0; d < 3; d++) {
-        tmp.clear();
-        for (int64_t i = 0; i < n; i += step) tmp.push_back((float)xyz[(size_t)i * 3 + d]);
-        std::nth_element(tmp.begin(), tmp.begin() + tmp.size() / 2, tmp.end());
-        center[d] = tmp[tmp.size() / 2];
-    }
-    tmp.clear();
-    for (int64_t i = 0; i < n; i += step) {
-        const float dx = (float)xyz[(size_t)i * 3 + 0] - center[0];
-        const float dy = (float)xyz[(size_t)i * 3 + 1] - center[1];
-        const float dz = (float)xyz[(size_t)i * 3 + 2] - center[2];
-        tmp.push_back(dx * dx + dy * dy + dz * dz);
-    }
-    std::nth_element(tmp.begin(), tmp.begin() + tmp.size() / 2, tmp.end());
-    radius = 2.0f * std::sqrt(std::max(tmp[tmp.size() / 2], 1e-24f));
-    radius = std::max(radius, 1e-6f);
-}
-
-// One client unit, in model units: the distance the web viewer's fitSphere
-// puts the camera at for that radius (r / tan(fov/2) * 1.25, at the 90-degree
-// field of view this viewport opens with). The client navigates at distance 1
-// from the origin, exactly as it does over a dataset's normalized frame, so
-// this scalar IS the framing.
-float view_distance_for(float radius) { return 1.25f * radius; }
 
 }  // namespace
 
