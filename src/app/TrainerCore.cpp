@@ -691,14 +691,14 @@ EngineStepConfig build_step_config(const TrainConfig& c, const RunState& st, int
 
 // p_train = relative_scale * (p_dataset - center): the parser's shift and the
 // trainer's own rescale, which is every way the splats' frame differs from
-// the dataset's.
+// the dataset's. A dataset fitted to GPS adds where its own frame sits on Earth.
 void save_scene_transform_json(const ParsedDataset& ds, const TrainConfig& c,
                                const fs::path& out_dir) {
     SceneTransform T;
     T.scale = (double)c.relative_scale.value_or(1.0f);
     for (int i = 0; i < 3; i++) T.t[i] = -T.scale * ds.center[i];
     const std::string text =
-        scene_transform_json(T, ds.center_mode, ds.center.data());
+        scene_transform_json(T, ds.center_mode, ds.center.data(), ds.gauge_geo);
     const fs::path path = out_dir / "scene_transform.json";
     FILE* f = std::fopen(path.string().c_str(), "w");
     if (!f) throw std::runtime_error("cannot write " + path.string());

@@ -58,6 +58,8 @@ struct TelemetryExposure {
 
 enum class TelemetryCarrier { None, Gpmf, Insta360, DjiDvtm, Camm };
 const char* telemetry_carrier_name(TelemetryCarrier c);
+// The same as one lowercase word, for files a program reads: "gpmf", "dji", ...
+const char* telemetry_carrier_token(TelemetryCarrier c);
 
 struct Telemetry {
     TelemetryCarrier carrier = TelemetryCarrier::None;

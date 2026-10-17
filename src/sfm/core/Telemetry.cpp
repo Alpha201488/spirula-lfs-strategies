@@ -31,6 +31,16 @@ const char* telemetry_carrier_name(TelemetryCarrier c) {
     }
 }
 
+const char* telemetry_carrier_token(TelemetryCarrier c) {
+    switch (c) {
+        case TelemetryCarrier::Gpmf:     return "gpmf";
+        case TelemetryCarrier::Insta360: return "insta360";
+        case TelemetryCarrier::DjiDvtm:  return "dji";
+        case TelemetryCarrier::Camm:     return "camm";
+        default:                         return "none";
+    }
+}
+
 namespace {
 
 constexpr double kG = 9.80665;

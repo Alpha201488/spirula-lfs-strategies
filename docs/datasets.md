@@ -485,6 +485,10 @@ The shift, and the identity rotation and scale that go with it, are written to
 `scene_transform.json` in the run folder in every common spelling (4x4
 matrices, quaternions, Euler angles), so a downstream tool can put the
 splats back into the dataset's frame without converting anything by hand.
+When the dataset's `gauge.txt` gives a GPS origin (src/sfm/README.md), the file
+also has a `georeference` block: the dataset frame is east-north-up metres
+about `origin_lat` / `origin_lon` / `origin_alt`, so `world_from_train` and
+that point together put a splat on the map.
 The centre is taken over every frame before the train/eval split and over
 the whole seed cloud. The eval split re-parses with the mode `auto` resolved
 to, and `spirula mesh` takes the recorded centre from `scene_transform.json`
