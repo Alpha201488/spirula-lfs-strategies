@@ -794,6 +794,9 @@ void SfmRunner::run(SfmJob job) {
         const fs::path ws = job.prep.workspace;
         std::error_code ec;
         fs::create_directories(ws, ec);
+        // The default sits beside the source, which can be a read-only drive.
+        if (ec)
+            return fail(fmt(lmsg::err_create_output_folder, {ws.string(), ec.message()}));
 
         if (std::string why = availability(); !why.empty()) return fail(why);
 

@@ -2396,6 +2396,26 @@ SS_MSG(err_unfinished_run,
        "öznitelikler / maskeler); yeniden kullanmak için \"Önceki çalıştırmayı "
        "sürdür\" seçeneğini işaretleyin ya da başka bir klasör seçin"));
 
+// {0} the folder, {1} the system's reason.
+SS_MSG(err_create_output_folder,
+    EN("could not create the output folder {0} ({1}); choose another folder"),
+    JA("出力先のフォルダー {0} を作成できませんでした（{1}）。別のフォルダーを"
+       "選んでください"),
+    ZH_HANS("无法创建输出文件夹 {0}（{1}）。请换一个文件夹"),
+    ZH_HANT("無法建立輸出資料夾 {0}（{1}）。請換一個資料夾"),
+    KO("출력 폴더 {0}을(를) 만들지 못했습니다({1}). 다른 폴더를 고르세요"),
+    DE("Der Ausgabeordner {0} konnte nicht angelegt werden ({1}); wählen Sie "
+       "einen anderen Ordner"),
+    FR("Impossible de créer le dossier de sortie {0} ({1}) ; choisissez un "
+       "autre dossier"),
+    ES("No se pudo crear la carpeta de salida {0} ({1}); elija otra carpeta"),
+    PT("Não foi possível criar a pasta de saída {0} ({1}); escolha outra pasta"),
+    IT("Non è stato possibile creare la cartella di uscita {0} ({1}); scelga "
+       "un'altra cartella"),
+    NL("De uitvoermap {0} kon niet worden aangemaakt ({1}); kies een andere map"),
+    RU("Не удалось создать папку вывода {0} ({1}); выберите другую папку"),
+    TR("Çıktı klasörü {0} oluşturulamadı ({1}); başka bir klasör seçin"));
+
 // {0} the program that would not start.
 SS_MSG(err_spawn_recon,
     EN("could not start the reconstruction ({0})"),

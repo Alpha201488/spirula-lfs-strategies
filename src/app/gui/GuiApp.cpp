@@ -394,6 +394,20 @@ static std::string unescape_setting(const std::string& v) {
     return out;
 }
 
+// A tool location is typed as the folder that holds the program as often as
+// the program itself (issue #201). A bare name stays a PATH lookup.
+static std::string tool_in_folder(const std::string& path, const std::string& name) {
+    const fs::path dir(path);
+    std::error_code ec;
+    if (!dir.has_parent_path() || !fs::is_directory(dir, ec)) return path;
+#ifdef _WIN32
+    const fs::path exe = dir / (name + ".exe");
+#else
+    const fs::path exe = dir / name;
+#endif
+    return fs::is_regular_file(exe, ec) ? exe.string() : path;
+}
+
 std::string GuiApp::settings_path() {
     return (fs::path(app::config_dir()) / "gui.conf").string();
 }
@@ -417,8 +431,8 @@ void GuiApp::load_settings() {
         if (eq == std::string::npos) continue;
         std::string k = s.substr(0, eq), v = s.substr(eq + 1);
         if (_recent.read_setting(k, v)) continue;
-        if (k == "colmap_exe" && !v.empty()) _colmap_exe = v;
-        else if (k == "ffmpeg_exe" && !v.empty()) _ffmpeg_exe = v;
+        if (k == "colmap_exe" && !v.empty()) _colmap_exe = tool_in_folder(v, "colmap");
+        else if (k == "ffmpeg_exe" && !v.empty()) _ffmpeg_exe = tool_in_folder(v, "ffmpeg");
         else if (k == "sfm_engine") _engine = v == "colmap" ? Engine::Colmap
                                                             : Engine::BuiltIn;
         else if (k == "batch_command") _batch_cmd = unescape_setting(v);
@@ -8337,13 +8351,22 @@ void GuiApp::draw_colmap_options() {
 void GuiApp::draw_tool_locations() {
     if (ui::CollapsingHeader(dmsg::section_tool_locations)) {
         bool ch = false;
+        // A folder is resolved once the field is left, not under the cursor.
+        auto resolve = [](std::string& exe, const char* name) {
+            if (!ImGui::IsItemDeactivatedAfterEdit()) return false;
+            const std::string found = tool_in_folder(exe, name);
+            if (found == exe) return false;
+            exe = found;
+            return true;
+        };
         if (effective_engine() == Engine::Colmap) {
             ImGui::SetNextItemWidth(px(300.0f));
             ch |= ui::InputText(dmsg::colmap_executable, &_colmap_exe);
+            ch |= resolve(_colmap_exe, "colmap");
         }
         ImGui::SetNextItemWidth(px(300.0f));
-        const bool ffmpeg_changed =
-            ui::InputText(dmsg::ffmpeg_executable, &_ffmpeg_exe);
+        bool ffmpeg_changed = ui::InputText(dmsg::ffmpeg_executable, &_ffmpeg_exe);
+        ffmpeg_changed |= resolve(_ffmpeg_exe, "ffmpeg");
         ch |= ffmpeg_changed;
         ui::help_on_hover(backends().builtin_video
                               ? dmsg::ffmpeg_executable_help_fallback
