@@ -558,6 +558,12 @@ if(SS_BUILD_GUI)
         ${SS_SRC}/app/gui/mask/MaskSlideshow.cpp)
     ss_configure_app(mask_doc_test)
 
+    # The frames reel DatasetPrep fills, without FilmReelView.cpp's drawing.
+    set(SS_FILM_REEL_SOURCES
+        ${SS_SRC}/app/gui/FilmReel.cpp
+        ${SS_SRC}/app/gui/Picture.cpp
+        ${SS_SRC}/app/gui/SfmProgress.cpp)
+
     # DatasetPrep's two seams with the mask editor's layer folder, run for
     # real. Built without SS_BUILD_SAM or the video decoder: no model.
     add_executable(dataset_prep_test
@@ -578,7 +584,8 @@ if(SS_BUILD_GUI)
         ${SS_SRC}/app/FrameMotion.cpp
         ${SS_SRC}/app/CubeLut.cpp
         ${SS_SRC}/app/LogLuts.cpp
-        ${SS_SRC}/app/Pano360.cpp)
+        ${SS_SRC}/app/Pano360.cpp
+        ${SS_FILM_REEL_SOURCES})
     ss_configure_app(dataset_prep_test)
 
     # Which steps a dataset run reuses and which it redoes, against records
@@ -602,7 +609,8 @@ if(SS_BUILD_GUI)
         ${SS_SRC}/app/FrameMotion.cpp
         ${SS_SRC}/app/CubeLut.cpp
         ${SS_SRC}/app/LogLuts.cpp
-        ${SS_SRC}/app/Pano360.cpp)
+        ${SS_SRC}/app/Pano360.cpp
+        ${SS_FILM_REEL_SOURCES})
     ss_configure_app(dataset_plan_test)
 endif()
 

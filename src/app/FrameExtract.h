@@ -118,11 +118,9 @@ struct FrameExtractSinks {
     // Each chosen frame as PickRule rules on it, kept or not, with its first
     // track's pixels as extraction would write them.
     std::function<void(const FramePick&, const nn::Image&)> judged;
-    // A frame worth showing, RGB8 tightly packed, on the extraction thread with
-    // the picture still on the host, and the file it is about to be written to
-    // (which the writer pool has not reached yet). Copy what you need and
-    // return -- the decoder does not wait, and a caller that cannot keep up
-    // should decline frames rather than slow it down.
+    // Every image about to be written (each lens, each 360 view), RGB8 with its
+    // file, on the extraction thread. Copy what you need and return, or decline
+    // the pixels: the decoder does not wait.
     std::function<void(const uint8_t* rgb, int w, int h,
                        const std::string& path)> preview;
     // Polled between frames; set it to stop early. Frames already written stay.

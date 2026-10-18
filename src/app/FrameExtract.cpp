@@ -246,10 +246,7 @@ bool extract_pair(const FrameExtractJob& o, const FrameExtractSinks& sinks,
             job.path = (image_dir / o.views[i].dir /
                         (std::string(stem) + (jpeg ? ".jpg" : ".png"))).string();
             job.quality = o.quality;
-            // The reel shows the first view; the others are the same instant
-            // seen the other way, and six thumbnails a frame is not what the
-            // slider is for.
-            if (i == 0 && sinks.preview)
+            if (sinks.preview)
                 sinks.preview(job.image.data.data(), job.image.width, job.image.height,
                               job.path);
             t0 = nn::now_ms();
@@ -282,7 +279,7 @@ bool extract_synced(const FrameExtractJob& o, const FrameExtractSinks& sinks,
         for (size_t k = 0; k < imgs.size(); k++) {
             WriteJob job;
             job.path = (dirs[k] / (std::string(stem) + (jpeg ? ".jpg" : ".png"))).string();
-            if (k == 0 && sinks.preview && imgs[k].channels == 3)
+            if (sinks.preview && imgs[k].channels == 3)
                 sinks.preview(imgs[k].data.data(), imgs[k].width, imgs[k].height, job.path);
             job.quality = o.quality;
             job.image = std::move(imgs[k]);

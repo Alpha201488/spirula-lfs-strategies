@@ -4,11 +4,13 @@
 // feature_masks/ for a camera, and COLMAP's one mask tree is the two ANDed.
 // Real DatasetPrep::run, no model: the re-mask is the frame stencil, which is
 // also checked per camera folder. Built without SS_BUILD_SAM, so it also
-// checks that asking for a model fails; that `sparse/0` is not a dataset; and
-// what becomes of the pictures a blur threshold leaves out.
+// checks that asking for a model fails; that `sparse/0` is not a dataset;
+// what becomes of the pictures a blur threshold leaves out; and that the frames
+// reel lists every image, not every instant.
 
 #include "app/FrameMask.h"
 #include "app/gui/DatasetPrep.h"
+#include "app/gui/FilmReel.h"
 #include "app/gui/PickSheet.h"
 #include "app/gui/mask/MaskLayer.h"
 #include "core/SourcePath.h"
@@ -77,10 +79,11 @@ std::vector<uint8_t> box(int w, int h, int x0, int y0, int x1, int y1) {
 uint8_t at(const std::vector<uint8_t>& px, int w, int x, int y) { return px[(size_t)y * w + x]; }
 
 bool run_prep(const gui::PrepJob& job, gui::RunProgress& prog, std::string& error,
-              gui::PickSheet* picks = nullptr) {
+              gui::PickSheet* picks = nullptr, gui::FilmReel* frames = nullptr) {
     std::atomic<bool> cancel{false};
     gui::RunFilms films;
     films.picks = picks;
+    films.frames = frames;
     gui::DatasetPrep prep(&prog, films, cancel);
     gui::PrepResult out;
     return prep.run(job, out, error);
@@ -368,7 +371,9 @@ void test_skipped_photos() {
         std::string err;
         const std::string n = c.name;
         gui::PickSheet sheet;
-        check(run_prep(job, prog, err, &sheet), n + ": run: " + err);
+        gui::FilmReel reel;
+        check(run_prep(job, prog, err, &sheet, &reel), n + ": run: " + err);
+        check(reel.size() == 6, n + ": the frames reel lists the 6 left in images/");
         // Something to look at for the one left out: its file where it was
         // kept, and otherwise the photograph it was copied from.
         const fs::path seen(sheet.path(0, 2));
@@ -400,6 +405,34 @@ void test_skipped_photos() {
                   !fs::exists(ws / gui::kSkippedListFile, ec),
               n + ": a run that makes them again with the rule off brings both back");
     }
+}
+
+// One reel entry per image in images/: each lens of a rig and each half of a
+// dual-lens photograph, across several inputs.
+void test_frames_reel_counts_images() {
+    const fs::path root = scratch("frames_reel");
+    const fs::path ws = root / "dataset";
+    for (int i = 0; i < 3; i++) write_jpg(root / "phone" / ("p" + std::to_string(i) + ".jpg"), 16, 12, i);
+    for (int i = 0; i < 2; i++)
+        for (const char* cam : {"cam0", "cam1"})
+            write_jpg(root / "rig" / cam / ("r" + std::to_string(i) + ".jpg"), 16, 12, i);
+    for (int i = 0; i < 2; i++) write_jpg(root / "dual" / ("d" + std::to_string(i) + ".insp"), 32, 16, i);
+    gui::PrepJob job;
+    job.workspace = ws.string();
+    job.photo_import = gui::PhotoImport::Copy;
+    for (const char* name : {"phone", "rig", "dual"}) {
+        gui::PrepInput in;
+        in.path = (root / name).string();
+        in.subdir = name;
+        job.inputs.push_back(in);
+    }
+    gui::RunProgress prog;
+    std::string err;
+    gui::FilmReel reel;
+    check(run_prep(job, prog, err, nullptr, &reel), "reel: run: " + err);
+    check(files_in(ws / "images" / "dual") == 4, "reel: the dual-lens photographs are split in two");
+    check(files_in(ws / "images") == 11 && reel.size() == 11,
+          "reel: lists all 11 images, has " + std::to_string(reel.size()));
 }
 
 // A review's sheet: a looser threshold brings a frame back by a rename, and
@@ -602,6 +635,7 @@ int main() {
     test_model_masking_needs_segmentation();
     test_heif_folder();
     test_skipped_photos();
+    test_frames_reel_counts_images();
     test_pick_sheet_discards();
     test_sort_in_place();
     test_sort_rig_in_place();

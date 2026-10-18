@@ -90,10 +90,14 @@ public:
     // follows the newest picture it HOLDS (see draw), so a producer that only
     // registers paths never advances the slider.
     void add_loaded(const FilmFrame& f);
+    // Replaces the list, keeping the pictures of files still on it: for files
+    // moved, split or added after they were registered.
+    void relist(std::vector<FilmFrame> frames);
     void clear();
 
     // ---- consumer (UI thread, GL context current) ----
     bool has_frames() const;
+    size_t size() const;
     // The slider and the picture it selects, in `height` pixels. False when
     // there is nothing to draw.
     bool draw(float height);
@@ -133,6 +137,7 @@ private:
     int  _shown = -1;            // index the slider selects
     bool _follow = true;         // ... and whether it tracks the newest
     int  _want = -1;             // index the loader is to fetch; -1 = idle
+    uint64_t _relisted = 0;      // bumped by relist(): a load in flight is stale
     // The picture in the texture, kept beside it rather than looked up: the
     // slot it came from may be evicted while it is still what is on screen,
     // and a hole would flash on every step of the slider.

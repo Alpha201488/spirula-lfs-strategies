@@ -1492,6 +1492,20 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
         }
     }
 
+    // The reel registered frames as they were decoded. Lenses split apart later,
+    // photographs copied in and the blur rule's moves are only on disk.
+    if (_films.frames && (job.make_frames || job.sort_frames)) {
+        std::vector<FilmFrame> listed;
+        for (const Prepared& p : per)
+            for (const fs::path& f : walk_images(p.images, p.masks)) {
+                FilmFrame ff;
+                ff.name = under_root(f, p.images).generic_string();
+                ff.image_path = f.string();
+                listed.push_back(std::move(ff));
+            }
+        _films.frames->relist(std::move(listed));
+    }
+
     // Only once the images are there, so an interrupted extraction is not
     // recorded as having produced what it was asked for.
     if (done) done(Stage::Frames, job);
