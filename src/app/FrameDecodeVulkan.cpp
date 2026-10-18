@@ -193,7 +193,7 @@ bool compose_frame(const FrameLook& look, int folder, std::vector<nn::Image>& im
             std::vector<uint8_t> lens;
             packed_lens_crop(img[0].data.data(), img[0].width, img[0].height,
                              img[0].channels, look.packed_lenses, folder, lens,
-                             img[0].width);
+                             img[0].width, img[0].height);
             img[0].data.swap(lens);
         }
         out = std::move(img[0]);

@@ -472,6 +472,21 @@ SS_MSG(streams_side_by_side,
     RU("Видеопотоков: {0}, показаны рядом"),
     TR("Video akışı: {0}, yan yana gösteriliyor"));
 
+SS_MSG(lenses_side_by_side,
+    EN("Lenses in one picture: {0}, cut apart and shown side by side"),
+    JA("1 枚に収まったレンズ: {0}（切り分けて並べて表示）"),
+    ZH_HANS("同一画面中的镜头：{0}，切开后并排显示"),
+    ZH_HANT("同一畫面中的鏡頭：{0}，切開後並排顯示"),
+    KO("한 화면에 담긴 렌즈: {0}, 잘라서 나란히 표시"),
+    DE("Objektive in einem Bild: {0}, getrennt und nebeneinander gezeigt"),
+    FR("Objectifs dans une même image : {0}, découpés et affichés côte à côte"),
+    ES("Objetivos en una misma imagen: {0}, separados y mostrados uno junto a otro"),
+    PT("Lentes numa mesma imagem: {0}, separadas e mostradas lado a lado"),
+    IT("Obiettivi in un'unica immagine: {0}, separati e mostrati affiancati"),
+    NL("Lenzen in één beeld: {0}, losgesneden en naast elkaar getoond"),
+    RU("Объективов в одном кадре: {0}, разрезаны и показаны рядом"),
+    TR("Tek görüntüdeki mercek: {0}, ayrılıp yan yana gösteriliyor"));
+
 SS_MSG(frame_at,
     EN("Frame {0} · {1}"),
     JA("フレーム {0} · {1}"),
@@ -850,6 +865,21 @@ SS_MSG(clip_frames_per_camera,
     NL("Behouden beelden: ongeveer {0} per videospoor"),
     RU("Сохраняется кадров: около {0} на видеопоток"),
     TR("Tutulacak kare: akış başına yaklaşık {0}"));
+
+SS_MSG(clip_frames_per_lens,
+    EN("Frames kept: about {0} per lens"),
+    JA("残すフレーム: レンズごとに約 {0}"),
+    ZH_HANS("保留的帧：每个镜头约 {0}"),
+    ZH_HANT("保留的影格：每個鏡頭約 {0}"),
+    KO("남길 프레임: 렌즈마다 약 {0}"),
+    DE("Behaltene Bilder: etwa {0} je Objektiv"),
+    FR("Images conservées : environ {0} par objectif"),
+    ES("Fotogramas conservados: unos {0} por objetivo"),
+    PT("Quadros mantidos: cerca de {0} por lente"),
+    IT("Fotogrammi tenuti: circa {0} per obiettivo"),
+    NL("Behouden beelden: ongeveer {0} per lens"),
+    RU("Сохраняется кадров: около {0} на объектив"),
+    TR("Tutulacak kare: mercek başına yaklaşık {0}"));
 
 SS_MSG(clip_frames_help,
     EN("At the rate set for this video. With adaptive spacing this is the "
