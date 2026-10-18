@@ -2,6 +2,8 @@
 
 #include "app/Pano360.h"
 
+#include "core/KandaoBox.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -481,16 +483,12 @@ void packed_lens_crop(const uint8_t* px, int width, int height, int channels,
 
 namespace {
 
-uint32_t le32(const uint8_t* p) {
-    return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 |
-           (uint32_t)p[3] << 24;
-}
-
-// The top-level MP4 box `type`, or empty. Kandao's are a few KB; `limit` keeps
-// a damaged size field from asking for the whole file.
-std::vector<uint8_t> top_level_box(const std::string& path, const char* type,
-                                   size_t limit) {
+// Kandao's `kfix` body (a few KB; `limit` keeps a damaged size field from
+// asking for the whole file), and whether the file has a `kvar` box.
+std::vector<uint8_t> kandao_kfix(const std::string& path, size_t limit, bool& kvar) {
     std::ifstream f(path, std::ios::binary);
+    std::vector<uint8_t> kfix;
+    kvar = false;
     uint8_t head[16];
     for (uint64_t pos = 0; f.seekg((std::streamoff)pos) &&
                            f.read((char*)head, 8);) {
@@ -505,39 +503,37 @@ std::vector<uint8_t> top_level_box(const std::string& path, const char* type,
         }
         // 0 = the last box, running to the end of the file.
         if (size != 0 && size < header) break;
-        if (std::memcmp(head + 4, type, 4) == 0) {
-            std::vector<uint8_t> body(
-                size ? (size_t)std::min<uint64_t>(size - header, limit) : limit);
-            f.read((char*)body.data(), (std::streamsize)body.size());
-            body.resize((size_t)f.gcount());
-            return body;
+        if (std::memcmp(head + 4, "kvar", 4) == 0) kvar = true;
+        if (std::memcmp(head + 4, "kfix", 4) == 0 && kfix.empty()) {
+            kfix.resize(size ? (size_t)std::min<uint64_t>(size - header, limit) : limit);
+            f.read((char*)kfix.data(), (std::streamsize)kfix.size());
+            kfix.resize((size_t)f.gcount());
+            f.clear();
         }
         if (size == 0) break;
         pos += size;
     }
-    return {};
+    return kfix;
 }
 
 }  // namespace
 
-bool kandao_unstitched(const std::string& path) {
-    // A count, then per entry: name[32], type[8], element count, the elements.
-    // All little endian, unlike the box around them.
-    const std::vector<uint8_t> b = top_level_box(path, "kfix", 1 << 16);
-    if (b.size() < 4) return false;
-    size_t p = 4;
-    for (uint32_t n = le32(b.data()); n > 0 && p + 44 <= b.size(); n--) {
-        const char* name = (const char*)&b[p];
-        const char* type = (const char*)&b[p + 32];
-        // CHAR, or a letter and a width in bits: U8, S32, U64.
-        const int bits = std::strncmp(type, "CHAR", 8) == 0 ? 8 : std::atoi(type + 1);
-        const uint64_t bytes = (uint64_t)le32(&b[p + 40]) * (bits / 8);
-        p += 44;
-        if (bits < 8 || bits % 8 != 0 || bytes > b.size() - p) return false;
-        if (std::strncmp(name, "STITCHED", 32) == 0) return bytes >= 1 && b[p] == 0;
-        p += (size_t)bytes;
-    }
-    return false;
+bool kandao_recording(const std::string& path) {
+    bool kvar = false;
+    return !kandao_kfix(path, 1 << 16, kvar).empty() || kvar;
+}
+
+bool kandao_unstitched(const std::string& path, int width, int height) {
+    bool kvar = false;
+    const std::vector<uint8_t> box = kandao_kfix(path, 1 << 16, kvar);
+    if (box.empty() && !kvar) return false;
+    const std::vector<kandao::Field> fix = kandao::fields(box.data(), box.size());
+    if (kandao::byte_value(fix, "STITCHED") == 1 || kandao::byte_value(fix, "STEREO") == 1)
+        return false;
+    bool exact = false;
+    if (packed_lens_count(width, height, exact) == 2 && height > width) return true;
+    const kandao::Field* lenses = kandao::find(fix, "LENS_INDEX");
+    return kandao::byte_value(fix, "STITCHED") == 0 || (lenses && lenses->size >= 2);
 }
 
 std::string pano360_graph(const Pano360Layout& l, const std::string& pre) {

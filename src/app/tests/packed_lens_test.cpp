@@ -1,7 +1,7 @@
 // packed_lens -- how a 360 camera's one-image frame is read (app/Pano360.h):
 // 2:1 and 1:2 are two fisheye circles, 1:1 is one, and anything else takes the
 // nearer of 2:1 and 1:1 rather than failing -- so the shape test, the cut and
-// the Kandao box that names an unstitched .mp4 are asserted.
+// what a Kandao file's boxes say about its frames are asserted.
 
 #include "app/Pano360.h"
 
@@ -52,33 +52,40 @@ void cut(int w, int h, bool stacked) {
     }
 }
 
-void entry(std::string& box, const char* name, const char* type, uint32_t count,
-           const std::string& data) {
+std::string field(const char* name, const char* type, uint32_t count, const std::string& data) {
     char head[40] = {};
     std::strncpy(head, name, 32);
     std::strncpy(head + 32, type, 8);
-    box.append(head, 40);
-    box.append((const char*)&count, 4);
-    box += data;
+    return std::string(head, 40) + std::string((const char*)&count, 4) + data;
 }
 
-// An MP4 of an `mdat` and a `kfix` saying `stitched`, as a QooCam 3 Ultra lays
-// it out. The counts are written in host order, which is little endian here.
-bool unstitched(int stitched, bool with_box) {
-    std::string body("\x03\0\0\0", 4);
-    entry(body, "PRODUCT", "CHAR", 16, std::string("QooCam 3 Ultra\0\0", 16));
-    entry(body, "FOV", "U32", 1, std::string("\x68\x01\0\0", 4));
-    entry(body, "STITCHED", "U8", 1, std::string(1, (char)stitched));
-    auto box = [](const char* type, const std::string& b) {
-        const uint32_t n = (uint32_t)b.size() + 8;
-        const char size[4] = {(char)(n >> 24), (char)(n >> 16), (char)(n >> 8), (char)n};
-        return std::string(size, 4) + type + b;
-    };
+std::string mp4_box(const char* type, const std::string& b) {
+    const uint32_t n = (uint32_t)b.size() + 8;
+    const char size[4] = {(char)(n >> 24), (char)(n >> 16), (char)(n >> 8), (char)n};
+    return std::string(size, 4) + type + b;
+}
+
+// A `kfix` box of these fields, in host order, which is little endian here.
+std::string kfix(const std::vector<std::string>& fields) {
+    const uint32_t n = (uint32_t)fields.size();
+    std::string body((const char*)&n, 4);
+    for (const std::string& f : fields) body += f;
+    return mp4_box("kfix", body);
+}
+
+const std::string kProduct = field("PRODUCT", "CHAR", 16, std::string("QooCam 3 Ultra\0\0", 16));
+const std::string kLenses = field("LENS_INDEX", "U8", 2, std::string("\0\1", 2));
+const std::string kEv = field("EV", "DOUBLE", 1, std::string(8, '\0'));
+const std::string kOdd = field("NEW", "F16", 2, std::string(4, '\0'));
+std::string stitched(int v) { return field("STITCHED", "U8", 1, std::string(1, (char)v)); }
+
+// An MP4 of an `mdat` and then `boxes`, as a QooCam 3 Ultra lays it out, with
+// frames of w x h.
+bool unstitched(const std::string& boxes, int w, int h) {
     const std::filesystem::path f =
         std::filesystem::temp_directory_path() / "packed_lens_test.mp4";
-    std::ofstream(f, std::ios::binary)
-        << box("mdat", std::string(100, 'x')) << (with_box ? box("kfix", body) : "");
-    const bool got = app::kandao_unstitched(f.string());
+    std::ofstream(f, std::ios::binary) << mp4_box("mdat", std::string(100, 'x')) << boxes;
+    const bool got = app::kandao_unstitched(f.string(), w, h);
     std::error_code ec;
     std::filesystem::remove(f, ec);
     return got;
@@ -99,9 +106,23 @@ int main() {
     cut(4, 2, /*stacked=*/false);
     cut(2, 4, /*stacked=*/true);
 
-    expect(unstitched(0, true), "kfix STITCHED=0 is an unstitched recording");
-    expect(!unstitched(1, true), "kfix STITCHED=1 is not");
-    expect(!unstitched(0, false), "nor is a file with no kfix");
+    expect(unstitched(kfix({kProduct, stitched(0)}), 3840, 1920),
+           "kfix STITCHED=0 is an unstitched recording");
+    expect(!unstitched(kfix({kProduct, stitched(1)}), 7680, 3840), "kfix STITCHED=1 is not");
+    expect(!unstitched(kfix({kProduct, stitched(1)}), 3840, 7680), "not even at 1:2");
+    expect(!unstitched("", 3840, 7680), "nor is a 1:2 file with no Kandao box");
+    expect(unstitched(kfix({kProduct, kLenses, kEv, stitched(0)}), 3840, 1920),
+           "a DOUBLE before STITCHED is read past");
+    expect(unstitched(kfix({kProduct, kLenses, kOdd, stitched(0)}), 3840, 1920),
+           "a type it cannot size still leaves LENS_INDEX listing two lenses");
+    expect(!unstitched(kfix({kProduct, kOdd, stitched(0)}), 3840, 1920),
+           "with neither field read, 2:1 is not taken as lenses");
+    expect(unstitched(kfix({kProduct, kOdd, stitched(0)}), 3840, 7680),
+           "but 1:2 from a Kandao camera always is");
+    expect(unstitched(mp4_box("kvar", std::string(4, '\0')), 3840, 7680),
+           "as with a kvar box alone");
+    expect(!unstitched(kfix({kProduct, field("STEREO", "U8", 1, "\1")}), 3840, 7680),
+           "a stereo pair is not two back-to-back lenses");
 
     if (g_failures == 0) std::printf("packed_lens_test: OK\n");
     return g_failures == 0 ? 0 : 1;

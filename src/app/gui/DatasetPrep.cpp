@@ -1833,7 +1833,6 @@ bool DatasetPrep::append_lut_filter(const PrepJob& job, const PrepInput& in,
 bool DatasetPrep::extract_video_ffmpeg(const PrepJob& job, const PrepInput& in,
                                        const std::string& images,
                                        PrepResult& out, std::string& error) {
-    if (job.sync_tracks) log(lmsg::sync_needs_builtin.get(), /*detail=*/false);
     const fs::path ws = job.workspace;
     if (!command_exists(job.ffmpeg_exe)) {
         error = fmt(lmsg::err_ffmpeg_missing, {job.ffmpeg_exe});
@@ -1850,6 +1849,8 @@ bool DatasetPrep::extract_video_ffmpeg(const PrepJob& job, const PrepInput& in,
     if (is_dual_fisheye_path(in.path) && facts.tracks.size() > 1)
         streams = facts.tracks.size();
     if (streams > 1) out.per_folder_cameras = true;
+    // A packed frame's lenses are one picture, so only separate tracks drift.
+    if (streams > 1 && job.sync_tracks) log(lmsg::sync_needs_builtin.get(), /*detail=*/false);
 
     const bool every = every_frame(job, in);
     const int window = every ? 1 : std::max(job.sharp_window, 1);

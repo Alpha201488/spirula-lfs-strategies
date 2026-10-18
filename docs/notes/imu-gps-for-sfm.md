@@ -32,8 +32,9 @@ on. Skip it if you know what a gyro bias is.
 - **DJI Osmo 360 `.OSV` files carry a 1 kHz fused attitude quaternion and one
   accelerometer reading per frame**, plus the lens intrinsics. No raw gyro is
   written and there is no GPS.
-- **A Kandao QooCam 3 Ultra `.mp4` carries a 1 kHz gyro+accelerometer log**
-  and a timestamp per frame on the same clock (section 2.4, one clip).
+- **A Kandao QooCam 3 Ultra `.mp4` carries a 0.83 to 1 kHz gyro+accelerometer
+  log** and a timestamp per frame on the same clock, and from firmware 1.0.1 a
+  1 Hz GPS log that moves (section 2.4, seven clips).
 - The three makers put the sensor axes in three different frames, and GoPro
   puts two of its own streams in different frames from a third. None of them
   documents the rotation from the IMU to the lens. That rotation is the one
@@ -246,14 +247,14 @@ person gave covers it; the run prints which, and why not.
 ### 2.4 Kandao QooCam 3 Ultra (`.mp4`)
 
 Added 2026-10-12, from one 106 s handheld clip (unstitched 3840x7680, firmware
-V1.1.2.15).
+V1.1.2.15); six more clips below.
 
 | stream | rate | span | notes |
 |---|---|---|---|
 | gyro | 1000 Hz | starts 2.0 s before the first frame, ends 0.7 s after the last | raw int16 at 2000 deg/s full scale |
 | accel | 1000 Hz | same record | raw int16 at 16 g full scale; norm median 9.77 |
 | frame times | per frame | | `PTS`, microseconds on the IMU's clock |
-| GPS | none in this clip | | `GPS_CAPTIME` is 0 and no `GPS` field is written |
+| GPS | none in this clip | | `GPS_CAPTIME` is 0 and no `GPS` field is written; see below for clips that have one |
 
 Two top-level boxes follow `moov`: `kfix` (what holds for the clip: model,
 serial, firmware, exposure settings) and `kvar` (what varies: the logs). Both
@@ -309,13 +310,10 @@ none` the 3 fps model is levelled on a plane that is not the floor, 107 deg
 from the IMU's up.
 
 **Not read:** `LENS` (a 534-character hex string, the two lenses'
-calibration), `EXP` (per frame, a u32 time in ms and a u32 shutter in
-microseconds), `ISP` and `FRAME_ISP`, and the `GPS` / `GPSX` logs ExifTool
-decodes (20-, 28- or 36-byte records): the clip here was shot with no fix, so
-there is nothing to check a GPS reader against, and a file that has such a log
-gets a note saying it was skipped. ExifTool also mentions an optional
-magnetometer triple after the accelerometer; `V_IMU_F` is 6 here, and a file
-that says anything else is left unread rather than read at a guessed stride.
+calibration), `ISP`, `FRAME_ISP` and the `GAINMAP`s. ExifTool also mentions an
+optional magnetometer triple after the accelerometer; `V_IMU_F` is 6 in every
+clip here, and a file that says anything else has its IMU left unread rather
+than read at a guessed stride.
 
 **Other models.** telemetry-parser reads the same two boxes and the same
 20-byte record for the QooCam EGO and the QooCam 3, and the `INFO` string its

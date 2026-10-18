@@ -137,9 +137,14 @@ void packed_lens_crop(const uint8_t* px, int width, int height, int channels,
                       int lenses, int lens, std::vector<uint8_t>& out,
                       int& out_width, int& out_height);
 
-// A Kandao camera's recording that left the lenses unstitched: the `kfix` box
-// its MP4 ends with says so, where the extension is a plain .mp4.
-bool kandao_unstitched(const std::string& path);
+// A Kandao camera's recording, known by the `kfix` or `kvar` box its MP4 ends
+// with, where the extension is a plain .mp4.
+bool kandao_recording(const std::string& path);
+
+// Whether such a recording of `width` x `height` frames left the lenses apart:
+// always at 1:2, since stitching makes 2:1, else when kfix lists two lenses or
+// says STITCHED=0; never where it says STITCHED=1 (Kandao Studio's) or STEREO=1.
+bool kandao_unstitched(const std::string& path, int width, int height);
 
 // Decodes what the canvas needs and cuts it to size, leaving the result on
 // `pano360_canvas_pad`. `pre` ("fps=6") runs on the canvas, so ffmpeg never

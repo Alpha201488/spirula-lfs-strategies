@@ -1585,6 +1585,58 @@ SS_MSG(gps_zero_help,
     TR("Konum bulamayan alıcı enlem 0, boylam 0 yazar. Bu konumlar burada da "
        "yeniden oluşturmada da dışarıda bırakılır."));
 
+SS_MSG(gps_no_fix,
+    EN("Not a fix (shown, not used): {0}"),
+    JA("測位ではない位置（表示のみ、未使用）: {0}"),
+    ZH_HANS("非定位（仅显示，不使用）：{0}"),
+    ZH_HANT("非定位（僅顯示，不使用）：{0}"),
+    KO("측위 아님(표시만, 사용 안 함): {0}"),
+    DE("Kein Fix (gezeigt, nicht verwendet): {0}"),
+    FR("Sans position fixée (affichées, non utilisées) : {0}"),
+    ES("Sin posición fija (mostradas, no usadas): {0}"),
+    PT("Sem posição fixa (mostradas, não usadas): {0}"),
+    IT("Senza fix (mostrate, non usate): {0}"),
+    NL("Geen fix (getoond, niet gebruikt): {0}"),
+    RU("Без фиксации (показано, не используется): {0}"),
+    TR("Konum kilidi yok (gösterilir, kullanılmaz): {0}"));
+
+SS_MSG(gps_no_fix_help,
+    EN("Positions the receiver itself did not mark as a fix, often the last "
+       "place it saw the sky. They are marked × in amber on the map, and the "
+       "reconstruction leaves them out."),
+    JA("受信機自身が測位として示さなかった位置です。多くは最後に空が見えた場所で"
+       "す。地図上に黄色の × で示し、再構成では使いません。"),
+    ZH_HANS("接收器自身未标记为定位的位置，通常是它最后一次看到天空的地方。在地图上用"
+            "黄色 × 标出，重建不会使用。"),
+    ZH_HANT("接收器本身未標記為定位的位置，通常是它最後一次看到天空的地方。在地圖上以"
+            "黃色 × 標出，重建不會使用。"),
+    KO("수신기가 스스로 측위로 표시하지 않은 위치로, 대개 마지막으로 하늘이 보인 "
+       "곳입니다. 지도에 노란색 ×로 표시하며 재구성에는 쓰지 않습니다."),
+    DE("Positionen, die der Empfänger selbst nicht als Fix markiert hat, oft "
+       "der Ort, an dem er zuletzt den Himmel sah. Auf der Karte gelb mit × "
+       "markiert; die Rekonstruktion lässt sie weg."),
+    FR("Positions que le récepteur lui-même n'a pas marquées comme fixées, "
+       "souvent le dernier endroit où il voyait le ciel. Marquées × en jaune "
+       "sur la carte ; la reconstruction les écarte."),
+    ES("Posiciones que el propio receptor no marcó como fijas, a menudo el "
+       "último lugar donde vio el cielo. Se marcan con × en amarillo en el "
+       "mapa y la reconstrucción las descarta."),
+    PT("Posições que o próprio receptor não marcou como fixas, muitas vezes o "
+       "último lugar onde viu o céu. Marcadas com × em amarelo no mapa; a "
+       "reconstrução deixa-as de fora."),
+    IT("Posizioni che il ricevitore stesso non ha segnato come fix, spesso "
+       "l'ultimo punto in cui vedeva il cielo. Segnate con × in giallo sulla "
+       "mappa; la ricostruzione le esclude."),
+    NL("Posities die de ontvanger zelf niet als fix markeerde, vaak de laatste "
+       "plek waar hij de hemel zag. Op de kaart geel gemarkeerd met ×; de "
+       "reconstructie laat ze weg."),
+    RU("Положения, которые сам приёмник не отметил как фиксацию, часто последнее "
+       "место, где он видел небо. На карте отмечены жёлтым ×, реконструкция их "
+       "не использует."),
+    TR("Alıcının kendisinin konum kilidi olarak işaretlemediği konumlar; çoğu "
+       "zaman gökyüzünü son gördüğü yer. Haritada sarı × ile işaretlidir ve "
+       "yeniden oluşturma bunları kullanmaz."));
+
 SS_MSG(map_fit,
     EN("Fit"),
     JA("全体表示"),
@@ -2443,6 +2495,21 @@ SS_MSG(tip_outlier,
     NL("Als uitschieter weggelaten"),
     RU("Отброшено как выброс"),
     TR("Aykırı diye atıldı"));
+
+SS_MSG(tip_no_fix,
+    EN("Not a fix, by the receiver's own flag"),
+    JA("受信機自身のフラグでは測位ではない"),
+    ZH_HANS("按接收器自身的标志，并非定位"),
+    ZH_HANT("依接收器本身的旗標，並非定位"),
+    KO("수신기 자체 플래그로는 측위 아님"),
+    DE("Laut Empfänger selbst kein Fix"),
+    FR("Pas une position fixée, selon le récepteur lui-même"),
+    ES("Sin posición fija, según el propio receptor"),
+    PT("Sem posição fixa, segundo o próprio receptor"),
+    IT("Nessun fix, secondo il ricevitore stesso"),
+    NL("Geen fix, volgens de ontvanger zelf"),
+    RU("Не фиксация, по флагу самого приёмника"),
+    TR("Alıcının kendi işaretine göre konum kilidi yok"));
 
 SS_MSG(tip_far,
     EN("Far from the other photos"),

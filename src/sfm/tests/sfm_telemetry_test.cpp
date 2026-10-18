@@ -524,11 +524,26 @@ static Bytes kandao_chars(const char* name, const char* s) {
     return kandao_field(name, "CHAR", (uint32_t)d.size(), d);
 }
 
+// One GPS record: 28 bytes after the log's 0xffffffff mark, 20 with no
+// altitude, 36 (GPSX) with a UTC time in ms after the u32 one.
+static Bytes kandao_fix(size_t size, uint32_t ms, double lat, double lon, double alt, uint64_t utc_ms = 0) {
+    Bytes b;
+    put_le32(b, ms);
+    if (size == 36) put_le64(b, utc_ms);
+    put_lef64(b, lat); put_lef64(b, lon);
+    if (size != 20) put_lef64(b, alt);
+    return b;
+}
+
 // `imu_f` is INFO's V_IMU_F; a negative one leaves the ranges out as well.
-static Bytes kandao_file(int imu_f, bool with_pts) {
+// `gps` is the GPS log's bytes, under `gps_name`.
+// `late` writes the second IMU record after the third, as firmware 1.0.1 can.
+static Bytes kandao_file(int imu_f, bool with_pts, const Bytes& gps = Bytes(20, 0),
+                         const char* gps_name = "GPS", bool late = false) {
     const uint64_t first_frame = 5000000;   // microseconds
     Bytes imu;
-    for (int i = 0; i < 4; i++) {
+    for (int k = 0; k < 4; k++) {
+        const int i = late && k == 1 ? 2 : late && k == 2 ? 1 : k;
         put_le64(imu, first_frame - 1000 + 1000 * i);
         put_le16(imu, (uint16_t)(int16_t)(-16384 + i)); put_le16(imu, 0); put_le16(imu, 8192);
         put_le16(imu, 0); put_le16(imu, (uint16_t)(int16_t)-2048); put_le16(imu, 1024);
@@ -541,11 +556,14 @@ static Bytes kandao_file(int imu_f, bool with_pts) {
                                             " V_G_RANGE=2000 V_A_RANGE=16 V_VERSION=3").c_str()));
     if (with_pts) var.push_back(kandao_field("PTS", "U64", 2, pts));
     var.push_back(kandao_field("IMU", "U8", (uint32_t)imu.size(), imu));
-    var.push_back(kandao_field("GPS", "U8", 20, Bytes(20, 0)));
+    var.push_back(kandao_field(gps_name, "U8", (uint32_t)gps.size(), gps));
+    Bytes exp; put_le32(exp, 5000); put_le32(exp, 33333); put_le32(exp, 5040); put_le32(exp, 1250);
+    var.push_back(kandao_field("EXP", "U8", (uint32_t)exp.size(), exp));
 
     Bytes file = build_mp4({}, 1000, 80, 0);
-    put_raw(file, kandao_box("kfix", {kandao_chars("PRODUCT", "QooCam 3 Ultra"), kandao_chars("SN", "QU0001"),
-                                      kandao_chars("SW_VER", "V1.1.2.15")}));
+    Bytes ev; put_lef64(ev, -1.0 / 3.0);
+    put_raw(file, kandao_box("kfix", {kandao_chars("PRODUCT", "QooCam 3 Ultra"), kandao_field("EV", "DOUBLE", 1, ev),
+                                      kandao_chars("SN", "QU0001"), kandao_chars("SW_VER", "V1.1.2.15")}));
     put_raw(file, kandao_box("kvar", var));
     return file;
 }
@@ -557,7 +575,7 @@ static void test_kandao() {
     check(telemetry_read(file.data(), file.size(), tm, err), "kandao: read (" + err + ")");
     check(tm.carrier == TelemetryCarrier::Kandao, "kandao: carrier");
     check(tm.camera == "QooCam 3 Ultra" && tm.serial == "QU0001" && tm.firmware == "V1.1.2.15", "kandao: identity");
-    check(tm.gyro.size() == 4 && tm.accel.size() == 4 && tm.gps.empty(), "kandao: counts");
+    check(tm.gyro.size() == 4 && tm.accel.size() == 4 && tm.gps.empty() && tm.gps_zero == 1, "kandao: counts");
     const double pi = 3.14159265358979323846;
     check(tm.gyro.size() == 4 && close_to(tm.gyro[0].x, -1000.0 * pi / 180.0, 1e-9) &&
           close_to(tm.gyro[0].z, 500.0 * pi / 180.0, 1e-9), "kandao: gyro in rad/s from the range in INFO");
@@ -565,7 +583,52 @@ static void test_kandao() {
           "kandao: accel in m/s^2 from the range in INFO");
     check(tm.gyro.size() == 4 && close_to(tm.gyro[0].t, -0.001, 1e-12) && close_to(tm.gyro[3].t, 0.002, 1e-12),
           "kandao: time counted from the first frame's PTS");
-    check(has_note(tm, "GPS log present", false), "kandao: an unread GPS log is said");
+    check(tm.exposure.size() == 2 && close_to(tm.exposure[0].t, 0, 1e-12) && close_to(tm.exposure[1].t, 0.04, 1e-12) &&
+          close_to(tm.exposure[0].shutter, 0.033333, 1e-12) && close_to(tm.exposure[1].shutter, 0.00125, 1e-12),
+          "kandao: EXP is ms on the frames' clock and a shutter in microseconds");
+
+    // Firmware 1.0.1: about one record a second on the frames' clock, each fix
+    // written again until the next arrives.
+    Bytes gps = {0xff, 0xff, 0xff, 0xff};
+    put_raw(gps, kandao_fix(28, 5500, 40.761318, -73.963555, 82.1));
+    put_raw(gps, kandao_fix(28, 5500, 40.761318, -73.963555, 82.1));
+    put_raw(gps, kandao_fix(28, 6533, 40.761301, -73.963536, 86.9));
+    put_raw(gps, kandao_fix(28, 7566, 0, 0, 0));
+    file = kandao_file(6, true, gps);
+    check(telemetry_read(file.data(), file.size(), tm, err) && tm.gps.size() == 2 && tm.gps_zero == 1,
+          "kandao: a repeated record is one fix, and 0, 0 is no fix");
+    check(tm.gps.size() == 2 && close_to(tm.gps[0].t, 0.5, 1e-9) && close_to(tm.gps[1].t, 1.533, 1e-9) &&
+          tm.gps[0].fix && tm.gps[0].has_alt && close_to(tm.gps[1].alt, 86.9, 1e-12) &&
+          close_to(tm.gps[1].lat, 40.761301, 1e-12) && close_to(tm.gps[1].lon, -73.963536, 1e-12),
+          "kandao: 28-byte GPS records, timed on the frames' clock");
+
+    // Firmware 1.0.0: a record per frame, stamped on some other clock.
+    gps = {0xff, 0xff, 0xff, 0xff};
+    put_raw(gps, kandao_fix(28, 457791600, 35.6596485, 139.7004801, 12.1));
+    put_raw(gps, kandao_fix(28, 457791600, 35.6596485, 139.7004801, 12.1));
+    put_raw(gps, kandao_fix(28, 457792600, 35.6596490, 139.7004810, 12.3));
+    file = kandao_file(6, true, gps);
+    check(telemetry_read(file.data(), file.size(), tm, err) && tm.gps.size() == 2 && close_to(tm.gps[0].t, 0, 1e-12) &&
+          close_to(tm.gps[1].t, 0.04, 1e-12) && has_note(tm, "not on the frames' clock", false),
+          "kandao: GPS times off the frames' clock are spread over the frames in order");
+
+    gps = kandao_fix(20, 5500, 46.127222, 85.773012, 0);
+    file = kandao_file(6, true, gps);
+    check(telemetry_read(file.data(), file.size(), tm, err) && tm.gps.size() == 1 && !tm.gps[0].has_alt &&
+          close_to(tm.gps[0].lon, 85.773012, 1e-12), "kandao: 20-byte GPS records have no altitude");
+
+    gps = kandao_fix(36, 5500, 38.731875, 139.847356, 18.3, 1723894925500ull);
+    file = kandao_file(6, true, gps, "GPSX");
+    check(telemetry_read(file.data(), file.size(), tm, err) && tm.gps.size() == 1 &&
+          close_to(tm.gps[0].unix_time, 1723894925.5, 1e-6) && close_to(tm.gps[0].alt, 18.3, 1e-12) &&
+          close_to(tm.gps[0].t, 0.5, 1e-9), "kandao: GPSX records carry a UTC time");
+
+    file = kandao_file(6, true, Bytes(20, 0), "GPS", true);
+    check(telemetry_read(file.data(), file.size(), tm, err) && tm.gyro.size() == 4 &&
+          close_to(tm.gyro[1].t, 0, 1e-12) && close_to(tm.gyro[2].t, 0.001, 1e-12) &&
+          close_to(tm.gyro[1].x, (-16384 + 1) * 2000.0 / 32768.0 * pi / 180.0, 1e-9) &&
+          has_note(tm, "out of time order 1 times", false),
+          "kandao: a record written late is put back in time order with its readings");
 
     file = kandao_file(6, false);
     check(telemetry_read(file.data(), file.size(), tm, err) && tm.gyro.size() == 4 && close_to(tm.gyro[0].t, 0, 1e-12) &&
@@ -573,7 +636,8 @@ static void test_kandao() {
 
     for (int imu_f : {9, -1}) {
         file = kandao_file(imu_f, true);
-        check(telemetry_read(file.data(), file.size(), tm, err) && tm.carrier == TelemetryCarrier::None && tm.empty(),
+        check(telemetry_read(file.data(), file.size(), tm, err) && tm.gyro.empty() && tm.accel.empty() &&
+              has_note(tm, "IMU log not read", false),
               "kandao: a record layout or range it cannot name is not read (V_IMU_F " + std::to_string(imu_f) + ")");
     }
 

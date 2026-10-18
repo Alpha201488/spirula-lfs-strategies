@@ -153,10 +153,9 @@ void probe_sources(std::vector<PrepInput>& sources,
     for (PrepInput& s : sources) {
         int w = 0, h = 0;
         if (!s.is_video || s.packed_lenses != 0) continue;
-        const bool unstitched = s.video_tracks == 1 && app::kandao_unstitched(s.path);
-        if ((unstitched || is_packed_lens_path(s.path)) &&
-            source_pixel_size(s, ffmpeg_exe, w, h))
-            set_packed_lenses(s, w, h, unstitched);
+        const bool kandao = s.video_tracks == 1 && app::kandao_recording(s.path);
+        if ((kandao || is_packed_lens_path(s.path)) && source_pixel_size(s, ffmpeg_exe, w, h))
+            set_packed_lenses(s, w, h, kandao && app::kandao_unstitched(s.path, w, h));
     }
     for (PrepInput& s : sources)
         if (s.is_video) s.lut_detected = app::detect_log_lut(s.path);
