@@ -470,6 +470,7 @@ int engine_resolve_num_loss_scales(int num_loss_scales,
 static std::map<std::string, float> _engine_loss(
     std::array<float, (int)LossWeightIndex::length> loss_weights,
     float w_ssim,
+    int perceptual_loss,
     int num_loss_scales,
     int loss_scale_min_pixels,
     bool compute_loss_map,
@@ -698,6 +699,7 @@ static std::map<std::string, float> _engine_loss(
         engine().gt.has_mask,
         loss_weights,
         w_ssim,
+        perceptual_loss,
         saturation_threshold,
         v_losses_buf,
         needs_input_grad,
@@ -912,9 +914,14 @@ static std::map<std::string, float> _engine_loss(
     auto sdiv = [](float x, float y) -> float { return y != 0.0f ? x / y : 0.0f; };
 
     std::map<std::string, float> loss_dict;
-    loss_dict["rgb_loss"] = lv.rgb_loss + w_ssim * (1.0f - lv.ssim);
     loss_dict["psnr"] = lv.rgb_psnr;
-    loss_dict["ssim"] = lv.ssim;
+    if (perceptual_loss == (int)PerceptualLoss::SCielab) {
+        loss_dict["rgb_loss"] = lv.rgb_loss + w_ssim * kScielabLossPerDeltaE * lv.delta_e;
+        loss_dict["delta_e"] = lv.delta_e;
+    } else {
+        loss_dict["rgb_loss"] = lv.rgb_loss + w_ssim * (1.0f - lv.ssim);
+        loss_dict["ssim"] = lv.ssim;
+    }
     loss_dict["depth_loss"] = sdiv(lv.depth_sup,
         loss_weights[(int)LossWeightIndex::DepthSup]);
     loss_dict["normal_loss"] = sdiv(lv.normal_sup,
@@ -948,6 +955,7 @@ std::map<std::string, float> engine_compute_loss_backward(
     int step,
     std::array<float, (int)LossWeightIndex::length> loss_weights,
     float w_ssim,
+    int perceptual_loss,
     int num_loss_scales,
     int loss_scale_min_pixels,
     bool compute_loss_map,
@@ -963,7 +971,7 @@ std::map<std::string, float> engine_compute_loss_backward(
     float color_shift_reg_weight,
     float color_shift_reg_beta
 ) {
-    return _engine_loss(loss_weights, w_ssim, num_loss_scales,
+    return _engine_loss(loss_weights, w_ssim, perceptual_loss, num_loss_scales,
                         loss_scale_min_pixels, compute_loss_map, loss_map_mode,
                         robust_edge_aware_quantile, nms_falloff,
                         loss_map_normalize,
@@ -982,7 +990,7 @@ bool engine_preview_loss_map(const LossConfig& loss, TorchTensorView out) {
         throw std::runtime_error("engine_preview_loss_map: null destination");
     // The regularizer weights are dropped: each of them only ever adds to a
     // gradient this call does not compute.
-    _engine_loss(loss.weights, loss.w_ssim, loss.num_loss_scales,
+    _engine_loss(loss.weights, loss.w_ssim, loss.perceptual_loss, loss.num_loss_scales,
                  loss.loss_scale_min_pixels, true, loss.loss_map_mode,
                  loss.robust_edge_aware_quantile, loss.nms_falloff,
                  loss.loss_map_normalize,

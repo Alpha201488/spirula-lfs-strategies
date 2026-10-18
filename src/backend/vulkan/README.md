@@ -794,7 +794,9 @@ the engine level.
     flat 256-wide workgroups (~30 KB, same buffer1/buffer2 overlay reuse).
     Every per-pixel output is a pure function of the zero-padded input, so
     tile size does not change the map or dL/dimg1 (tight); only the
-    display-only scalar's accumulation grouping differs (loose).
+    display-only scalar's accumulation grouping differs (loose). Its
+    `scielab_*` entries port the S-CIELAB loss with the CUDA kernel's own
+    16x16 tile and 28 KB overlay, under the floor on every device.
   - `canny.slang` (canny rgb/scalar + BT.601 residual luma + Tukey
     biweight) with globally-clamped loads -> per-pixel deterministic, so
     even the RobustEdgeAware densification map compares tight.

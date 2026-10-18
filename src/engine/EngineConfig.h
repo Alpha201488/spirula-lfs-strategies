@@ -21,6 +21,7 @@
 struct LossConfig {
     std::array<float, (int)LossWeightIndex::length> weights{};
     float w_ssim          = 0.0f;
+    int   perceptual_loss = 0;   // PerceptualLoss: what w_ssim weights
     int   num_loss_scales = 1;
     // When positive, overrides num_loss_scales per train step based on the
     // render resolution: the number of scales is chosen so that the smallest

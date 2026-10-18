@@ -55,6 +55,8 @@ struct Outcome {
     float rgb_loss;
     std::vector<float> v_render_rgb;
     std::vector<float> v_render_Ts;
+    float delta_e;
+    std::vector<float> map;
 };
 
 // One loss evaluation. `mask` empty means no mask buffer at all (has_mask=0);
@@ -63,7 +65,8 @@ struct Outcome {
 Outcome run(const std::vector<uint8_t>& mask, bool zero_depth, float w_alpha,
             int64_t Hm = H, int64_t Wm = W, float w_ssim = 0.0f,
             const std::vector<float>* rgb_in = nullptr, float w_rgb = 1.0f,
-            float sat = -1.0f, const std::vector<float>* ref_in = nullptr) {
+            float sat = -1.0f, const std::vector<float>* ref_in = nullptr,
+            int loss = 0, int map_mode = (int)DensifyLossMapMode::None) {
     std::vector<float> rgb((size_t)3 * NP, 0.5f), ref((size_t)3 * NP, 0.25f);
     if (rgb_in) rgb = *rgb_in;
     for (size_t i = 0; i < ref.size(); i++)
@@ -93,6 +96,8 @@ Outcome run(const std::vector<uint8_t>& mask, bool zero_depth, float w_alpha,
     grads.v_render_rgb =
         ttv(upload(std::vector<float>((size_t)3 * NP, 0.0f)), {B, H, W, 3});
     grads.v_render_Ts = ttv(upload(std::vector<float>((size_t)NP, 0.0f)), {B, H, W, 1});
+    float* d_map = map_mode != (int)DensifyLossMapMode::None
+                       ? upload(std::vector<float>((size_t)NP, 0.0f)) : nullptr;
 
     auto once = [&]() {
         return compute_multi_scale_per_pixel_losses(
@@ -103,17 +108,18 @@ Outcome run(const std::vector<uint8_t>& mask, bool zero_depth, float w_alpha,
             d_mask ? std::make_tuple((uint64_t)d_mask, (uint32_t)1,
                                      std::vector<int64_t>{B, Hm, Wm, 1})
                    : ttv_null(),
-            /*has_mask=*/d_mask != nullptr, weights, w_ssim, sat,
+            /*has_mask=*/d_mask != nullptr, weights, w_ssim, loss, sat,
             ttv(d_v_losses, {(int64_t)LossIndex::length}), needs, B,
-            ttv_null(), ttv_null(), (int)DensifyLossMapMode::None, 0.75f,
-            0.0f, grads);
+            ttv_null(), d_map ? ttv(d_map, {B, H, W, 1}) : ttv_null(), map_mode,
+            0.75f, 0.0f, grads);
     };
     once();  // the loss scalars are read one iteration behind
     LossValues lv = once();
     backend::device_synchronize();
     return {lv.alpha_sup, lv.ssim, lv.rgb_loss,
             download((const float*)std::get<0>(grads.v_render_rgb), 3 * NP),
-            download((const float*)std::get<0>(grads.v_render_Ts), NP)};
+            download((const float*)std::get<0>(grads.v_render_Ts), NP),
+            lv.delta_e, d_map ? download(d_map, NP) : std::vector<float>{}};
 }
 
 // Left half masked out (0 = "not the subject"), right half kept.
@@ -277,6 +283,85 @@ int main() {
         }
         check(scale > 0.0 && worst <= 1e-4 * scale,
               "no pixel over the cutoff: the threshold changes nothing");
+    }
+
+    // S-CIELAB reports mean dE and trains on w * mean dE / 100; its gradient
+    // must be the gradient of exactly that, through the border's coverage
+    // divide and the mask's.
+    {
+        constexpr int kSc = (int)PerceptualLoss::SCielab;
+        const float w = 0.2f;
+        auto fd_check = [&](const std::vector<uint8_t>& mask, int64_t y0,
+                            int64_t x0, const char* what) {
+            std::vector<float> base = ramp_image(41), ref = ramp_image(43);
+            Outcome a = run(mask, false, 0.0f, H, W, w, &base, 0.0f, -1.0f, &ref, kSc);
+            double gsum = 0.0;
+            const float eps = 1.0f / 256.0f;
+            std::vector<float> up = base, dn = base;
+            for (int64_t y = y0; y < y0 + 8; y++)
+                for (int64_t x = x0; x < x0 + 4; x++)
+                    for (int c = 0; c < 3; c++) {
+                        size_t i = (size_t)(y * W + x) * 3 + c;
+                        gsum += a.v_render_rgb[i];
+                        up[i] += eps; dn[i] -= eps;
+                    }
+            Outcome bu = run(mask, false, 0.0f, H, W, w, &up, 0.0f, -1.0f, &ref, kSc);
+            Outcome bd = run(mask, false, 0.0f, H, W, w, &dn, 0.0f, -1.0f, &ref, kSc);
+            double fd = (double)(bu.delta_e - bd.delta_e) * w *
+                        kScielabLossPerDeltaE / (2.0 * eps);
+            std::printf("    (central difference %.6g vs gradient sum %.6g)\n", fd, gsum);
+            check(gsum != 0.0 && std::fabs(fd - gsum) <= 0.02 * std::fabs(gsum), what);
+        };
+        fd_check({}, 12, 14, "s-cielab gradient matches the dE it reports");
+        fd_check({}, 0, 0, "s-cielab gradient at the image corner");
+        fd_check(half_mask(), 8, W / 2, "s-cielab gradient at a mask edge");
+
+        Outcome ign = run(half_mask(), false, 0.0f, H, W, w, nullptr, 0.0f,
+                          -1.0f, nullptr, kSc);
+        bool masked_zero = true, kept_nonzero = false;
+        for (int64_t y = 0; y < H; y++)
+            for (int64_t x = 0; x < W; x++) {
+                const float g = ign.v_render_rgb[(size_t)(y * W + x) * 3];
+                if (x < W / 2) masked_zero &= (g == 0.0f);
+                else kept_nonzero |= (g != 0.0f);
+            }
+        check(masked_zero && kept_nonzero,
+              "s-cielab: masked pixels take no colour gradient");
+
+        // A uniform image is its own blur, so a constant offset shows up at
+        // full strength in every pixel, the border included.
+        std::vector<float> flat((size_t)3 * NP, 0.5f), flat_ref((size_t)3 * NP, 0.4f);
+        Outcome fl = run({}, false, 0.0f, H, W, w, &flat, 0.0f, -1.0f, &flat_ref,
+                         kSc, (int)DensifyLossMapMode::SCielab);
+        float lo = fl.map[0], hi = fl.map[0];
+        for (float v : fl.map) { lo = std::min(lo, v); hi = std::max(hi, v); }
+        check(lo > 0.0f && hi - lo <= 1e-4f * hi,
+              "s-cielab map: a flat offset scores alike at the border");
+    }
+
+    // A zero ssim_lambda still trains nothing through the perceptual term,
+    // but a map that is only that term must not come back blank.
+    {
+        std::vector<float> rgb = ramp_image(51), ref = ramp_image(53);
+        auto max_of = [](const std::vector<float>& v) {
+            float m = 0.0f;
+            for (float x : v) m = std::max(m, std::fabs(x));
+            return m;
+        };
+        Outcome cs = run({}, false, 0.0f, H, W, 0.0f, &rgb, 1.0f, -1.0f, &ref, 0,
+                         (int)DensifyLossMapMode::SsimContrastStruct);
+        check(max_of(cs.map) > 0.0f, "ssim_lambda 0: the ssim_cs map is not blank");
+        Outcome sc = run({}, false, 0.0f, H, W, 0.0f, &rgb, 1.0f, -1.0f, &ref,
+                         (int)PerceptualLoss::SCielab, (int)DensifyLossMapMode::SCielab);
+        check(max_of(sc.map) > 0.0f, "ssim_lambda 0: the s_cielab map is not blank");
+        Outcome l1 = run({}, false, 0.0f, H, W, 0.0f, &rgb, 1.0f, -1.0f, &ref);
+        Outcome l1_sc = run({}, false, 0.0f, H, W, 0.0f, &rgb, 1.0f, -1.0f, &ref,
+                            (int)PerceptualLoss::SCielab);
+        double worst = 0.0;
+        for (size_t i = 0; i < l1.v_render_rgb.size(); i++)
+            worst = std::max(worst, (double)std::fabs(l1.v_render_rgb[i] -
+                                                      l1_sc.v_render_rgb[i]));
+        check(worst == 0.0, "ssim_lambda 0: s-cielab adds no gradient");
     }
 
     std::printf("%s\n", g_failures ? "FAILED" : "all ok");

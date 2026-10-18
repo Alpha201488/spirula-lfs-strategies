@@ -1015,8 +1015,8 @@ __global__ void memory_efficient_ssim_backward_kernel(
     }
     block.sync();
 
-    // (3) Vertical pass -> finalize dL/d(img1)
-    if (pix_x < W && pix_y < H) {
+    // (3) Vertical pass -> finalize dL/d(img1); null when only the map is wanted
+    if (dL_dimg1 != nullptr && pix_x < W && pix_y < H) {
         int ly = threadIdx.y + HALO;
         int lx = threadIdx.x;
 
@@ -1074,6 +1074,327 @@ __global__ void memory_efficient_ssim_backward_kernel(
         ssim_val /= 3*B*H*W;
         atomicAddFVec<BLOCK_X_ME*BLOCK_Y_ME>(out_ssim_val, ssim_val);
     }
+}
+
+// ------------------------------------------
+// Fused S-CIELAB (Zhang & Wandell 1997)
+// ------------------------------------------
+
+// sRGB -> linear -> XYZ (D65) -> Poirson-Wandell opponent channels, one blur
+// per channel, back to XYZ, then CIELAB dE*ab against the reference taken
+// through the same path. Mirrored by fused_ssim.slang's scielab_* entries.
+
+__constant__ float cScielabRgbToOpp[9] = {
+     0.266131096f,  0.601919772f,  0.000625524f,
+    -0.125006493f,  0.037664685f, -0.133259103f,
+    -0.080319477f, -0.331473061f,  0.449036729f,
+};
+// The opponent -> XYZ inverse with each row divided by the D65 white, so it
+// lands directly on X/Xn, Y/Yn, Z/Zn.
+__constant__ float cScielabOppToXyzN[9] = {
+    0.659204924f, -1.964478203f, -0.161137515f,
+    1.369855450f,  0.934755824f,  0.436229005f,
+    1.382815274f,  1.305367938f,  2.329124914f,
+};
+// Per-channel blur, indexed like cGauss: sigma 0.5 / 1.5 / 2.0 px for
+// luminance / red-green / blue-yellow. S-CIELAB's wide chroma lobes do not
+// fit 11x11; the coarser loss scales stand in for them.
+__constant__ float cScielabGauss[3][HALO+1] = {
+#if 0
+    // 0.5 / 1.5 / 2.0
+    {1.5170981316200282e-22f, 9.961261650047284e-15f, 1.1979455936033156e-08f, 0.0002638650764154286f, 0.10645076942314473f, 0.7865707070419479f},
+    {0.0010283800844791092f, 0.007598758135239184f, 0.03600077212843082f, 0.1093606895097f, 0.2130055377112537f, 0.2660117248617943f},
+    {0.008812229292562283f, 0.027143577143479366f, 0.06511405659938266f, 0.12164907301380957f, 0.17699835683135567f, 0.2005654142388208f},
+#else
+    // 1.5 / 4.5 / 6.0
+    {0.0010283800844791092f, 0.007598758135239184f, 0.03600077212843082f, 0.1093606895097f, 0.2130055377112537f, 0.2660117248617943f},
+    {0.06136116169339518f, 0.07663081738142594f, 0.09108916096839265f, 0.10305837835540532f, 0.11098218377453624f, 0.11375659565368933f},
+    {0.07327261223290525f, 0.083028747203882f, 0.09150641891586254f, 0.0980868750764954f, 0.10226016805075756f, 0.10369035704019461f},
+#endif
+};
+// Charbonnier floor on dE for the gradient only, in dE units.
+#define SCIELAB_EPS2 1e-4f
+
+__device__ __forceinline__ float scielab_lin(float c) {
+    return c <= 0.04045f ? c * (1.0f / 12.92f)
+                         : powf((c + 0.055f) * (1.0f / 1.055f), 2.4f);
+}
+__device__ __forceinline__ float scielab_dlin(float c) {
+    return c <= 0.04045f ? 1.0f / 12.92f
+                         : (2.4f / 1.055f) * powf((c + 0.055f) * (1.0f / 1.055f), 1.4f);
+}
+__device__ __forceinline__ float scielab_opp(float3 c, int k) {
+    const float* m = cScielabRgbToOpp + 3 * k;
+    return m[0] * scielab_lin(c.x) + m[1] * scielab_lin(c.y) + m[2] * scielab_lin(c.z);
+}
+// CIELAB's f and f'; the linear toe takes negative XYZ from a negative render.
+__device__ __forceinline__ float scielab_f(float t) {
+    return t > 216.0f / 24389.0f ? cbrtf(t) : t * (841.0f / 108.0f) + 4.0f / 29.0f;
+}
+__device__ __forceinline__ float scielab_df(float t) {
+    if (t <= 216.0f / 24389.0f) return 841.0f / 108.0f;
+    float r = cbrtf(t);
+    return 1.0f / (3.0f * r * r);
+}
+__device__ __forceinline__ float3 scielab_xyzn(float a, float b, float c) {
+    const float* m = cScielabOppToXyzN;
+    return {m[0] * a + m[1] * b + m[2] * c,
+            m[3] * a + m[4] * b + m[5] * c,
+            m[6] * a + m[7] * b + m[8] * c};
+}
+// Kernel weight inside the image along one axis: 1 away from the border.
+__device__ __forceinline__ float scielab_cov1d(int k, int x, int W) {
+    if (x >= HALO && x < W - HALO) return 1.0f;
+    float c = 0.0f;
+    for (int d = -HALO; d <= HALO; ++d)
+        if ((unsigned)(x + d) < (unsigned)W) c += cScielabGauss[k][HALO - abs(d)];
+    return c;
+}
+
+// Per-channel kernel weight on kept pixels. Unlike SSIM's, taps off the image
+// count as dropped, so the blur does not darken the border.
+__global__ void _scielab_mask_coverage_kernel(
+    int B, int H, int W,
+    const SsimImg img1,
+    const SsimImg img2,
+    float sat,
+    const bool* __restrict__ masks,
+    int B_mask, int H_mask, int W_mask,
+    float3* __restrict__ out  // [B, H, W]
+) {
+    __shared__ float sm[COV_S][COV_S];
+    __shared__ float sx[3][COV_S][COV_T];
+    const int b = blockIdx.z;
+    const int x0 = blockIdx.x * COV_T - HALO;
+    const int y0 = blockIdx.y * COV_T - HALO;
+    const int tid = threadIdx.y * COV_T + threadIdx.x;
+    for (int i = tid; i < COV_S * COV_S; i += COV_T * COV_T) {
+        int ly = i / COV_S, lx = i % COV_S;
+        int gy = y0 + ly, gx = x0 + lx;
+        sm[ly][lx] = (float)((unsigned)gx < (unsigned)W && (unsigned)gy < (unsigned)H &&
+            get_pix_mask(img1, img2, sat, masks, b, gy, gx, B_mask, H_mask, W_mask, H, W));
+    }
+    __syncthreads();
+    for (int i = tid; i < COV_S * COV_T; i += COV_T * COV_T) {
+        int ly = i / COV_T, lx = i % COV_T;
+        #pragma unroll
+        for (int k = 0; k < 3; ++k) {
+            float acc = 0.0f;
+            #pragma unroll
+            for (int d = -HALO; d <= HALO; ++d)
+                acc += cScielabGauss[k][HALO - abs(d)] * sm[ly][lx + HALO + d];
+            sx[k][ly][lx] = acc;
+        }
+    }
+    __syncthreads();
+    const int x = blockIdx.x * COV_T + threadIdx.x;
+    const int y = blockIdx.y * COV_T + threadIdx.y;
+    if (x >= W || y >= H) return;
+    float c[3];
+    #pragma unroll
+    for (int k = 0; k < 3; ++k) {
+        float acc = 0.0f;
+        #pragma unroll
+        for (int d = -HALO; d <= HALO; ++d)
+            acc += cScielabGauss[k][HALO - abs(d)] * sx[k][threadIdx.y + HALO + d][threadIdx.x];
+        c[k] = acc;
+    }
+    out[((size_t)b * H + y) * W + x] = {c[0], c[1], c[2]};
+}
+
+// Shared memory, in floats: two images' filtered channels 0 and 1, then the
+// load tile, then the horizontal pass. Channel 2's filtered values overwrite
+// the tile once its horizontal pass is done, which keeps the total at 28 KB.
+#define SC_T 16
+#define SC_LX (SC_T + 4 * HALO)
+#define SC_SX (SC_T + 2 * HALO)
+#define SC_FILT (SC_SX * SC_SX * 2)
+#define SC_TILE (SC_LX * SC_LX * 2)
+#define SC_XCONV (SC_LX * SC_SX * 2)
+
+// The loss is dL_dmap * mean(dE); loss_map gets map_weight * dE added. Masked
+// window centres score 0 and push no gradient. kF1 / kF2: as in the SSIM kernel.
+template<int kF1 = -1, int kF2 = -1>
+__global__ void fused_scielab_kernel(
+    int B, int H, int W,
+    SsimImg img1,
+    SsimImg img2,
+    const bool* __restrict__ masks,
+    int B_mask, int H_mask, int W_mask,
+    float sat,
+    const float3* __restrict__ cov,  // [B, H, W] from the coverage kernel, or null
+    float dL_dmap,
+    float3* __restrict__ dL_dimg1,   // [B, H, W] accumulated, or null
+    float* __restrict__ out_val,     // mean dE accumulated, or null
+    float map_weight,
+    float* __restrict__ loss_map     // [B, H, W] accumulated, or null
+) {
+    if constexpr (kF1 >= 0) img1.f = (PixelFormat)kF1;
+    if constexpr (kF2 >= 0) img2.f = (PixelFormat)kF2;
+    __shared__ float sm[2 * SC_FILT + SC_TILE + SC_XCONV];
+    #define scFilt(k, sy, sx, i) sm[(k) * SC_FILT + ((sy) * SC_SX + (sx)) * 2 + (i)]
+    #define scTile(ly, lx, i) sm[2 * SC_FILT + ((ly) * SC_LX + (lx)) * 2 + (i)]
+    #define scXconv(ly, sx, i) sm[2 * SC_FILT + SC_TILE + ((ly) * SC_SX + (sx)) * 2 + (i)]
+    #define scGrad(sy, t) sm[2 * SC_FILT + SC_TILE + (sy) * SC_T + (t)]
+
+    const int b = blockIdx.z;
+    const int x0 = blockIdx.x * SC_T, y0 = blockIdx.y * SC_T;
+    const int tid = threadIdx.y * SC_T + threadIdx.x;
+    constexpr int kThreads = SC_T * SC_T;
+
+    // Forward: filter each opponent channel of both images over the block
+    // plus one halo -- the window centres the block's gradient reads.
+    for (int k = 0; k < 3; ++k) {
+        if (k) __syncthreads();
+        for (int i = tid; i < SC_LX * SC_LX; i += kThreads) {
+            int ly = i / SC_LX, lx = i % SC_LX;
+            int gy = y0 + ly - 2 * HALO, gx = x0 + lx - 2 * HALO;
+            float a = 0.0f, c = 0.0f;
+            if ((unsigned)gx < (unsigned)W && (unsigned)gy < (unsigned)H &&
+                    get_pix_mask(img1, img2, sat, masks, b, gy, gx,
+                                 B_mask, H_mask, W_mask, H, W)) {
+                size_t p = ((size_t)b * H + gy) * W + gx;
+                a = scielab_opp(pixel_load3(img1.p, img1.f, p), k);
+                c = scielab_opp(pixel_load3(img2.p, img2.f, p), k);
+            }
+            scTile(ly, lx, 0) = a;
+            scTile(ly, lx, 1) = c;
+        }
+        __syncthreads();
+        for (int i = tid; i < SC_LX * SC_SX; i += kThreads) {
+            int ly = i / SC_SX, sx = i % SC_SX, lx = sx + HALO;
+            float w = cScielabGauss[k][HALO];
+            float s0 = scTile(ly, lx, 0) * w, s1 = scTile(ly, lx, 1) * w;
+            #pragma unroll
+            for (int d = 1; d <= HALO; ++d) {
+                w = cScielabGauss[k][HALO - d];
+                s0 += (scTile(ly, lx - d, 0) + scTile(ly, lx + d, 0)) * w;
+                s1 += (scTile(ly, lx - d, 1) + scTile(ly, lx + d, 1)) * w;
+            }
+            scXconv(ly, sx, 0) = s0;
+            scXconv(ly, sx, 1) = s1;
+        }
+        __syncthreads();
+        for (int i = tid; i < SC_SX * SC_SX; i += kThreads) {
+            int sy = i / SC_SX, sx = i % SC_SX, ly = sy + HALO;
+            float w = cScielabGauss[k][HALO];
+            float s0 = scXconv(ly, sx, 0) * w, s1 = scXconv(ly, sx, 1) * w;
+            #pragma unroll
+            for (int d = 1; d <= HALO; ++d) {
+                w = cScielabGauss[k][HALO - d];
+                s0 += (scXconv(ly - d, sx, 0) + scXconv(ly + d, sx, 0)) * w;
+                s1 += (scXconv(ly - d, sx, 1) + scXconv(ly + d, sx, 1)) * w;
+            }
+            scFilt(k, sy, sx, 0) = s0;
+            scFilt(k, sy, sx, 1) = s1;
+        }
+    }
+    __syncthreads();
+
+    // dE per window centre, and in img1's slot its adjoint w.r.t. the three
+    // unnormalized window sums.
+    const float gscale = dL_dmap / ((float)B * H * W);
+    float val = 0.0f;
+    for (int i = tid; i < SC_SX * SC_SX; i += kThreads) {
+        int sy = i / SC_SX, sx = i % SC_SX;
+        int cy = y0 + sy - HALO, cx = x0 + sx - HALO;
+        float g[3] = {0.0f, 0.0f, 0.0f};
+        if ((unsigned)cx < (unsigned)W && (unsigned)cy < (unsigned)H &&
+                get_pix_mask(img1, img2, sat, masks, b, cy, cx,
+                             B_mask, H_mask, W_mask, H, W)) {
+            float ic[3];
+            if (cov != nullptr) {
+                float3 cv = cov[((size_t)b * H + cy) * W + cx];
+                ic[0] = 1.0f / fmaxf(cv.x, 1e-6f);
+                ic[1] = 1.0f / fmaxf(cv.y, 1e-6f);
+                ic[2] = 1.0f / fmaxf(cv.z, 1e-6f);
+            } else {
+                #pragma unroll
+                for (int k = 0; k < 3; ++k)
+                    ic[k] = 1.0f / (scielab_cov1d(k, cx, W) * scielab_cov1d(k, cy, H));
+            }
+            float3 tx = scielab_xyzn(scFilt(0, sy, sx, 0) * ic[0],
+                                     scFilt(1, sy, sx, 0) * ic[1],
+                                     scFilt(2, sy, sx, 0) * ic[2]);
+            float3 ty = scielab_xyzn(scFilt(0, sy, sx, 1) * ic[0],
+                                     scFilt(1, sy, sx, 1) * ic[1],
+                                     scFilt(2, sy, sx, 1) * ic[2]);
+            float fxX = scielab_f(tx.x), fxY = scielab_f(tx.y), fxZ = scielab_f(tx.z);
+            float fyX = scielab_f(ty.x), fyY = scielab_f(ty.y), fyZ = scielab_f(ty.z);
+            float dL = 116.0f * (fxY - fyY);
+            float da = 500.0f * ((fxX - fxY) - (fyX - fyY));
+            float db = 200.0f * ((fxY - fxZ) - (fyY - fyZ));
+            float de2 = dL * dL + da * da + db * db;
+            float de = sqrtf(de2);
+            if (sy >= HALO && sy < HALO + SC_T && sx >= HALO && sx < HALO + SC_T) {
+                val += de;
+                if (loss_map)
+                    loss_map[((size_t)b * H + cy) * W + cx] += map_weight * de;
+            }
+            if (dL_dimg1) {
+                float s = gscale * rsqrtf(de2 + SCIELAB_EPS2);
+                float gX = 500.0f * s * da * scielab_df(tx.x);
+                float gY = (116.0f * dL - 500.0f * da + 200.0f * db) * s * scielab_df(tx.y);
+                float gZ = -200.0f * s * db * scielab_df(tx.z);
+                const float* m = cScielabOppToXyzN;
+                g[0] = (m[0] * gX + m[3] * gY + m[6] * gZ) * ic[0];
+                g[1] = (m[1] * gX + m[4] * gY + m[7] * gZ) * ic[1];
+                g[2] = (m[2] * gX + m[5] * gY + m[8] * gZ) * ic[2];
+            }
+        }
+        #pragma unroll
+        for (int k = 0; k < 3; ++k) scFilt(k, sy, sx, 0) = g[k];
+    }
+
+    if (dL_dimg1) {
+        // Backward: the blur is symmetric, so its adjoint is the same blur.
+        float gl[3] = {0.0f, 0.0f, 0.0f};
+        for (int k = 0; k < 3; ++k) {
+            __syncthreads();
+            for (int i = tid; i < SC_SX * SC_T; i += kThreads) {
+                int sy = i / SC_T, t = i % SC_T, sx = t + HALO;
+                float w = cScielabGauss[k][HALO];
+                float s = scFilt(k, sy, sx, 0) * w;
+                #pragma unroll
+                for (int d = 1; d <= HALO; ++d) {
+                    w = cScielabGauss[k][HALO - d];
+                    s += (scFilt(k, sy, sx - d, 0) + scFilt(k, sy, sx + d, 0)) * w;
+                }
+                scGrad(sy, t) = s;
+            }
+            __syncthreads();
+            int sy = threadIdx.y + HALO;
+            float w = cScielabGauss[k][HALO];
+            float go = scGrad(sy, threadIdx.x) * w;
+            #pragma unroll
+            for (int d = 1; d <= HALO; ++d) {
+                w = cScielabGauss[k][HALO - d];
+                go += (scGrad(sy - d, threadIdx.x) + scGrad(sy + d, threadIdx.x)) * w;
+            }
+            const float* m = cScielabRgbToOpp + 3 * k;
+            gl[0] += m[0] * go;
+            gl[1] += m[1] * go;
+            gl[2] += m[2] * go;
+        }
+        const int px = x0 + threadIdx.x, py = y0 + threadIdx.y;
+        if (px < W && py < H &&
+                get_pix_mask(img1, img2, sat, masks, b, py, px,
+                             B_mask, H_mask, W_mask, H, W)) {
+            size_t p = ((size_t)b * H + py) * W + px;
+            float3 c = pixel_load3(img1.p, img1.f, p);
+            float3& o = dL_dimg1[p];
+            o.x += gl[0] * scielab_dlin(c.x);
+            o.y += gl[1] * scielab_dlin(c.y);
+            o.z += gl[2] * scielab_dlin(c.z);
+        }
+    }
+    #undef scFilt
+    #undef scTile
+    #undef scXconv
+    #undef scGrad
+
+    if (out_val)
+        atomicAddFVec<kThreads>(out_val, val / ((float)B * H * W));
 }
 
 // ------------------------------------------
@@ -1309,5 +1630,113 @@ float fused_ssim_inplace_async(
     const float* prev = readout.read_previous();
     float val = prev ? prev[0] : 0.0f;
     readout.issue(ssim_buf);
+    return val;
+}
+
+static inline void _launch_fused_scielab_inplace(
+    TorchTensorView img1,
+    TorchTensorView img2,
+    TorchTensorView mask,
+    float dL_dmap,
+    TorchTensorView dL_dimg1,
+    float* val_buf,
+    TorchTensorView loss_map,
+    float loss_map_weight,
+    float saturation_threshold
+) {
+    const auto& s = std::get<2>(img1);
+    int B = s[0], H = s[1], W = s[2];
+    bool* mask_ptr = _nullable_b(mask);
+    int B_mask = 0, H_mask = 0, W_mask = 0;
+    if (mask_ptr != nullptr) {
+        const auto& ms = std::get<2>(mask);
+        if (ms.size() >= 3) {
+            B_mask = (int)ms[0];
+            H_mask = (int)ms[1];
+            W_mask = (int)ms[2];
+        }
+    }
+    const SsimImg p_img1{(const void*)std::get<0>(img1), pixel_format(img1)};
+    const SsimImg p_img2{(const void*)std::get<0>(img2), pixel_format(img2)};
+
+    float3* cov = nullptr;
+    if (mask_ptr != nullptr || saturation_threshold > 0.0f) {
+        cov = DevicePool::global().acquire<float3>(PoolSlot::ScielabMaskWeight,
+                                                   (size_t)B * H * W);
+        _scielab_mask_coverage_kernel<<<_LAUNCH_ARGS_3D(W, H, B, COV_T, COV_T, 1)>>>(
+            B, H, W, p_img1, p_img2, saturation_threshold, mask_ptr,
+            B_mask, H_mask, W_mask, cov);
+        CHECK_DEVICE_ERROR(cudaGetLastError());
+    }
+
+    auto launch = [&](auto f1, auto f2) {
+        fused_scielab_kernel<decltype(f1)::value, decltype(f2)::value>
+            <<<_LAUNCH_ARGS_3D(W, H, B, SC_T, SC_T, 1)>>>(
+            B, H, W, p_img1, p_img2, mask_ptr, B_mask, H_mask, W_mask,
+            saturation_threshold, cov, dL_dmap, _nullable_f3(dL_dimg1),
+            val_buf, loss_map_weight, _nullable_f(loss_map));
+        CHECK_DEVICE_ERROR(cudaGetLastError());
+    };
+    using F32 = std::integral_constant<int, (int)PixelFormat::F32>;
+    using U8 = std::integral_constant<int, (int)PixelFormat::U8>;
+    using F16 = std::integral_constant<int, (int)PixelFormat::F16>;
+    auto with_f2 = [&](auto f1) {
+        if (p_img2.f == PixelFormat::U8) launch(f1, U8{});
+        else if (p_img2.f == PixelFormat::F16) launch(f1, F16{});
+        else launch(f1, F32{});
+    };
+    if (p_img1.f == PixelFormat::U8) with_f2(U8{});
+    else if (p_img1.f == PixelFormat::F16) with_f2(F16{});
+    else with_f2(F32{});
+}
+
+// Returns mean S-CIELAB dE*ab over [B, H, W] (masked pixels count 0), or -1
+// when not asked for. dL_dimg1 and loss_map may each be null.
+/*[AutoHeaderGeneratorExport]*/
+float fused_scielab_inplace(
+    TorchTensorView img1,           // [B, H, W, 3], sRGB-encoded
+    TorchTensorView img2,           // [B, H, W, 3]
+    TorchTensorView mask,           // [B, H, W] bool, or null
+    float dL_dmap,
+    TorchTensorView dL_dimg1,       // [B, H, W, 3] output (accumulated)
+    bool return_val,
+    TorchTensorView loss_map,       // [B, H, W, 1] output (accumulated)
+    float loss_map_weight,
+    float saturation_threshold
+) {
+    float* val_buf = nullptr;
+    if (return_val) {
+        val_buf = DevicePool::global().acquire<float>(PoolSlot::SsimScalar, 1);
+        cudaMemset(val_buf, 0, sizeof(float));
+    }
+    _launch_fused_scielab_inplace(img1, img2, mask, dL_dmap, dL_dimg1, val_buf,
+                                  loss_map, loss_map_weight, saturation_threshold);
+    if (return_val) {
+        float val;
+        cudaMemcpy(&val, val_buf, sizeof(float), cudaMemcpyDeviceToHost);
+        return val;
+    }
+    return -1.0f;
+}
+
+/*[AutoHeaderGeneratorExport]*/
+float fused_scielab_inplace_async(
+    TorchTensorView img1,
+    TorchTensorView img2,
+    TorchTensorView mask,
+    float dL_dmap,
+    TorchTensorView dL_dimg1,
+    TorchTensorView loss_map,
+    float loss_map_weight,
+    float saturation_threshold,
+    AsyncReadout<float>& readout
+) {
+    float* val_buf = DevicePool::global().acquire<float>(PoolSlot::SsimScalar, 1);
+    cudaMemset(val_buf, 0, sizeof(float));
+    _launch_fused_scielab_inplace(img1, img2, mask, dL_dmap, dL_dimg1, val_buf,
+                                  loss_map, loss_map_weight, saturation_threshold);
+    const float* prev = readout.read_previous();
+    float val = prev ? prev[0] : 0.0f;
+    readout.issue(val_buf);
     return val;
 }

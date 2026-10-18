@@ -230,7 +230,7 @@ inline bool train_choices_free_form(const char* choices) {
     X(bool, use_revised_densification, true, "detail", "expert", "")         \
     X(std::string, densify_score_mode, "mean", "detail", "basic", "mean|max|median|geom") \
     X(float, densify_score_blend_world_grad, 0.0f, "detail", "advanced", "") \
-    X(std::string, densify_loss_map_mode, "ssim_cs", "detail", "basic", "none|loss_full|ssim_full|ssim_cs|ssim_structure|edge_aware|robust_edge_aware|loss_full_nms|ssim_full_nms|ssim_cs_nms|ssim_structure_nms") \
+    X(std::string, densify_loss_map_mode, "auto", "detail", "basic", "auto|none|loss_full|ssim_full|ssim_cs|ssim_structure|s_cielab|edge_aware|robust_edge_aware|loss_full_nms|ssim_full_nms|ssim_cs_nms|ssim_structure_nms|s_cielab_nms") \
     X(float, densify_robust_edge_aware_quantile, 0.9f, "detail", "basic", "")\
     X(float, densify_nms_falloff, 0.5f, "detail", "advanced", "")            \
     X(bool, densify_loss_map_normalize, false, "detail", "advanced", "")     \
@@ -254,6 +254,7 @@ inline bool train_choices_free_form(const char* choices) {
                                                                              \
     /* ==== loss -- how the render is compared against the photo ==== */     \
     X(float, ssim_lambda, 0.2f, "loss", "basic", "")                         \
+    X(std::string, perceptual_loss, "ssim", "loss", "advanced", "ssim|s_cielab") \
     X(float, l1_weight, 1.0f, "loss", "basic", "")                           \
     X(float, l2_weight, 0.0f, "loss", "basic", "")                           \
     X(float, l1_weight_y, 0.0f, "loss", "advanced", "")                      \

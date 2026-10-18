@@ -444,7 +444,18 @@ void append_point_seeds(SeedSplats& s, const ColmapPoints3D& pts,
 
 namespace {
 
-int densify_loss_map_mode_int(const std::string& mode) {
+int perceptual_loss_int(const std::string& loss) {
+    if (loss == "ssim")     return (int)PerceptualLoss::Ssim;
+    if (loss == "s_cielab") return (int)PerceptualLoss::SCielab;
+    throw std::runtime_error("unknown perceptual_loss: " + loss);
+}
+
+// `auto` is the contrast-structure half of SSIM, or S-CIELAB when that is the
+// loss: either way the map comes from the kernel the loss runs anyway.
+int densify_loss_map_mode_int(const std::string& mode, const std::string& loss) {
+    if (mode == "auto")
+        return loss == "s_cielab" ? (int)DensifyLossMapMode::SCielab
+                                  : (int)DensifyLossMapMode::SsimContrastStruct;
     if (mode == "none")              return 0;
     if (mode == "loss_full")         return 1;
     if (mode == "ssim_full")         return 2;
@@ -456,6 +467,8 @@ int densify_loss_map_mode_int(const std::string& mode) {
     if (mode == "ssim_full_nms")       return 8;
     if (mode == "ssim_cs_nms")         return 9;
     if (mode == "ssim_structure_nms")  return 10;
+    if (mode == "s_cielab")            return 11;
+    if (mode == "s_cielab_nms")        return 12;
     throw std::runtime_error("unknown densify_loss_map_mode: " + mode);
 }
 
@@ -522,9 +535,11 @@ EngineStepConfig build_step_config(const TrainConfig& c, const RunState& st, int
     // ---- loss ----------------------------------------------------------
     cfg.loss.weights = build_loss_weights(c, step);
     cfg.loss.w_ssim = c.ssim_lambda;
+    cfg.loss.perceptual_loss = perceptual_loss_int(c.perceptual_loss);
     cfg.loss.num_loss_scales = c.num_loss_scales + 1;
     cfg.loss.loss_scale_min_pixels = c.loss_scale_min_pixels;
-    int loss_map_mode = densify_loss_map_mode_int(c.densify_loss_map_mode);
+    int loss_map_mode =
+        densify_loss_map_mode_int(c.densify_loss_map_mode, c.perceptual_loss);
     // blend >= 1: world-grad score only, loss map has no consumer.
     if (c.densify_score_blend_world_grad >= 1.0f) loss_map_mode = 0;
     cfg.loss.loss_map_mode = loss_map_mode;
