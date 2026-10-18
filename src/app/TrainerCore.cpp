@@ -1241,8 +1241,12 @@ void TrainerSession::setup_engine() {
         }
         if (!has_mask) ds.mask_filenames.clear();
         double share = 0;
+        Sim3 to_region;
+        to_region.s = 1.0 / rs;
+        for (int r = 0; r < 3; r++) to_region.t[r] = ds.center[(size_t)r];
         ds.mask_filenames = write_region_masks(ds, xyz.data(), (int64_t)inside.size(), inside.data(),
-                                               (out_dir / "roi_masks").string(), cfg.flip_mask, &share);
+                                               (out_dir / "roi_masks").string(), cfg.flip_mask, &share,
+                                               roi.get(), to_region);
         has_mask = true;
         char pct[16];
         std::snprintf(pct, sizeof pct, "%.0f", 100.0 * share);

@@ -9436,7 +9436,7 @@ bool GuiApp::launch_batch_merge(BatchTask& task, const BatchRow& row) {
     return true;
 }
 
-// The session's region as a boundary mesh, sized by the seed cloud. The
+// The session's region as a boundary mesh, the same one the editor draws. The
 // engine renders in the dataset frame less its centre; the preview draws the
 // points, which carry the relative scale as well.
 void GuiApp::update_roi_overlay() {
@@ -9462,13 +9462,8 @@ void GuiApp::update_roi_overlay() {
         if (!s->cfg.partition.empty() && s->cfg.partition_part >= 0)
             spirula::part_color(s->cfg.partition_part, rgb);
         _roi_job = std::async(std::launch::async, [roi, world, rs, c, rgb]() {
-            spirula::Aabb box = spirula::robust_bounds(world.data(), (int64_t)world.size() / 3);
-            const spirula::Aabb rb = roi->bounds();
-            if (!rb.empty() && !rb.unbounded())
-                for (int a = 0; a < 3; a++) {
-                    box.lo[a] = std::max(box.lo[a], rb.lo[a] - 0.05 * (rb.hi[a] - rb.lo[a]));
-                    box.hi[a] = std::min(box.hi[a], rb.hi[a] + 0.05 * (rb.hi[a] - rb.lo[a]));
-                }
+            const spirula::Aabb box = spirula::region_mesh_box(
+                *roi, spirula::robust_bounds(world.data(), (int64_t)world.size() / 3));
             const spirula::RegionMesh m = spirula::region_boundary_mesh(*roi, box, 128);
             const float to_engine[12] = {1, 0, 0, (float)-c[0], 0, 1, 0, (float)-c[1], 0, 0, 1, (float)-c[2]};
             const float to_preview[12] = {(float)rs, 0, 0, (float)(-rs * c[0]), 0, (float)rs, 0, (float)(-rs * c[1]),
