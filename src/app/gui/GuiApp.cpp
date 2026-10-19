@@ -10787,7 +10787,9 @@ void GuiApp::draw_train_settings() {
         // the two panels above always show the values the run will actually
         // use. None of what they write is a dataset-parsing field, so this
         // cannot make the snapshot below think the dataset went stale.
-        train_resolve_macros(_cfg, _cfg_ui.touched);
+        TrainConfig macro_base;   // not _defaults: a saved preset bakes in macros
+        train_apply_preset(macro_base, _preset);
+        train_resolve_macros(_cfg, _cfg_ui.touched, nullptr, &macro_base);
 
         if (_cfg.save_full_checkpoint != parse_before.save_full_checkpoint) {
             _keep_full_ckpt = _cfg.save_full_checkpoint;
@@ -11193,8 +11195,7 @@ void GuiApp::draw_preset_save_modal() {
 // generated editor does: a flag the user set by hand is off limits to the
 // macro options (see train_resolve_macros()).
 void GuiApp::draw_train_mask_mode(float width) {
-    bool cut_out = _cfg.apply_loss_for_mask.value_or(spirula::dense::is_dense_seed(_cfg.data, _cfg.seed_pointcloud) ||
-        (_cfg.seed_pointcloud.empty() && dense_cloud_present()) || (_dense.enable && _dense.use_for_training));
+    bool cut_out = _cfg.apply_loss_for_mask.value_or(false);
     const TrainRunner::Phase ph = _runner.phase();
     if (!_cfg.apply_loss_for_mask.has_value() &&
         (ph == TrainRunner::Phase::Ready || ph == TrainRunner::Phase::Training ||

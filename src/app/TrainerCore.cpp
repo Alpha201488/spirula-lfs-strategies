@@ -1038,10 +1038,9 @@ void TrainerSession::load_dataset() {
                                            : lmsg::alpha_masks_with_files,
                  {n, (long long)ds.num_cameras}));
     }
-    // Dense seeds and alpha cut-outs treat excluded pixels as empty space.
+    // Alpha cut-outs treat excluded pixels as empty space.
     if (!cfg.apply_loss_for_mask.has_value()) {
-        cfg.apply_loss_for_mask = spirula::dense::is_dense_seed(cfg.data, cfg.seed_pointcloud) ||
-            (!alpha_images.empty() && ds.mask_filenames.empty());
+        cfg.apply_loss_for_mask = !alpha_images.empty() && ds.mask_filenames.empty();
         if (*cfg.apply_loss_for_mask) log(lmsg::alpha_masks_cut_out.get());
     }
     has_depth  = !ds.depth_filenames.empty()  && cfg.load_depths &&

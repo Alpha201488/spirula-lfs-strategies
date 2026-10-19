@@ -623,11 +623,18 @@ inline bool train_apply_preset(TrainConfig& c, const std::string& name) {
 // Call this once, in the front end, after the preset and the user's flags.
 inline void train_resolve_macros(TrainConfig& c,
                                  const std::set<std::string>& explicit_flags,
-                                 std::set<std::string>* written = nullptr) {
+                                 std::set<std::string>* written = nullptr,
+                                 // Pre-macro config, for a front end that
+                                 // resolves again after each edit (the GUI):
+                                 // a named macro first undoes an old level.
+                                 const TrainConfig* base = nullptr) {
     auto put = [&](const char* key, auto& field, auto value) {
         if (explicit_flags.count(key)) return;
         field = value;
         if (written) written->insert(key);
+    };
+    auto restore = [&](const char* macro, const char* key, auto m) {
+        if (base && explicit_flags.count(macro)) put(key, c.*m, base->*m);
     };
 
     // Splat budget and run length together: raising one without the other
@@ -650,6 +657,18 @@ inline void train_resolve_macros(TrainConfig& c,
 
     // Score the splat-placement error in a way that a person walking through
     // half the photos cannot dominate.
+    restore("distraction_robustness", "densify_loss_map_power",
+            &TrainConfig::densify_loss_map_power);
+    restore("distraction_robustness", "densify_score_power",
+            &TrainConfig::densify_score_power);
+    restore("distraction_robustness", "ssim_lambda",
+            &TrainConfig::ssim_lambda);
+    restore("distraction_robustness", "densify_loss_map_mode",
+            &TrainConfig::densify_loss_map_mode);
+    restore("distraction_robustness", "densify_robust_edge_aware_quantile",
+            &TrainConfig::densify_robust_edge_aware_quantile);
+    restore("distraction_robustness", "densify_score_mode",
+            &TrainConfig::densify_score_mode);
     if (c.distraction_robustness != "off") {
         put("densify_loss_map_power", c.densify_loss_map_power, 1.0f);
         put("densify_score_power", c.densify_score_power, 1.0f);
@@ -669,6 +688,16 @@ inline void train_resolve_macros(TrainConfig& c,
 
     // Make each pixel commit to one surface, and stop view-dependent colour
     // from papering over what is left.
+    restore("floater_suppression", "depth_distortion_reg",
+            &TrainConfig::depth_distortion_reg);
+    restore("floater_suppression", "rgb_distortion_reg",
+            &TrainConfig::rgb_distortion_reg);
+    restore("floater_suppression", "sh_reg",
+            &TrainConfig::sh_reg);
+    restore("floater_suppression", "max_screen_size",
+            &TrainConfig::max_screen_size);
+    restore("floater_suppression", "max_screen_size_clip_hardness",
+            &TrainConfig::max_screen_size_clip_hardness);
     if (c.floater_suppression != "off") {
         const bool strong = c.floater_suppression == "strong";
         put("depth_distortion_reg", c.depth_distortion_reg,

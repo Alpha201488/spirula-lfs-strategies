@@ -82,8 +82,7 @@ have no one colour to composite onto and keep the stored one.
 What a masked-out pixel means is `apply_loss_for_mask` (the GUI's Mask mode):
 ignored ("Ignore distractors") or trained as empty space ("Cut out
 background"). Left unset it resolves per dataset: cut out when the only masks
-are the images' alpha or the seed is this dataset's `dense/roma.ply`; ignore
-otherwise. An explicit policy retains precedence. `config.json` records the
+are the images' alpha; ignore otherwise. An explicit policy retains precedence. `config.json` records the
 resolved value. The dense panel and trainer use the same Mask mode control;
 Don't use masks disables both alpha and sidecar masks.
 
