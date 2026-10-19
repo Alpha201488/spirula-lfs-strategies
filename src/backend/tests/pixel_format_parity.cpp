@@ -368,6 +368,7 @@ int main() {
     // S-CIELAB's sRGB decode and cube root go through driver transcendentals:
     // NVIDIA Vulkan's uint8 pipeline lands its map 1.7e-6 off (CUDA: exact).
     constexpr int kScielab = (int)PerceptualLoss::SCielab;
+    constexpr int kFlip = (int)PerceptualLoss::Flip;
     const struct { int mode; const char* name; int loss = 0; } modes[] = {
         {(int)DensifyLossMapMode::SsimContrastStruct, "ssim_cs"},
         {(int)DensifyLossMapMode::LossFull, "loss_full"},
@@ -376,6 +377,8 @@ int main() {
         {(int)DensifyLossMapMode::SsimFullNms, "ssim_full_nms"},
         {(int)DensifyLossMapMode::SCielab, "s_cielab", kScielab},
         {(int)DensifyLossMapMode::LossFull, "loss_full on s_cielab", kScielab},
+        {(int)DensifyLossMapMode::FlipFeature, "flip_feature", kFlip},
+        {(int)DensifyLossMapMode::LossFull, "loss_full on flip", kFlip},
     };
     for (const auto& m : modes) {
         char what[128];

@@ -322,6 +322,7 @@ enum class SaveClass : uint8_t {
   X(SsimScalar                     , "ssim_scalar",                       Other    , Never) \
   X(SsimMaskWeight                 , "ssim.mask_weight",                  Image    , Never) \
   X(ScielabMaskWeight              , "scielab.mask_weight",               Image    , Never) \
+  X(FlipMaskWeight                 , "flip.mask_weight",                  Image    , Never) \
   /* ---- densify scratch ---- */ \
   X(DensifyQuantileTemp            , "densify_quantile_temp",             Other    , Never) \
   X(DensifyMapNorm                 , "densify_map_norm",                  Other    , Never) \

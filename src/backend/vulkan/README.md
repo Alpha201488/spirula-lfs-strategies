@@ -809,7 +809,9 @@ the engine level.
     tile size does not change the map or dL/dimg1 (tight); only the
     display-only scalar's accumulation grouping differs (loose). Its
     `scielab_*` entries port the S-CIELAB loss with the CUDA kernel's own
-    16x16 tile and 28 KB overlay, under the floor on every device.
+    16x16 tile and 28 KB overlay, under the floor on every device; its
+    `flip_*` entries port FLIP the same way at 31.4 KB, keeping each lane's
+    window centres in registers across the passes, as the CUDA kernel does.
   - `canny.slang` (canny rgb/scalar + BT.601 residual luma + Tukey
     biweight) with globally-clamped loads -> per-pixel deterministic, so
     even the RobustEdgeAware densification map compares tight.

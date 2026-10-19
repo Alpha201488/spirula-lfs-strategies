@@ -5387,7 +5387,7 @@ SS_MSG(densify_loss_map_mode_help,
        "does the same but ignores the worst-matching pixels, so moving people "
        "and cars do not attract splats. `none` spreads new splats evenly. Any mode with `_nms` first thins the "
        "error down to its ridge lines, so splats land on the sharpest edge rather than spreading across the blur around it."
-       " `s_cielab` scores the S-CIELAB color difference, as the eye sees it. `auto` takes `s_cielab` when `--perceptual-loss` is `s_cielab` and `ssim_cs` otherwise."),
+       " `s_cielab` scores the S-CIELAB color difference, as the eye sees it. `flip` scores FLIP, the difference a viewer notices flipping between the two images, and `flip_feature` only its edge and point part. `auto` takes `s_cielab` or `flip_feature` when `--perceptual-loss` is `s_cielab` or `flip`, and `ssim_cs` otherwise."),
     JA("新しいスプラットをどこに足すかを、どの種類の誤差で決めるかです。`ssim_structure` "
        "は明るさの違いを無視して、模様やエッジの食い違いを狙います。`ssim_full`、"
        "`ssim_cs`、`loss_full` の順に、生の色の誤差をより多く取り込みます。`edge_aware` "
@@ -5396,7 +5396,7 @@ SS_MSG(densify_loss_map_mode_help,
        "するので、動く人や車にスプラットが集まりません。`none` は新しいスプラ"
        "ットを均等に散らします。`_nms` の付いたモードは、まず誤差を稜線だけに"
        "細らせるので、ぼやけた広がりではなく、いちばん鋭いところにスプラットが乗ります。"
-       "`s_cielab` は目に見えるとおりの S-CIELAB 色差で評価します。`auto` は `--perceptual-loss` が `s_cielab` なら `s_cielab`、それ以外なら `ssim_cs` を使います。"),
+       "`s_cielab` は目に見えるとおりの S-CIELAB 色差で評価します。`flip` は FLIP（二つの画像を切り替えたときに気づく違い）で、`flip_feature` はそのうちエッジと点の部分だけで評価します。`auto` は `--perceptual-loss` が `s_cielab` なら `s_cielab`、`flip` なら `flip_feature`、それ以外なら `ssim_cs` を使います。"),
     ZH_HANS("用哪种误差决定在哪里新增泼溅。`ssim_structure` 忽略明暗差异，专门"
             "盯住图案和边缘的不一致。`ssim_full`、`ssim_cs`、`loss_full` 依次"
             "纳入更多原始颜色误差。`edge_aware` 追踪参考照片中的边缘，无论那里"
@@ -5404,7 +5404,7 @@ SS_MSG(densify_loss_map_mode_help,
             "的像素，因此移动的行人和车辆不会吸引泼溅。`none` 则把新泼溅均匀铺"
             "开。带 `_nms` 的模式会先把误差收细成一条线，因此泼溅落在最清晰的边缘上，"
             "而不是散布在它周围的模糊里。"
-            "`s_cielab` 按人眼所见的 S-CIELAB 色差打分。`auto` 在 `--perceptual-loss` 为 `s_cielab` 时用 `s_cielab`，否则用 `ssim_cs`。"),
+            "`s_cielab` 按人眼所见的 S-CIELAB 色差打分。`flip` 按 FLIP（在两张图像之间来回切换时能察觉到的差异）打分，`flip_feature` 只取其中边缘和点的部分。`auto` 在 `--perceptual-loss` 为 `s_cielab` 时用 `s_cielab`，为 `flip` 时用 `flip_feature`，否则用 `ssim_cs`。"),
     ZH_HANT("用哪種誤差決定在哪裡新增潑濺。`ssim_structure` 忽略明暗差異，專門"
             "盯住圖案和邊緣的不一致。`ssim_full`、`ssim_cs`、`loss_full` 依次"
             "納入更多原始顏色誤差。`edge_aware` 追蹤參考照片中的邊緣，無論那裡"
@@ -5412,7 +5412,7 @@ SS_MSG(densify_loss_map_mode_help,
             "的像素，因此移動的行人和車輛不會吸引潑濺。`none` 則把新潑濺均勻鋪"
             "開。帶 `_nms` 的模式會先把誤差收細成一條線，因此潑濺落在最清晰的邊緣上，"
             "而不是散布在它周圍的模糊裡。"
-            "`s_cielab` 按人眼所見的 S-CIELAB 色差打分。`auto` 在 `--perceptual-loss` 為 `s_cielab` 時用 `s_cielab`，否則用 `ssim_cs`。"),
+            "`s_cielab` 按人眼所見的 S-CIELAB 色差打分。`flip` 按 FLIP（在兩張圖像之間來回切換時能察覺到的差異）打分，`flip_feature` 只取其中邊緣和點的部分。`auto` 在 `--perceptual-loss` 為 `s_cielab` 時用 `s_cielab`，為 `flip` 時用 `flip_feature`，否則用 `ssim_cs`。"),
     KO("새 스플랫을 어디에 추가할지 어떤 종류의 오차로 정할지입니다. `ssim_structure`는"
        " 밝기 차이를 무시하고 무늬와 가장자리의 불일치를 노립니다. `ssim_full`, "
        "`ssim_cs`, `loss_full` 순으로 원본 색 오차를 점점 더 많이 반영합니다. "
@@ -5421,7 +5421,7 @@ SS_MSG(densify_loss_map_mode_help,
        "직이는 사람과 차에 스플랫이 몰리지 않습니다. `none`은 새 스플랫을 고르"
        "게 흩뿌립니다. `_nms`가 붙은 방식은 오차를 먼저 능선만 남기고 얇게 깎아"
        "내므로, 흐릿하게 번진 곳이 아니라 가장 날카로운 가장자리에 스플랫이 놓입니다."
-       " `s_cielab`은 눈에 보이는 대로의 S-CIELAB 색차로 평가합니다. `auto`는 `--perceptual-loss`가 `s_cielab`이면 `s_cielab`을, 아니면 `ssim_cs`를 씁니다."),
+       " `s_cielab`은 눈에 보이는 대로의 S-CIELAB 색차로 평가합니다. `flip`은 FLIP(두 이미지를 번갈아 볼 때 눈에 띄는 차이)으로, `flip_feature`는 그중 가장자리와 점 부분만으로 평가합니다. `auto`는 `--perceptual-loss`가 `s_cielab`이면 `s_cielab`을, `flip`이면 `flip_feature`를, 아니면 `ssim_cs`를 씁니다."),
     DE("Welche Art von Fehler entscheidet, wo neue Splats hinzukommen. `ssim_structure` "
        "zielt auf abweichende Muster und Kanten und ignoriert Helligkeitsunterschiede. "
        "`ssim_full`, `ssim_cs` und `loss_full` nehmen zunehmend mehr vom reinen "
@@ -5430,7 +5430,7 @@ SS_MSG(densify_loss_map_mode_help,
        "ignoriert aber die am schlechtesten passenden Pixel, sodass bewegte Personen "
        "und Autos keine Splats anziehen. `none` verteilt neue Splats gleichmäßig. Jeder Modus mit `_nms` dünnt den "
        "Fehler zuerst auf seine Gratlinien aus, sodass Splats auf der schärfsten Kante landen statt in der Unschärfe darum herum."
-       " `s_cielab` bewertet den S-CIELAB-Farbabstand, so wie das Auge ihn sieht. `auto` nimmt `s_cielab`, wenn `--perceptual-loss` auf `s_cielab` steht, sonst `ssim_cs`."),
+       " `s_cielab` bewertet den S-CIELAB-Farbabstand, so wie das Auge ihn sieht. `flip` bewertet FLIP, den Unterschied, der beim Hin- und Herschalten zwischen beiden Bildern auffällt, und `flip_feature` nur dessen Kanten- und Punktanteil. `auto` nimmt `s_cielab` bzw. `flip_feature`, wenn `--perceptual-loss` auf `s_cielab` bzw. `flip` steht, sonst `ssim_cs`."),
     FR("Quel type d'erreur décide où ajouter de nouveaux splats. `ssim_structure` "
        "vise les motifs et les contours qui ne correspondent pas, en ignorant "
        "les écarts de luminosité. `ssim_full`, `ssim_cs` et `loss_full` intègrent "
@@ -5440,7 +5440,7 @@ SS_MSG(densify_loss_map_mode_help,
        "le moins, de sorte que passants et voitures n'attirent pas de splats. "
        "`none` répartit les nouveaux splats uniformément. Tout mode avec `_nms` "
        "amincit d'abord l'erreur jusqu'à ses lignes de crête, de sorte que les splats se posent sur le contour le plus net plutôt que dans le flou autour."
-       " `s_cielab` évalue l'écart de couleur S-CIELAB, tel que l'œil le perçoit. `auto` prend `s_cielab` quand `--perceptual-loss` vaut `s_cielab`, et `ssim_cs` sinon."),
+       " `s_cielab` évalue l'écart de couleur S-CIELAB, tel que l'œil le perçoit. `flip` évalue FLIP, l'écart qu'on remarque en alternant entre les deux images, et `flip_feature` seulement sa part de contours et de points. `auto` prend `s_cielab` ou `flip_feature` quand `--perceptual-loss` vaut `s_cielab` ou `flip`, et `ssim_cs` sinon."),
     ES("Qué tipo de error decide dónde se añaden splats nuevos. `ssim_structure` "
        "apunta a los patrones y bordes que no coinciden e ignora las diferencias "
        "de brillo. `ssim_full`, `ssim_cs` y `loss_full` incorporan progresivamente "
@@ -5450,7 +5450,7 @@ SS_MSG(densify_loss_map_mode_help,
        "personas y coches en movimiento no atraen splats. `none` reparte los "
        "splats nuevos de manera uniforme. Cualquier modo con `_nms` adelgaza primero "
        "el error hasta sus líneas de cresta, de modo que los splats caen en el borde más nítido y no en el desenfoque que lo rodea."
-       " `s_cielab` puntúa la diferencia de color S-CIELAB, tal como la ve el ojo. `auto` usa `s_cielab` cuando `--perceptual-loss` es `s_cielab` y `ssim_cs` en otro caso."),
+       " `s_cielab` puntúa la diferencia de color S-CIELAB, tal como la ve el ojo. `flip` puntúa FLIP, la diferencia que se nota al alternar entre las dos imágenes, y `flip_feature` solo su parte de bordes y puntos. `auto` usa `s_cielab` o `flip_feature` cuando `--perceptual-loss` es `s_cielab` o `flip`, y `ssim_cs` en otro caso."),
     PT("Que tipo de erro decide onde novos splats são acrescentados. `ssim_structure` "
        "mira os padrões e bordas que não coincidem e ignora diferenças de brilho. "
        "`ssim_full`, `ssim_cs` e `loss_full` incorporam progressivamente mais "
@@ -5460,7 +5460,7 @@ SS_MSG(densify_loss_map_mode_help,
        "em movimento não atraem splats. `none` espalha os novos splats de forma "
        "uniforme. Qualquer modo com `_nms` afina primeiro o erro até às suas linhas "
        "de crista, de modo que os splats assentam na borda mais nítida e não no desfoque à volta dela."
-       " `s_cielab` pontua a diferença de cor S-CIELAB, tal como o olho a vê. `auto` usa `s_cielab` quando `--perceptual-loss` é `s_cielab` e `ssim_cs` caso contrário."),
+       " `s_cielab` pontua a diferença de cor S-CIELAB, tal como o olho a vê. `flip` pontua o FLIP, a diferença que se nota ao alternar entre as duas imagens, e `flip_feature` só a sua parte de bordas e pontos. `auto` usa `s_cielab` ou `flip_feature` quando `--perceptual-loss` é `s_cielab` ou `flip`, e `ssim_cs` caso contrário."),
     IT("Che tipo di errore decide dove aggiungere nuovi splat. `ssim_structure` "
        "punta a motivi e bordi che non corrispondono e ignora le differenze di "
        "luminosità. `ssim_full`, `ssim_cs` e `loss_full` includono via via più "
@@ -5470,7 +5470,7 @@ SS_MSG(densify_loss_map_mode_help,
        "in movimento non attirano splat. `none` distribuisce i nuovi splat in "
        "modo uniforme. Ogni modalità con `_nms` assottiglia prima l'errore fino alle "
        "sue linee di cresta, così gli splat si posano sul bordo più nitido e non nella sfocatura attorno."
-       " `s_cielab` valuta la differenza di colore S-CIELAB, come la vede l'occhio. `auto` usa `s_cielab` quando `--perceptual-loss` è `s_cielab`, altrimenti `ssim_cs`."),
+       " `s_cielab` valuta la differenza di colore S-CIELAB, come la vede l'occhio. `flip` valuta FLIP, la differenza che si nota alternando le due immagini, e `flip_feature` solo la sua parte di bordi e punti. `auto` usa `s_cielab` o `flip_feature` quando `--perceptual-loss` è `s_cielab` o `flip`, altrimenti `ssim_cs`."),
     NL("Welk soort fout bepaalt waar nieuwe splats bij komen. `ssim_structure` "
        "mikt op patronen en randen die niet kloppen en negeert helderheidsverschillen. "
        "`ssim_full`, `ssim_cs` en `loss_full` nemen stapsgewijs meer van de ruwe "
@@ -5479,7 +5479,7 @@ SS_MSG(densify_loss_map_mode_help,
        "maar negeert de slechtst passende pixels, zodat bewegende mensen en auto's "
        "geen splats aantrekken. `none` verdeelt nieuwe splats gelijkmatig. Elke modus met `_nms` dunt de fout "
        "eerst uit tot haar ribbellijnen, zodat splats op de scherpste rand landen en niet in de onscherpte eromheen."
-       " `s_cielab` beoordeelt het S-CIELAB-kleurverschil, zoals het oog het ziet. `auto` neemt `s_cielab` als `--perceptual-loss` op `s_cielab` staat, anders `ssim_cs`."),
+       " `s_cielab` beoordeelt het S-CIELAB-kleurverschil, zoals het oog het ziet. `flip` beoordeelt FLIP, het verschil dat opvalt als je tussen beide beelden wisselt, en `flip_feature` alleen het rand- en puntdeel daarvan. `auto` neemt `s_cielab` of `flip_feature` als `--perceptual-loss` op `s_cielab` of `flip` staat, anders `ssim_cs`."),
     RU("Какая именно ошибка решает, куда добавлять новые сплаты. `ssim_structure` "
        "целится в несовпадающие узоры и края и не смотрит на разницу яркости. "
        "`ssim_full`, `ssim_cs` и `loss_full` последовательно добавляют всё больше "
@@ -5489,7 +5489,7 @@ SS_MSG(densify_loss_map_mode_help,
        "люди и машины не притягивают сплаты. `none` распределяет новые сплаты "
        "равномерно. Любой режим с `_nms` сначала утончает ошибку до её гребней, "
        "поэтому сплаты ложатся на самый резкий край, а не расплываются вокруг него."
-       " `s_cielab` оценивает цветовое различие S-CIELAB так, как его видит глаз. `auto` берёт `s_cielab`, если `--perceptual-loss` равен `s_cielab`, иначе `ssim_cs`."),
+       " `s_cielab` оценивает цветовое различие S-CIELAB так, как его видит глаз. `flip` оценивает FLIP — разницу, заметную при переключении между двумя изображениями, а `flip_feature` — только её часть по краям и точкам. `auto` берёт `s_cielab` или `flip_feature`, если `--perceptual-loss` равен `s_cielab` или `flip`, иначе `ssim_cs`."),
     TR("Yeni splat'ların nereye ekleneceğine hangi tür hatanın karar vereceği. "
        "`ssim_structure` parlaklık farklarını yok sayar ve uyuşmayan desenlerle "
        "kenarları hedefler. `ssim_full`, `ssim_cs` ve `loss_full` sırayla ham "
@@ -5499,7 +5499,7 @@ SS_MSG(densify_loss_map_mode_help,
        "eden insanlar ve arabalar splat çekmez. `none` ise yeni splat'ları eşit "
        "dağıtır. `_nms` içeren her kip, hatayı önce sırt çizgilerine kadar inceltir; "
        "böylece splat'lar çevredeki bulanıklığa yayılmak yerine en keskin kenara oturur."
-       " `s_cielab`, S-CIELAB renk farkını gözün gördüğü gibi puanlar. `auto`, `--perceptual-loss` `s_cielab` ise `s_cielab`, değilse `ssim_cs` kullanır."));
+       " `s_cielab`, S-CIELAB renk farkını gözün gördüğü gibi puanlar. `flip`, iki görüntü arasında gidip gelirken fark edilen farkı, yani FLIP'i puanlar; `flip_feature` ise yalnızca onun kenar ve nokta kısmını. `auto`, `--perceptual-loss` `s_cielab` ise `s_cielab`, `flip` ise `flip_feature`, değilse `ssim_cs` kullanır."));
 
 SS_MSG(densify_robust_edge_aware_quantile,
     EN("Ignored worst-error share"), JA("無視する誤差上位の割合"),
@@ -6879,63 +6879,63 @@ SS_MSG(ssim_lambda_help,
        "color. Higher brings out fine texture and high-frequency detail; lower "
        "gives a smoother, less noisy background, which sometimes looks better "
        "in outdoor scenes."
-       " With `--perceptual-loss s_cielab` it weights the S-CIELAB color difference instead."),
+       " With `--perceptual-loss s_cielab` or `flip` it weights the S-CIELAB color difference or FLIP instead."),
     JA("損失が、画素ごとの正確な色よりも局所の構造をどれだけ重視するかです。高"
        "いほど細かな質感や高周波の細部が出ます。低いほど背景がなめらかでノイズ"
        "が少なくなり、屋外のシーンではそのほうがよく見えることがあります。"
-       "`--perceptual-loss s_cielab` のときは、代わりに S-CIELAB 色差の重みになります。"),
+       "`--perceptual-loss` が `s_cielab` や `flip` のときは、代わりに S-CIELAB 色差や FLIP の重みになります。"),
     ZH_HANS("损失在多大程度上关注局部结构而非逐像素的精确颜色。数值越高，细腻"
             "纹理和高频细节越突出；越低则背景更平滑、噪点更少，在户外场景中有"
             "时更好看。"
-            "当 `--perceptual-loss s_cielab` 时，它改为 S-CIELAB 色差的权重。"),
+            "当 `--perceptual-loss` 为 `s_cielab` 或 `flip` 时，它改为 S-CIELAB 色差或 FLIP 的权重。"),
     ZH_HANT("損失在多大程度上關注局部結構而非逐像素的精確顏色。數值越高，細緻"
             "紋理和高頻細節越突出；越低則背景更平滑、雜訊更少，在戶外場景中有"
             "時更好看。"
-            "當 `--perceptual-loss s_cielab` 時，它改為 S-CIELAB 色差的權重。"),
+            "當 `--perceptual-loss` 為 `s_cielab` 或 `flip` 時，它改為 S-CIELAB 色差或 FLIP 的權重。"),
     KO("손실이 픽셀별 정확한 색보다 국소 구조를 얼마나 중시할지입니다. 값이 크"
        "면 미세한 질감과 고주파 디테일이 살아나고, 작으면 배경이 더 매끄럽고 "
        "노이즈가 적어져 실외 장면에서는 그편이 더 나아 보이기도 합니다."
-       " `--perceptual-loss s_cielab`일 때는 대신 S-CIELAB 색차의 가중치가 됩니다."),
+       " `--perceptual-loss`가 `s_cielab`이나 `flip`일 때는 대신 S-CIELAB 색차나 FLIP의 가중치가 됩니다."),
     DE("Wie stark der Verlust auf lokale Struktur statt auf die exakte Pixelfarbe "
        "achtet. Höher holt feine Textur und hochfrequentes Detail heraus; niedriger "
        "ergibt einen glatteren, rauschärmeren Hintergrund, was in Außenszenen "
        "manchmal besser aussieht."
-       " Mit `--perceptual-loss s_cielab` gewichtet es stattdessen den S-CIELAB-Farbabstand."),
+       " Mit `--perceptual-loss s_cielab` oder `flip` gewichtet es stattdessen den S-CIELAB-Farbabstand bzw. FLIP."),
     FR("Dans quelle mesure la fonction de coût s'attache à la structure locale "
        "plutôt qu'à la couleur exacte des pixels. Plus haut fait ressortir la "
        "texture fine et les détails à haute fréquence ; plus bas donne un arrière-plan "
        "plus lisse et moins bruité, ce qui rend parfois mieux en extérieur."
-       " Avec `--perceptual-loss s_cielab`, il pondère à la place l'écart de couleur S-CIELAB."),
+       " Avec `--perceptual-loss s_cielab` ou `flip`, il pondère à la place l'écart de couleur S-CIELAB ou FLIP."),
     ES("Cuánto atiende la función de pérdida a la estructura local en vez de "
        "al color exacto de cada píxel. Más alto realza la textura fina y el detalle "
        "de alta frecuencia; más bajo da un fondo más suave y menos ruidoso, que "
        "a veces queda mejor en exteriores."
-       " Con `--perceptual-loss s_cielab` pondera en su lugar la diferencia de color S-CIELAB."),
+       " Con `--perceptual-loss s_cielab` o `flip` pondera en su lugar la diferencia de color S-CIELAB o FLIP."),
     PT("O quanto a função de perda se importa com a estrutura local em vez da "
        "cor exata de cada pixel. Mais alto realça a textura fina e o detalhe "
        "de alta frequência; mais baixo dá um fundo mais suave e menos ruidoso, "
        "que às vezes fica melhor em cenas ao ar livre."
-       " Com `--perceptual-loss s_cielab` pondera, em vez disso, a diferença de cor S-CIELAB."),
+       " Com `--perceptual-loss s_cielab` ou `flip` pondera, em vez disso, a diferença de cor S-CIELAB ou o FLIP."),
     IT("Quanto la funzione di perdita si interessa alla struttura locale invece "
        "che al colore esatto dei pixel. Più alto fa emergere la texture fine "
        "e il dettaglio ad alta frequenza; più basso dà uno sfondo più liscio "
        "e meno rumoroso, che a volte rende meglio negli esterni."
-       " Con `--perceptual-loss s_cielab` pesa invece la differenza di colore S-CIELAB."),
+       " Con `--perceptual-loss s_cielab` o `flip` pesa invece la differenza di colore S-CIELAB o FLIP."),
     NL("Hoeveel de verliesfunctie let op lokale structuur in plaats van op de "
        "exacte pixelkleur. Hoger haalt fijne textuur en hoogfrequent detail naar "
        "voren; lager geeft een gladdere, minder ruizige achtergrond, wat in buitenscènes "
        "soms beter oogt."
-       " Met `--perceptual-loss s_cielab` weegt het in plaats daarvan het S-CIELAB-kleurverschil."),
+       " Met `--perceptual-loss s_cielab` of `flip` weegt het in plaats daarvan het S-CIELAB-kleurverschil of FLIP."),
     RU("Насколько функция потерь смотрит на локальную структуру, а не на точный "
        "цвет пикселя. Больше — сильнее проявляется мелкая фактура и высокочастотные "
        "детали; меньше — фон глаже и менее шумный, что на улице иногда выглядит "
        "лучше."
-       " При `--perceptual-loss s_cielab` это вес цветового различия S-CIELAB."),
+       " При `--perceptual-loss s_cielab` или `flip` это вес цветового различия S-CIELAB или FLIP."),
     TR("Kaybın piksel rengindeki kesinlik yerine yerel yapıya ne kadar önem verdiği. "
        "Yüksek değerler ince dokuyu ve yüksek frekanslı ayrıntıyı öne çıkarır; "
        "düşük değerler daha pürüzsüz, daha az gürültülü bir arka plan verir ve "
        "bu dış mekân sahnelerinde bazen daha iyi görünür."
-       " `--perceptual-loss s_cielab` ile bunun yerine S-CIELAB renk farkını ağırlıklandırır."));
+       " `--perceptual-loss s_cielab` veya `flip` ile bunun yerine S-CIELAB renk farkını ya da FLIP'i ağırlıklandırır."));
 
 SS_MSG(perceptual_loss,
     EN("Perceptual loss"), JA("知覚損失"), ZH_HANS("感知损失"),
@@ -6945,61 +6945,96 @@ SS_MSG(perceptual_loss,
     NL("Perceptueel verlies"), RU("Перцептивная потеря"),
     TR("Algısal kayıp"));
 SS_MSG(perceptual_loss_help,
-    EN("Whether the structure weight trains SSIM or the S-CIELAB color "
-       "difference. `ssim` compares local structure. `s_cielab` (S-CIELAB) measures color difference as the eye "
+    EN("Whether the structure weight trains SSIM, the S-CIELAB color "
+       "difference or FLIP. `ssim` compares local structure. `s_cielab` (S-CIELAB) measures color difference as the eye "
        "sees it: color is blurred more than brightness before comparing, so fine "
-       "color noise counts for little and broad color shifts for a lot."),
-    JA("構造の重みで SSIM と S-CIELAB 色差のどちらを学習するかです。`ssim` は局所的な構造を比べます。"
+       "color noise counts for little and broad color shifts for a lot."
+       " `flip` (FLIP) scores the difference a viewer notices flipping between "
+       "the render and the photo: color error as the eye sees it, made larger "
+       "where edges and points do not match."),
+    JA("構造の重みで SSIM、S-CIELAB 色差、FLIP のどれを学習するかです。`ssim` は局所的な構造を比べます。"
        "`s_cielab`（S-CIELAB）は目に見えるとおりの色の差を測ります。比べる前に"
        "色を明るさより強くぼかすので、細かな色のノイズはあまり効かず、広い範囲"
-       "の色のずれは強く効きます。"),
-    ZH_HANS("结构权重训练的是 SSIM 还是 S-CIELAB 色差。`ssim` 比较局部结构。`s_cielab`"
+       "の色のずれは強く効きます。"
+       "`flip`（FLIP）は、レンダリングと写真を切り替えたときに気づく違いを測ります。"
+       "目に見えるとおりの色の差を、エッジや点が合わないところで大きくします。"),
+    ZH_HANS("结构权重训练的是 SSIM、S-CIELAB 色差还是 FLIP。`ssim` 比较局部结构。`s_cielab`"
             "（S-CIELAB）按人眼所见衡量颜色差异：比较前对颜色的模糊强于亮度，"
-            "因此细小的颜色噪点影响很小，大面积的色偏影响很大。"),
-    ZH_HANT("結構權重訓練的是 SSIM 還是 S-CIELAB 色差。`ssim` 比較局部結構。`s_cielab`"
+            "因此细小的颜色噪点影响很小，大面积的色偏影响很大。"
+            "`flip`（FLIP）衡量在渲染和照片之间来回切换时能察觉到的差异：按人眼所见"
+            "的颜色误差，在边缘和点不匹配处加重。"),
+    ZH_HANT("結構權重訓練的是 SSIM、S-CIELAB 色差還是 FLIP。`ssim` 比較局部結構。`s_cielab`"
             "（S-CIELAB）按人眼所見衡量顏色差異：比較前對顏色的模糊強於亮度，"
-            "因此細小的顏色雜訊影響很小，大面積的色偏影響很大。"),
-    KO("구조 가중치로 SSIM과 S-CIELAB 색차 중 무엇을 학습할지입니다. `ssim`은 국소 구조를 비교합니다. "
+            "因此細小的顏色雜訊影響很小，大面積的色偏影響很大。"
+            "`flip`（FLIP）衡量在渲染和照片之間來回切換時能察覺到的差異：按人眼所見"
+            "的顏色誤差，在邊緣和點不吻合處加重。"),
+    KO("구조 가중치로 SSIM, S-CIELAB 색차, FLIP 중 무엇을 학습할지입니다. `ssim`은 국소 구조를 비교합니다. "
        "`s_cielab`(S-CIELAB)은 눈에 보이는 대로 색 차이를 잽니다. 비교하기 전에 "
        "색을 밝기보다 더 흐리게 하므로 미세한 색 노이즈는 거의 반영되지 않고 "
-       "넓은 색 틀어짐은 크게 반영됩니다."),
-    DE("Ob das Strukturgewicht SSIM oder den S-CIELAB-Farbabstand trainiert. `ssim` vergleicht "
+       "넓은 색 틀어짐은 크게 반영됩니다."
+       " `flip`(FLIP)은 렌더링과 사진을 번갈아 볼 때 눈에 띄는 차이를 잽니다. "
+       "눈에 보이는 대로의 색 차이를, 가장자리와 점이 맞지 않는 곳에서 더 크게 셉니다."),
+    DE("Ob das Strukturgewicht SSIM, den S-CIELAB-Farbabstand oder FLIP trainiert. `ssim` vergleicht "
        "lokale Struktur. `s_cielab` (S-CIELAB) misst den Farbabstand so, wie das "
        "Auge ihn sieht: Farbe wird vor dem Vergleich stärker weichgezeichnet als "
        "Helligkeit, sodass feines Farbrauschen wenig zählt und großflächige "
-       "Farbstiche viel."),
-    FR("Si le poids de la structure entraîne le SSIM ou l'écart de couleur S-CIELAB. `ssim` compare "
+       "Farbstiche viel."
+       " `flip` (FLIP) misst den Unterschied, der beim Hin- und Herschalten "
+       "zwischen Rendering und Foto auffällt: den Farbabstand, wie das Auge ihn "
+       "sieht, verstärkt dort, wo Kanten und Punkte nicht übereinstimmen."),
+    FR("Si le poids de la structure entraîne le SSIM, l'écart de couleur S-CIELAB ou FLIP. `ssim` compare "
        "la structure locale. `s_cielab` (S-CIELAB) mesure l'écart de couleur tel "
        "que l'œil le perçoit : la couleur est plus floutée que la luminosité avant "
        "la comparaison, si bien que le bruit de couleur fin compte peu et les "
-       "dominantes de couleur étendues beaucoup."),
-    ES("Si el peso de la estructura entrena el SSIM o la diferencia de color S-CIELAB. `ssim` compara "
+       "dominantes de couleur étendues beaucoup."
+       " `flip` (FLIP) mesure l'écart qu'on remarque en alternant entre le rendu "
+       "et la photo : l'écart de couleur tel que l'œil le perçoit, renforcé là où "
+       "contours et points ne correspondent pas."),
+    ES("Si el peso de la estructura entrena el SSIM, la diferencia de color S-CIELAB o FLIP. `ssim` compara "
        "la estructura local. `s_cielab` (S-CIELAB) mide la diferencia de color tal "
        "como la ve el ojo: el color se desenfoca más que el brillo antes de "
        "comparar, de modo que el ruido de color fino cuenta poco y las dominantes "
-       "de color amplias cuentan mucho."),
-    PT("Se o peso da estrutura treina o SSIM ou a diferença de cor S-CIELAB. `ssim` compara a estrutura "
+       "de color amplias cuentan mucho."
+       " `flip` (FLIP) mide la diferencia que se nota al alternar entre el render "
+       "y la foto: la diferencia de color tal como la ve el ojo, aumentada donde "
+       "los bordes y los puntos no coinciden."),
+    PT("Se o peso da estrutura treina o SSIM, a diferença de cor S-CIELAB ou o FLIP. `ssim` compara a estrutura "
        "local. `s_cielab` (S-CIELAB) mede a diferença de cor tal como o olho a vê: "
        "a cor é desfocada mais do que o brilho antes da comparação, de modo que o "
-       "ruído de cor fino conta pouco e as dominantes de cor amplas contam muito."),
-    IT("Se il peso della struttura allena l'SSIM o la differenza di colore S-CIELAB. `ssim` "
+       "ruído de cor fino conta pouco e as dominantes de cor amplas contam muito."
+       " `flip` (FLIP) mede a diferença que se nota ao alternar entre a "
+       "renderização e a foto: a diferença de cor tal como o olho a vê, aumentada "
+       "onde bordas e pontos não coincidem."),
+    IT("Se il peso della struttura allena l'SSIM, la differenza di colore S-CIELAB o FLIP. `ssim` "
        "confronta la struttura locale. `s_cielab` (S-CIELAB) misura la differenza "
        "di colore come la vede l'occhio: prima del confronto il colore viene "
        "sfocato più della luminosità, così il rumore di colore fine conta poco e "
-       "le dominanti di colore estese contano molto."),
-    NL("Of het structuurgewicht SSIM traint of het S-CIELAB-kleurverschil. `ssim` vergelijkt "
+       "le dominanti di colore estese contano molto."
+       " `flip` (FLIP) misura la differenza che si nota alternando il render e "
+       "la foto: la differenza di colore come la vede l'occhio, accresciuta dove "
+       "bordi e punti non corrispondono."),
+    NL("Of het structuurgewicht SSIM, het S-CIELAB-kleurverschil of FLIP traint. `ssim` vergelijkt "
        "lokale structuur. `s_cielab` (S-CIELAB) meet kleurverschil zoals het oog "
        "het ziet: kleur wordt vóór het vergelijken sterker vervaagd dan "
-       "helderheid, zodat fijne kleurruis weinig telt en een brede kleurzweem veel."),
-    RU("Что обучает вес структуры: SSIM или цветовое различие S-CIELAB. `ssim` "
+       "helderheid, zodat fijne kleurruis weinig telt en een brede kleurzweem veel."
+       " `flip` (FLIP) meet het verschil dat opvalt als je tussen render en foto "
+       "wisselt: kleurverschil zoals het oog het ziet, versterkt waar randen en "
+       "punten niet kloppen."),
+    RU("Что обучает вес структуры: SSIM, цветовое различие S-CIELAB или FLIP. `ssim` "
        "сравнивает локальную структуру. `s_cielab` (S-CIELAB) измеряет разницу "
        "цвета так, как её видит глаз: перед сравнением цвет размывается сильнее "
        "яркости, поэтому мелкий цветовой шум почти не учитывается, а обширные "
-       "цветовые сдвиги — сильно."),
-    TR("Yapı ağırlığının SSIM'i mi yoksa S-CIELAB renk farkını mı eğittiği. `ssim` yerel yapıyı "
+       "цветовые сдвиги — сильно."
+       " `flip` (FLIP) измеряет разницу, заметную при переключении между рендером "
+       "и снимком: цветовое различие так, как его видит глаз, усиленное там, где "
+       "не совпадают края и точки."),
+    TR("Yapı ağırlığının SSIM'i mi, S-CIELAB renk farkını mı yoksa FLIP'i mi eğittiği. `ssim` yerel yapıyı "
        "karşılaştırır. `s_cielab` (S-CIELAB) renk farkını gözün gördüğü gibi "
        "ölçer: karşılaştırmadan önce renk parlaklıktan daha çok bulanıklaştırılır; "
-       "böylece ince renk gürültüsü az, geniş renk kaymaları çok sayılır."));
+       "böylece ince renk gürültüsü az, geniş renk kaymaları çok sayılır."
+       " `flip` (FLIP), görüntü ile fotoğraf arasında gidip gelirken fark edilen "
+       "farkı ölçer: gözün gördüğü gibi renk farkını, kenarların ve noktaların "
+       "uyuşmadığı yerlerde büyütür."));
 
 
 SS_MSG(l1_weight,

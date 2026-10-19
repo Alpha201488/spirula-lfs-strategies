@@ -1040,18 +1040,23 @@ LossValues compute_multi_scale_per_pixel_losses(
     pool_begin_phase(PoolPhase::Loss);
     const auto _mode = densify_loss_map_base((DensifyLossMapMode)loss_map_mode);
     const bool _nms = densify_loss_map_has_nms((DensifyLossMapMode)loss_map_mode);
+    const bool _ssim = perceptual_loss == (int)PerceptualLoss::Ssim;
     const bool _scielab = perceptual_loss == (int)PerceptualLoss::SCielab;
+    const bool _flip = perceptual_loss == (int)PerceptualLoss::Flip;
     // Per-pixel L1/L2/aux terms contribute to the loss map only for LossFull.
     const bool _per_pixel_write = (_mode == DensifyLossMapMode::LossFull);
     // Which perceptual term the map takes: LossFull takes the trained one. A
-    // map term from the other one runs that kernel for its map alone.
+    // map term from another one runs that kernel for its map alone.
     const bool _scielab_map = _mode == DensifyLossMapMode::SCielab ||
                               (_per_pixel_write && _scielab);
+    const bool _flip_features = _mode == DensifyLossMapMode::FlipFeature;
+    const bool _flip_map = _mode == DensifyLossMapMode::Flip || _flip_features ||
+                           (_per_pixel_write && _flip);
     const int _ssim_mode = [&]() -> int {
         switch (_mode) {
             case DensifyLossMapMode::LossFull:
-                return _scielab ? (int)SsimLossMapMode::SsimNone
-                                : (int)SsimLossMapMode::SsimFull;
+                return _ssim ? (int)SsimLossMapMode::SsimFull
+                             : (int)SsimLossMapMode::SsimNone;
             case DensifyLossMapMode::SsimFull:
                 return (int)SsimLossMapMode::SsimFull;
             case DensifyLossMapMode::SsimContrastStruct:
@@ -1181,7 +1186,7 @@ LossValues compute_multi_scale_per_pixel_losses(
         PoolSlot::PplTotalLosses, (uint)LossIndex::length);
     cudaMemset(total_losses_ptr, 0, (uint)LossIndex::length * sizeof(float));
 
-    float ssim_val = 0.0f, delta_e = 0.0f;
+    float ssim_val = 0.0f, delta_e = 0.0f, flip_val = 0.0f;
 
     for (int scale = 0; scale < num_loss_scales; ++scale) {
         const auto& ss = std::get<2>(render_rgb_s[scale]);
@@ -1300,16 +1305,17 @@ LossValues compute_multi_scale_per_pixel_losses(
         // goes through an async readout, for display without a host sync.
         static AsyncReadout<float> ssim_readout(1);
         static AsyncReadout<float> scielab_readout(1);
-        if (!_scielab && scale == 0) {
+        static AsyncReadout<float> flip_readout(1);
+        if (_ssim && scale == 0) {
             ssim_val = fused_ssim_inplace_async(
                 render_rgb_s[scale], ref_rgb_s[scale], ref_alpha_s[scale],
                 -w_ssim, scale_grads.v_render_rgb, loss_map_scale, _map_w,
                 _ssim_mode, saturation_threshold, ssim_readout);
-        } else if (!_scielab || _ssim_mode != (int)SsimLossMapMode::SsimNone) {
+        } else if (_ssim || _ssim_mode != (int)SsimLossMapMode::SsimNone) {
             fused_ssim_inplace(
                 render_rgb_s[scale], ref_rgb_s[scale], ref_alpha_s[scale],
-                _scielab ? 0.0f : -w_ssim,
-                _scielab ? TorchTensorView{} : scale_grads.v_render_rgb,
+                _ssim ? -w_ssim : 0.0f,
+                _ssim ? scale_grads.v_render_rgb : TorchTensorView{},
                 /*return_ssim_val=*/false, loss_map_scale, _map_w,
                 _ssim_mode, saturation_threshold);
         }
@@ -1327,6 +1333,19 @@ LossValues compute_multi_scale_per_pixel_losses(
                 _scielab ? scale_grads.v_render_rgb : TorchTensorView{},
                 /*return_val=*/false, scielab_map,
                 _map_w * kScielabLossPerDeltaE, saturation_threshold);
+        }
+        TorchTensorView flip_map = _flip_map ? loss_map_scale : TorchTensorView{};
+        if (_flip && scale == 0) {
+            flip_val = fused_flip_inplace_async(
+                render_rgb_s[scale], ref_rgb_s[scale], ref_alpha_s[scale],
+                w_ssim, scale_grads.v_render_rgb, flip_map, _map_w,
+                _flip_features, saturation_threshold, flip_readout);
+        } else if (_flip || _flip_map) {
+            fused_flip_inplace(
+                render_rgb_s[scale], ref_rgb_s[scale], ref_alpha_s[scale], w_ssim,
+                _flip ? scale_grads.v_render_rgb : TorchTensorView{},
+                /*return_val=*/false, flip_map, _map_w, _flip_features,
+                saturation_threshold);
         }
 
         // Edge-aware loss maps: nothing above wrote loss_map_scale in these
@@ -1482,6 +1501,7 @@ LossValues compute_multi_scale_per_pixel_losses(
     }
     out.ssim = ssim_val;
     out.delta_e = delta_e;
+    out.flip = flip_val;
     losses_readout.issue(total_losses_ptr);
     return out;
 }

@@ -1,8 +1,8 @@
-// Fused SSIM and S-CIELAB forward+backward (Vulkan backend), mirroring
-// kernels/loss/FusedSSIM.cu's memory_efficient_ssim_backward_kernel<true> and
-// fused_scielab_kernel.
+// Fused SSIM, S-CIELAB and FLIP forward+backward (Vulkan backend), mirroring
+// kernels/loss/FusedSSIM.cu's memory_efficient_ssim_backward_kernel<true>,
+// fused_scielab_kernel and fused_flip_kernel.
 //
-// Both run logical tiles as flat 256-wide workgroups (VUID-02757: workgroup X
+// All run logical tiles as flat 256-wide workgroups (VUID-02757: workgroup X
 // must be a multiple of the pinned 32-wide subgroup). Every per-pixel output is
 // a pure function of the input, so the tile edge only regroups the atomic
 // scalar (loose parity channel). Masked pixels -- and, with `sat` positive,
@@ -774,3 +774,410 @@ void scielab_bwd_inplace(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
 #undef scTile
 #undef scXconv
 #undef scGrad
+
+
+// ---------------------------------------------------------------------------
+// Fused FLIP (kernels/loss/FusedSSIM.cu's fused_flip_kernel)
+// ---------------------------------------------------------------------------
+
+// Rows of FusedSSIM.cu's cFlipRgbToOpp and cFlipTaps; the constants after
+// them are its FLIP_* macros.
+[ForceInline]
+float3 _fl_rgb_to_opp(int k) {
+    if (k == 0) return float3(0.212636822f, 0.715182982f, 0.072180196f);
+    if (k == 1) return float3(0.221258567f, -0.338940609f, 0.117682042f);
+    return float3(0.194884399f, 0.605717353f, -0.800601752f);
+}
+static const int kFlA = 0;
+static const int kFlRG = 1;
+static const int kFlBY = 2;
+static const int kFlG = 3;
+static const int kFlD = 4;
+static const int kFlP = 5;
+static const float kFlTaps[6 * (HALO + 1)] = {
+    0.704064511f, 0.146642777f, 0.00132496784f, 0.0f, 0.0f, 0.0f,
+    0.664371978f, 0.165269872f, 0.00254413906f, 0.0f, 0.0f, 0.0f,
+    0.257677777f, 0.207930974f, 0.11076056f, 0.0402669907f, 0.0103173304f, 0.00188525584f,
+    0.266011725f, 0.213005538f, 0.10936069f, 0.0360007721f, 0.00759875814f, 0.00102838008f,
+    0.0f, 0.370273015f, 0.380209009f, 0.18774321f, 0.0528364683f, 0.008938298f,
+    -0.529182223f, -0.235408888f, 0.170187732f, 0.216094916f, 0.092912529f, 0.0208048228f,
+};
+static const float kFlPccmax = 16.510439366f;
+static const float kFlSlopeLo = 0.0575393531f;
+static const float kFlSlopeHi = 0.00201892467f;
+static const float kFlHyabFloor = 1.0f;
+static const float kFlEcFloor = 0.0575393531f;
+static const float kFlFeatFloor = 2e-3f;
+static const uint kFlipMapFeatures = 1u << 5;
+
+static const int FL_T = 16;
+static const int FL_LX = FL_T + 4 * HALO;
+static const int FL_SX = FL_T + 2 * HALO;
+static const int FL_NC = FL_SX * FL_SX;
+static const int FL_NT = FL_LX * FL_LX;
+static const int FL_NX = FL_LX * FL_SX;
+static const int FL_NG = FL_SX * FL_T;
+static const int FL_CPT = 3;
+static const int FL_RX = FL_SX + 4;
+// CUDA's layout: the three channels' tiles and five horizontal passes (BY's
+// then reuses xg); later seven adjoint grids and six backward passes in the
+// front. The coverage entry reuses the front too.
+static const int FL_TBY = FL_NT;
+static const int FL_TRG = 2 * FL_NT;
+static const int FL_XG = FL_TRG + FL_RX * FL_RX;
+static const int FL_XD = FL_XG + FL_NX;
+static const int FL_XP = FL_XD + FL_NX;
+static const int FL_XA = FL_XP + FL_NX;
+static const int FL_XRG = FL_XA + FL_RX * FL_SX;
+groupshared float _fl_sm[FL_XRG + FL_RX * FL_SX];
+
+// FusedSSIM.cu's flip_tap, over _fl_sm.
+[ForceInline]
+float _fl_tap<let F : int>(int i, int s) {
+    float acc = F == kFlD ? 0.0f : kFlTaps[F * (HALO + 1)] * _fl_sm[i];
+    [ForceUnroll]
+    for (int d = 1; d <= HALO; d++) {
+        if (F <= kFlRG && d > 2) continue;
+        float w = kFlTaps[F * (HALO + 1) + d];
+        acc += w * (F == kFlD ? _fl_sm[i + d * s] - _fl_sm[i - d * s]
+                              : _fl_sm[i + d * s] + _fl_sm[i - d * s]);
+    }
+    return acc;
+}
+
+[ForceInline]
+float _fl_cov1d(int f, int x, int n) {
+    float c = 0.0f;
+    for (int d = -HALO; d <= HALO; d++)
+        if (uint(x + d) < uint(n))
+            c += (f == kFlD && d < 0 ? -1.0f : 1.0f) * kFlTaps[f * (HALO + 1) + abs(d)];
+    return c;
+}
+
+struct FlipCov {
+    float a, rg, by, ex, ey, px, py;
+};
+
+[ForceInline]
+FlipCov _fl_make_cov(float a, float rg, float by, float ex, float ey, float px, float py) {
+    FlipCov c;
+    c.a = a; c.rg = rg; c.by = by; c.ex = ex; c.ey = ey; c.px = px; c.py = py;
+    return c;
+}
+
+// FusedSSIM.cu's flip_cov: the coverage entry's halves, or the closed form.
+[ForceInline]
+FlipCov _fl_cov(uint* cov, bool has_cov, int b, int y, int x, int H, int W) {
+    if (has_cov) {
+        int o = ((b * H + y) * W + x) * 4;
+        float2 v0 = unpack_half2(cov[o]), v1 = unpack_half2(cov[o + 1]);
+        float2 v2 = unpack_half2(cov[o + 2]), v3 = unpack_half2(cov[o + 3]);
+        return _fl_make_cov(v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, v3.x);
+    }
+    if (x >= HALO && x < W - HALO && y >= HALO && y < H - HALO)
+        return _fl_make_cov(1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    float gx = _fl_cov1d(kFlG, x, W), gy = _fl_cov1d(kFlG, y, H);
+    return _fl_make_cov(_fl_cov1d(kFlA, x, W) * _fl_cov1d(kFlA, y, H),
+                        _fl_cov1d(kFlRG, x, W) * _fl_cov1d(kFlRG, y, H),
+                        _fl_cov1d(kFlBY, x, W) * _fl_cov1d(kFlBY, y, H),
+                        _fl_cov1d(kFlD, x, W) * gy, gx * _fl_cov1d(kFlD, y, H),
+                        _fl_cov1d(kFlP, x, W) * gy, gx * _fl_cov1d(kFlP, y, H));
+}
+
+struct FlipCovParams {
+    uint* masks;
+    uint* img1;
+    uint* img2;
+    uint* out;    // [B,H,W,4] half pairs
+    int B, H, W;
+    int Bm, Hm, Wm;
+    float sat;
+    uint fmts;    // img1's format | img2's << 2
+};
+
+[shader("compute")]
+[numthreads(256, 1, 1)]
+void flip_mask_cov(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
+                   uniform FlipCovParams p) {
+    int b = int(wg.z);
+    int x0 = int(wg.x) * COV_T - HALO;
+    int y0 = int(wg.y) * COV_T - HALO;
+    for (int i = int(tid); i < COV_S * COV_S; i += 256)
+        _fl_sm[i] = _sc_keep(p.img1, p.img2, p.masks, p.fmts, p.sat, true,
+                             p.Bm, p.Hm, p.Wm, p.H, p.W, b,
+                             y0 + i / COV_S, x0 + i % COV_S) ? 1.0f : 0.0f;
+    GroupMemoryBarrierWithGroupSync();
+    const int X = COV_S * COV_S;
+    const int N = COV_S * COV_T;
+    for (int i = int(tid); i < N; i += 256) {
+        int j = (i / COV_T) * COV_S + i % COV_T + HALO;
+        _fl_sm[X + kFlA * N + i] = _fl_tap<kFlA>(j, 1);
+        _fl_sm[X + kFlRG * N + i] = _fl_tap<kFlRG>(j, 1);
+        _fl_sm[X + kFlBY * N + i] = _fl_tap<kFlBY>(j, 1);
+        _fl_sm[X + kFlG * N + i] = _fl_tap<kFlG>(j, 1);
+        _fl_sm[X + kFlD * N + i] = _fl_tap<kFlD>(j, 1);
+        _fl_sm[X + kFlP * N + i] = _fl_tap<kFlP>(j, 1);
+    }
+    GroupMemoryBarrierWithGroupSync();
+    int tx = int(tid % 16u), ty = int(tid / 16u);
+    int x = int(wg.x) * COV_T + tx;
+    int y = int(wg.y) * COV_T + ty;
+    if (x >= p.W || y >= p.H) return;
+    int j = (ty + HALO) * COV_T + tx;
+    int o = ((b * p.H + y) * p.W + x) * 4;
+    p.out[o] = pack_half2(float2(_fl_tap<kFlA>(X + kFlA * N + j, COV_T),
+                                 _fl_tap<kFlRG>(X + kFlRG * N + j, COV_T)));
+    p.out[o + 1] = pack_half2(float2(_fl_tap<kFlBY>(X + kFlBY * N + j, COV_T),
+                                     _fl_tap<kFlG>(X + kFlD * N + j, COV_T)));
+    p.out[o + 2] = pack_half2(float2(_fl_tap<kFlD>(X + kFlG * N + j, COV_T),
+                                     _fl_tap<kFlG>(X + kFlP * N + j, COV_T)));
+    p.out[o + 3] = pack_half2(float2(_fl_tap<kFlP>(X + kFlG * N + j, COV_T), 0.0f));
+}
+
+struct FlipParams {
+    uint* img1;       // [B,H,W,3], read as kSsimFmts
+    uint* img2;
+    uint* masks;      // [Bm,Hm,Wm] bool bytes
+    uint* cov;        // [B,H,W,4] from flip_mask_cov, or fallback
+    float* dL_dimg1;  // [B,H,W,3], accumulated (+=)
+    float* val;       // mean FLIP accumulator
+    float* loss_map;  // [B,H,W,1], accumulated (+=)
+    int B, H, W;
+    int Bm, Hm, Wm;
+    float dL_dmap;
+    float map_weight;
+    float sat;
+    uint flags;       // kSsim* bits, kFlipMapFeatures
+};
+
+[shader("compute")]
+[numthreads(256, 1, 1)]
+void flip_bwd_inplace(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
+                      uniform FlipParams p) {
+    const int b = int(wg.z);
+    const int x0 = int(wg.x) * FL_T, y0 = int(wg.y) * FL_T;
+    const int tx = int(tid % 16u), ty = int(tid / 16u);
+    const uint fmts = uint(kSsimFmts);
+    const bool has_mask = (p.flags & kSsimHasMask) != 0;
+    const bool has_cov = (p.flags & kSsimHasCov) != 0;
+    const bool write_grad = (p.flags & kSsimWriteGrad) != 0;
+    const bool has_map = (p.flags & kSsimHasLossMap) != 0;
+    const bool map_features = (p.flags & kFlipMapFeatures) != 0;
+
+    float er[FL_CPT], pr[FL_CPT], rL[FL_CPT], ra[FL_CPT], rb[FL_CPT];
+    float cY[FL_CPT], cD1[FL_CPT], cD2[FL_CPT];
+    float df[FL_CPT], ux[FL_CPT], uy[FL_CPT];
+    bool pt[FL_CPT];
+    [ForceUnroll]
+    for (int k = 0; k < FL_CPT; k++) {
+        er[k] = 0.0f; pr[k] = 0.0f; rL[k] = 0.0f; ra[k] = 0.0f; rb[k] = 0.0f;
+        cY[k] = 0.0f; cD1[k] = 0.0f; cD2[k] = 0.0f;
+        df[k] = 0.0f; ux[k] = 0.0f; uy[k] = 0.0f; pt[k] = false;
+    }
+    const int R0 = HALO - 2;
+
+    [ForceUnroll]
+    for (int img = 0; img < 2; img++) {
+        const bool ref = img == 0;
+        uint* src = ref ? p.img2 : p.img1;
+        const uint fmt = ref ? (fmts >> 2) & 3u : fmts & 3u;
+        for (int i = int(tid); i < FL_NT; i += 256) {
+            int ly = i / FL_LX, lx = i % FL_LX;
+            int gy = y0 + ly - 2 * HALO, gx = x0 + lx - 2 * HALO;
+            float3 o = float3(0.0f);
+            if (_sc_keep(p.img1, p.img2, p.masks, fmts, p.sat, has_mask,
+                         p.Bm, p.Hm, p.Wm, p.H, p.W, b, gy, gx)) {
+                float3 c = rgb_load3(src, (b * p.H + gy) * p.W + gx, fmt);
+                float3 l = float3(_sc_lin(c.x), _sc_lin(c.y), _sc_lin(c.z));
+                o = float3(dot(_fl_rgb_to_opp(0), l), dot(_fl_rgb_to_opp(1), l),
+                           dot(_fl_rgb_to_opp(2), l));
+            }
+            _fl_sm[i] = o.x;
+            _fl_sm[FL_TBY + i] = o.z;
+            if (uint(ly - R0) < uint(FL_RX) && uint(lx - R0) < uint(FL_RX))
+                _fl_sm[FL_TRG + (ly - R0) * FL_RX + lx - R0] = o.y;
+        }
+        GroupMemoryBarrierWithGroupSync();
+        for (int i = int(tid); i < FL_NX; i += 256) {
+            int ly = i / FL_SX, sx = i % FL_SX;
+            int j = ly * FL_LX + sx + HALO;
+            _fl_sm[FL_XG + i] = _fl_tap<kFlG>(j, 1);
+            _fl_sm[FL_XD + i] = _fl_tap<kFlD>(j, 1);
+            _fl_sm[FL_XP + i] = _fl_tap<kFlP>(j, 1);
+            if (uint(ly - R0) < uint(FL_RX)) {
+                int r = (ly - R0) * FL_SX + sx;
+                _fl_sm[FL_XA + r] = _fl_tap<kFlA>(j, 1);
+                _fl_sm[FL_XRG + r] = _fl_tap<kFlRG>(FL_TRG + (ly - R0) * FL_RX + sx + 2, 1);
+            }
+        }
+        GroupMemoryBarrierWithGroupSync();
+        [ForceUnroll]
+        for (int k = 0; k < FL_CPT; k++) {
+            int i = int(tid) + k * 256;
+            int sy = i / FL_SX, sx = i % FL_SX;
+            int cy = y0 + sy - HALO, cx = x0 + sx - HALO;
+            if (i < FL_NC && uint(cx) < uint(p.W) && uint(cy) < uint(p.H)) {
+                FlipCov c = _fl_cov(p.cov, has_cov, b, cy, cx, p.H, p.W);
+                int j = (sy + HALO) * FL_SX + sx, jr = (sy + 2) * FL_SX + sx;
+                float yc = _fl_sm[(sy + HALO) * FL_LX + sx + HALO];
+                float ex = _fl_tap<kFlG>(FL_XD + j, FL_SX) - c.ex * yc;
+                float ey = _fl_tap<kFlD>(FL_XG + j, FL_SX) - c.ey * yc;
+                float px = _fl_tap<kFlG>(FL_XP + j, FL_SX) - c.px * yc;
+                float py = _fl_tap<kFlP>(FL_XG + j, FL_SX) - c.py * yc;
+                cY[k] = _fl_tap<kFlA>(FL_XA + jr, FL_SX) * (1.0f / max(c.a, 1e-6f));
+                cD1[k] = _fl_tap<kFlRG>(FL_XRG + jr, FL_SX) * (1.0f / max(c.rg, 1e-6f));
+                float en = sqrt(ex * ex + ey * ey);
+                float pn = sqrt(px * px + py * py);
+                if (ref) {
+                    er[k] = en;
+                    pr[k] = pn;
+                } else {
+                    float de = en - er[k], dp = pn - pr[k];
+                    pt[k] = abs(dp) > abs(de);
+                    float n = pt[k] ? pn : en;
+                    float s = n > 0.0f ? ((pt[k] ? dp : de) < 0.0f ? -1.0f : 1.0f) / n : 0.0f;
+                    df[k] = max(abs(de), abs(dp));
+                    ux[k] = s * (pt[k] ? px : ex);
+                    uy[k] = s * (pt[k] ? py : ey);
+                }
+            }
+        }
+        GroupMemoryBarrierWithGroupSync();
+        for (int i = int(tid); i < FL_NX; i += 256)
+            _fl_sm[FL_XG + i] = _fl_tap<kFlBY>(FL_TBY + (i / FL_SX) * FL_LX + i % FL_SX + HALO, 1);
+        GroupMemoryBarrierWithGroupSync();
+        // The next image's tiles do not overlap xg, which this pass reads.
+        [ForceUnroll]
+        for (int k = 0; k < FL_CPT; k++) {
+            int i = int(tid) + k * 256;
+            int sy = i / FL_SX, sx = i % FL_SX;
+            int cy = y0 + sy - HALO, cx = x0 + sx - HALO;
+            if (i < FL_NC && uint(cx) < uint(p.W) && uint(cy) < uint(p.H)) {
+                FlipCov c = _fl_cov(p.cov, has_cov, b, cy, cx, p.H, p.W);
+                float d2 = _fl_tap<kFlBY>(FL_XG + (sy + HALO) * FL_SX + sx, FL_SX) *
+                           (1.0f / max(c.by, 1e-6f));
+                if (ref) {
+                    float fx = _sc_f(cD1[k] + cY[k]), fy = _sc_f(cY[k]), fz = _sc_f(cY[k] - d2);
+                    rL[k] = 116.0f * fy - 16.0f;
+                    ra[k] = 5.0f * rL[k] * (fx - fy);
+                    rb[k] = 2.0f * rL[k] * (fy - fz);
+                } else {
+                    cD2[k] = d2;
+                }
+            }
+        }
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    // FLIP per centre, and its adjoints in seven grids (A RG BY Ex Ey Px Py).
+    const float gscale = p.dL_dmap / (float(p.B) * float(p.H) * float(p.W));
+    float val = 0.0f;
+    [ForceUnroll]
+    for (int k = 0; k < FL_CPT; k++) {
+        int i = int(tid) + k * 256;
+        if (i >= FL_NC) continue;
+        int sy = i / FL_SX, sx = i % FL_SX;
+        int cy = y0 + sy - HALO, cx = x0 + sx - HALO;
+        float g[7] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        if (_sc_keep(p.img1, p.img2, p.masks, fmts, p.sat, has_mask,
+                     p.Bm, p.Hm, p.Wm, p.H, p.W, b, cy, cx)) {
+            float X = cD1[k] + cY[k], Z = cY[k] - cD2[k];
+            float fx = _sc_f(X), fy = _sc_f(cY[k]), fz = _sc_f(Z);
+            float L = 116.0f * fy - 16.0f;
+            float dL = L - rL[k];
+            float da = 5.0f * L * (fx - fy) - ra[k];
+            float db = 2.0f * L * (fy - fz) - rb[k];
+            float nab = sqrt(da * da + db * db);
+            float hy = abs(dL) + nab;
+            float pw = pow(hy, 0.7f);
+            bool lo = pw < kFlPccmax;
+            float ec = lo ? kFlSlopeLo * pw : 0.95f + (pw - kFlPccmax) * kFlSlopeHi;
+            float ef = min(sqrt(df[k] * 0.70710678f), 1.0f);
+            float fl = ec > 0.0f ? pow(ec, 1.0f - ef) : 0.0f;
+            if (sy >= HALO && sy < HALO + FL_T && sx >= HALO && sx < HALO + FL_T) {
+                val += fl;
+                if (has_map)
+                    p.loss_map[(b * p.H + cy) * p.W + cx] += p.map_weight * (map_features ? ef : fl);
+            }
+            if (write_grad) {
+                FlipCov c = _fl_cov(p.cov, has_cov, b, cy, cx, p.H, p.W);
+                float g_hy = gscale * (1.0f - ef) * pow(max(ec, kFlEcFloor), -ef) *
+                             (lo ? kFlSlopeLo : kFlSlopeHi) * 0.7f *
+                             pow(max(hy, kFlHyabFloor), -0.3f);
+                float gL = dL < 0.0f ? -g_hy : g_hy;
+                float inv = nab > 0.0f ? g_hy / nab : 0.0f;
+                float gah = da * inv, gbh = db * inv;
+                float gLt = gL + 5.0f * (fx - fy) * gah + 2.0f * (fy - fz) * gbh;
+                float gX = 5.0f * L * gah * _sc_df(X);
+                float gZ = -2.0f * L * gbh * _sc_df(Z);
+                float gY = (116.0f * gLt - 5.0f * L * gah + 2.0f * L * gbh) * _sc_df(cY[k]);
+                g[0] = (gX + gY + gZ) * (1.0f / max(c.a, 1e-6f));
+                g[1] = gX * (1.0f / max(c.rg, 1e-6f));
+                g[2] = -gZ * (1.0f / max(c.by, 1e-6f));
+                float g_ef = ec > 0.0f ? -gscale * log(ec) * fl : 0.0f;
+                float g_df = ef < 1.0f
+                    ? g_ef * 0.35355339f * rsqrt(max(df[k], kFlFeatFloor) * 0.70710678f)
+                    : 0.0f;
+                if (pt[k]) {
+                    g[5] = g_df * ux[k];
+                    g[6] = g_df * uy[k];
+                } else {
+                    g[3] = g_df * ux[k];
+                    g[4] = g_df * uy[k];
+                }
+            }
+        }
+        [ForceUnroll]
+        for (int f = 0; f < 7; f++) _fl_sm[f * FL_NC + i] = g[f];
+    }
+
+    if (write_grad) {
+        // Backward: an odd filter's adjoint is its negation, the rest are
+        // symmetric. h1 goes on to G vertically, h2 to D, h3 to P.
+        const int H0 = 7 * FL_NC;
+        GroupMemoryBarrierWithGroupSync();
+        for (int i = int(tid); i < FL_NG; i += 256) {
+            int j = (i / FL_T) * FL_SX + i % FL_T + HALO;
+            _fl_sm[H0 + i] = _fl_tap<kFlA>(j, 1);
+            _fl_sm[H0 + FL_NG + i] = _fl_tap<kFlRG>(FL_NC + j, 1);
+            _fl_sm[H0 + 2 * FL_NG + i] = _fl_tap<kFlBY>(2 * FL_NC + j, 1);
+            _fl_sm[H0 + 3 * FL_NG + i] =
+                _fl_tap<kFlP>(5 * FL_NC + j, 1) - _fl_tap<kFlD>(3 * FL_NC + j, 1);
+            _fl_sm[H0 + 4 * FL_NG + i] = _fl_tap<kFlG>(4 * FL_NC + j, 1);
+            _fl_sm[H0 + 5 * FL_NG + i] = _fl_tap<kFlG>(6 * FL_NC + j, 1);
+        }
+        GroupMemoryBarrierWithGroupSync();
+        int px = x0 + tx, py_ = y0 + ty;
+        if (_sc_keep(p.img1, p.img2, p.masks, fmts, p.sat, has_mask,
+                     p.Bm, p.Hm, p.Wm, p.H, p.W, b, py_, px)) {
+            int j = (ty + HALO) * FL_T + tx;
+            int c = (ty + HALO) * FL_SX + tx + HALO;
+            FlipCov cv = _fl_cov(p.cov, has_cov, b, py_, px, p.H, p.W);
+            float gy = _fl_tap<kFlA>(H0 + j, FL_T) + _fl_tap<kFlG>(H0 + 3 * FL_NG + j, FL_T) -
+                       _fl_tap<kFlD>(H0 + 4 * FL_NG + j, FL_T) +
+                       _fl_tap<kFlP>(H0 + 5 * FL_NG + j, FL_T) -
+                       cv.ex * _fl_sm[3 * FL_NC + c] - cv.ey * _fl_sm[4 * FL_NC + c] -
+                       cv.px * _fl_sm[5 * FL_NC + c] - cv.py * _fl_sm[6 * FL_NC + c];
+            float g1 = _fl_tap<kFlRG>(H0 + FL_NG + j, FL_T);
+            float g2 = _fl_tap<kFlBY>(H0 + 2 * FL_NG + j, FL_T);
+            int pix = (b * p.H + py_) * p.W + px;
+            float3 gl = _fl_rgb_to_opp(0) * gy + _fl_rgb_to_opp(1) * g1 + _fl_rgb_to_opp(2) * g2;
+            float3 gr = gl * _sc_dlin(rgb_load3(p.img1, pix, fmts & 3u));
+            p.dL_dimg1[pix * 3] += gr.x;
+            p.dL_dimg1[pix * 3 + 1] += gr.y;
+            p.dL_dimg1[pix * 3 + 2] += gr.z;
+        }
+    }
+
+    if ((p.flags & kSsimHasVal) != 0) {
+        GroupMemoryBarrierWithGroupSync();
+        _fl_sm[tid] = val / (float(p.B) * float(p.H) * float(p.W));
+        GroupMemoryBarrierWithGroupSync();
+        for (uint s = 128; s > 0; s >>= 1) {
+            if (tid < s) _fl_sm[tid] += _fl_sm[tid + s];
+            GroupMemoryBarrierWithGroupSync();
+        }
+        if (tid == 0 && _fl_sm[0] != 0.0f)
+            atomic_add_f32(p.val, _fl_sm[0]);
+    }
+}

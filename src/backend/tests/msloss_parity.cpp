@@ -277,6 +277,7 @@ void run_ms_cfg(Rng& r, const MsCfg& c) {
     g_loose.push_back(lv.median_render_normal_reg);
     g_loose.push_back(lv.ssim);
     g_loose.push_back(lv.delta_e);
+    g_loose.push_back(lv.flip);
 
     (void)n_grads;
     std::printf("msloss_parity: cfg %-12s done\n", c.name);
@@ -422,6 +423,22 @@ int main(int argc, char** argv) {
          (int)PerceptualLoss::SCielab},
         {"ssim_xsc_nms", 1, 37, 53, 1, 0, 0, 0, 0, 0, 0, false, false, true,
          (int)DensifyLossMapMode::SCielabNms, 0.9f, 0.25f, -1.0f},
+        // FLIP likewise: its feature map (the auto default) with a mask over
+        // two scales, LossFull with the clip test, and the cross-family maps.
+        {"flip", 2, 40, 48, 2, 0, 0, 0, 0, 0, 0, true, false, true,
+         (int)DensifyLossMapMode::FlipFeature, 0.9f, 0.5f, -1.0f,
+         (int)PerceptualLoss::Flip},
+        {"flip_lf", 1, 48, 48, 2, 0, 0, 0, 0, 0, 0, false, false, false,
+         (int)DensifyLossMapMode::LossFull, 0.9f, 0.5f, 0.98f,
+         (int)PerceptualLoss::Flip},
+        {"flip_xsc", 1, 37, 53, 1, 0, 0, 0, 0, 16, 16, true, false, true,
+         (int)DensifyLossMapMode::SCielab, 0.9f, 0.5f, -1.0f,
+         (int)PerceptualLoss::Flip},
+        {"ssim_xfl_nms", 1, 37, 53, 1, 0, 0, 0, 0, 0, 0, false, false, true,
+         (int)DensifyLossMapMode::FlipNms, 0.9f, 0.25f, -1.0f},
+        {"sc_xff_nms", 1, 37, 53, 1, 0, 0, 0, 0, 16, 16, true, false, true,
+         (int)DensifyLossMapMode::FlipFeatureNms, 0.9f, 0.5f, -1.0f,
+         (int)PerceptualLoss::SCielab},
     };
     for (const MsCfg& c : cfgs) run_ms_cfg(r, c);
     run_quantile(r);

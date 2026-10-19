@@ -930,6 +930,9 @@ static std::map<std::string, float> _engine_loss(
     if (perceptual_loss == (int)PerceptualLoss::SCielab) {
         loss_dict["rgb_loss"] = lv.rgb_loss + w_ssim * kScielabLossPerDeltaE * lv.delta_e;
         loss_dict["delta_e"] = lv.delta_e;
+    } else if (perceptual_loss == (int)PerceptualLoss::Flip) {
+        loss_dict["rgb_loss"] = lv.rgb_loss + w_ssim * lv.flip;
+        loss_dict["flip"] = lv.flip;
     } else {
         loss_dict["rgb_loss"] = lv.rgb_loss + w_ssim * (1.0f - lv.ssim);
         loss_dict["ssim"] = lv.ssim;

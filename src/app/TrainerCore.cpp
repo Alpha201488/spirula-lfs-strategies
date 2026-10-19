@@ -447,14 +447,16 @@ namespace {
 int perceptual_loss_int(const std::string& loss) {
     if (loss == "ssim")     return (int)PerceptualLoss::Ssim;
     if (loss == "s_cielab") return (int)PerceptualLoss::SCielab;
+    if (loss == "flip")     return (int)PerceptualLoss::Flip;
     throw std::runtime_error("unknown perceptual_loss: " + loss);
 }
 
-// `auto` is the contrast-structure half of SSIM, or S-CIELAB when that is the
-// loss: either way the map comes from the kernel the loss runs anyway.
+// `auto` is the contrast-structure half of SSIM, S-CIELAB, or FLIP's feature
+// error, whichever the loss is: the map comes from the kernel it runs anyway.
 int densify_loss_map_mode_int(const std::string& mode, const std::string& loss) {
     if (mode == "auto")
         return loss == "s_cielab" ? (int)DensifyLossMapMode::SCielab
+             : loss == "flip"     ? (int)DensifyLossMapMode::FlipFeature
                                   : (int)DensifyLossMapMode::SsimContrastStruct;
     if (mode == "none")              return 0;
     if (mode == "loss_full")         return 1;
@@ -469,6 +471,10 @@ int densify_loss_map_mode_int(const std::string& mode, const std::string& loss) 
     if (mode == "ssim_structure_nms")  return 10;
     if (mode == "s_cielab")            return 11;
     if (mode == "s_cielab_nms")        return 12;
+    if (mode == "flip")                return 13;
+    if (mode == "flip_nms")            return 14;
+    if (mode == "flip_feature")        return 15;
+    if (mode == "flip_feature_nms")    return 16;
     throw std::runtime_error("unknown densify_loss_map_mode: " + mode);
 }
 
