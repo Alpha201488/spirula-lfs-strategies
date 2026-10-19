@@ -446,6 +446,7 @@ namespace {
 
 int perceptual_loss_int(const std::string& loss) {
     if (loss == "ssim")     return (int)PerceptualLoss::Ssim;
+    if (loss == "ssim_blur_tolerant") return (int)PerceptualLoss::SsimBlurTolerant;
     if (loss == "s_cielab") return (int)PerceptualLoss::SCielab;
     if (loss == "flip")     return (int)PerceptualLoss::Flip;
     throw std::runtime_error("unknown perceptual_loss: " + loss);

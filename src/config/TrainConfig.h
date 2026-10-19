@@ -256,7 +256,7 @@ inline bool train_choices_free_form(const char* choices) {
                                                                              \
     /* ==== loss -- how the render is compared against the photo ==== */     \
     X(float, ssim_lambda, 0.2f, "loss", "basic", "")                         \
-    X(std::string, perceptual_loss, "ssim", "loss", "advanced", "ssim|s_cielab|flip") \
+    X(std::string, perceptual_loss, "ssim_blur_tolerant", "loss", "advanced", "ssim|ssim_blur_tolerant|s_cielab|flip") \
     X(float, l1_weight, 1.0f, "loss", "basic", "")                           \
     X(float, l2_weight, 0.0f, "loss", "basic", "")                           \
     X(float, l1_weight_y, 0.0f, "loss", "advanced", "")                      \

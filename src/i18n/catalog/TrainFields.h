@@ -6951,29 +6951,34 @@ SS_MSG(perceptual_loss_help,
        "color noise counts for little and broad color shifts for a lot."
        " `flip` (FLIP) scores the difference a viewer notices flipping between "
        "the render and the photo: color error as the eye sees it, made larger "
-       "where edges and points do not match."),
+       "where edges and points do not match."
+       " `ssim_blur_tolerant` compares each patch of the photo with the better of the render and a slightly blurred render: photos blurrier than the scene (motion or focus blur) stop pulling it blurry, while a render blurrier than the photo is still penalized as with `ssim`."),
     JA("構造の重みで SSIM、S-CIELAB 色差、FLIP のどれを学習するかです。`ssim` は局所的な構造を比べます。"
        "`s_cielab`（S-CIELAB）は目に見えるとおりの色の差を測ります。比べる前に"
        "色を明るさより強くぼかすので、細かな色のノイズはあまり効かず、広い範囲"
        "の色のずれは強く効きます。"
        "`flip`（FLIP）は、レンダリングと写真を切り替えたときに気づく違いを測ります。"
-       "目に見えるとおりの色の差を、エッジや点が合わないところで大きくします。"),
+       "目に見えるとおりの色の差を、エッジや点が合わないところで大きくします。"
+       "`ssim_blur_tolerant` は、写真の各部分を、レンダリングと少しぼかしたレンダリングのうち合うほうと比べます。シーンよりぼやけた写真（手ぶれやピンぼけ）がシーンをぼやけさせなくなり、写真よりぼやけたレンダリングは `ssim` と同じく罰せられます。"),
     ZH_HANS("结构权重训练的是 SSIM、S-CIELAB 色差还是 FLIP。`ssim` 比较局部结构。`s_cielab`"
             "（S-CIELAB）按人眼所见衡量颜色差异：比较前对颜色的模糊强于亮度，"
             "因此细小的颜色噪点影响很小，大面积的色偏影响很大。"
             "`flip`（FLIP）衡量在渲染和照片之间来回切换时能察觉到的差异：按人眼所见"
-            "的颜色误差，在边缘和点不匹配处加重。"),
+            "的颜色误差，在边缘和点不匹配处加重。"
+            "`ssim_blur_tolerant` 将照片的每一小块与渲染图和略微模糊的渲染图中更接近的那个比较：比场景更模糊的照片（运动模糊或失焦）不再把场景拉模糊，而比照片更模糊的渲染仍像 `ssim` 一样受罚。"),
     ZH_HANT("結構權重訓練的是 SSIM、S-CIELAB 色差還是 FLIP。`ssim` 比較局部結構。`s_cielab`"
             "（S-CIELAB）按人眼所見衡量顏色差異：比較前對顏色的模糊強於亮度，"
             "因此細小的顏色雜訊影響很小，大面積的色偏影響很大。"
             "`flip`（FLIP）衡量在渲染和照片之間來回切換時能察覺到的差異：按人眼所見"
-            "的顏色誤差，在邊緣和點不吻合處加重。"),
+            "的顏色誤差，在邊緣和點不吻合處加重。"
+            "`ssim_blur_tolerant` 將照片的每一小塊與渲染圖和略微模糊的渲染圖中更接近的那個比較：比場景更模糊的照片（動態模糊或失焦）不再把場景拉模糊，而比照片更模糊的渲染仍像 `ssim` 一樣受罰。"),
     KO("구조 가중치로 SSIM, S-CIELAB 색차, FLIP 중 무엇을 학습할지입니다. `ssim`은 국소 구조를 비교합니다. "
        "`s_cielab`(S-CIELAB)은 눈에 보이는 대로 색 차이를 잽니다. 비교하기 전에 "
        "색을 밝기보다 더 흐리게 하므로 미세한 색 노이즈는 거의 반영되지 않고 "
        "넓은 색 틀어짐은 크게 반영됩니다."
        " `flip`(FLIP)은 렌더링과 사진을 번갈아 볼 때 눈에 띄는 차이를 잽니다. "
-       "눈에 보이는 대로의 색 차이를, 가장자리와 점이 맞지 않는 곳에서 더 크게 셉니다."),
+       "눈에 보이는 대로의 색 차이를, 가장자리와 점이 맞지 않는 곳에서 더 크게 셉니다."
+       " `ssim_blur_tolerant`는 사진의 각 부분을 렌더링과 살짝 흐리게 한 렌더링 중 더 잘 맞는 쪽과 비교합니다. 장면보다 흐린 사진(흔들림이나 초점 빗나감)이 더 이상 장면을 흐리게 만들지 않고, 사진보다 흐린 렌더링은 `ssim`처럼 계속 불이익을 받습니다."),
     DE("Ob das Strukturgewicht SSIM, den S-CIELAB-Farbabstand oder FLIP trainiert. `ssim` vergleicht "
        "lokale Struktur. `s_cielab` (S-CIELAB) misst den Farbabstand so, wie das "
        "Auge ihn sieht: Farbe wird vor dem Vergleich stärker weichgezeichnet als "
@@ -6981,7 +6986,8 @@ SS_MSG(perceptual_loss_help,
        "Farbstiche viel."
        " `flip` (FLIP) misst den Unterschied, der beim Hin- und Herschalten "
        "zwischen Rendering und Foto auffällt: den Farbabstand, wie das Auge ihn "
-       "sieht, verstärkt dort, wo Kanten und Punkte nicht übereinstimmen."),
+       "sieht, verstärkt dort, wo Kanten und Punkte nicht übereinstimmen."
+       " `ssim_blur_tolerant` vergleicht jeden Ausschnitt des Fotos mit dem besser passenden von Rendering und leicht weichgezeichnetem Rendering: Fotos, die unschärfer sind als die Szene (Bewegungs- oder Fokusunschärfe), ziehen sie nicht mehr unscharf, während ein Rendering, das unschärfer ist als das Foto, weiter wie bei `ssim` bestraft wird."),
     FR("Si le poids de la structure entraîne le SSIM, l'écart de couleur S-CIELAB ou FLIP. `ssim` compare "
        "la structure locale. `s_cielab` (S-CIELAB) mesure l'écart de couleur tel "
        "que l'œil le perçoit : la couleur est plus floutée que la luminosité avant "
@@ -6989,7 +6995,8 @@ SS_MSG(perceptual_loss_help,
        "dominantes de couleur étendues beaucoup."
        " `flip` (FLIP) mesure l'écart qu'on remarque en alternant entre le rendu "
        "et la photo : l'écart de couleur tel que l'œil le perçoit, renforcé là où "
-       "contours et points ne correspondent pas."),
+       "contours et points ne correspondent pas."
+       " `ssim_blur_tolerant` compare chaque zone de la photo au meilleur du rendu et d'un rendu légèrement flouté : les photos plus floues que la scène (flou de bougé ou de mise au point) ne la rendent plus floue, tandis qu'un rendu plus flou que la photo reste pénalisé comme avec `ssim`."),
     ES("Si el peso de la estructura entrena el SSIM, la diferencia de color S-CIELAB o FLIP. `ssim` compara "
        "la estructura local. `s_cielab` (S-CIELAB) mide la diferencia de color tal "
        "como la ve el ojo: el color se desenfoca más que el brillo antes de "
@@ -6997,14 +7004,16 @@ SS_MSG(perceptual_loss_help,
        "de color amplias cuentan mucho."
        " `flip` (FLIP) mide la diferencia que se nota al alternar entre el render "
        "y la foto: la diferencia de color tal como la ve el ojo, aumentada donde "
-       "los bordes y los puntos no coinciden."),
+       "los bordes y los puntos no coinciden."
+       " `ssim_blur_tolerant` compara cada zona de la foto con lo que mejor encaje entre el render y el render ligeramente desenfocado: las fotos más borrosas que la escena (movimiento o desenfoque) dejan de volverla borrosa, mientras que un render más borroso que la foto se sigue penalizando como con `ssim`."),
     PT("Se o peso da estrutura treina o SSIM, a diferença de cor S-CIELAB ou o FLIP. `ssim` compara a estrutura "
        "local. `s_cielab` (S-CIELAB) mede a diferença de cor tal como o olho a vê: "
        "a cor é desfocada mais do que o brilho antes da comparação, de modo que o "
        "ruído de cor fino conta pouco e as dominantes de cor amplas contam muito."
        " `flip` (FLIP) mede a diferença que se nota ao alternar entre a "
        "renderização e a foto: a diferença de cor tal como o olho a vê, aumentada "
-       "onde bordas e pontos não coincidem."),
+       "onde bordas e pontos não coincidem."
+       " `ssim_blur_tolerant` compara cada região da foto com o que melhor corresponder entre a renderização e a renderização levemente desfocada: fotos mais desfocadas que a cena (tremido ou foco errado) deixam de deixá-la desfocada, enquanto uma renderização mais desfocada que a foto continua penalizada como com `ssim`."),
     IT("Se il peso della struttura allena l'SSIM, la differenza di colore S-CIELAB o FLIP. `ssim` "
        "confronta la struttura locale. `s_cielab` (S-CIELAB) misura la differenza "
        "di colore come la vede l'occhio: prima del confronto il colore viene "
@@ -7012,14 +7021,16 @@ SS_MSG(perceptual_loss_help,
        "le dominanti di colore estese contano molto."
        " `flip` (FLIP) misura la differenza che si nota alternando il render e "
        "la foto: la differenza di colore come la vede l'occhio, accresciuta dove "
-       "bordi e punti non corrispondono."),
+       "bordi e punti non corrispondono."
+       " `ssim_blur_tolerant` confronta ogni zona della foto con il migliore tra il render e il render leggermente sfocato: le foto più sfocate della scena (mosso o fuori fuoco) non la rendono più sfocata, mentre un render più sfocato della foto resta penalizzato come con `ssim`."),
     NL("Of het structuurgewicht SSIM, het S-CIELAB-kleurverschil of FLIP traint. `ssim` vergelijkt "
        "lokale structuur. `s_cielab` (S-CIELAB) meet kleurverschil zoals het oog "
        "het ziet: kleur wordt vóór het vergelijken sterker vervaagd dan "
        "helderheid, zodat fijne kleurruis weinig telt en een brede kleurzweem veel."
        " `flip` (FLIP) meet het verschil dat opvalt als je tussen render en foto "
        "wisselt: kleurverschil zoals het oog het ziet, versterkt waar randen en "
-       "punten niet kloppen."),
+       "punten niet kloppen."
+       " `ssim_blur_tolerant` vergelijkt elk stuk van de foto met de best passende van de render en een licht vervaagde render: foto's die waziger zijn dan de scène (bewegings- of focusonscherpte) maken haar niet meer onscherp, terwijl een render die waziger is dan de foto net als bij `ssim` bestraft blijft."),
     RU("Что обучает вес структуры: SSIM, цветовое различие S-CIELAB или FLIP. `ssim` "
        "сравнивает локальную структуру. `s_cielab` (S-CIELAB) измеряет разницу "
        "цвета так, как её видит глаз: перед сравнением цвет размывается сильнее "
@@ -7027,14 +7038,16 @@ SS_MSG(perceptual_loss_help,
        "цветовые сдвиги — сильно."
        " `flip` (FLIP) измеряет разницу, заметную при переключении между рендером "
        "и снимком: цветовое различие так, как его видит глаз, усиленное там, где "
-       "не совпадают края и точки."),
+       "не совпадают края и точки."
+       " `ssim_blur_tolerant` сравнивает каждый участок снимка с тем, что лучше совпадает: с рендером или со слегка размытым рендером. Снимки, размытые сильнее сцены (смаз или промах фокуса), больше не размывают её, а рендер, размытый сильнее снимка, по-прежнему штрафуется, как при `ssim`."),
     TR("Yapı ağırlığının SSIM'i mi, S-CIELAB renk farkını mı yoksa FLIP'i mi eğittiği. `ssim` yerel yapıyı "
        "karşılaştırır. `s_cielab` (S-CIELAB) renk farkını gözün gördüğü gibi "
        "ölçer: karşılaştırmadan önce renk parlaklıktan daha çok bulanıklaştırılır; "
        "böylece ince renk gürültüsü az, geniş renk kaymaları çok sayılır."
        " `flip` (FLIP), görüntü ile fotoğraf arasında gidip gelirken fark edilen "
        "farkı ölçer: gözün gördüğü gibi renk farkını, kenarların ve noktaların "
-       "uyuşmadığı yerlerde büyütür."));
+       "uyuşmadığı yerlerde büyütür."
+       " `ssim_blur_tolerant`, fotoğrafın her parçasını görüntü ile hafifçe bulanıklaştırılmış görüntüden hangisi daha iyi uyuyorsa onunla karşılaştırır: sahneden daha bulanık fotoğraflar (hareket ya da odak bulanıklığı) artık sahneyi bulanıklaştırmaz, fotoğraftan daha bulanık bir görüntü ise `ssim`'deki gibi cezalandırılmaya devam eder."));
 
 
 SS_MSG(l1_weight,
