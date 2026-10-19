@@ -131,6 +131,7 @@ enum class SaveClass : uint8_t {
   X(EngDensifySampleScore          , "eng.densify.sample_score",          Splat    , Never) \
   X(EngDensifyOversize             , "eng.densify.oversize",              Splat    , Never) \
   X(EngDensifyOversizeWeight       , "eng.densify.oversize_weight",       Splat    , Never) \
+  X(EngLearnedScoreStats           , "eng.densify.learned_score_stats",   Other    , Never) \
   X(EngRegionWeight                , "eng.region.weight",                 Splat    , Never) \
   X(EngRegionProgram               , "eng.region.program",                Other    , Never) \
   X(EngRegionFieldBvh              , "eng.region.field_bvh",              Other    , Never) \
@@ -195,6 +196,7 @@ enum class SaveClass : uint8_t {
   X(RenderTs                       , "render.Ts",                         Image    , Never) \
   X(RenderLastIds                  , "render.last_ids",                   Image    , Never) \
   X(RenderMedian                   , "render.median",                     Image    , Never) \
+  X(RenderScore                    , "render.score",                      Image    , Never) \
   /* render/distortion channel tuples: sub-buffers ".rgb"/".depth"/".normal" */ \
   X(Renders                        , "renders",                           Image    , Never) \
   X(Distortions                    , "distortions",                       Image    , Never) \

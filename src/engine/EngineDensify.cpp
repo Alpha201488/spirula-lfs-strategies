@@ -36,6 +36,94 @@ static inline DeviceVector<T> _dv_flat(const TorchTensorView& tv) {
 }
 
 
+// One damped Richardson-Lucy step of the learned score, when this step's
+// raster bwd accumulated the ratio map. The prior follows the stats it leaves
+// one step late, through a readout that never waits on the device.
+static void _learned_score_step(int64_t num_splats, const DensifyConfig& cfg,
+                                DeviceVector<float>& radii,
+                                DeviceVector<float2>& accum_buf,
+                                DeviceVector<float>& oversize) {
+    constexpr float kPriorRate = 0.1f;
+    auto& ls = engine().learned_score;
+    static AsyncReadout<float> stats_readout(2);
+    float mean_log = NAN;
+    if (ls.stats_pending) {
+        const float* h = stats_readout.read_previous();
+        if (h && h[1] > 0.0f) mean_log = h[0] / h[1];
+        ls.stats_pending = false;
+    }
+    const bool ratio_map = ls.ratio_map;
+    ls.ratio_map = false;
+    if (ratio_map && engine().fwd.accum_mode == DensifyAccumMode::Avg &&
+        engine().fwd.accum_weight.data_ptr() != nullptr) {
+        // With the prior this step's forward rendered; the new one is next step's.
+        ls.stats.resize(PoolSlot::EngLearnedScoreStats, 2);
+        ls.stats.zero();
+        densify_learned_score_tensor(num_splats, ls.power, cfg.learned_score_rate,
+                                     ls.log_prior, cfg.learned_score_pull, radii,
+                                     engine().fwd.accum_weight,
+                                     accum_buf, cfg.max_screen_size, oversize, ls.stats);
+        stats_readout.issue(ls.stats.data_ptr());
+        ls.stats_pending = true;
+    }
+    if (std::isfinite(mean_log)) {
+        ls.log_prior = ls.has_prior ? ls.log_prior + kPriorRate * (mean_log - ls.log_prior)
+                                    : mean_log;
+        ls.has_prior = true;
+    }
+}
+
+
+// SS_DENSIFY_SCORE_LOG=1: the share of the draw's weight held by each fifth
+// of the splats ranked by world size, smallest first, in English like the
+// other deep diagnostics. Large splats are where the background lives.
+static void _log_score_by_size(int step, int64_t n) {
+    static const bool on = [] {
+        const char* v = spirula::env("DENSIFY_SCORE_LOG");
+        return v && *v && v[0] != '0';
+    }();
+    if (!on || n <= 0) return;
+    const auto& opt = engine().optim;
+    const DeviceVector<float2>& score =
+        opt.densify_sample_score.data_ptr() ? opt.densify_sample_score : opt.accum_buffer;
+    std::vector<float2> h_score((size_t)n);
+    std::vector<float3> h_scale((size_t)n);
+    backend::memcpy_sync(h_score.data(), score.data_ptr(), (size_t)n * sizeof(float2),
+                         backend::MemcpyKind::DeviceToHost);
+    backend::memcpy_sync(h_scale.data(), engine().world.scales.data_ptr(),
+                         (size_t)n * sizeof(float3), backend::MemcpyKind::DeviceToHost);
+    std::vector<std::pair<float, float>> size_score((size_t)n);
+    double total = 0.0;
+    for (int64_t i = 0; i < n; ++i) {
+        const float3 l = h_scale[(size_t)i];
+        const float w = std::isfinite(h_score[(size_t)i].x) ? std::max(h_score[(size_t)i].x, 0.0f) : 0.0f;
+        size_score[(size_t)i] = {std::max(l.x, std::max(l.y, l.z)), w};
+        total += w;
+    }
+    std::sort(size_score.begin(), size_score.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    double part[5] = {0, 0, 0, 0, 0}, top1 = 0.0;
+    for (int64_t i = 0; i < n; ++i) {
+        part[std::min<int64_t>(4, i * 5 / n)] += size_score[(size_t)i].second;
+        if (i >= n - std::max<int64_t>(1, n / 100)) top1 += size_score[(size_t)i].second;
+    }
+    const double t = std::max(total, 1e-30);
+    std::vector<float> pos;
+    for (const auto& ss : size_score)
+        if (ss.second > 0.0f) pos.push_back(ss.second);
+    std::sort(pos.begin(), pos.end());
+    auto q = [&](double f) {
+        return pos.empty() ? 0.0f : pos[std::min(pos.size() - 1, (size_t)(f * (double)pos.size()))];
+    };
+    std::fprintf(stderr, "[score] step %d: draw weight by size fifth %.1f%% %.1f%% %.1f%% %.1f%% "
+                         "%.1f%%, largest 1%% %.1f%%; score p10 %.3g p50 %.3g p90 %.3g "
+                         "p99 %.3g, positive %.1f%%\n",
+                 step, 100 * part[0] / t, 100 * part[1] / t, 100 * part[2] / t,
+                 100 * part[3] / t, 100 * part[4] / t, 100 * top1 / t, q(0.1), q(0.5),
+                 q(0.9), q(0.99), 100.0 * (double)pos.size() / (double)n);
+}
+
+
 void engine_max_weight_begin_step(int step, int max_steps, const DensifyConfig& cfg) {
     auto& mw = engine().max_weight;
     const bool track = cfg.use_revised_densification
@@ -269,54 +357,68 @@ int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg) {
                                           engine().fwd.accum_weight);
         }
 
-        DeviceVector<float> score;
-        DeviceVector<float> score2;  // stays null unless 0 < w < 1
-        // Only the opacity-gradient fallback wants the opacity weighting:
-        // accum_weight (max of loss_map * alpha * T) and the world-grad score
-        // already carry it, and re-applying would square the factor.
-        bool weight_by_opacity = false;
-        if (blend_w >= 1.0f && wg_score.data_ptr() != nullptr) {
-            score = wg_score;
+        if (cfg.learned_score) {
+            _learned_score_step(cur_num_splats, cfg, dv_radii, dv_accum_buf, dv_oversize);
         } else {
-            if (engine().fwd.accum_weight.data_ptr() != nullptr) {
-                score = engine().fwd.accum_weight;
+            DeviceVector<float> score;
+            DeviceVector<float> score2;  // stays null unless 0 < w < 1
+            // Only the opacity-gradient fallback wants the opacity weighting:
+            // accum_weight (max of loss_map * alpha * T) and the world-grad score
+            // already carry it, and re-applying would square the factor.
+            bool weight_by_opacity = false;
+            if (blend_w >= 1.0f && wg_score.data_ptr() != nullptr) {
+                score = wg_score;
             } else {
-                score = engine().grad.opacities.data_ptr() ? engine().grad.opacities : dv_opacs;
-                weight_by_opacity = true;
+                if (engine().fwd.accum_weight.data_ptr() != nullptr) {
+                    score = engine().fwd.accum_weight;
+                } else {
+                    score = engine().grad.opacities.data_ptr() ? engine().grad.opacities : dv_opacs;
+                    weight_by_opacity = true;
+                }
+                if (blend_w > 0.0f && wg_score.data_ptr() != nullptr)
+                    score2 = wg_score;
             }
-            if (blend_w > 0.0f && wg_score.data_ptr() != nullptr)
-                score2 = wg_score;
+
+            densify_update_weight(
+                cur_num_splats,
+                dv_radii,
+                nullptr,
+                weight_by_opacity ? (float*)dv_opacs.data_ptr() : nullptr,
+                score,
+                score2,
+                blend_w,
+                cfg.score_power,
+                dv_accum_buf,
+                cfg.score_mode,
+                cfg.max_screen_size,
+                dv_oversize
+            );
         }
 
-        densify_update_weight(
-            cur_num_splats,
-            dv_radii,
-            nullptr,
-            weight_by_opacity ? (float*)dv_opacs.data_ptr() : nullptr,
-            score,
-            score2,
-            blend_w,
-            cfg.score_power,
-            dv_accum_buf,
-            cfg.score_mode,
-            cfg.max_screen_size,
-            dv_oversize
-        );
-
-        // Clipping above the q-quantile leaves that quantile where it was, so
-        // running it in place every step does not ratchet. A power would, so
-        // it lands in the side buffer the draw and the preview then read.
+        // Clipping above the q-quantile in place does not ratchet; a power
+        // would, so it goes to the side buffer the draw and preview read, as
+        // does any clip of a learned score (the state the forward renders).
         auto& dv_sample_score = engine().optim.densify_sample_score;
+        const bool clip = cfg.score_clip_quantile > 0.0f && cfg.score_clip_quantile < 1.0f;
         // Sized for the whole pool, not cur_num_splats: the oversize draw
         // adds splats that the second draw then has to rank.
-        if (cfg.final_score_power != 1.0f)
+        if (cfg.final_score_power != 1.0f || (cfg.learned_score && clip))
             dv_sample_score.resize(PoolSlot::EngDensifySampleScore,
                                    max_num_splats);
         else
             dv_sample_score = DeviceVector<float2>();
-        densify_clip_score_tensor(cur_num_splats, dv_accum_buf,
-                                  cfg.score_clip_quantile,
-                                  cfg.final_score_power, dv_sample_score);
+        if (!cfg.learned_score) {
+            densify_clip_score_tensor(cur_num_splats, dv_accum_buf,
+                                      cfg.score_clip_quantile,
+                                      cfg.final_score_power, dv_sample_score);
+        } else if (dv_sample_score.data_ptr()) {
+            // The quantile of x^p is the quantile of x, raised to p.
+            densify_clip_score_tensor(cur_num_splats, dv_accum_buf, 1.0f,
+                                      cfg.final_score_power, dv_sample_score);
+            densify_clip_score_tensor(cur_num_splats, dv_sample_score,
+                                      cfg.score_clip_quantile, 1.0f,
+                                      DeviceVector<float2>());
+        }
     }
 
     if (densify_ongoing && use_revised && cfg.split_weight_by_renders &&
@@ -382,6 +484,9 @@ int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg) {
         split_opacity_k = cfg.las_split_opacity_k_init
             + t * (cfg.las_split_opacity_k_final - cfg.las_split_opacity_k_init);
     }
+
+    if (do_densify && use_revised)
+        _log_score_by_size(step, cur_num_splats);
 
     if (do_densify && use_revised) {
         // Revised relocation (long axis split)
@@ -490,8 +595,8 @@ int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg) {
         }
     }
 
-    // Reset accum buffer after densification step
-    if (do_densify && dv_accum_buf.data_ptr() != nullptr) {
+    // Reset accum buffer after densification step; a learned score carries on.
+    if (do_densify && dv_accum_buf.data_ptr() != nullptr && !cfg.learned_score) {
         backend::memset_sync(dv_accum_buf.data_ptr(), 0, dv_accum_buf.size() * sizeof(float2));
     }
     if (do_densify && dv_oversize.data_ptr() != nullptr) {

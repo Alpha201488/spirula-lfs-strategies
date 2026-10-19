@@ -158,7 +158,8 @@ void run_mode(bool packed, DensifyAccumMode accum_mode) {
     auto rout = rasterize_to_pixels_3dgs_fwd(N, in_splats, splats_s, gauss_ids,
                                              W, H, tile_offsets, flatten_ids,
                                              macro_log2,
-                                             DistortionType::None, false, true);
+                                             DistortionType::None, false, true,
+                                             SplatScoreRender{});
     backend::device_synchronize();
     auto& renders = std::get<0>(rout);
     auto& render_Ts = std::get<1>(rout);

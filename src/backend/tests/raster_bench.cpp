@@ -170,7 +170,8 @@ int main(int argc, char** argv) {
     auto fwd = [&] {
         return rasterize_to_pixels_3dgs_fwd(N, splats, splats_s, gauss_ids, W,
                                             H, tile_offsets, flatten_ids,
-                                            macro_log2, dt, false, true);
+                                            macro_log2, dt, false, true,
+                                            SplatScoreRender{});
     };
     auto rout = fwd();
     backend::device_synchronize();

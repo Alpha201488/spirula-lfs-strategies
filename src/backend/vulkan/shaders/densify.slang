@@ -1269,16 +1269,67 @@ void densify_mcmc_update_add(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
 }
 
 // ---------------------------------------------------------------------------
+// learned score update (DensifyScoring.cu densify_learned_score_kernel)
+// ---------------------------------------------------------------------------
+
+struct DensifyLearnedScoreParams {  // 80 bytes: pushed directly
+    float* radii;           // [N]
+    float* ratio;           // [2N]: finalized ratio, then sum of weights
+    float2* accum_buffer;   // [N] (s^power, updates)
+    float* oversize_accum;  // [N] (use_oversize gates)
+    float* stats;           // [2] (sum ln s, count) of the updated
+    float power, rate, log_prior, max_scale2d, max_ratio, min_score, pull;
+    uint num_splats, wgs_per_row, use_oversize;
+};
+
+// No early return: every lane takes part in the wave reduction of the stats.
+[shader("compute")]
+[numthreads(256, 1, 1)]
+void densify_learned_score(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
+                           uniform DensifyLearnedScoreParams p) {
+    uint idx = (wg.y * p.wgs_per_row + wg.x) * 256 + tid;
+    float log_s = 0.0f;
+    bool updated = false;
+    if (idx < p.num_splats && p.radii[idx] > 0.0f) {
+        if (p.use_oversize != 0 && p.radii[idx] > p.max_scale2d)
+            p.oversize_accum[idx] += log2(p.radii[idx] / p.max_scale2d);
+        if (p.ratio[p.num_splats + idx] > 0.0f) {
+            float2 a = p.accum_buffer[idx];
+            float r = clamp(p.ratio[idx], 1.0f / p.max_ratio, p.max_ratio);
+            float rp = pow(r, p.power);
+            float eta = max(p.rate, 1.0f / (a.y + 1.0f));
+            float u = a.y > 0.0f ? a.x * ((1.0f - eta) + eta * rp)
+                                 : exp(p.power * p.log_prior) * rp;
+            u = exp((1.0f - p.pull) * log(max(u, p.min_score)) +
+                    p.pull * p.power * p.log_prior);
+            p.accum_buffer[idx] = float2(u, a.y + 1.0f);
+            log_s = log(u) / p.power;
+            updated = true;
+        }
+    }
+    float sum = WaveActiveSum(updated ? log_s : 0.0f);
+    uint cnt = WaveActiveCountBits(updated);
+    if (WaveIsFirstLane() && cnt > 0u) {
+        atomic_add_f32(p.stats, sum);
+        atomic_add_f32(p.stats + 1, float(cnt));
+    }
+}
+
+
+// ---------------------------------------------------------------------------
 // normalize_clip_map_inplace (DensifySampling.cu _normalize_clip_map_kernel)
 // ---------------------------------------------------------------------------
 
-struct NormalizeClipMapParams {  // 48 bytes: pushed directly
+struct NormalizeClipMapParams {  // 64 bytes: pushed directly
     float* data;        // [B, N]
     float* inv_median;  // [B] (use_median gates)
     float* clip;        // [B] (use_clip gates)
+    float* fit;         // [B, N] (use_fit gates)
     uint B, N;
     uint use_median, use_clip, wgs_per_row;
     float power;
+    uint use_fit;
+    float inv_max_ratio;  // 1 / kLearnedScoreMaxRatio
 };
 
 [shader("compute")]
@@ -1295,9 +1346,11 @@ void normalize_clip_map(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
     }
     if (p.use_median != 0)
         v *= p.inv_median[b];
-    // Floored before the power: the flat-region background is tiny negative
-    // noise, and a fractional power of it is NaN (see DensifySampling.cu).
-    if (p.power != 1.0f)
+    // The learned score fits the unpowered map. Floored before the power: the
+    // flat-region background is tiny negative noise (see DensifySampling.cu).
+    if (p.use_fit != 0)
+        v = v > 0.0f ? v / max(p.fit[idx], v * p.inv_max_ratio) : 0.0f;
+    else if (p.power != 1.0f)
         v = pow(max(v, 0.0f), p.power);
     p.data[idx] = v;
 }

@@ -15,6 +15,13 @@ enum class DensifyScoreMode : int {
     Geom   = 3,
 };
 
+// Cap on the per-pixel ratio map / rendered score map, and its reciprocal
+// floor on a splat's update ratio, so a pixel no score explains yet (or one
+// with no error at all) moves a score by a bounded factor.
+constexpr float kLearnedScoreMaxRatio = 1e4f;
+// The smallest stored s^power, which a multiplicative update can still grow.
+constexpr float kLearnedScoreFloor = 1e-30f;
+
 
 /* == AUTO HEADER GENERATOR - DO NOT EDIT THIS LINE OR ANYTHING BELOW THIS LINE == */
 
@@ -32,7 +39,11 @@ void normalize_clip_map_inplace_tensor(
     TorchTensorView data,  // [B, ...], rows normalized independently
     bool normalize_median,
     float clip_quantile,
-    float power
+    float power,
+    // The learned score's rendered map, same shape: the result is then the
+    // map, conditioned but not powered, over it -- the ratio the score update
+    // reads (docs/notes/learned-densify-score.md). Null skips.
+    TorchTensorView fit
 );
 
 
@@ -87,6 +98,21 @@ void densify_clip_scale_tensor(
     float max_scale2d,
     float clip_hardness,
     float max_scale3d
+);
+
+
+void densify_learned_score_tensor(
+    int64_t num_splats,
+    float power,
+    float rate,
+    float log_prior,
+    float pull,
+    DeviceVector<float> radii,
+    DeviceVector<float> ratio,          // [2N] Avg accumulator after finalize
+    DeviceVector<float2> accum_buffer,
+    float max_scale2d,
+    DeviceVector<float> oversize_accum, // empty to skip
+    DeviceVector<float> stats           // [2], accumulated
 );
 
 

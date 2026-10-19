@@ -34,6 +34,15 @@ struct DensifyUpdateWeightParams {
 static_assert(sizeof(DensifyUpdateWeightParams) == 6 * 8 + 10 * 4,
               "params layout must match the slang struct");
 
+// Mirrors DensifyLearnedScoreParams.
+struct DensifyLearnedScoreParams {
+    uint64_t radii, ratio, accum_buffer, oversize_accum, stats;
+    float power, rate, log_prior, max_scale2d, max_ratio, min_score, pull;
+    uint32_t num_splats, wgs_per_row, use_oversize;
+};
+static_assert(sizeof(DensifyLearnedScoreParams) == 5 * 8 + 10 * 4,
+              "params layout must match the slang struct");
+
 // Mirrors DensifyOversizeWeightParams.
 struct DensifyOversizeWeightParams {
     uint64_t oversize_accum, score, out;
@@ -162,11 +171,13 @@ static_assert(sizeof(ScoreClipParams) == 3 * 8 + 6 * 4,
 
 // Mirrors NormalizeClipMapParams.
 struct NormalizeClipMapParams {
-    uint64_t data, inv_median, clip;
+    uint64_t data, inv_median, clip, fit;
     uint32_t B, N, use_median, use_clip, wgs_per_row;
     float power;
+    uint32_t use_fit;
+    float inv_max_ratio;
 };
-static_assert(sizeof(NormalizeClipMapParams) == 3 * 8 + 6 * 4,
+static_assert(sizeof(NormalizeClipMapParams) == 4 * 8 + 8 * 4,
               "params layout must match the slang struct");
 
 // Mirrors CopyQshPairsParams.
@@ -573,6 +584,39 @@ void densify_update_weight(
     vkk::dispatch_flat("densify.densify_update_weight",
                        backend::vk::SpecList{}, num_splats, 256, &p,
                        sizeof(p), &p.wgs_per_row);
+}
+
+void densify_learned_score_tensor(
+    int64_t num_splats,
+    float power,
+    float rate,
+    float log_prior,
+    float pull,
+    DeviceVector<float> radii,
+    DeviceVector<float> ratio,
+    DeviceVector<float2> accum_buffer,
+    float max_scale2d,
+    DeviceVector<float> oversize_accum,
+    DeviceVector<float> stats
+) {
+    if (num_splats <= 0) return;
+    DensifyLearnedScoreParams p{};
+    p.radii = (uint64_t)radii.data_ptr();
+    p.ratio = (uint64_t)ratio.data_ptr();
+    p.accum_buffer = (uint64_t)accum_buffer.data_ptr();
+    p.oversize_accum = vkk::or_fallback(oversize_accum.data_ptr());
+    p.stats = (uint64_t)stats.data_ptr();
+    p.power = power;
+    p.rate = rate;
+    p.log_prior = log_prior;
+    p.pull = pull;
+    p.max_scale2d = max_scale2d;
+    p.max_ratio = kLearnedScoreMaxRatio;
+    p.min_score = kLearnedScoreFloor;
+    p.num_splats = (uint32_t)num_splats;
+    p.use_oversize = oversize_accum.data_ptr() ? 1u : 0u;
+    vkk::dispatch_flat("densify.densify_learned_score", {}, num_splats, 256,
+                       &p, sizeof(p), &p.wgs_per_row);
 }
 
 void densify_oversize_weight_tensor(
@@ -1047,10 +1091,12 @@ void normalize_clip_map_inplace_tensor(
     TorchTensorView data,
     bool normalize_median,
     float clip_quantile,
-    float power
+    float power,
+    TorchTensorView fit
 ) {
     const bool do_clip = (clip_quantile > 0.0f && clip_quantile < 1.0f);
-    if (!normalize_median && !do_clip && power == 1.0f) return;
+    const uint64_t fit_ptr = std::get<0>(fit);
+    if (!normalize_median && !do_clip && power == 1.0f && !fit_ptr) return;
     float* ptr = (float*)std::get<0>(data);
     if (ptr == nullptr) return;
     const auto& shape = std::get<2>(data);
@@ -1086,6 +1132,9 @@ void normalize_clip_map_inplace_tensor(
     p.use_median = normalize_median ? 1u : 0u;
     p.use_clip = do_clip ? 1u : 0u;
     p.power = power;
+    p.fit = vkk::or_fallback(fit_ptr);
+    p.use_fit = fit_ptr ? 1u : 0u;
+    p.inv_max_ratio = 1.0f / kLearnedScoreMaxRatio;
     vkk::dispatch_flat("densify.normalize_clip_map", {}, total, 256, &p,
                        sizeof(p), &p.wgs_per_row);
 }

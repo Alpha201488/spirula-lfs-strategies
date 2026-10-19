@@ -216,6 +216,8 @@ static std::map<std::string, float> _engine_step_fwd_bwd_only(
         engine().fwd.tile_active = DeviceVector<int32_t>();
     }
     _engine_arm_step_forward(cfg, dist_type, /*image_stages=*/true);
+    engine().fwd.score_pending = cfg.loss.learned_score;
+    engine().learned_score.power = cfg.loss.loss_map_power * cfg.densify.score_power;
 
     {
         SplatStageTimer stage_timer;

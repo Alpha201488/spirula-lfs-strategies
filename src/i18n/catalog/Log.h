@@ -2622,6 +2622,49 @@ SS_MSG(ppisp_before_color_space_order,
     RU("{0} требует {1}: покадровая коррекция цвета всегда применяется в sRGB"),
     TR("{0}, {1} gerektirir: fotoğraf başına renk düzeltmesi her zaman sRGB'de "
        "uygulanır"));
+SS_MSG(learned_score_needs,
+    EN("--densify-learned-score needs --use-revised-densification, a "
+       "--densify-loss-map-mode other than none, --densify-score-blend-world-grad "
+       "0, and positive --densify-score-power and --densify-loss-map-power"),
+    JA("--densify-learned-score には --use-revised-densification、none 以外の "
+       "--densify-loss-map-mode、--densify-score-blend-world-grad 0、正の "
+       "--densify-score-power と --densify-loss-map-power が必要です"),
+    ZH_HANS("--densify-learned-score 需要开启 --use-revised-densification、"
+            "--densify-loss-map-mode 不为 none、--densify-score-blend-world-grad "
+            "为 0，以及正的 --densify-score-power 和 --densify-loss-map-power"),
+    ZH_HANT("--densify-learned-score 需要開啟 --use-revised-densification、"
+            "--densify-loss-map-mode 不為 none、--densify-score-blend-world-grad "
+            "為 0，以及正的 --densify-score-power 和 --densify-loss-map-power"),
+    KO("--densify-learned-score에는 --use-revised-densification, none이 아닌 "
+       "--densify-loss-map-mode, --densify-score-blend-world-grad 0, 양수인 "
+       "--densify-score-power와 --densify-loss-map-power가 필요합니다"),
+    DE("--densify-learned-score setzt --use-revised-densification, einen "
+       "--densify-loss-map-mode außer none, --densify-score-blend-world-grad 0 "
+       "sowie positive Werte für --densify-score-power und "
+       "--densify-loss-map-power voraus"),
+    FR("--densify-learned-score requiert --use-revised-densification, un "
+       "--densify-loss-map-mode autre que none, --densify-score-blend-world-grad "
+       "0, et des valeurs positives de --densify-score-power et "
+       "--densify-loss-map-power"),
+    ES("--densify-learned-score requiere --use-revised-densification, un "
+       "--densify-loss-map-mode distinto de none, --densify-score-blend-world-grad "
+       "0, y valores positivos de --densify-score-power y --densify-loss-map-power"),
+    PT("--densify-learned-score exige --use-revised-densification, um "
+       "--densify-loss-map-mode diferente de none, --densify-score-blend-world-grad "
+       "0, e valores positivos de --densify-score-power e --densify-loss-map-power"),
+    IT("--densify-learned-score richiede --use-revised-densification, un "
+       "--densify-loss-map-mode diverso da none, --densify-score-blend-world-grad "
+       "0, e valori positivi di --densify-score-power e --densify-loss-map-power"),
+    NL("--densify-learned-score vereist --use-revised-densification, een "
+       "--densify-loss-map-mode anders dan none, --densify-score-blend-world-grad "
+       "0, en positieve waarden voor --densify-score-power en "
+       "--densify-loss-map-power"),
+    RU("--densify-learned-score требует --use-revised-densification, "
+       "--densify-loss-map-mode, отличного от none, --densify-score-blend-world-grad "
+       "0 и положительных --densify-score-power и --densify-loss-map-power"),
+    TR("--densify-learned-score; --use-revised-densification, none dışında bir "
+       "--densify-loss-map-mode, --densify-score-blend-world-grad 0 ve pozitif "
+       "--densify-score-power ile --densify-loss-map-power gerektirir"));
 SS_MSG(dead_criterion_needs_revised,
     EN("--dead-criterion {0} needs --use-revised-densification: the MCMC "
        "relocation tests opacity only"),

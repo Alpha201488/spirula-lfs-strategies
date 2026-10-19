@@ -6107,6 +6107,100 @@ SS_MSG(densify_final_score_power_help,
        "başına biten puanı bu kuvvete yükseltir. 1'in üstünde yeni ayrıntı en "
        "yüksek puanlı splat'larda toplanır; 1'in altında sahneye daha eşit "
        "dağılır. 1 doğrudan puana göre çeker."));
+SS_MSG(densify_learned_score,
+    EN("Learned splat scores"), JA("学習したスプラット点数"),
+    ZH_HANS("学习得到的泼溅分数"), ZH_HANT("學習得到的潑濺分數"),
+    KO("학습된 스플랫 점수"),
+    DE("Gelernte Splat-Bewertung"),
+    FR("Notes de splat apprises"),
+    ES("Puntuación de splats aprendida"),
+    PT("Pontuação dos splats aprendida"),
+    IT("Punteggio degli splat appreso"),
+    NL("Geleerde splatscore"),
+    RU("Обучаемые оценки сплатов"),
+    TR("Öğrenilen splat puanları"));
+SS_MSG(densify_learned_score_help,
+    EN("Instead of averaging the error under each splat, fit one score per splat "
+       "so that the scores, blended like colours, reproduce the error map. A "
+       "pixel's error then goes to the splats that can explain it: a large splat "
+       "that only borders a badly reconstructed edge stops taking that edge's "
+       "blame. The scores keep the scale of the averaged ones. Needs the revised "
+       "densification rule and a detail error measure."),
+    JA("各スプラットが覆う誤差を平均する代わりに、点数を色と同じように重ねたもの"
+       "が誤差マップを再現するように、スプラットごとの点数を学習します。画素の誤"
+       "差はそれを説明できるスプラットに割り当てられるので、再現の悪い境目に接し"
+       "ているだけの大きなスプラットは、その境目の誤差を負わなくなります。点数の"
+       "大きさは平均したものと同じです。改良版の増やし方と誤差の測り方が必要で"
+       "す。"),
+    ZH_HANS("不再对每个泼溅覆盖范围内的误差取平均，而是为每个泼溅学习一个分数，"
+            "使这些分数像颜色一样混合后能重现误差图。像素的误差因此会分给能够"
+            "解释它的泼溅：只是挨着一处重建很差的边缘的大泼溅，不再为那条边缘的"
+            "误差负责。分数的大小与取平均时相同。需要开启改进的加密规则和误差度"
+            "量方式。"),
+    ZH_HANT("不再對每個潑濺覆蓋範圍內的誤差取平均，而是為每個潑濺學習一個分數，"
+            "使這些分數像顏色一樣混合後能重現誤差圖。像素的誤差因此會分給能夠"
+            "解釋它的潑濺：只是挨著一處重建很差的邊緣的大潑濺，不再為那條邊緣的"
+            "誤差負責。分數的大小與取平均時相同。需要開啟改良的加密規則和誤差度"
+            "量方式。"),
+    KO("각 스플랫이 덮은 오차를 평균하는 대신, 점수를 색처럼 섞었을 때 오차 맵이 "
+       "재현되도록 스플랫마다 점수를 학습합니다. 화소의 오차는 그것을 설명할 수 "
+       "있는 스플랫에 돌아가므로, 잘못 재구성된 경계에 맞닿아 있을 뿐인 큰 "
+       "스플랫은 그 경계의 오차를 떠안지 않게 됩니다. 점수의 크기는 평균할 때와 "
+       "같습니다. 개선된 밀집화 규칙과 오차 측정 방식이 필요합니다."),
+    DE("Statt den Fehler unter jedem Splat zu mitteln, je Splat eine Punktzahl "
+       "lernen, sodass die wie Farben überblendeten Punktzahlen die Fehlerkarte "
+       "nachbilden. Der Fehler eines Pixels geht dann an die Splats, die ihn "
+       "erklären können: Ein großer Splat, der nur an eine schlecht rekonstruierte "
+       "Kante grenzt, trägt deren Fehler nicht mehr. Die Punktzahlen behalten den "
+       "Maßstab der gemittelten. Setzt die überarbeitete Verdichtungsregel und ein "
+       "Fehlermaß voraus."),
+    FR("Au lieu de moyenner l'erreur sous chaque splat, apprendre une note par "
+       "splat de sorte que les notes, mélangées comme les couleurs, reproduisent la "
+       "carte d'erreur. L'erreur d'un pixel revient alors aux splats capables de "
+       "l'expliquer : un gros splat qui ne fait que border une arête mal "
+       "reconstruite n'en porte plus l'erreur. Les notes gardent l'échelle des "
+       "notes moyennées. Requiert la règle de densification révisée et une mesure "
+       "d'erreur."),
+    ES("En lugar de promediar el error bajo cada splat, aprender una puntuación "
+       "por splat de modo que las puntuaciones, mezcladas como los colores, "
+       "reproduzcan el mapa de error. El error de un píxel va entonces a los "
+       "splats que pueden explicarlo: un splat grande que solo bordea una arista "
+       "mal reconstruida deja de cargar con su error. Las puntuaciones conservan "
+       "la escala de las promediadas. Requiere la regla de densificación revisada "
+       "y una medida de error."),
+    PT("Em vez de calcular a média do erro sob cada splat, aprender uma pontuação "
+       "por splat de modo que as pontuações, misturadas como as cores, reproduzam "
+       "o mapa de erro. O erro de um pixel vai então para os splats que o podem "
+       "explicar: um splat grande que apenas faz fronteira com uma aresta mal "
+       "reconstruída deixa de carregar o seu erro. As pontuações mantêm a escala "
+       "das calculadas pela média. Exige a regra de densificação revisada e uma "
+       "medida de erro."),
+    IT("Invece di fare la media dell'errore sotto ogni splat, apprendere un "
+       "punteggio per splat in modo che i punteggi, miscelati come i colori, "
+       "riproducano la mappa d'errore. L'errore di un pixel va allora agli splat "
+       "che possono spiegarlo: uno splat grande che confina soltanto con un bordo "
+       "ricostruito male smette di prenderne l'errore. I punteggi mantengono la "
+       "scala di quelli mediati. Richiede la regola di densificazione rivista e "
+       "una misura dell'errore."),
+    NL("In plaats van de fout onder elke splat te middelen, per splat een score "
+       "leren zodat de scores, gemengd zoals kleuren, de foutkaart nabootsen. De "
+       "fout van een pixel gaat dan naar de splats die hem kunnen verklaren: een "
+       "grote splat die alleen grenst aan een slecht gereconstrueerde rand krijgt "
+       "die fout niet meer. De scores houden de schaal van de gemiddelde. Vereist "
+       "de herziene verdichtingsregel en een foutmaat."),
+    RU("Вместо усреднения ошибки под каждым сплатом обучать для каждого сплата "
+       "оценку так, чтобы оценки, смешанные как цвета, воспроизводили карту "
+       "ошибки. Ошибка пикселя тогда достаётся сплатам, которые могут её "
+       "объяснить: крупный сплат, лишь граничащий с плохо восстановленным краем, "
+       "перестаёт брать на себя его ошибку. Оценки сохраняют масштаб усреднённых. "
+       "Требует уточнённого правила уплотнения и меры ошибки."),
+    TR("Her splat'ın altındaki hatanın ortalamasını almak yerine, puanlar renkler "
+       "gibi karıştırıldığında hata haritasını yeniden üretecek şekilde splat "
+       "başına bir puan öğrenir. Bir pikselin hatası böylece onu açıklayabilen "
+       "splat'lara gider: kötü yeniden kurulmuş bir kenara yalnızca komşu olan "
+       "büyük bir splat artık o kenarın hatasını üstlenmez. Puanlar, ortalaması "
+       "alınanlarla aynı ölçeği korur. Gözden geçirilmiş yoğunlaştırma kuralını ve "
+       "bir hata ölçüsünü gerektirir."));
 SS_MSG(densify_oversize_split_fraction,
     EN("Split share for oversized splats"),
     JA("大きすぎるスプラットに回す分割の割合"),

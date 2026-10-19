@@ -340,12 +340,21 @@ void run_normalize_clip(Rng& r) {
         {true, 1.0f, 1.0f}, {false, 0.98f, 1.0f}, {true, 0.98f, 1.0f},
         {false, 1.0f, 1.0f}, {false, 1.0f, 0.5f}, {true, 0.98f, 2.0f},
     };
+    // The learned score's rendered map: zeros where nothing explains the
+    // error yet, so the ratio cap is exercised too.
+    std::vector<float> fit(h.size());
+    for (size_t i = 0; i < fit.size(); i++)
+        fit[i] = i % 13 == 0 ? 0.0f : 1e-3f * (float)(1 + (i * 7919) % 997);
+    float* d_fit = upload(fit);
     for (const auto& c : cases) {
-        float* d = upload(h);
-        normalize_clip_map_inplace_tensor(ttv(d, {B, H, W, 1}), c.norm, c.q,
-                                          c.p);
-        backend::device_synchronize();
-        readback_f(g_tight, d, B * N);
+        for (bool with_fit : {false, true}) {
+            float* d = upload(h);
+            normalize_clip_map_inplace_tensor(
+                ttv(d, {B, H, W, 1}), c.norm, c.q, c.p,
+                with_fit ? ttv(d_fit, {B, H, W, 1}) : TorchTensorView{});
+            backend::device_synchronize();
+            readback_f(g_tight, d, B * N);
+        }
     }
     std::printf("msloss_parity: cfg %-12s done\n", "norm_clip");
 }

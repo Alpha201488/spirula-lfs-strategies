@@ -274,13 +274,14 @@ int main(int argc, char** argv) {
                 cams[cfg.cam], dist_fixture::kTierNames[cfg.dist],
                 dist_tv(cfg.dist), aabb_2d, W, H,
                 tile_offsets, flatten_ids, macro_log2, cfg.dt,
-                cfg.median, true);
+                cfg.median, true, SplatScoreRender{});
         } else {
             rout = rasterize_to_pixels_3dgs_fwd(N, in_splats, splats_s,
                                                 gauss_ids, W, H, tile_offsets,
                                                 flatten_ids,
                                                 macro_log2, cfg.dt,
-                                                cfg.median, true);
+                                                cfg.median, true,
+                                                SplatScoreRender{});
         }
         backend::device_synchronize();
         if (check_error()) return 1;

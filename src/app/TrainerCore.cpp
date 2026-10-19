@@ -556,7 +556,9 @@ EngineStepConfig build_step_config(const TrainConfig& c, const RunState& st, int
     cfg.loss.loss_map_normalize = c.densify_loss_map_normalize;
     cfg.loss.loss_map_clip_quantile = c.densify_loss_map_clip_quantile;
     cfg.loss.loss_map_power = c.densify_loss_map_power;
-    cfg.loss.loss_map_accum_mode = densify_accum_mode_int(c.densify_accum_mode);
+    // The learned score's update needs the ratio map's weighted mean.
+    cfg.loss.loss_map_accum_mode = c.densify_learned_score
+        ? (int)DensifyAccumMode::Avg : densify_accum_mode_int(c.densify_accum_mode);
     cfg.loss.saturation_threshold = c.loss_saturation_threshold;
     cfg.loss.luminance_normalization = c.loss_luminance_normalization;
     cfg.loss.overexposure_reg_weight = c.overexposure_reg;
@@ -638,6 +640,9 @@ EngineStepConfig build_step_config(const TrainConfig& c, const RunState& st, int
     cfg.densify.score_power = c.densify_score_power;
     cfg.densify.score_clip_quantile = c.densify_score_clip_quantile;
     cfg.densify.final_score_power = c.densify_final_score_power;
+    cfg.densify.learned_score = c.densify_learned_score;
+    cfg.loss.learned_score = c.densify_learned_score && loss_map_mode != 0 &&
+        step < std::max(c.refine_stop_iter, c.num_iterations - c.refine_stop_num_iter);
     cfg.densify.oversize_split_fraction = c.densify_oversize_split_fraction;
     cfg.densify.oversize_score_blend = c.densify_oversize_score_blend;
     cfg.densify.las_split_opacity_k_init   = c.long_axis_split_opacity_k[0];
@@ -780,6 +785,11 @@ std::string train_config_unsupported(const TrainConfig& c) {
         return lfmt(lmsg::bad_sb_lobes, {ColorBasis::kMaxSbLobes});
     if (c.dead_criterion != "opacity" && !c.use_revised_densification)
         return lfmt(lmsg::dead_criterion_needs_revised, {c.dead_criterion});
+    if (c.densify_learned_score &&
+        (!c.use_revised_densification || c.densify_loss_map_mode == "none" ||
+         c.densify_score_blend_world_grad != 0.0f || !(c.densify_score_power > 0.0f) ||
+         !(c.densify_loss_map_power > 0.0f)))
+        return lmsg::learned_score_needs.get();
 #ifndef SS_BACKEND_VULKAN
     if (c.sb_lobes > 0) return lmsg::sb_lobes_need_vulkan.get();
 #endif
