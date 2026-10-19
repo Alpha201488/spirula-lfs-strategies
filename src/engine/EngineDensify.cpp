@@ -2,6 +2,7 @@
 
 #include "engine/Engine.h"
 #include "engine/EngineCommon.h"
+#include "engine/EngineInternal.h"
 #include "engine/EngineState.h"
 #include "core/Env.h"
 
@@ -32,6 +33,35 @@ static inline DeviceVector<T> _dv_flat(const TorchTensorView& tv) {
     TorchTensorView flat_tv(std::get<0>(tv), std::get<1>(tv),
         {flat_count, (int64_t)(sizeof(T) / std::get<1>(tv))});
     return DeviceVector<T>(flat_tv);
+}
+
+
+void engine_max_weight_begin_step(int step, int max_steps, const DensifyConfig& cfg) {
+    auto& mw = engine().max_weight;
+    const bool track = cfg.use_revised_densification
+        && cfg.dead_criterion != DeadCriterion::Opacity && cfg.refine_every > 0
+        && step < std::max(cfg.refine_stop_iter, max_steps - cfg.refine_stop_num_iter);
+    if (!track) {
+        if (mw.value.data_ptr() != nullptr)
+            DevicePool::global().free(PoolSlot::EngMaxWeight);
+        mw = EngineState::MaxWeight{};
+        return;
+    }
+    if (mw.value.data_ptr() == nullptr || mw.value.size() != engine().max_num_splats) {
+        mw.value.resize(PoolSlot::EngMaxWeight, engine().max_num_splats);
+        densify_max_weight_init_tensor(engine().cur_num_splats, engine().world.opacities,
+                                       mw.value);
+        mw.base_step = step;
+    }
+    mw.half_life = std::max(cfg.max_weight_half_life, 1.0f);
+    // Keeps step_scale, and so the stored values, within 2^32.
+    if ((float)(step - mw.base_step) > 32.0f * mw.half_life) {
+        densify_max_weight_scale_tensor(
+            engine().cur_num_splats,
+            std::exp2(-(float)(step - mw.base_step) / mw.half_life), mw.value);
+        mw.base_step = step;
+    }
+    mw.step_scale = std::exp2((float)(step - mw.base_step) / mw.half_life);
 }
 
 
@@ -328,6 +358,21 @@ int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg) {
         : 0;
     int64_t num_dead = 0, num_relocated = 0;
 
+    // Rebased to the true value: the relocation test reads it, and the split
+    // kernels write the new halves' in the same units.
+    DeviceVector<float> dv_max_weight;
+    auto& mw = engine().max_weight;
+    if (do_densify && use_revised && mw.value.data_ptr() != nullptr) {
+        if (step != mw.base_step)
+            densify_max_weight_scale_tensor(
+                cur_num_splats, std::exp2(-(float)(step - mw.base_step) / mw.half_life),
+                mw.value);
+        mw.base_step = step;
+        dv_max_weight = mw.value;
+    }
+    const bool dead_by_opacity = cfg.dead_criterion != DeadCriterion::MaxWeight
+        || dv_max_weight.data_ptr() == nullptr;
+
     // Long-axis-split opacity split factor `k`, linearly scheduled over the
     // first `las_split_opacity_k_warmup` steps (clamped to [init, final]).
     float split_opacity_k = cfg.las_split_opacity_k_final;
@@ -347,6 +392,7 @@ int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg) {
             dv_g2_means, dv_g2_quats, dv_g2_scales, dv_g2_opacs, dv_g2_features_dc, dv_g2_features_sh,
             dv_accum_buf, engine().optim.densify_sample_score, dv_bias_steps,
             dv_visit, (uint32_t)std::max(cfg.dead_after_steps, 0),
+            dv_max_weight, dead_by_opacity,
             sh_optim_bits, num_sh,
             dv_sh_quant_bounds, sh_bounds_per_splat,
             dv_sh_value_packed, dv_sh_value_bounds,
@@ -378,7 +424,7 @@ int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg) {
                     dv_g1_means, dv_g1_quats, dv_g1_scales, dv_g1_opacs, dv_g1_features_dc, dv_g1_features_sh,
                     dv_g2_means, dv_g2_quats, dv_g2_scales, dv_g2_opacs, dv_g2_features_dc, dv_g2_features_sh,
                     dv_accum_buf, weights,
-                    dv_bias_steps, dv_visit,
+                    dv_bias_steps, dv_visit, dv_max_weight,
                     sh_optim_bits, num_sh,
                     dv_sh_quant_bounds, sh_bounds_per_splat,
                     dv_sh_value_packed, dv_sh_value_bounds,

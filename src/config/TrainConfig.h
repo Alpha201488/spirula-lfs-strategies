@@ -221,6 +221,7 @@ inline bool train_choices_free_form(const char* choices) {
     X(float, min_init_fraction, 0.0f, "detail", "basic", "")                 \
     X(float, growth_factor, 1.05f, "detail", "advanced", "")                 \
     X(float, min_opacity, 0.005f, "detail", "advanced", "")                  \
+    X(std::string, dead_criterion, "either", "detail", "advanced", "opacity|max_weight|either") \
     X(int, refine_every, 100, "detail", "advanced", "")                      \
     X(int, refine_start_iter, 500, "detail", "expert", "")                   \
     X(int, refine_stop_num_iter, 2500, "detail", "advanced", "")             \

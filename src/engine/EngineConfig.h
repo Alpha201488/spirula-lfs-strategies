@@ -197,6 +197,9 @@ struct OptimConfig {
 };
 
 
+// What relocation treats as dead (TrainConfig::dead_criterion).
+enum class DeadCriterion : int { Opacity = 0, MaxWeight = 1, Either = 2 };
+
 // MCMC / revised-relocate densification controls. max_world_size / noise_lr*
 // arrive pre-scaled by alpha.
 struct DensifyConfig {
@@ -210,6 +213,10 @@ struct DensifyConfig {
     int   refine_every                  = 0;
     float growth_factor                 = 1.0f;
     float min_opacity                   = 0.0f;
+    // MaxWeight compares min_opacity against each splat's peak alpha * T,
+    // halved every max_weight_half_life steps. Revised relocation only.
+    DeadCriterion dead_criterion        = DeadCriterion::Opacity;
+    float max_weight_half_life          = 800.0f;
     float max_screen_size               = 0.0f;
     float max_screen_size_clip_hardness = 0.0f;
     // With the soft penalty on, the hard clip drops to a once-per-refine

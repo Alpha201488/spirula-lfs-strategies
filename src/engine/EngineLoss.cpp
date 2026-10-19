@@ -242,6 +242,8 @@ static void _engine_raster_proj_backward(
             dist_type,
             accum_weight_map,
             accum_mode,
+            engine().max_weight.value,
+            engine().max_weight.step_scale,
             v_render_outputs,
             v_render_Ts,
             v_median,
@@ -281,6 +283,8 @@ static void _engine_raster_proj_backward(
             DeviceTensor3D<float>(),  // loss_map
             accum_weight_map,
             accum_mode,
+            engine().max_weight.value,
+            engine().max_weight.step_scale,
             v_render_outputs,
             v_render_Ts,
             v_median,

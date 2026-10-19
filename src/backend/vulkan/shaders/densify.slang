@@ -452,7 +452,7 @@ void densify_efraimidis_keys(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
 // arbitrary; parity tests compare relocated rows as a multiset.
 // ---------------------------------------------------------------------------
 
-struct RelocMaskParams {  // 80 bytes: pushed directly
+struct RelocMaskParams {  // 104 bytes: pushed directly
     float* means;        // [N, 3]
     float* quats;        // [N, 4]
     float* scales;       // [N, 3]
@@ -462,10 +462,13 @@ struct RelocMaskParams {  // 80 bytes: pushed directly
     int* count;          // [1] out: number of relocated splats
     int* dst_indices;    // [N] out: compacted relocated indices
     uint* visit_counters; // [N] (dead_after_steps != 0)
+    float* max_weight;   // [N] (has_max_weight)
     float min_opacity;
     uint num_splats;
     uint wgs_per_row;
     uint dead_after_steps;
+    uint dead_by_opacity;
+    uint has_max_weight;
 };
 
 [shader("compute")]
@@ -485,7 +488,9 @@ void densify_reloc_mask(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
     float3 dc = float3(p.features_dc[3 * idx], p.features_dc[3 * idx + 1],
                        p.features_dc[3 * idx + 2]);
 
-    bool is_low_opac = _dn_sigmoid(opac) <= p.min_opacity;
+    bool is_low_opac =
+        (p.dead_by_opacity != 0 && _dn_sigmoid(opac) <= p.min_opacity) ||
+        (p.has_max_weight != 0 && p.max_weight[idx] <= p.min_opacity);
     bool is_finite = _dn_finitef(dot(mean, mean) / dot(quat, quat) +
                                  dot(scale, dc) * opac);
     bool is_stale = p.dead_after_steps != 0u &&
@@ -544,6 +549,7 @@ struct RelocLasParams {
     float2* accum;       // [cap] densify accum buffer (has_accum)
     int* bias_steps;     // [cap] (has_bias_steps)
     uint* visit_counters; // [cap] (has_visit)
+    float* max_weight;   // [cap] (has_max_weight)
     float split_opacity_k;
     uint cur_num_splats;
     uint num_new_splats;
@@ -557,7 +563,7 @@ struct RelocLasParams {
     uint sh_bounds_per_splat;
     uint wgs_per_row;
     uint has_visit;
-    uint _pad0;
+    uint has_max_weight;
 };
 
 [shader("compute")]
@@ -597,6 +603,13 @@ void densify_relocate_las(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
     [ForceUnroll]
     for (int i = 0; i < 4; i++)
         p.quats[4 * idx_dst + i] = quat[i];
+    // Both halves keep the parent's peak weight, scaled as alpha is.
+    if (p.has_max_weight != 0) {
+        float w = p.max_weight[idx_src] * _dn_sigmoid(new_opac) /
+                  max(_dn_sigmoid(opac), 1e-12f);
+        p.max_weight[idx_src] = w;
+        p.max_weight[idx_dst] = w;
+    }
 
     // appearance - copy
     [ForceUnroll]
@@ -1338,6 +1351,32 @@ void densify_scale_score_by_renders(uint3 wg: SV_GroupID, uint tid: SV_GroupThre
     uint idx = (wg.y * p.wgs_per_row + wg.x) * 256 + tid;
     if (idx >= p.num_splats) return;
     p.score[idx].x *= float(visit_renders(p.visit_counters[idx]));
+}
+
+struct MaxWeightParams {  // 32 bytes: pushed directly
+    float* opacs;        // [N] logits (init only)
+    float* max_weight;   // [N]
+    float scale;         // scale only
+    uint num_splats, wgs_per_row;
+    uint _pad0;
+};
+
+[shader("compute")]
+[numthreads(256, 1, 1)]
+void densify_max_weight_init(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
+                             uniform MaxWeightParams p) {
+    uint idx = (wg.y * p.wgs_per_row + wg.x) * 256 + tid;
+    if (idx >= p.num_splats) return;
+    p.max_weight[idx] = _dn_sigmoid(p.opacs[idx]);
+}
+
+[shader("compute")]
+[numthreads(256, 1, 1)]
+void densify_max_weight_scale(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
+                              uniform MaxWeightParams p) {
+    uint idx = (wg.y * p.wgs_per_row + wg.x) * 256 + tid;
+    if (idx >= p.num_splats) return;
+    p.max_weight[idx] *= p.scale;
 }
 
 struct VisitZeroParams {  // 32 bytes: pushed directly

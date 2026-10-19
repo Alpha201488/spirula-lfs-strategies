@@ -335,6 +335,57 @@ void densify_scale_score_by_renders_tensor(
 }
 
 
+__global__ void max_weight_init_kernel(
+    long num_splats,
+    const float* __restrict__ opacs,
+    float* __restrict__ max_weight
+) {
+    long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_splats)
+        return;
+    max_weight[idx] = sigmoid(opacs[idx]);
+}
+
+__global__ void max_weight_scale_kernel(
+    long num_splats,
+    float scale,
+    float* __restrict__ max_weight
+) {
+    long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_splats)
+        return;
+    max_weight[idx] *= scale;
+}
+
+// The peak alpha * T a splat starts from: its opacity, the weight it would
+// have with nothing in front.
+/*[AutoHeaderGeneratorExport]*/
+void densify_max_weight_init_tensor(
+    int64_t num_splats,
+    DeviceVector<float> opacs,      // [N] logits
+    DeviceVector<float> max_weight  // [N] out
+) {
+    if (num_splats <= 0)
+        return;
+    max_weight_init_kernel<<<_LAUNCH_ARGS_1D(num_splats, 256)>>>(
+        num_splats, opacs.data_ptr(), max_weight.data_ptr());
+    CHECK_DEVICE_ERROR(cudaGetLastError());
+}
+
+/*[AutoHeaderGeneratorExport]*/
+void densify_max_weight_scale_tensor(
+    int64_t num_splats,
+    float scale,
+    DeviceVector<float> max_weight  // [N], multiplied in place
+) {
+    if (num_splats <= 0)
+        return;
+    max_weight_scale_kernel<<<_LAUNCH_ARGS_1D(num_splats, 256)>>>(
+        num_splats, scale, max_weight.data_ptr());
+    CHECK_DEVICE_ERROR(cudaGetLastError());
+}
+
+
 // ================
 // Per-camera visit stats
 // ================

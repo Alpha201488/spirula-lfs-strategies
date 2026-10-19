@@ -103,6 +103,20 @@ void densify_scale_score_by_renders_tensor(
 );
 
 
+void densify_max_weight_init_tensor(
+    int64_t num_splats,
+    DeviceVector<float> opacs,      // [N] logits
+    DeviceVector<float> max_weight  // [N] out
+);
+
+
+void densify_max_weight_scale_tensor(
+    int64_t num_splats,
+    float scale,
+    DeviceVector<float> max_weight  // [N], multiplied in place
+);
+
+
 void visit_camera_stats_zero_tensor(
     int num_cameras,
     DeviceVector<int32_t> cam_map,   // [C] post-split camera per batch slot
@@ -177,6 +191,10 @@ int64_t relocate_splats_with_long_axis_split_tensor(
     DeviceVector<int32_t> bias_correction_steps,
     DeviceVector<uint32_t> visit_counters,
     uint32_t dead_after_steps,
+    // Peak alpha * T per splat; when given it is a second dead test against
+    // min_opacity and is carried src -> dst. dead_by_opacity keeps the first.
+    DeviceVector<float> max_weight,
+    bool dead_by_opacity,
     int sh_optim_bits,
     int num_sh,
     // SH-quant bounds buffer + layout flag used to encode (g1=0, g2=0) into
@@ -214,6 +232,7 @@ void add_splats_with_long_axis_split_tensor(
     DeviceVector<float2> sample_weights,
     DeviceVector<int32_t> bias_correction_steps,
     DeviceVector<uint32_t> visit_counters,
+    DeviceVector<float> max_weight,  // carried src -> dst; empty to skip
     int sh_optim_bits,
     int num_sh,
     DeviceVector<float4> sh_quant_bounds,

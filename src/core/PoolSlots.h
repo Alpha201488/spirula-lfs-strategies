@@ -126,6 +126,7 @@ enum class SaveClass : uint8_t {
   X(EngAccumBuffer                 , "eng.accum_buffer",                  Splat    , Resume) \
   X(EngBiasCorrectionSteps         , "eng.bias_correction_steps",         Splat    , Resume) \
   X(EngVisitCounters               , "eng.visit_counters",                Splat    , Resume) \
+  X(EngMaxWeight                   , "eng.max_weight",                    Splat    , Never) \
   X(EngDensifyWorldGradScore       , "eng.densify.world_grad_score",      Splat    , Never) \
   X(EngDensifySampleScore          , "eng.densify.sample_score",          Splat    , Never) \
   X(EngDensifyOversize             , "eng.densify.oversize",              Splat    , Never) \

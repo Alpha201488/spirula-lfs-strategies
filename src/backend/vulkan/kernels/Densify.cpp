@@ -76,11 +76,12 @@ static_assert(sizeof(EfraimidisParams) == 4 * 8 + 6 * 4,
 // Mirrors RelocMaskParams.
 struct RelocMaskParams {
     uint64_t means, quats, scales, opacs, features_dc, mask, count,
-        dst_indices, visit_counters;
+        dst_indices, visit_counters, max_weight;
     float min_opacity;
-    uint32_t num_splats, wgs_per_row, dead_after_steps;
+    uint32_t num_splats, wgs_per_row, dead_after_steps, dead_by_opacity,
+        has_max_weight;
 };
-static_assert(sizeof(RelocMaskParams) == 9 * 8 + 4 * 4,
+static_assert(sizeof(RelocMaskParams) == 10 * 8 + 6 * 4,
               "params layout must match the slang struct");
 
 // Mirrors RelocLasParams.
@@ -94,13 +95,13 @@ struct RelocLasParams {
         nq_opacities_packed, nq_dc_packed;
     uint64_t nq_means_bounds, nq_quats_bounds, nq_scales_bounds,
         nq_opacities_bounds, nq_dc_bounds;
-    uint64_t accum, bias_steps, visit_counters;
+    uint64_t accum, bias_steps, visit_counters, max_weight;
     float split_opacity_k;
     uint32_t cur_num_splats, num_new_splats, num_sh;
     uint32_t has_dst, has_g1, has_fp32_sh, has_accum, has_bias_steps, non_sh,
-        sh_bounds_per_splat, wgs_per_row, has_visit, _pad0;
+        sh_bounds_per_splat, wgs_per_row, has_visit, has_max_weight;
 };
-static_assert(sizeof(RelocLasParams) == 35 * 8 + 14 * 4,
+static_assert(sizeof(RelocLasParams) == 36 * 8 + 14 * 4,
               "params layout must match the slang struct");
 
 // Mirror AccumFinalizeParams / ScoreGatherParams / ScoreClipParams.
@@ -115,6 +116,15 @@ struct ScorePairParams {  // densify_gather_score
     uint32_t num_splats, wgs_per_row;
 };
 static_assert(sizeof(ScorePairParams) == 2 * 8 + 2 * 4, "params layout");
+
+// Mirrors MaxWeightParams.
+struct MaxWeightParams {
+    uint64_t opacs, max_weight;
+    float scale;
+    uint32_t num_splats, wgs_per_row, _pad0;
+};
+static_assert(sizeof(MaxWeightParams) == 2 * 8 + 4 * 4,
+              "params layout must match the slang struct");
 
 // Mirrors ScaleScoreByRendersParams.
 struct ScaleScoreByRendersParams {
@@ -665,8 +675,8 @@ static void launch_relocate_las(
     DeviceVector<float3>& g2_features_dc, DeviceVector<float3>& g2_features_sh,
     DeviceVector<float2>& densify_accum_buffer,
     DeviceVector<int32_t>& bias_correction_steps,
-    DeviceVector<uint32_t>& visit_counters, int sh_optim_bits,
-    int num_sh, DeviceVector<float4>& sh_quant_bounds,
+    DeviceVector<uint32_t>& visit_counters, DeviceVector<float>& max_weight,
+    int sh_optim_bits, int num_sh, DeviceVector<float4>& sh_quant_bounds,
     bool sh_bounds_per_splat, const NonShQuantState& non_sh) {
     RelocLasParams p{};
     p.src_indices = (uint64_t)src_indices;
@@ -696,6 +706,8 @@ static void launch_relocate_las(
     p.has_bias_steps = bias_correction_steps.data_ptr() ? 1u : 0u;
     p.visit_counters = vkk::or_fallback(visit_counters.data_ptr());
     p.has_visit = visit_counters.data_ptr() ? 1u : 0u;
+    p.max_weight = vkk::or_fallback(max_weight.data_ptr());
+    p.has_max_weight = max_weight.data_ptr() ? 1u : 0u;
 
     vkk::Fold f = vkk::fold_1d(num_new_splats, 256);
     p.wgs_per_row = f.per_row;
@@ -716,6 +728,8 @@ int64_t relocate_splats_with_long_axis_split_tensor(
     DeviceVector<int32_t> bias_correction_steps,
     DeviceVector<uint32_t> visit_counters,
     uint32_t dead_after_steps,
+    DeviceVector<float> max_weight,
+    bool dead_by_opacity,
     int sh_optim_bits,
     int num_sh,
     DeviceVector<float4> sh_quant_bounds,
@@ -751,6 +765,9 @@ int64_t relocate_splats_with_long_axis_split_tensor(
     mp.dst_indices = (uint64_t)dst_indices.data_ptr();
     mp.visit_counters = vkk::or_fallback(visit_counters.data_ptr());
     mp.dead_after_steps = visit_counters.data_ptr() ? dead_after_steps : 0u;
+    mp.max_weight = vkk::or_fallback(max_weight.data_ptr());
+    mp.has_max_weight = max_weight.data_ptr() ? 1u : 0u;
+    mp.dead_by_opacity = dead_by_opacity ? 1u : 0u;
     mp.min_opacity = min_opacity;
     mp.num_splats = (uint32_t)cur_num_splats;
     vkk::dispatch_flat("densify.densify_reloc_mask", {}, cur_num_splats, 256,
@@ -782,8 +799,8 @@ int64_t relocate_splats_with_long_axis_split_tensor(
                         g1_features_sh, g2_means, g2_quats, g2_scales,
                         g2_opacs, g2_features_dc, g2_features_sh,
                         densify_accum_buffer, bias_correction_steps,
-                        visit_counters, sh_optim_bits, num_sh, sh_quant_bounds,
-                        sh_bounds_per_splat, non_sh);
+                        visit_counters, max_weight, sh_optim_bits, num_sh,
+                        sh_quant_bounds, sh_bounds_per_splat, non_sh);
 
     launch_copy_qsh_pairs(cur_num_splats, num_relocate, src_indices,
                           dst_indices.data_ptr(), sh_value_packed.data_ptr(),
@@ -803,6 +820,7 @@ void add_splats_with_long_axis_split_tensor(
     DeviceVector<float2> sample_weights,
     DeviceVector<int32_t> bias_correction_steps,
     DeviceVector<uint32_t> visit_counters,
+    DeviceVector<float> max_weight,
     int sh_optim_bits,
     int num_sh,
     DeviceVector<float4> sh_quant_bounds,
@@ -830,8 +848,9 @@ void add_splats_with_long_axis_split_tensor(
                         g1_scales, g1_opacs, g1_features_dc, g1_features_sh,
                         g2_means, g2_quats, g2_scales, g2_opacs,
                         g2_features_dc, g2_features_sh, densify_accum_buffer,
-                        bias_correction_steps, visit_counters, sh_optim_bits,
-                        num_sh, sh_quant_bounds, sh_bounds_per_splat, non_sh);
+                        bias_correction_steps, visit_counters, max_weight,
+                        sh_optim_bits, num_sh, sh_quant_bounds,
+                        sh_bounds_per_splat, non_sh);
 
     launch_copy_qsh_pairs(cur_num_splats, num_new_splats, split_indices,
                           nullptr, sh_value_packed.data_ptr(),
@@ -1143,6 +1162,30 @@ void densify_scale_score_by_renders_tensor(int64_t num_splats,
     p.num_splats = (uint32_t)num_splats;
     vkk::dispatch_flat("densify.densify_scale_score_by_renders", {}, num_splats,
                        256, &p, sizeof(p), &p.wgs_per_row);
+}
+
+void densify_max_weight_init_tensor(int64_t num_splats,
+                                    DeviceVector<float> opacs,
+                                    DeviceVector<float> max_weight) {
+    if (num_splats <= 0) return;
+    MaxWeightParams p{};
+    p.opacs = (uint64_t)opacs.data_ptr();
+    p.max_weight = (uint64_t)max_weight.data_ptr();
+    p.num_splats = (uint32_t)num_splats;
+    vkk::dispatch_flat("densify.densify_max_weight_init", {}, num_splats, 256,
+                       &p, sizeof(p), &p.wgs_per_row);
+}
+
+void densify_max_weight_scale_tensor(int64_t num_splats, float scale,
+                                     DeviceVector<float> max_weight) {
+    if (num_splats <= 0) return;
+    MaxWeightParams p{};
+    p.opacs = vkk::null_fallback();
+    p.max_weight = (uint64_t)max_weight.data_ptr();
+    p.scale = scale;
+    p.num_splats = (uint32_t)num_splats;
+    vkk::dispatch_flat("densify.densify_max_weight_scale", {}, num_splats, 256,
+                       &p, sizeof(p), &p.wgs_per_row);
 }
 
 void densify_clip_score_tensor(int64_t num_splats,

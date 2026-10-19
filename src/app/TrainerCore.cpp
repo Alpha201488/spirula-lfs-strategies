@@ -472,6 +472,13 @@ int densify_loss_map_mode_int(const std::string& mode, const std::string& loss) 
     throw std::runtime_error("unknown densify_loss_map_mode: " + mode);
 }
 
+DeadCriterion dead_criterion_enum(const std::string& c) {
+    if (c == "opacity")    return DeadCriterion::Opacity;
+    if (c == "max_weight") return DeadCriterion::MaxWeight;
+    if (c == "either")     return DeadCriterion::Either;
+    throw std::runtime_error("unknown dead_criterion: " + c);
+}
+
 int densify_accum_mode_int(const std::string& mode) {
     if (mode == "max") return (int)DensifyAccumMode::Max;
     if (mode == "sum") return (int)DensifyAccumMode::Sum;
@@ -615,6 +622,8 @@ EngineStepConfig build_step_config(const TrainConfig& c, const RunState& st, int
     cfg.densify.refine_every                  = c.refine_every;
     cfg.densify.growth_factor                 = c.growth_factor;
     cfg.densify.min_opacity                   = c.min_opacity;
+    cfg.densify.dead_criterion = dead_criterion_enum(c.dead_criterion);
+    cfg.densify.max_weight_half_life = (float)std::max(c.max_batch_per_epoch, 1);
     cfg.densify.max_screen_size               = c.max_screen_size;
     cfg.densify.max_screen_size_clip_hardness = c.max_screen_size_clip_hardness;
     cfg.densify.clip_screen_size_at_refine    = c.max_screen_size_penalty > 0.0f;
@@ -769,6 +778,8 @@ std::string train_config_unsupported(const TrainConfig& c) {
         return lmsg::bad_quantization_level.get();
     if (c.sb_lobes < 0 || c.sb_lobes > ColorBasis::kMaxSbLobes)
         return lfmt(lmsg::bad_sb_lobes, {ColorBasis::kMaxSbLobes});
+    if (c.dead_criterion != "opacity" && !c.use_revised_densification)
+        return lfmt(lmsg::dead_criterion_needs_revised, {c.dead_criterion});
 #ifndef SS_BACKEND_VULKAN
     if (c.sb_lobes > 0) return lmsg::sb_lobes_need_vulkan.get();
 #endif

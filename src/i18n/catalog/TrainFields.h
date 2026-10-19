@@ -4828,6 +4828,106 @@ SS_MSG(min_opacity_help,
     TR("Bundan daha soluk splat'lar gereken yerlere geri dönüştürülür. Yükseltmek "
        "daha sert budar ve splat bütçesini görünen yüzeylerde tutar."));
 
+SS_MSG(dead_criterion,
+    EN("Dead-splat test"), JA("不要なスプラットの判定"),
+    ZH_HANS("失效泼溅的判定方式"), ZH_HANT("失效潑濺的判定方式"),
+    KO("죽은 스플랫 판정 기준"),
+    DE("Test für tote Splats"),
+    FR("Critère de splat mort"),
+    ES("Criterio de splat muerto"),
+    PT("Critério de splat morto"),
+    IT("Criterio di splat morto"),
+    NL("Criterium voor dode splats"),
+    RU("Признак мёртвого сплата"),
+    TR("Ölü splat ölçütü"));
+SS_MSG(dead_criterion_help,
+    EN("What marks a splat as dead, to be recycled into a place that needs it. "
+       "`opacity` recycles splats fainter than the recycle opacity. `max_weight` "
+       "asks how much the splat really shows in the photos -- the most it added to "
+       "any one pixel, forgotten with a half-life of `max_batch_per_epoch` steps -- "
+       "so splats hidden behind others or out of every view go too. `either` "
+       "recycles a splat that fails either test."),
+    JA("スプラットを不要とみなして、必要な場所へ回す条件です。`opacity` は再利"
+       "用の不透明度より薄いスプラットを回します。`max_weight` はスプラットが写"
+       "真に実際どれだけ写ったか（1 つの画素に加えた最大の重み。"
+       "`max_batch_per_epoch` ステップの半減期で忘れていきます）を見るので、ほ"
+       "かの陰に隠れたものや、どの視点からも見えないものも回されます。`either` "
+       "はどちらかの条件に当てはまれば回します。"),
+    ZH_HANS("判定泼溅失效、把它回收到需要位置的条件。`opacity` 回收比回收不透明"
+            "度更淡的泼溅。`max_weight` 看泼溅在照片中实际显现了多少——它对单个"
+            "像素贡献过的最大权重，以 `max_batch_per_epoch` 步为半衰期逐渐遗忘——"
+            "因此被其他泼溅遮挡或不在任何视角内的泼溅也会被回收。`either` 只要"
+            "满足任一条件就回收。"),
+    ZH_HANT("判定潑濺失效、把它回收到需要位置的條件。`opacity` 回收比回收不透明"
+            "度更淡的潑濺。`max_weight` 看潑濺在照片中實際顯現了多少——它對單個"
+            "像素貢獻過的最大權重，以 `max_batch_per_epoch` 步為半衰期逐漸遺忘——"
+            "因此被其他潑濺遮擋或不在任何視角內的潑濺也會被回收。`either` 只要"
+            "滿足任一條件就回收。"),
+    KO("스플랫을 죽은 것으로 보고 필요한 곳으로 재배치하는 조건입니다. "
+       "`opacity` 는 재활용 불투명도보다 옅은 스플랫을 재배치합니다. "
+       "`max_weight` 는 스플랫이 사진에 실제로 얼마나 드러났는지(한 화소에 더한 "
+       "가장 큰 가중치를 `max_batch_per_epoch` 스텝의 반감기로 잊어 감)를 보므로, "
+       "다른 것에 가려졌거나 어느 시점에서도 보이지 않는 스플랫도 재배치됩니다. "
+       "`either` 는 둘 중 하나라도 해당하면 재배치합니다."),
+    DE("Was einen Splat als tot markiert, sodass er dorthin recycelt wird, wo er "
+       "gebraucht wird. `opacity` recycelt Splats, die blasser als die "
+       "Recycling-Deckkraft sind. `max_weight` fragt, wie viel der Splat in den "
+       "Fotos wirklich zu sehen ist -- das größte Gewicht, das er einem Pixel "
+       "beigetragen hat, vergessen mit einer Halbwertszeit von "
+       "`max_batch_per_epoch` Schritten --, sodass auch verdeckte oder in keiner "
+       "Ansicht sichtbare Splats recycelt werden. `either` recycelt einen Splat, "
+       "der einen der beiden Tests nicht besteht."),
+    FR("Ce qui fait qu'un splat est jugé mort et recyclé là où il manque. "
+       "`opacity` recycle les splats plus pâles que l'opacité de recyclage. "
+       "`max_weight` regarde ce que le splat montre réellement sur les photos -- le "
+       "plus grand poids qu'il ait apporté à un pixel, oublié avec une demi-vie de "
+       "`max_batch_per_epoch` pas --, si bien que les splats cachés derrière "
+       "d'autres ou hors de toute vue sont recyclés aussi. `either` recycle un "
+       "splat qui échoue à l'un ou l'autre test."),
+    ES("Qué marca un splat como muerto para reciclarlo donde haga falta. "
+       "`opacity` recicla los splats más tenues que la opacidad de reciclaje. "
+       "`max_weight` mira cuánto se ve realmente el splat en las fotos -- el mayor "
+       "peso que aportó a un píxel, olvidado con una vida media de "
+       "`max_batch_per_epoch` pasos --, así que también se reciclan los splats "
+       "tapados por otros o fuera de toda vista. `either` recicla un splat que "
+       "falle cualquiera de las dos pruebas."),
+    PT("O que marca um splat como morto para ser reciclado onde faz falta. "
+       "`opacity` recicla os splats mais fracos que a opacidade de reciclagem. "
+       "`max_weight` vê quanto o splat aparece de fato nas fotos -- o maior peso "
+       "que deu a um pixel, esquecido com uma meia-vida de `max_batch_per_epoch` "
+       "passos --, por isso também são reciclados os splats tapados por outros ou "
+       "fora de todas as vistas. `either` recicla um splat que falhe qualquer um "
+       "dos testes."),
+    IT("Che cosa rende morto uno splat, da riciclare dove serve. `opacity` "
+       "ricicla gli splat più deboli dell'opacità di riciclo. `max_weight` guarda "
+       "quanto lo splat si vede davvero nelle foto -- il peso massimo che ha dato a "
+       "un pixel, dimenticato con un tempo di dimezzamento di "
+       "`max_batch_per_epoch` passi --, così vengono riciclati anche gli splat "
+       "nascosti da altri o fuori da ogni vista. `either` ricicla uno splat che "
+       "non supera l'uno o l'altro test."),
+    NL("Wat een splat als dood markeert, zodat hij wordt hergebruikt waar hij "
+       "nodig is. `opacity` hergebruikt splats die vager zijn dan de "
+       "hergebruikdekking. `max_weight` kijkt hoeveel de splat echt in de foto's "
+       "te zien is -- het grootste gewicht dat hij aan één pixel bijdroeg, vergeten "
+       "met een halveringstijd van `max_batch_per_epoch` stappen --, zodat ook "
+       "splats die achter andere verborgen zijn of in geen enkel beeld voorkomen "
+       "worden hergebruikt. `either` hergebruikt een splat die voor een van beide "
+       "tests zakt."),
+    RU("Что делает сплат мёртвым, чтобы переработать его туда, где он нужен. "
+       "`opacity` перерабатывает сплаты бледнее порога переработки. "
+       "`max_weight` смотрит, насколько сплат действительно виден на фотографиях, "
+       "-- наибольший вес, который он внёс в один пиксель, забываемый с периодом "
+       "полураспада `max_batch_per_epoch` шагов, -- поэтому перерабатываются и "
+       "сплаты, закрытые другими или не попадающие ни в один ракурс. `either` "
+       "перерабатывает сплат, не прошедший любую из двух проверок."),
+    TR("Bir splat'ı ölü sayıp gereken yere geri dönüştüren koşul. `opacity` "
+       "geri dönüşüm saydamsızlığından daha soluk splat'ları geri dönüştürür. "
+       "`max_weight` splat'ın fotoğraflarda gerçekten ne kadar göründüğüne bakar "
+       "-- tek bir piksele kattığı en büyük ağırlık, `max_batch_per_epoch` "
+       "adımlık yarı ömürle unutulur --, böylece başkalarının arkasında kalan ya "
+       "da hiçbir görüntüde yer almayan splat'lar da geri dönüştürülür. `either` "
+       "iki testten birini geçemeyen splat'ı geri dönüştürür."));
+
 SS_MSG(refine_every,
     EN("Refinement interval"), JA("スプラット追加の間隔"),
     ZH_HANS("细化间隔"), ZH_HANT("細化間隔"), KO("정제 간격"),

@@ -2622,6 +2622,33 @@ SS_MSG(ppisp_before_color_space_order,
     RU("{0} требует {1}: покадровая коррекция цвета всегда применяется в sRGB"),
     TR("{0}, {1} gerektirir: fotoğraf başına renk düzeltmesi her zaman sRGB'de "
        "uygulanır"));
+SS_MSG(dead_criterion_needs_revised,
+    EN("--dead-criterion {0} needs --use-revised-densification: the MCMC "
+       "relocation tests opacity only"),
+    JA("--dead-criterion {0} には --use-revised-densification が必要です。MCMC "
+       "の再配置は不透明度しか見ません"),
+    ZH_HANS("--dead-criterion {0} 需要开启 --use-revised-densification：MCMC "
+            "重定位只检查不透明度"),
+    ZH_HANT("--dead-criterion {0} 需要開啟 --use-revised-densification：MCMC "
+            "重定位只檢查不透明度"),
+    KO("--dead-criterion {0}에는 --use-revised-densification이 필요합니다. "
+       "MCMC 재배치는 불투명도만 봅니다"),
+    DE("--dead-criterion {0} setzt --use-revised-densification voraus: Die "
+       "MCMC-Umverteilung prüft nur die Deckkraft"),
+    FR("--dead-criterion {0} requiert --use-revised-densification : la "
+       "relocalisation MCMC ne teste que l'opacité"),
+    ES("--dead-criterion {0} requiere --use-revised-densification: la "
+       "reubicación MCMC solo comprueba la opacidad"),
+    PT("--dead-criterion {0} exige --use-revised-densification: a realocação "
+       "MCMC só testa a opacidade"),
+    IT("--dead-criterion {0} richiede --use-revised-densification: il "
+       "riposizionamento MCMC controlla solo l'opacità"),
+    NL("--dead-criterion {0} vereist --use-revised-densification: de "
+       "MCMC-herplaatsing test alleen de dekking"),
+    RU("--dead-criterion {0} требует --use-revised-densification: перемещение "
+       "MCMC проверяет только непрозрачность"),
+    TR("--dead-criterion {0}, --use-revised-densification gerektirir: MCMC "
+       "yeniden yerleştirmesi yalnızca saydamsızlığı sınar"));
 SS_MSG(bad_quantization_level,
     EN("quantization_level must be 0 or 1"),
     JA("quantization_level は 0 か 1 にしてください"),

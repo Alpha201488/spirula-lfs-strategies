@@ -678,6 +678,16 @@ struct EngineState {
         bool active() const { return program.data_ptr() != nullptr; }
     } region;
 
+    // Peak alpha * T per splat for DeadCriterion::MaxWeight, stored times
+    // 2^((step - base_step) / half_life) so that forgetting needs no per-step
+    // pass; densify rebases it to the true value. Empty when not tracked.
+    struct MaxWeight {
+        DeviceVector<float> value;  // [max_N]
+        int   base_step  = 0;
+        float half_life  = 0.0f;
+        float step_scale = 1.0f;    // what this step's raster bwd multiplies by
+    } max_weight;
+
     BilagridRGB    bilagrid_rgb;
     BilagridDepth  bilagrid_depth;
     BilagridNormal bilagrid_normal;
