@@ -243,6 +243,20 @@ target_compile_options(ss_moge PRIVATE
 set_property(TARGET ss_moge PROPERTY CXX_STANDARD 17)
 
 # ---------------------------------------------------------------------------
+# ss_marigold -- Marigold v2 depth and normals on Qwen-Image-Edit-2509, from
+# 4-bit weights streamed to the device. No shaders of its own: the NF4
+# expansion and the per-head RMSNorm it needed are general and went into nn/.
+# ---------------------------------------------------------------------------
+file(GLOB_RECURSE SS_MARIGOLD_SOURCES CONFIGURE_DEPENDS ${SS_SRC}/marigold/*.cpp)
+list(FILTER SS_MARIGOLD_SOURCES EXCLUDE REGEX "/tests/")
+
+add_library(ss_marigold STATIC ${SS_MARIGOLD_SOURCES})
+target_link_libraries(ss_marigold PUBLIC ss_nn)
+target_compile_options(ss_marigold PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:${SPLAT_CXX_FLAGS}>)
+set_property(TARGET ss_marigold PROPERTY CXX_STANDARD 17)
+
+# ---------------------------------------------------------------------------
 # ss_roma -- native RoMa v2 inference
 # ---------------------------------------------------------------------------
 ss_nn_shaders(roma ${SS_SRC}/roma/shaders SS_ROMA_EMBED)
@@ -318,7 +332,8 @@ file(GLOB SS_NN_TESTS CONFIGURE_DEPENDS
      ${SS_SRC}/nn/tests/*.cpp ${SS_SRC}/sam/tests/*.cpp
      ${SS_SRC}/aliked/tests/*.cpp ${SS_SRC}/loma/tests/*.cpp
      ${SS_SRC}/metric3d/tests/*.cpp
-     ${SS_SRC}/moge/tests/*.cpp ${SS_SRC}/birefnet/tests/*.cpp
+     ${SS_SRC}/moge/tests/*.cpp ${SS_SRC}/marigold/tests/*.cpp
+     ${SS_SRC}/birefnet/tests/*.cpp
      ${SS_SRC}/gdino/tests/*.cpp ${SS_SRC}/roma/tests/*.cpp)
 foreach(test_src ${SS_NN_TESTS})
     get_filename_component(test_name ${test_src} NAME_WE)
@@ -326,7 +341,7 @@ foreach(test_src ${SS_NN_TESTS})
     # Every test links every library above it: the four are small, and one
     # rule here beats a per-directory list that drifts.
     target_link_libraries(${test_name} PRIVATE ss_sam ss_aliked ss_loma ss_metric3d
-                                                ss_moge ss_roma)
+                                                ss_moge ss_marigold ss_roma)
     set_property(TARGET ${test_name} PROPERTY CXX_STANDARD 17)
     target_compile_definitions(${test_name} PRIVATE SS_REPO_ROOT="${SS_ROOT}")
     target_compile_options(${test_name} PRIVATE

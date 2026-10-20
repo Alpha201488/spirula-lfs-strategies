@@ -138,6 +138,10 @@ src/
 ├── moge/                   MoGe-2 point maps + normals + a sky mask, on top of
 │                             nn/. The DEFAULT geometry model
 │                             -- READ src/moge/README.md
+├── marigold/               Marigold v2 depth + normals: a 20B diffusion
+│                             transformer, installed by streaming 45 GB into
+│                             11 GB of NF4, its blocks streamed to the device
+│                             beside the compute -- READ src/marigold/README.md
 ├── video/                  container demux (HEIC stills too) +
 │                             VK_KHR_video_decode_*, and the
 │                             VK_KHR_video_encode_* encoder behind `spirula
@@ -325,7 +329,7 @@ Rules:
 ## The Vulkan-only subsystems
 
 `src/sfm/`, `src/nn/`, `src/sam/`, `src/swin/`, `src/gdino/`, `src/birefnet/`,
-`src/aliked/`, `src/loma/`, `src/metric3d/`, `src/moge/`, `src/blur/` and `src/video/` are
+`src/aliked/`, `src/loma/`, `src/metric3d/`, `src/moge/`, `src/marigold/`, `src/blur/` and `src/video/` are
 **not** part of the two-backend rule below. They are Vulkan + Slang only, carry their own Vulkan
 context, share nothing with the training engine, and are absent from a CUDA
 build by default (`SS_BUILD_SFM` / `SS_BUILD_SAM` default OFF there).
@@ -340,6 +344,7 @@ app/gui, app/cli ──► sam ──────┬──► nn ──► nn/vk
                  ├──► loma ────┤
                  ├──► metric3d ┤
                  ├──► moge ────┤
+                 ├──► marigold ┤
                  └──► video ───┘
                  └──► sfm  (its own vk/, independent of nn/)
 ```
@@ -675,12 +680,15 @@ no ceremony — do not ask, do not leave a note saying you removed it.
   owns the 0.75 threshold and is deliberately blind to the distortion
   coefficients so the answer cannot move between builds. `--check` compares the
   closed form to counting the pixels.
-- **Two monocular geometry models sit behind `spirula geometry`, and they
+- **Three monocular geometry models sit behind `spirula geometry`, and they
   answer different questions.** Metric3D v2 predicts depth; MoGe-2 predicts an
   affine POINT MAP that needs the camera's focal length to become one, plus a
-  metric scale and a sky mask. `app/GeometryModel.h` is the one seam between
-  them and `--model` is what picks; a caller that reaches past it into
-  `metric3d::` or `moge::` has hard-coded a family.
+  metric scale and a sky mask; Marigold v2 predicts depth only up to an affine
+  map of its LOG, which is fitted to MoGe-2's on the same face. `app/GeometryModel.h`
+  is the one seam between them and `--model` is what picks; a caller that
+  reaches past it into `metric3d::`, `moge::` or `marigold::` has hard-coded a
+  family. Marigold alone is installed rather than downloaded
+  (`geometry_install_needs`), and the disk is checked before it starts.
 - **Segmentation weights are never committed or bundled.** SAM's are Meta's,
   under Meta's licences, and SAM 3's is not GPLv3-compatible; Grounding DINO
   (Apache-2.0) and BiRefNet (MIT) are fetched the same way for consistency. They are fetched
