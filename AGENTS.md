@@ -30,8 +30,9 @@ Direction of travel, so you don't push the wrong way:
 - `nerfstudio` / `gsplat` / `torch` are **not** dependencies and must not be
   reintroduced.
 - `reference/python/` holds hand-run tools that are on no code path (LPIPS
-  scoring, the benchmark driver, the pose-normalization reference). Nothing
-  there may be imported by anything, and nothing in the build may need it.
+  scoring for builds without the inference layer, the benchmark driver, the
+  pose-normalization reference). Nothing there may be imported by anything,
+  and nothing in the build may need it.
 
 ## Repo map
 
@@ -129,6 +130,8 @@ src/
 │                             -- READ src/roma/README.md
 ├── blur/                   the frame blur measure (app/FrameSharpness.h) on nn/'s
 │                             device; EdgeWidth.h is the part both copies share
+├── lpips/                  LPIPS (AlexNet + VGG16) for the eval pass, on top of
+│                             nn/ -- READ src/lpips/README.md
 ├── dense/                  fixed-camera reconstruction, disk-backed observations,
 │                             fusion and source-frame PLY -- READ src/dense/README.md
 │                             (its own library, ss_dense, outside the engine: the
@@ -226,7 +229,8 @@ src/
 │                             language set is written -- READ src/i18n/README.md
 ├── app/EvalMetrics.{h,cpp} l1 / psnr / ssim (torchmetrics-compatible) and the
 │                             colour correction the cc_ metrics use. LPIPS is
-│                             NOT here — reference/python/eval_lpips.py
+│                             src/lpips/, reached through TrainerCore's
+│                             LpipsHooks (app/EvalLpips.cpp installs them)
 ├── checkpoint/             Resume.{h,cpp} — config.json -> TrainConfig,
 │                             checkpoint resolution, resumability checks;
 │                             Adapt.{h,cpp} — host-side layout adaptation
@@ -329,11 +333,11 @@ Rules:
 ## The Vulkan-only subsystems
 
 `src/sfm/`, `src/nn/`, `src/sam/`, `src/swin/`, `src/gdino/`, `src/birefnet/`,
-`src/aliked/`, `src/loma/`, `src/metric3d/`, `src/moge/`, `src/marigold/`, `src/blur/` and `src/video/` are
-**not** part of the two-backend rule below. They are Vulkan + Slang only, carry their own Vulkan
-context, share nothing with the training engine, and are absent from a CUDA
-build by default (`SS_BUILD_SFM` / `SS_BUILD_SAM` default OFF there).
-Nothing in them goes through `cmake/sources.txt`.
+`src/aliked/`, `src/loma/`, `src/metric3d/`, `src/moge/`, `src/marigold/`, `src/blur/`,
+`src/lpips/` and `src/video/` are **not** part of the two-backend rule below.
+They are Vulkan + Slang only, carry their own Vulkan context, share nothing
+with the training engine, and are absent from a CUDA build by default
+(`SS_BUILD_SFM` / `SS_BUILD_SAM` default OFF there). Nothing in them goes through `cmake/sources.txt`.
 
 The layering runs one way and must keep doing so:
 
@@ -345,6 +349,7 @@ app/gui, app/cli ──► sam ──────┬──► nn ──► nn/vk
                  ├──► metric3d ┤
                  ├──► moge ────┤
                  ├──► marigold ┤
+                 ├──► lpips ───┤
                  └──► video ───┘
                  └──► sfm  (its own vk/, independent of nn/)
 ```

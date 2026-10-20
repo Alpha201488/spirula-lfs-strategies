@@ -131,6 +131,8 @@ inline bool train_choices_free_form(const char* choices) {
     X(bool, save_only_latest_checkpoint, true, "run", "advanced", "")        \
     X(bool, save_full_checkpoint, false, "run", "advanced", "")              \
     X(bool, save_eval_images, false, "run", "advanced", "")                  \
+    X(bool, eval_lpips, true, "run", "advanced", "")                         \
+    X(std::string, lpips_checkpoints, "", "run", "advanced", "<folder>")     \
     X(bool, log_performance, false, "run", "advanced", "")                   \
     X(int, viewer_port, 7007, "run", "advanced", "")                         \
     X(bool, disable_viewer, false, "run", "advanced", "")                    \

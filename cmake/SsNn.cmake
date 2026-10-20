@@ -279,6 +279,19 @@ target_compile_options(ss_blur PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:${SPLAT_CXX_FLAGS}>)
 set_property(TARGET ss_blur PROPERTY CXX_STANDARD 17)
 
+# ---------------------------------------------------------------------------
+# ss_lpips -- LPIPS for the eval pass, which reaches it through the hook
+# app/EvalLpips.cpp installs: TrainerCore lives in the engine library and
+# cannot link this. Its one shader is the per-tap distance.
+# ---------------------------------------------------------------------------
+ss_nn_shaders(lpips ${SS_SRC}/lpips/shaders SS_LPIPS_EMBED)
+file(GLOB SS_LPIPS_SOURCES CONFIGURE_DEPENDS ${SS_SRC}/lpips/*.cpp)
+add_library(ss_lpips STATIC ${SS_LPIPS_SOURCES} ${SS_LPIPS_EMBED})
+target_link_libraries(ss_lpips PUBLIC ss_nn)
+target_compile_options(ss_lpips PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:${SPLAT_CXX_FLAGS}>)
+set_property(TARGET ss_lpips PROPERTY CXX_STANDARD 17)
+
 add_executable(edge_width_test ${SS_SRC}/blur/tests/edge_width_test.cpp
                                ${SS_SRC}/app/FrameSharpness.cpp)
 target_link_libraries(edge_width_test PRIVATE ss_blur)
@@ -334,14 +347,15 @@ file(GLOB SS_NN_TESTS CONFIGURE_DEPENDS
      ${SS_SRC}/metric3d/tests/*.cpp
      ${SS_SRC}/moge/tests/*.cpp ${SS_SRC}/marigold/tests/*.cpp
      ${SS_SRC}/birefnet/tests/*.cpp
-     ${SS_SRC}/gdino/tests/*.cpp ${SS_SRC}/roma/tests/*.cpp)
+     ${SS_SRC}/gdino/tests/*.cpp ${SS_SRC}/roma/tests/*.cpp
+     ${SS_SRC}/lpips/tests/*.cpp)
 foreach(test_src ${SS_NN_TESTS})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name} ${test_src})
     # Every test links every library above it: the four are small, and one
     # rule here beats a per-directory list that drifts.
     target_link_libraries(${test_name} PRIVATE ss_sam ss_aliked ss_loma ss_metric3d
-                                                ss_moge ss_marigold ss_roma)
+                                               ss_moge ss_marigold ss_roma ss_lpips)
     set_property(TARGET ${test_name} PROPERTY CXX_STANDARD 17)
     target_compile_definitions(${test_name} PRIVATE SS_REPO_ROOT="${SS_ROOT}")
     target_compile_options(${test_name} PRIVATE

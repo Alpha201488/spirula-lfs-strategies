@@ -1336,7 +1336,7 @@ void ssim_bt_bwd(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID, uniform BtPar
     float val = 0.0f;
 
     for (int ci = 0; ci < 3; ci++) {
-        float m[BT_NW][5];
+        float m[BT_NW][5] = {};
         float gb[BT_NW][3];
         for (int pass = 0; pass < 2; pass++) {
             GroupMemoryBarrierWithGroupSync();

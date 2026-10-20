@@ -475,6 +475,156 @@ SS_MSG(save_eval_images_help,
        "yazar. Kaliteyi değerlendirmek için işe yarar, karşılığında biraz disk "
        "yeri harcar."));
 
+SS_MSG(eval_lpips,
+    EN("Score eval views with LPIPS"),
+    JA("評価用の視点を LPIPS で採点"),
+    ZH_HANS("用 LPIPS 为评估视角评分"),
+    ZH_HANT("用 LPIPS 為評估視角評分"),
+    KO("평가 시점을 LPIPS로 채점"),
+    DE("Auswertungsansichten mit LPIPS bewerten"),
+    FR("Noter les vues d'évaluation avec LPIPS"),
+    ES("Puntuar las vistas de evaluación con LPIPS"),
+    PT("Pontuar as vistas de avaliação com LPIPS"),
+    IT("Valutare le viste con LPIPS"),
+    NL("Evaluatieaanzichten scoren met LPIPS"),
+    RU("Оценивать виды по LPIPS"),
+    TR("Değerlendirme görünümlerini LPIPS ile puanla"));
+SS_MSG(eval_lpips_help,
+    EN("When views are held out, also score them with LPIPS (AlexNet and VGG) in "
+       "metrics.json. Its four checkpoints, about 800 MB, are downloaded once when a "
+       "run starts, and a run whose download fails stops before it trains. A build "
+       "without the inference layer (SS_BUILD_SAM) leaves LPIPS to "
+       "reference/python/eval_lpips.py."),
+    JA("評価用に視点を取り分けたとき、LPIPS（AlexNet と VGG）でも採点して "
+       "metrics.json に書きます。4 つのチェックポイント（約 800 MB）は実行の開始時に"
+       "一度だけダウンロードされ、ダウンロードに失敗した実行は学習の前に止まります。"
+       "推論レイヤー（SS_BUILD_SAM）を含まないビルドでは、LPIPS は "
+       "reference/python/eval_lpips.py に任せます。"),
+    ZH_HANS("留出评估视角时，同时用 LPIPS（AlexNet 和 VGG）评分并写入 metrics.json。"
+            "它的四个检查点（约 800 MB）在运行开始时下载一次；下载失败的运行会在训练前"
+            "停止。不含推理层（SS_BUILD_SAM）的构建把 LPIPS 留给 "
+            "reference/python/eval_lpips.py。"),
+    ZH_HANT("留出評估視角時，同時用 LPIPS（AlexNet 與 VGG）評分並寫入 metrics.json。"
+            "它的四個檢查點（約 800 MB）在執行開始時下載一次；下載失敗的執行會在訓練前"
+            "停止。不含推論層（SS_BUILD_SAM）的建置把 LPIPS 交給 "
+            "reference/python/eval_lpips.py。"),
+    KO("평가용으로 시점을 떼어 두면 LPIPS(AlexNet과 VGG)로도 채점해 metrics.json에 "
+       "씁니다. 체크포인트 4개(약 800 MB)는 실행이 시작될 때 한 번 내려받으며, "
+       "내려받기에 실패한 실행은 학습 전에 멈춥니다. 추론 계층(SS_BUILD_SAM)이 없는 "
+       "빌드에서는 LPIPS를 reference/python/eval_lpips.py에 맡깁니다."),
+    DE("Werden Ansichten zurückgehalten, sie zusätzlich mit LPIPS (AlexNet und VGG) "
+       "bewerten und in metrics.json schreiben. Die vier Checkpoints, etwa 800 MB, "
+       "werden beim Start eines Laufs einmal heruntergeladen; schlägt das fehl, stoppt "
+       "der Lauf, bevor er trainiert. Ein Build ohne Inferenzschicht (SS_BUILD_SAM) "
+       "überlässt LPIPS reference/python/eval_lpips.py."),
+    FR("Quand des vues sont mises de côté, les noter aussi avec LPIPS (AlexNet et "
+       "VGG) dans metrics.json. Ses quatre points de contrôle, environ 800 Mo, sont "
+       "téléchargés une fois au début d'une exécution ; si le téléchargement échoue, "
+       "l'exécution s'arrête avant d'entraîner. Un build sans couche d'inférence "
+       "(SS_BUILD_SAM) laisse LPIPS à reference/python/eval_lpips.py."),
+    ES("Cuando se apartan vistas, puntuarlas también con LPIPS (AlexNet y VGG) en "
+       "metrics.json. Sus cuatro puntos de control, unos 800 MB, se descargan una vez "
+       "al empezar una ejecución; si la descarga falla, la ejecución se detiene antes "
+       "de entrenar. Una compilación sin la capa de inferencia (SS_BUILD_SAM) deja "
+       "LPIPS a reference/python/eval_lpips.py."),
+    PT("Quando há vistas reservadas, pontuá-las também com LPIPS (AlexNet e VGG) em "
+       "metrics.json. Seus quatro checkpoints, cerca de 800 MB, são baixados uma vez "
+       "ao iniciar uma execução; se o download falhar, a execução para antes de "
+       "treinar. Uma compilação sem a camada de inferência (SS_BUILD_SAM) deixa o "
+       "LPIPS para reference/python/eval_lpips.py."),
+    IT("Quando delle viste sono messe da parte, valutarle anche con LPIPS (AlexNet e "
+       "VGG) in metrics.json. I suoi quattro checkpoint, circa 800 MB, vengono "
+       "scaricati una volta all'avvio di un'esecuzione; se il download non riesce, "
+       "l'esecuzione si ferma prima di addestrare. Una build senza il livello di "
+       "inferenza (SS_BUILD_SAM) lascia LPIPS a reference/python/eval_lpips.py."),
+    NL("Als er aanzichten opzij worden gezet, die ook met LPIPS (AlexNet en VGG) "
+       "scoren in metrics.json. De vier checkpoints, ongeveer 800 MB, worden eenmaal "
+       "gedownload wanneer een run start; mislukt dat, dan stopt de run voordat hij "
+       "traint. Een build zonder inferentielaag (SS_BUILD_SAM) laat LPIPS over aan "
+       "reference/python/eval_lpips.py."),
+    RU("Если виды отложены для оценки, оценивать их также по LPIPS (AlexNet и VGG) и "
+       "записывать в metrics.json. Четыре контрольные точки, около 800 МБ, скачиваются "
+       "один раз при запуске; если загрузка не удалась, запуск останавливается до "
+       "обучения. Сборка без слоя вывода (SS_BUILD_SAM) оставляет LPIPS скрипту "
+       "reference/python/eval_lpips.py."),
+    TR("Görünümler ayrıldığında onları LPIPS (AlexNet ve VGG) ile de puanlayıp "
+       "metrics.json'a yazar. Dört denetim noktası, yaklaşık 800 MB, bir çalıştırma "
+       "başlarken bir kez indirilir; indirme başarısız olursa çalıştırma eğitmeden "
+       "durur. Çıkarım katmanı (SS_BUILD_SAM) olmayan bir derleme LPIPS'i "
+       "reference/python/eval_lpips.py'ye bırakır."));
+
+SS_MSG(lpips_checkpoints,
+    EN("LPIPS checkpoints folder"),
+    JA("LPIPS チェックポイントのフォルダー"),
+    ZH_HANS("LPIPS 检查点文件夹"),
+    ZH_HANT("LPIPS 檢查點資料夾"),
+    KO("LPIPS 체크포인트 폴더"),
+    DE("Ordner der LPIPS-Checkpoints"),
+    FR("Dossier des points de contrôle LPIPS"),
+    ES("Carpeta de puntos de control de LPIPS"),
+    PT("Pasta dos checkpoints do LPIPS"),
+    IT("Cartella dei checkpoint LPIPS"),
+    NL("Map met LPIPS-checkpoints"),
+    RU("Папка контрольных точек LPIPS"),
+    TR("LPIPS denetim noktası klasörü"));
+SS_MSG(lpips_checkpoints_help,
+    EN("A folder that already holds the four LPIPS checkpoints, used instead of "
+       "downloading them: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, and LPIPS "
+       "v0.1's alex.pth and vgg.pth. Torch's hub cache (~/.cache/torch/hub/checkpoints) "
+       "is such a folder. Empty: the model cache, downloading what is missing."),
+    JA("4 つの LPIPS チェックポイントがすでに入っているフォルダーで、ダウンロードの"
+       "代わりに使います：alexnet-owt-7be5be79.pth、vgg16-397923af.pth、LPIPS v0.1 の "
+       "alex.pth と vgg.pth。torch のハブキャッシュ（~/.cache/torch/hub/checkpoints）"
+       "がそうしたフォルダーです。空のときはモデルキャッシュを使い、足りないものを"
+       "ダウンロードします。"),
+    ZH_HANS("已经存有四个 LPIPS 检查点的文件夹，用它代替下载：alexnet-owt-7be5be79.pth、"
+            "vgg16-397923af.pth，以及 LPIPS v0.1 的 alex.pth 和 vgg.pth。torch 的 hub "
+            "缓存（~/.cache/torch/hub/checkpoints）就是这样的文件夹。留空则使用模型缓存，"
+            "并下载缺少的文件。"),
+    ZH_HANT("已經存有四個 LPIPS 檢查點的資料夾，用它代替下載：alexnet-owt-7be5be79.pth、"
+            "vgg16-397923af.pth，以及 LPIPS v0.1 的 alex.pth 與 vgg.pth。torch 的 hub "
+            "快取（~/.cache/torch/hub/checkpoints）就是這樣的資料夾。留空則使用模型快取，"
+            "並下載缺少的檔案。"),
+    KO("LPIPS 체크포인트 4개가 이미 들어 있는 폴더로, 내려받는 대신 씁니다: "
+       "alexnet-owt-7be5be79.pth, vgg16-397923af.pth, 그리고 LPIPS v0.1의 alex.pth와 "
+       "vgg.pth. torch의 허브 캐시(~/.cache/torch/hub/checkpoints)가 그런 폴더입니다. "
+       "비워 두면 모델 캐시를 쓰고 없는 파일을 내려받습니다."),
+    DE("Ein Ordner, der die vier LPIPS-Checkpoints schon enthält, statt sie "
+       "herunterzuladen: alexnet-owt-7be5be79.pth, vgg16-397923af.pth sowie alex.pth "
+       "und vgg.pth von LPIPS v0.1. Der Hub-Cache von torch "
+       "(~/.cache/torch/hub/checkpoints) ist so ein Ordner. Leer: der Modell-Cache, "
+       "Fehlendes wird heruntergeladen."),
+    FR("Un dossier qui contient déjà les quatre points de contrôle LPIPS, utilisé au "
+       "lieu de les télécharger : alexnet-owt-7be5be79.pth, vgg16-397923af.pth, et "
+       "alex.pth et vgg.pth de LPIPS v0.1. Le cache hub de torch "
+       "(~/.cache/torch/hub/checkpoints) en est un. Vide : le cache des modèles, en "
+       "téléchargeant ce qui manque."),
+    ES("Una carpeta que ya contiene los cuatro puntos de control de LPIPS, usada en "
+       "lugar de descargarlos: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, y "
+       "alex.pth y vgg.pth de LPIPS v0.1. La caché hub de torch "
+       "(~/.cache/torch/hub/checkpoints) es una de ellas. Vacía: la caché de modelos, "
+       "descargando lo que falte."),
+    PT("Uma pasta que já contém os quatro checkpoints do LPIPS, usada em vez de "
+       "baixá-los: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, e alex.pth e vgg.pth "
+       "do LPIPS v0.1. O cache hub do torch (~/.cache/torch/hub/checkpoints) é uma "
+       "delas. Vazia: o cache de modelos, baixando o que faltar."),
+    IT("Una cartella che contiene già i quattro checkpoint LPIPS, usata al posto del "
+       "download: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, e alex.pth e vgg.pth "
+       "di LPIPS v0.1. La cache hub di torch (~/.cache/torch/hub/checkpoints) è una di "
+       "queste. Vuota: la cache dei modelli, scaricando ciò che manca."),
+    NL("Een map die de vier LPIPS-checkpoints al bevat, gebruikt in plaats van "
+       "downloaden: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, en alex.pth en "
+       "vgg.pth van LPIPS v0.1. De hub-cache van torch (~/.cache/torch/hub/checkpoints) "
+       "is zo'n map. Leeg: de modelcache, met een download van wat ontbreekt."),
+    RU("Папка, где уже лежат четыре контрольные точки LPIPS; используется вместо "
+       "загрузки: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, а также alex.pth и "
+       "vgg.pth из LPIPS v0.1. Кэш hub у torch (~/.cache/torch/hub/checkpoints) — "
+       "такая папка. Пусто: кэш моделей, недостающее скачивается."),
+    TR("Dört LPIPS denetim noktasını zaten içeren, indirmek yerine kullanılan bir "
+       "klasör: alexnet-owt-7be5be79.pth, vgg16-397923af.pth ve LPIPS v0.1'in alex.pth "
+       "ile vgg.pth dosyaları. torch'un hub önbelleği (~/.cache/torch/hub/checkpoints) "
+       "böyle bir klasördür. Boş: model önbelleği; eksik olanlar indirilir."));
+
 SS_MSG(log_performance,
     EN("Log performance stats"),
     JA("性能の統計を記録"),
