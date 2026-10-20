@@ -11564,9 +11564,12 @@ void GuiApp::draw_train_controls() {
         case TrainRunner::Phase::Loading:
             ui::TextColored(kDim, msg::parsing_dataset);
             break;
-        case TrainRunner::Phase::Preparing:
-            ui::TextColored(kDim, msg::preparing_engine);
+        case TrainRunner::Phase::Preparing: {
+            const std::string fetching = _runner.fetch_line();
+            if (fetching.empty()) ui::TextColored(kDim, msg::preparing_engine);
+            else ui::TextColoredWrappedRaw(kDim, fetching);
             break;
+        }
         case TrainRunner::Phase::Evaluating: {
             ui::TextColored(kDim, msg::status_evaluating);
             const bool stopping = _runner.session() &&
@@ -11685,8 +11688,13 @@ void GuiApp::draw_status_strip() {
                         {p.step + 1, format_duration(_runner.elapsed_seconds())});
         ui::TextDisabled(msg::status_explore);
     } else if (ph == TrainRunner::Phase::Preparing) {
-        ui::ProgressBar(-(float)ImGui::GetTime(), ImVec2(-8, 0),
-                        msg::status_preparing);
+        const std::string fetching = _runner.fetch_line();
+        const float frac = _runner.fetch_progress();
+        if (fetching.empty())
+            ui::ProgressBar(-(float)ImGui::GetTime(), ImVec2(-8, 0), msg::status_preparing);
+        else
+            ui::ProgressBarRaw(frac >= 0.0f ? frac : -(float)ImGui::GetTime(), ImVec2(-8, 0),
+                               fetching.c_str());
         ui::TextDisabledRaw(" ");
     } else if (ph == TrainRunner::Phase::Evaluating) {
         const spirula::EvalProgress p = _runner.latest_eval_progress();

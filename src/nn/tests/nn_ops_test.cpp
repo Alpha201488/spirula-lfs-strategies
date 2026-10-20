@@ -1415,6 +1415,26 @@ void test_geometry(vk::Arena& arena) {
                 }
         check("avgpool 3x3 s2 pad1", readback(to), want, 1e-5f);
     }
+    {   // MaxPool2d(3, stride=2) -- AlexNet's. 15 is odd on purpose: the last
+        // window ends on the last row, and a 14th would be left out.
+        vk::ArenaScope scope(arena);
+        const int Hi = 15, Wi = 12, C = 5, k = 3, stride = 2;
+        const int Ho = (Hi - k) / stride + 1, Wo = (Wi - k) / stride + 1;
+        auto x = randn((size_t)Hi * Wi * C);
+        Tensor to = arena_tensor(arena, DType::F32, Ho, Wo, C);
+        maxpool(to, upload_f32(arena, x, Hi, Wi, C), k, stride);
+        std::vector<float> want((size_t)Ho * Wo * C);
+        for (int y = 0; y < Ho; ++y)
+            for (int xx = 0; xx < Wo; ++xx)
+                for (int c = 0; c < C; ++c) {
+                    float m = -INFINITY;
+                    for (int dy = 0; dy < k; ++dy)
+                        for (int dx = 0; dx < k; ++dx)
+                            m = std::max(m, x[((size_t)(y * stride + dy) * Wi + xx * stride + dx) * C + c]);
+                    want[((size_t)y * Wo + xx) * C + c] = m;
+                }
+        check("maxpool 3x3 s2", readback(to), want, 0.0f);
+    }
     {   // resize_nearest at 7/2 -- the DPT read_0 upsample. The reference is
         // torch's src = floor(dst / scale) with the ASKED-FOR scale, which is
         // not the same as floor(dst * Hi / Ho) once Ho = floor(Hi * 7/2).

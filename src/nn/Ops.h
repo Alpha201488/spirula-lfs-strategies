@@ -234,6 +234,9 @@ void resize_bicubic(const Tensor& out, const Tensor& in);
 
 void upsample_nearest2x(const Tensor& out, const Tensor& in);
 void maxpool2x2(const Tensor& out, const Tensor& in);
+// nn.MaxPool2d(kernel, stride) with no padding and ceil_mode=False -- AlexNet's
+// 3x3 stride-2 pool. `out` must be [(Hi - kernel)/stride + 1, ...].
+void maxpool(const Tensor& out, const Tensor& in, int kernel, int stride);
 
 // F.interpolate(scale_factor=(sy, sx), mode='nearest'). Pass the SCALE the
 // reference asked for, not out/in: torch sizes the output floor(in * s) and
