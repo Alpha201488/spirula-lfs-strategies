@@ -700,7 +700,7 @@ bool format_is(const std::string& path, const char* format) {
     std::error_code ec;
     if (!fs::is_regular_file(path, ec)) return false;
     const auto stamp = std::to_string(fs::file_size(path, ec)) + ":" +
-                       std::to_string(fs::last_write_time(path, ec).time_since_epoch().count());
+                       std::to_string((long long)fs::last_write_time(path, ec).time_since_epoch().count());
     std::lock_guard<std::mutex> lk(mu);
     auto it = seen.find(path);
     if (it != seen.end() && it->second.first == stamp) return it->second.second;
