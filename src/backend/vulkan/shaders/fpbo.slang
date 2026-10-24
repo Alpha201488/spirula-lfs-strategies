@@ -560,8 +560,7 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
     const int sb_cells = 6 * kSbLobes;
     float lr_sh = p.lr_features_sh * ibc1;
     float lr_sb = p.lr_features_sb * ibc1;
-    const float reg_weight =
-        p.sh_reg_weight * (1.0f / max(float(num_sh), 1.0f));
+    const float reg_weight = p.sh_reg_weight;  // per coefficient, as fused_adam_step
 
     // Per-channel DC color + clip radius for the trust-region SH update.
     float3 c_dc = float3(0.0f);

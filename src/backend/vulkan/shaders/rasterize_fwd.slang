@@ -96,6 +96,8 @@ struct RasterFwd2dParams {
     uint32_t tile_height;
     uint32_t macro_log2;
     uint32_t out_depth_on;  // 0: nothing reads the depth, out_depth unbound
+    float kernel_cut;  // Primitive3DGS::kernel_vis: > 0 cut and renormalized, 0 gaussian
+    uint32_t _pad0;
 };
 
 [shader("compute")]
@@ -216,6 +218,9 @@ void rasterize_fwd_2d(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
                                   f.conic.z * delta.y * delta.y) +
                           f.conic.y * delta.x * delta.y;
             float vis0 = exp(-sigma);
+            if (p.kernel_cut > 0.0f)
+                vis0 = sigma < p.kernel_cut
+                    ? (vis0 - exp(-p.kernel_cut)) / (1.0f - exp(-p.kernel_cut)) : 0.0f;
             float alpha = min(0.999f, f.opac * vis0);
             if (sigma < 0.f)
                 alpha = 0.f;
