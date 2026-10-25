@@ -143,9 +143,10 @@ void projection_fused_fwd_kernel_wrapper(
     // 0 -> FPBO per-splat-block layout (256 * 3 * num_sh_buffer cells/bound);
     // 256 -> non-FPBO per-cell-block layout. See projection_fused_fwd_kernel.
     const int64_t sh_bounds_stride,
-    // GaussianShader envmap (null disables the shading path).
-    const float* __restrict__ envmap,
-    const int env_size
+    // GaussianShader envmap (null disables the shading path). Defaulted so
+    // the generated explicit instantiations (PF_P3GPF.cu) still match.
+    const float* __restrict__ envmap = nullptr,
+    const int env_size = 0
 ) {
     constexpr uint block = 128;
     #define _LAUNCH(VB) \
