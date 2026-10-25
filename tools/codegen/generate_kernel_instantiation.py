@@ -35,14 +35,15 @@ kAccumModes = [
     "DensifyAccumMode::Sum",  "DensifyAccumMode::Avg",
 ]
 
-# Interleaved [3DGS, Mip, 3DGUT] per SH degree; the `includes` lists below rely
-# on that ordering to route each block to the right primitive header.
+# Interleaved [3DGS, Mip, Shader3DGS, 3DGUT] per SH degree; the `includes`
+# lists below rely on that ordering to route each block to the right
+# primitive header (Shader3DGS lives in Primitive3DGSShader.cuh).
 kPrimitives = [
-    "Vanilla3DGS<0>", "MipSplatting<0>", "Vanilla3DGUT<0>",
-    "Vanilla3DGS<1>", "MipSplatting<1>", "Vanilla3DGUT<1>",
-    "Vanilla3DGS<2>", "MipSplatting<2>", "Vanilla3DGUT<2>",
-    "Vanilla3DGS<3>", "MipSplatting<3>", "Vanilla3DGUT<3>",
-    "Vanilla3DGS<4>", "MipSplatting<4>", "Vanilla3DGUT<4>",
+    "Vanilla3DGS<0>", "MipSplatting<0>", "Shader3DGS<0>", "Vanilla3DGUT<0>",
+    "Vanilla3DGS<1>", "MipSplatting<1>", "Shader3DGS<1>", "Vanilla3DGUT<1>",
+    "Vanilla3DGS<2>", "MipSplatting<2>", "Shader3DGS<2>", "Vanilla3DGUT<2>",
+    "Vanilla3DGS<3>", "MipSplatting<3>", "Shader3DGS<3>", "Vanilla3DGUT<3>",
+    "Vanilla3DGS<4>", "MipSplatting<4>", "Shader3DGS<4>", "Vanilla3DGUT<4>",
 ]
 
 
@@ -259,6 +260,7 @@ def generate_ProjectionFwd():
         nv = len(kCameraVariants)
         includes = [*(
             [("primitives/Primitive3DGS.cuh", kernel_filename)] * (2 * nv) +
+            [("primitives/Primitive3DGSShader.cuh", kernel_filename)] * nv +
             [("primitives/Primitive3DGUT.cuh", kernel_filename)] * nv
         )] * 5
 
@@ -276,6 +278,7 @@ def _generate_projection_bwd(prefix, source, wrapper_name, kernel_filename):
     nv = len(kCameraVariants)
     includes = [*(
         [("primitives/Primitive3DGS.cuh", kernel_filename)] * (2 * nv) +
+        [("primitives/Primitive3DGSShader.cuh", kernel_filename)] * nv +
         [("primitives/Primitive3DGUT.cuh", kernel_filename)] * nv
     )] * 5
 
@@ -319,6 +322,7 @@ def generate_FusedProjectionBwdOptim():
     per_prim = len(kCameraVariants) * 8
     includes = [*(
         [("primitives/Primitive3DGS.cuh",   "kernels/optim/FusedProjectionBwdOptim_kernel.cuh")] * (per_prim * 2) +
+        [("primitives/Primitive3DGSShader.cuh", "kernels/optim/FusedProjectionBwdOptim_kernel.cuh")] * per_prim +
         [("primitives/Primitive3DGUT.cuh",  "kernels/optim/FusedProjectionBwdOptim_kernel.cuh")] * per_prim
     )] * 5
 
@@ -344,13 +348,18 @@ def generate_RasterizationFwd():
 def generate_RasterizationBwd():
     definition = extract_kernel_definition("kernels/raster/RasterizationBwd.cu", "rasterize_to_pixels_bwd_kernel_wrapper")
     map_header = ["typename SplatPrimitive", None, None, None]
+    prims = ["Vanilla3DGS<0>", "Shader3DGS<0>"]   # Shader3DGS: CUDA-only reflective raster bwd
     map_body = [*itertools.product(
-        ["Vanilla3DGS<0>"],
+        prims,
         ["DistortionType::None", "DistortionType::D", "DistortionType::RGB_D"],  # dist_type
         kAccumModes,
         ["true", "false"],   # output_median
     )]
-    includes = [("primitives/Primitive3DGS.cuh", "kernels/raster/RasterizationBwd_kernel.cuh")] * len(map_body)
+    n_body = len(map_body) // len(prims)
+    includes = (
+        [("primitives/Primitive3DGS.cuh", "kernels/raster/RasterizationBwd_kernel.cuh")] * n_body +
+        [("primitives/Primitive3DGSShader.cuh", "kernels/raster/RasterizationBwd_kernel.cuh")] * n_body
+    )
 
     generate_kernel_instantiation("RasterizationBwd", definition, map_header, map_body, includes)
 
