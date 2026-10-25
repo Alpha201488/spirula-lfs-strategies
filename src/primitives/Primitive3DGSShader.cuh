@@ -39,32 +39,6 @@ namespace SlangHarmonics {
 #include "primitives/Primitive3DGS.cuh"
 
 // ---------------------------------------------------------------------------
-// float3 arithmetic helpers. core/Common.cuh provides the full float2/3/4
-// operator set, but under SLANG_PRELUDE_EXPORT (defined by the CUDA slang
-// generated headers this file includes) it only instantiates vec-scalar and
-// inplace-vec-vec operators. The Shader3DGS shading code additionally needs
-// unary minus / vec-vec / inplace-vec-scalar, which are defined here only in
-// that mode so no redefinition happens on non-SLANG builds.
-// ---------------------------------------------------------------------------
-#ifdef SLANG_PRELUDE_EXPORT
-__device__ __forceinline__ float3 operator-(const float3 &a) {
-    return make_float3(-a.x, -a.y, -a.z);
-}
-__device__ __forceinline__ float3 operator+(const float3 &a, const float3 &b) {
-    return make_float3(a.x + b.x, a.y + b.y, a.z + b.z);
-}
-__device__ __forceinline__ float3 operator-(const float3 &a, const float3 &b) {
-    return make_float3(a.x - b.x, a.y - b.y, a.z - b.z);
-}
-__device__ __forceinline__ float3 operator*(const float3 &a, const float3 &b) {
-    return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
-}
-__device__ __forceinline__ float3 operator*=(float3 &a, float s) {
-    a.x *= s; a.y *= s; a.z *= s; return a;
-}
-#endif  // SLANG_PRELUDE_EXPORT
-
-// ---------------------------------------------------------------------------
 // Environment cube-map helpers (shared by forward / backward).
 //
 // Layout: 6 faces of env_size x env_size x 3 floats, faces ordered
@@ -135,7 +109,7 @@ __device__ __forceinline__ float3 sample_envmap(const float* __restrict__ env,
     env_face_uv(r, face, u, v);
     float3 Ls = sample_face(env, env_size, face, u, v);
     const float rho = fminf(fmaxf(roughness, 0.0f), 1.0f);
-    Ls *= (1.0f - 0.85f * rho);   // 1.0 (mirror) .. 0.15 (fully rough)
+    Ls = Ls * (1.0f - 0.85f * rho);   // 1.0 (mirror) .. 0.15 (fully rough)
     return Ls;
 }
 
@@ -446,48 +420,22 @@ struct _Base3DGSShader : public _Base3DGS<sh_degree, antialiased> {
                 &v_world.mean, &v_R, &v_t \
             );
             if constexpr (atomic) {
-                if constexpr (VALUE_BITS == 32) {
-                    if constexpr (sh_degree == 0) SlangHarmonics::sh0_to_color_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 1) SlangHarmonics::sh1_to_color_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 2) SlangHarmonics::sh2_to_color_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 3) SlangHarmonics::sh3_to_color_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 4) SlangHarmonics::sh4_to_color_vjp_atomic _ARGS_F32
-                } else if constexpr (VALUE_BITS == 8) {
-                    // Not supported in shading mode; keep the base quant path
-                    // (harmless: shading mode keeps VALUE_BITS == 32).
-                    if constexpr (sh_degree == 0) SlangHarmonics::sh0_to_color_q8_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 1) SlangHarmonics::sh1_to_color_q8_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 2) SlangHarmonics::sh2_to_color_q8_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 3) SlangHarmonics::sh3_to_color_q8_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 4) SlangHarmonics::sh4_to_color_q8_vjp_atomic _ARGS_F32
-                } else {
-                    if constexpr (sh_degree == 0) SlangHarmonics::sh0_to_color_q16_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 1) SlangHarmonics::sh1_to_color_q16_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 2) SlangHarmonics::sh2_to_color_q16_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 3) SlangHarmonics::sh3_to_color_q16_vjp_atomic _ARGS_F32
-                    else if constexpr (sh_degree == 4) SlangHarmonics::sh4_to_color_q16_vjp_atomic _ARGS_F32
-                }
+                // Shading mode keeps VALUE_BITS == 32; quantized VJP variants
+                // (q8/q16) take differently-typed coefficient buffers, so they
+                // are never called here even if a VALUE_BITS<32 World is
+                // instantiated by a downstream caller.
+                if constexpr (sh_degree == 0) SlangHarmonics::sh0_to_color_vjp_atomic _ARGS_F32
+                else if constexpr (sh_degree == 1) SlangHarmonics::sh1_to_color_vjp_atomic _ARGS_F32
+                else if constexpr (sh_degree == 2) SlangHarmonics::sh2_to_color_vjp_atomic _ARGS_F32
+                else if constexpr (sh_degree == 3) SlangHarmonics::sh3_to_color_vjp_atomic _ARGS_F32
+                else if constexpr (sh_degree == 4) SlangHarmonics::sh4_to_color_vjp_atomic _ARGS_F32
             }
             else {
-                if constexpr (VALUE_BITS == 32) {
-                    if constexpr (sh_degree == 0) SlangHarmonics::sh0_to_color_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 1) SlangHarmonics::sh1_to_color_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 2) SlangHarmonics::sh2_to_color_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 3) SlangHarmonics::sh3_to_color_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 4) SlangHarmonics::sh4_to_color_vjp_inplace _ARGS_F32
-                } else if constexpr (VALUE_BITS == 8) {
-                    if constexpr (sh_degree == 0) SlangHarmonics::sh0_to_color_q8_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 1) SlangHarmonics::sh1_to_color_q8_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 2) SlangHarmonics::sh2_to_color_q8_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 3) SlangHarmonics::sh3_to_color_q8_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 4) SlangHarmonics::sh4_to_color_q8_vjp_inplace _ARGS_F32
-                } else {
-                    if constexpr (sh_degree == 0) SlangHarmonics::sh0_to_color_q16_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 1) SlangHarmonics::sh1_to_color_q16_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 2) SlangHarmonics::sh2_to_color_q16_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 3) SlangHarmonics::sh3_to_color_q16_vjp_inplace _ARGS_F32
-                    else if constexpr (sh_degree == 4) SlangHarmonics::sh4_to_color_q16_vjp_inplace _ARGS_F32
-                }
+                if constexpr (sh_degree == 0) SlangHarmonics::sh0_to_color_vjp_inplace _ARGS_F32
+                else if constexpr (sh_degree == 1) SlangHarmonics::sh1_to_color_vjp_inplace _ARGS_F32
+                else if constexpr (sh_degree == 2) SlangHarmonics::sh2_to_color_vjp_inplace _ARGS_F32
+                else if constexpr (sh_degree == 3) SlangHarmonics::sh3_to_color_vjp_inplace _ARGS_F32
+                else if constexpr (sh_degree == 4) SlangHarmonics::sh4_to_color_vjp_inplace _ARGS_F32
             }
             #undef _ARGS_F32
         }
