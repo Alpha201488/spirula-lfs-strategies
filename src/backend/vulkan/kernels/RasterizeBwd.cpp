@@ -387,3 +387,35 @@ std::tuple<
     return std::make_tuple(v_splats_w.value(), v_splats_s.value(),
                            v_viewmats_buf, o_accum_weight);
 }
+
+// GaussianShader (Shader3DGS) raster backward is a CUDA-only extension.
+// Keep the symbol so the portable engine links; fail loudly at runtime.
+std::tuple<std::vector<DeviceTensorFloatND>, std::vector<DeviceTensorFloatND>,
+           DeviceVector<float>>
+rasterize_to_pixels_3dgshader_bwd(
+    int64_t,
+    std::vector<DeviceTensorFloatND>, std::vector<DeviceTensorFloatND>,
+    DeviceVector<int32_t>,
+    const uint32_t, const uint32_t,
+    const DeviceTensor3D<int32_t>, const DeviceVector<int32_t>,
+    int,
+    const DeviceTensor3D<float>, const DeviceTensor3D<int32_t>,
+    RenderOutput::TensorTuple,
+    std::optional<RenderOutput::TensorTuple>,
+    DistortionType,
+    DeviceTensor3D<float>,
+    DensifyAccumMode,
+    DeviceVector<float>,
+    float, float,
+    RenderOutput::TensorTuple,
+    const DeviceTensor3D<float>,
+    const DeviceTensor3D<float>,
+    std::optional<RenderOutput::TensorTuple>,
+    float,
+    std::optional<std::vector<DeviceTensorFloatND>>,
+    std::optional<std::vector<DeviceTensorFloatND>>)
+{
+    throw std::runtime_error(
+        "GaussianShader shading requires the CUDA backend (this is a "
+        "Vulkan build)");
+}

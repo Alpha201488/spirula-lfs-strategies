@@ -296,3 +296,27 @@ void projection_3dgut_backward(
         v_splats_screen, v_splats_world, v_viewmats, sh_value_packed,
         sh_value_bounds, num_sh_buffer, sh_value_bits, sh_bounds_stride);
 }
+
+// GaussianShader (Shader3DGS) projection backward is a CUDA-only extension.
+// Keep the symbol so the portable engine links; fail loudly at runtime.
+void projection_3dgs_shader_backward(
+    const int64_t,
+    const int,
+    const std::vector<DeviceTensorFloatND> &,
+    TorchTensorView, TorchTensorView,
+    const uint32_t, const uint32_t,
+    const std::string, const std::string,
+    const TorchTensorView,
+    const DeviceVector<int32_t>, const DeviceVector<int32_t>,
+    const DeviceTensor2D<uint2>,
+    const std::vector<DeviceTensorFloatND> &,
+    const std::vector<DeviceTensorFloatND> &,
+    DeviceTensor2D<float>*,
+    const std::optional<TorchTensorView>,
+    const std::optional<TorchTensorView>,
+    const uint32_t, const int, const int64_t)
+{
+    throw std::runtime_error(
+        "GaussianShader shading requires the CUDA backend (this is a "
+        "Vulkan build)");
+}

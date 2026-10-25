@@ -258,3 +258,27 @@ std::tuple<
 
     return std::make_tuple(aabb, sorting_depths, splats_screen);
 }
+
+// GaussianShader (Shader3DGS) projection is a CUDA-only extension: the
+// Vulkan slang pipeline has no shading (envmap) branch. Keep the symbol so
+// the portable engine links; fail loudly at runtime instead of silently
+// rendering unshaded.
+std::tuple<DeviceTensor2D<uint2>, DeviceTensor2D<float>,
+           std::vector<DeviceTensorFloatND>>
+projection_3dgs_shader_forward(
+    const int64_t, const int,
+    const std::vector<DeviceTensorFloatND> &,
+    TorchTensorView, TorchTensorView,
+    const uint32_t, const uint32_t,
+    const std::string, const std::string,
+    const TorchTensorView,
+    DeviceVector<float>,
+    const std::optional<TorchTensorView>,
+    const std::optional<TorchTensorView>,
+    const uint32_t, const int, const int64_t,
+    const std::optional<TorchTensorView>, const int)
+{
+    throw std::runtime_error(
+        "GaussianShader shading requires the CUDA backend (this is a "
+        "Vulkan build)");
+}
