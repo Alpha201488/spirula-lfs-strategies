@@ -179,7 +179,7 @@ std::tuple<
     const std::optional<TorchTensorView> envmap,
     const int env_size
 ) {
-    int sh_degree = Shader3DGS<0>::WorldBuffer(in_splats).sh_degree();
+    int sh_degree = Shader3DGS<0>::WorldBuffer(in_splats).sh_deg();
     sh_degree = min(sh_degree, max_sh_degree);
     uint32_t C = (uint32_t)std::get<2>(viewmats)[0];
     const float* vm = (const float*)std::get<0>(viewmats);

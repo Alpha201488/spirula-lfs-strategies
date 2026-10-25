@@ -217,7 +217,7 @@ void projection_3dgs_shader_backward(
     const int sh_value_bits,
     const int64_t sh_bounds_stride
 ) {
-    int sh_degree = Shader3DGS<0>::WorldBuffer(splats_world).sh_degree();
+    int sh_degree = Shader3DGS<0>::WorldBuffer(splats_world).sh_deg();
     sh_degree = min(sh_degree, max_sh_degree);
     const uint8_t* vp = sh_value_packed.has_value()
         ? (const uint8_t*)std::get<0>(sh_value_packed.value()) : nullptr;

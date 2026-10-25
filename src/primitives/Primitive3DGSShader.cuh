@@ -193,7 +193,9 @@ struct _Base3DGSShader : public _Base3DGS<sh_degree, antialiased> {
             { return *reinterpret_cast<float3*>(&_data[8][3*i]); }
     #endif  // __CUDACC__
 
-        int sh_degree() {
+        // (name avoids the enclosing template parameter `sh_degree`:
+        // nvcc rejects a member function sharing the template parameter name)
+        int sh_deg() {
             int num_sh = _strides[5] / 3;
             return (
                 num_sh == 3 ? 1 :
