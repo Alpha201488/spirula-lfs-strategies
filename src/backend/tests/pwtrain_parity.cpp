@@ -97,16 +97,55 @@ int main(int argc, char** argv) {
         readback_f(acc, d_vb, PIX * 3);
     }
 
-    // ---- blend_background_noise_backward (every mode x draw x reg off/on) ----
+    // ---- blend_background_noise_backward (every mode x draw x cell x reg) ----
+    // block_px 0 is the whole-frame cell the random-colour background uses.
     for (int xf = 0; xf < 5; xf++) for (int lin = 0; lin < 2; lin++)
     for (int blocky = 0; blocky < 2; blocky++)
+    for (unsigned block_px : {0u, 1u, 4u, 64u})
     for (float over : {0.0f, 3.0f}) {
         float* d_vr = fresh3();
         float* d_vt = fresh1();
-        blend_background_noise_backward(xf, lin != 0, blocky != 0,
+        blend_background_noise_backward(xf, lin != 0, blocky != 0, block_px,
                                         t3(d_rgb), t1(d_T), 0.7f,
-                                        1234u + xf, over, t3(d_vout),
+                                        1234u + xf, nullptr, nullptr,
+                                        over, t3(d_vout),
                                         t3(d_vr), t1(d_vt));
+        backend::device_synchronize();
+        readback_f(acc, d_vr, PIX * 3);
+        readback_f(acc, d_vt, PIX);
+    }
+
+    // ---- the luma-matched draw: a per-slot power table and slot indices
+    {
+        const float* d_exp = upload<float>({1.0f, 3.9f, 0.6f, 6.5f});
+        const int32_t* d_cams = upload<int32_t>({3, 1});
+        for (int xf : {0, 4}) for (int lin = 0; lin < 2; lin++)
+        for (int blocky = 0; blocky < 2; blocky++)
+        for (unsigned block_px : {0u, 4u}) {
+            float* d_out = fresh3();
+            blend_background_noise_forward(xf, lin != 0, blocky != 0, block_px,
+                                           t3(d_rgb), t1(d_T), 0.7f, 77u + xf,
+                                           d_exp, d_cams, t3(d_out));
+            float* d_vr = fresh3();
+            float* d_vt = fresh1();
+            blend_background_noise_backward(xf, lin != 0, blocky != 0, block_px,
+                                            t3(d_rgb), t1(d_T), 0.7f, 77u + xf,
+                                            d_exp, d_cams, 0.0f, t3(d_vout),
+                                            t3(d_vr), t1(d_vt));
+            backend::device_synchronize();
+            readback_f(acc, d_out, PIX * 3);
+            readback_f(acc, d_vr, PIX * 3);
+            readback_f(acc, d_vt, PIX);
+        }
+    }
+
+    // ---- blend_background_color_backward (reg off, then the fused one) ----
+    for (float over : {0.0f, 3.0f}) {
+        float* d_vr = fresh3();
+        float* d_vt = fresh1();
+        blend_background_color_backward(t3(d_rgb), t1(d_T),
+                                        make_float3(0.2f, 0.65f, 0.9f), over,
+                                        t3(d_vout), t3(d_vr), t1(d_vt));
         backend::device_synchronize();
         readback_f(acc, d_vr, PIX * 3);
         readback_f(acc, d_vt, PIX);
@@ -142,7 +181,7 @@ int main(int argc, char** argv) {
         std::vector<float> v0(PIX * 3);
         fill(v0, -0.5f, 0.5f);
         float* d_v = upload(v0);
-        overexposure_grad_add(t3(d_rgb), 0.25f, t3(d_v));
+        overexposure_grad_add(ttv(d_rgb, {B, H, W, 3}), 0.25f, t3(d_v));
         backend::device_synchronize();
         readback_f(acc, d_v, PIX * 3);
     }

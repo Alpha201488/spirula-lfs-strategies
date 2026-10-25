@@ -3,6 +3,7 @@
 #include "app/gui/TelemetryProbe.h"
 
 #ifdef SS_TOOL_SFM
+#include "sfm/core/Attitude.h"
 #include "sfm/core/Exif.h"
 #include "sfm/core/Telemetry.h"
 #endif
@@ -34,7 +35,7 @@ TelemetryInfo probe(const std::string& path, bool is_video) {
         out.gyro = !t.gyro.empty();
         out.accel = !t.accel.empty();
         out.attitude = !t.orientation.empty() || !t.gravity.empty();
-        out.gps = !t.gps.empty();
+        out.gps = std::any_of(t.gps.begin(), t.gps.end(), sfm::gps_valid);
         if (t.carrier != sfm::TelemetryCarrier::None)
             out.carrier = sfm::telemetry_carrier_name(t.carrier);
         return out;
@@ -47,6 +48,7 @@ TelemetryInfo probe(const std::string& path, bool is_video) {
         if (!it->is_regular_file(ec) || !is_photo(it->path())) continue;
         out.photos++;
         if (sfm::readExif(it->path().string()).has_gps) out.with_gps++;
+        if (sfm::readCameraAttitude(it->path().string()).valid) out.with_attitude++;
     }
 #else
     (void)path;

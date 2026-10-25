@@ -23,8 +23,10 @@ struct FusedAdamParams {
     float lr, decay, decay_offset, grad_scale;
     int32_t scalar_step;
     uint32_t has_steps, numel, stride, zero_grad, wgs_per_row;
+    uint32_t sb_first;
+    float sb_lr;
 };
-static_assert(sizeof(FusedAdamParams) == 5 * 8 + 10 * 4,
+static_assert(sizeof(FusedAdamParams) == 5 * 8 + 12 * 4,
               "params layout must match the slang struct");
 
 // Mirrors AdagradParams.
@@ -43,8 +45,10 @@ struct QAdamParams {
     float lr, decay, decay_offset, grad_scale, ct_eps_tr;
     int32_t scalar_step;
     uint32_t has_steps, numel, stride, zero_grad, num_blocks, wgs_per_row;
+    uint32_t sb_first;
+    float sb_lr;
 };
-static_assert(sizeof(QAdamParams) == 7 * 8 + 12 * 4,
+static_assert(sizeof(QAdamParams) == 7 * 8 + 14 * 4,
               "params layout must match the slang struct");
 
 // Mirrors QQAdamParams.
@@ -55,9 +59,10 @@ struct QQAdamParams {
     float lr, decay, decay_offset, grad_scale, ct_eps_tr;
     int32_t scalar_step;
     uint32_t has_steps, grad_quant, numel, stride, zero_grad, num_blocks,
-        wgs_per_row, _pad0;
+        wgs_per_row, sb_first;
+    float sb_lr;
 };
-static_assert(sizeof(QQAdamParams) == 10 * 8 + 14 * 4,
+static_assert(sizeof(QQAdamParams) == 10 * 8 + 15 * 4 + 4 /*pad*/,
               "params layout must match the slang struct");
 
 // Mirrors FloatAddParams.
@@ -95,6 +100,28 @@ int64_t optim_slice_cells(int64_t stride) {
     return n > 0 ? n : grain;
 }
 
+// The lobe fields of a per-cell optimizer's params, and the SH regularizer
+// rescaled to average over a row's SH cells only, as FPBO does; the lobes
+// take none. Returns the SH cells' decay.
+struct SbFields {
+    uint32_t first;
+    float lr;
+};
+
+SbFields sb_fields(const SbOptimCells& sb, int64_t num_splats, int64_t stride,
+                   float l2_reg, float* decay) {
+    *decay = 2.0f * l2_reg / (float)(num_splats * 3);  // per RGB coefficient, as fused_adam_step
+    if (sb.first_cell < 0)
+        return {0xffffffffu, 0.0f};
+    const int64_t lobe_cells = stride - sb.first_cell;
+    if (sb.first_cell > stride || lobe_cells % 6 != 0)
+        throw std::runtime_error(
+            "optimizer: spherical-beta cells " +
+            std::to_string(sb.first_cell) + ".." + std::to_string(stride) +
+            " are not whole lobes");
+    return {(uint32_t)sb.first_cell, sb.lr};
+}
+
 }  // namespace
 
 /* API definitions matching kernels/optim/Optimizer.cuh (engine-referenced subset) */
@@ -109,6 +136,7 @@ void fused_adam_step(
     int32_t step, DeviceVector<int32_t> per_splat_steps,
     float l2_reg,
     float l2_reg_offset,
+    SbOptimCells sb,
     float grad_scale, bool zero_grad
 ) {
     int64_t param_numel = param.numel();
@@ -118,6 +146,9 @@ void fused_adam_step(
     int64_t numel = num_splats * stride;
 
     FusedAdamParams p{};
+    const SbFields sbf = sb_fields(sb, num_splats, stride, l2_reg, &p.decay);
+    p.sb_first = sbf.first;
+    p.sb_lr = sbf.lr;
     p.param = (uint64_t)param.data_ptr();
     p.grad = (uint64_t)grad.data_ptr();
     p.exp_avg = (uint64_t)exp_avg.data_ptr();
@@ -125,7 +156,6 @@ void fused_adam_step(
     p.steps = vkk::or_fallback(per_splat_steps.data_ptr());
     p.has_steps = per_splat_steps.data_ptr() ? 1u : 0u;
     p.lr = lr;
-    p.decay = 2.0f * l2_reg / (float)numel;
     p.decay_offset = l2_reg_offset;
     p.grad_scale = grad_scale;
     p.scalar_step = step;
@@ -177,6 +207,7 @@ void fused_adam_step_quantized(
     float l2_reg_offset,
     int bits,
     ColorTrustState color_trust,
+    SbOptimCells sb,
     float grad_scale, bool zero_grad
 ) {
     int64_t param_numel = param.numel();
@@ -190,6 +221,9 @@ void fused_adam_step_quantized(
     int64_t numel = num_splats * stride;
 
     QAdamParams p{};
+    const SbFields sbf = sb_fields(sb, num_splats, stride, l2_reg, &p.decay);
+    p.sb_first = sbf.first;
+    p.sb_lr = sbf.lr;
     p.param = (uint64_t)param.data_ptr();
     p.grad = (uint64_t)grad.data_ptr();
     p.packed = (uint64_t)packed;
@@ -197,7 +231,6 @@ void fused_adam_step_quantized(
     p.steps = vkk::or_fallback(per_splat_steps.data_ptr());
     p.has_steps = per_splat_steps.data_ptr() ? 1u : 0u;
     p.lr = lr;
-    p.decay = 2.0f * l2_reg / (float)numel;
     p.decay_offset = l2_reg_offset;
     p.grad_scale = grad_scale;
     p.scalar_step = step;
@@ -253,6 +286,7 @@ void fused_adam_step_quantized_value(
     int optim_bits,
     int value_bits,
     ColorTrustState color_trust,
+    SbOptimCells sb,
     float grad_scale, bool zero_grad
 ) {
     if (param_numel == 0 || num_splats == 0)
@@ -268,6 +302,9 @@ void fused_adam_step_quantized_value(
     int64_t numel = num_splats * stride;
 
     QQAdamParams p{};
+    const SbFields sbf = sb_fields(sb, num_splats, stride, l2_reg, &p.decay);
+    p.sb_first = sbf.first;
+    p.sb_lr = sbf.lr;
     p.grad = vkk::or_fallback(grad.data_ptr());
     p.grad_q_packed = vkk::or_fallback(grad_q_packed);
     p.grad_q_bounds = vkk::or_fallback(grad_q_bounds);
@@ -279,7 +316,6 @@ void fused_adam_step_quantized_value(
     p.steps = vkk::or_fallback(per_splat_steps.data_ptr());
     p.has_steps = per_splat_steps.data_ptr() ? 1u : 0u;
     p.lr = lr;
-    p.decay = 2.0f * l2_reg / (float)numel;
     p.decay_offset = l2_reg_offset;
     p.grad_scale = grad_scale;
     p.scalar_step = step;
@@ -378,9 +414,10 @@ struct AdamTrRgbShParams {
     uint64_t param, grad, exp_avg, exp_avg_sq, rgbs, opacities;
     float lr, bias_correction1, bias_correction2, eps, eps_tr,
         sh_reg_weight, grad_scale;
-    uint32_t zero_grad, num_params, num_sh, wgs_per_row, _pad0;
+    uint32_t zero_grad, num_params, num_sh, wgs_per_row, sb_first;
+    float sb_lr;
 };
-static_assert(sizeof(AdamTrRgbShParams) == 6 * 8 + 12 * 4,
+static_assert(sizeof(AdamTrRgbShParams) == 6 * 8 + 13 * 4 + 4 /*pad*/,
               "params layout must match the slang struct");
 
 // Mirrors OptimGeoParams in shaders/optim_geometry.slang.
@@ -390,7 +427,7 @@ struct OptimGeoParams {
     uint64_t scales, v_scales, g1_scales, g2_scales;
     uint64_t opacities, v_opacities, g1_opacities, g2_opacities;
     uint64_t features_dc, v_features_dc;
-    uint64_t radii, densify_score, steps;
+    uint64_t radii, densify_score, steps, visit_counters;
     uint64_t gq_means_packed, gq_means_bounds, gq_quats_packed,
         gq_quats_bounds, gq_scales_packed, gq_scales_bounds, gq_opac_packed,
         gq_opac_bounds, gq_dc_packed, gq_dc_bounds;
@@ -405,10 +442,11 @@ struct OptimGeoParams {
         dc_reg_weight, sh_reg_weight, grad_scale, max_screen_size,
         max_screen_size_penalty, eps_tr;
     int32_t scalar_step;
-    uint32_t has_steps, has_densify_score, numel, wgs_per_row;
+    uint32_t has_steps, has_densify_score, numel, wgs_per_row, has_visit,
+        skip_unrendered_reg;
     uint32_t _pad0;
 };
-static_assert(sizeof(OptimGeoParams) == 41 * 8 + 24 * 4,
+static_assert(sizeof(OptimGeoParams) == 42 * 8 + 26 * 4,
               "params layout must match the slang struct");
 
 int64_t tv_numel(const TorchTensorView& tv) {
@@ -453,7 +491,7 @@ void launch_adamtr_rgb_sh(bool is_linear, TorchTensorView param,
                           TorchTensorView exp_avg_sq, TorchTensorView colors,
                           TorchTensorView opacities, float lr, float beta1,
                           float beta2, float eps, float eps_tr,
-                          float sh_reg_weight, int step,
+                          float sh_reg_weight, int step, SbOptimCells sb,
                           float grad_scale, bool zero_grad) {
     int64_t colors_numel = tv_numel(colors);
     int64_t num_gs = colors_numel / 3;
@@ -462,6 +500,10 @@ void launch_adamtr_rgb_sh(bool is_linear, TorchTensorView param,
     if (num_sh == 0) return;
     int64_t num_params = num_gs * num_sh * 3;
     AdamTrRgbShParams p{};
+    const SbFields sbf =
+        sb_fields(sb, num_gs, num_sh * 3, sh_reg_weight, &p.sh_reg_weight);
+    p.sb_first = sbf.first;
+    p.sb_lr = sbf.lr;
     p.param = std::get<0>(param);
     p.grad = std::get<0>(grad);
     p.exp_avg = std::get<0>(exp_avg);
@@ -473,7 +515,6 @@ void launch_adamtr_rgb_sh(bool is_linear, TorchTensorView param,
     p.bias_correction2 = 1.0f - std::pow(beta2, (float)step);
     p.eps = eps;
     p.eps_tr = eps_tr;
-    p.sh_reg_weight = 2.0f * sh_reg_weight / (float)num_params;
     p.grad_scale = grad_scale;
     p.zero_grad = zero_grad ? 1u : 0u;
     p.num_sh = (uint32_t)num_sh;
@@ -527,24 +568,24 @@ void fused_adamtr_linear_rgb_sh_optim(
     TorchTensorView param, TorchTensorView grad, TorchTensorView exp_avg,
     TorchTensorView exp_avg_sq, TorchTensorView colors,
     TorchTensorView opacities, float lr, float beta1, float beta2, float eps,
-    float eps_tr, float sh_reg_weight, int step, float grad_scale,
-    bool zero_grad
+    float eps_tr, float sh_reg_weight, int step, SbOptimCells sb,
+    float grad_scale, bool zero_grad
 ) {
     launch_adamtr_rgb_sh(true, param, grad, exp_avg, exp_avg_sq, colors,
                          opacities, lr, beta1, beta2, eps, eps_tr,
-                         sh_reg_weight, step, grad_scale, zero_grad);
+                         sh_reg_weight, step, sb, grad_scale, zero_grad);
 }
 
 void fused_adamtr_rgb_sh_optim(
     TorchTensorView param, TorchTensorView grad, TorchTensorView exp_avg,
     TorchTensorView exp_avg_sq, TorchTensorView colors,
     TorchTensorView opacities, float lr, float beta1, float beta2, float eps,
-    float eps_tr, float sh_reg_weight, int step, float grad_scale,
-    bool zero_grad
+    float eps_tr, float sh_reg_weight, int step, SbOptimCells sb,
+    float grad_scale, bool zero_grad
 ) {
     launch_adamtr_rgb_sh(false, param, grad, exp_avg, exp_avg_sq, colors,
                          opacities, lr, beta1, beta2, eps, eps_tr,
-                         sh_reg_weight, step, grad_scale, zero_grad);
+                         sh_reg_weight, step, sb, grad_scale, zero_grad);
 }
 
 void fused_optim_3dgs_geometry(
@@ -566,6 +607,7 @@ void fused_optim_3dgs_geometry(
     bool use_scale_agnostic_mean,
     ColorTrustState color_trust,
     NonShQuantState non_sh,
+    SplatVisitState visit,
     GradQuantBuffers gq,
     int32_t step, DeviceVector<int32_t> per_splat_steps,
     float grad_scale, bool zero_grad
@@ -594,6 +636,9 @@ void fused_optim_3dgs_geometry(
     p.radii = vkk::or_fallback(radii.data_ptr());
     p.densify_score = vkk::or_fallback(densify_score.data_ptr());
     p.steps = vkk::or_fallback(per_splat_steps.data_ptr());
+    p.visit_counters = vkk::or_fallback(visit.counters);
+    p.has_visit = visit.counters ? 1u : 0u;
+    p.skip_unrendered_reg = visit.skip_unrendered_reg ? 1u : 0u;
 
     uint32_t gq_mask = 0;
     p.gq_means_packed = vkk::or_fallback(gq.means_packed);

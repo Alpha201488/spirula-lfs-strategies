@@ -2,7 +2,10 @@
 
 #include "app/FrameMask.h"
 
-#include "core/ExrImage.h"
+#include "app/FrameLook.h"
+#include "core/CubicBezier.h"
+#include "core/ImageFile.h"
+#include "core/PolygonFill.h"
 
 #include "external/stb_image.h"
 #include "external/stb_image_write.h"
@@ -12,11 +15,13 @@
 #include <atomic>
 #include <cctype>
 #include <cmath>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <mutex>
+#include <tuple>
 #include <utility>
 
 namespace app {
@@ -46,6 +51,42 @@ bool parse_four(const std::string& s, float v[4]) {
     return trim(p).empty();
 }
 
+// Comma-separated floats, any count; false on junk, an empty list or a
+// trailing comma.
+bool parse_floats(const std::string& s, std::vector<float>& out) {
+    out.clear();
+    const char* p = s.c_str();
+    while (true) {
+        char* end = nullptr;
+        const float v = std::strtof(p, &end);
+        if (end == p) return false;
+        out.push_back(v);
+        p = end;
+        while (*p == ' ') p++;
+        if (*p != ',') break;
+        p++;
+        while (*p == ' ') p++;
+    }
+    return trim(p).empty();
+}
+
+// Appends exactly what vsnprintf would produce, at any length: measures the
+// needed size first, so no fixed buffer can truncate a huge float.
+void append_printf(std::string& out, const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    va_list probe;
+    va_copy(probe, args);
+    const int n = std::vsnprintf(nullptr, 0, fmt, probe);
+    va_end(probe);
+    if (n > 0) {
+        std::vector<char> buf((size_t)n + 1);
+        std::vsnprintf(buf.data(), buf.size(), fmt, args);
+        out.append(buf.data(), (size_t)n);
+    }
+    va_end(args);
+}
+
 // ---------------------------------------------------------------------------
 // Detection
 // ---------------------------------------------------------------------------
@@ -58,11 +99,11 @@ struct Gray {
 Gray load_gray(const std::string& path) {
     Gray g;
     int comp = 0;
-    if (exr::is_exr(path)) {
-        exr::Info info;
-        exr::Options opt;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        imagefile::Options opt;
         opt.channels = 1;
-        if (!exr::decode_srgb8(path, opt, info, g.px).empty()) return Gray{};
+        if (!imagefile::decode_srgb8(path, opt, info, g.px).empty()) return Gray{};
         g.w = info.width;
         g.h = info.height;
         return g;
@@ -71,6 +112,9 @@ Gray load_gray(const std::string& path) {
     if (!d) return Gray{};
     g.px.assign(d, d + (size_t)g.w * g.h);
     stbi_image_free(d);
+    // Displayed, not stored: a stencil's shapes were drawn on the picture the
+    // way up it is shown, and the border fit has to agree with them.
+    turn_pixels(photo_turn(path), 1, g.px, g.w, g.h);
     return g;
 }
 
@@ -121,51 +165,49 @@ float percentile(std::vector<float> v, float q) {
     return v[k];
 }
 
-struct Ellipse {
-    float cx = 0, cy = 0, rx = 0, ry = 0;
+// Pixels, so a circle stays one on a frame that is not square.
+struct Circle {
+    float cx = 0, cy = 0, r = 0;
 };
 
-// Least squares on A u^2 + B v^2 + C u + D v = 1, in normalized coordinates.
-// The sign of A and B is not constrained: the constant term of a circle
-// through the middle of the frame is positive, so normalizing it to -1 makes
-// both negative, and rejecting that rejects every well-centred fit.
-bool fit_ellipse(const std::vector<float>& xs, const std::vector<float>& ys,
-                 int w, int h, Ellipse& out) {
-    if (xs.size() < 8) return false;
-    double M[4][5] = {};
-    for (size_t i = 0; i < xs.size(); i++) {
-        const double u = xs[i] / w, v = ys[i] / h;
-        const double row[4] = {u * u, v * v, u, v};
-        for (int a = 0; a < 4; a++) {
-            for (int b = 0; b < 4; b++) M[a][b] += row[a] * row[b];
-            M[a][4] += row[a];
+// Least squares on x^2 + y^2 = a x + b y + c, about the points' mean.
+bool fit_circle(const std::vector<float>& xs, const std::vector<float>& ys,
+                const std::vector<size_t>& idx, Circle& out) {
+    if (idx.size() < 3) return false;
+    double mx = 0, my = 0;
+    for (size_t i : idx) { mx += xs[i]; my += ys[i]; }
+    mx /= (double)idx.size();
+    my /= (double)idx.size();
+    double M[3][4] = {};
+    for (size_t i : idx) {
+        const double u = xs[i] - mx, v = ys[i] - my;
+        const double row[3] = {u, v, 1.0};
+        for (int a = 0; a < 3; a++) {
+            for (int b = 0; b < 3; b++) M[a][b] += row[a] * row[b];
+            M[a][3] += row[a] * (u * u + v * v);
         }
     }
-    for (int c = 0; c < 4; c++) {
+    for (int c = 0; c < 3; c++) {
         int piv = c;
-        for (int r = c + 1; r < 4; r++)
+        for (int r = c + 1; r < 3; r++)
             if (std::fabs(M[r][c]) > std::fabs(M[piv][c])) piv = r;
-        if (std::fabs(M[piv][c]) < 1e-12) return false;
+        if (std::fabs(M[piv][c]) < 1e-9) return false;
         if (piv != c) std::swap(M[piv], M[c]);
-        for (int r = 0; r < 4; r++) {
+        for (int r = 0; r < 3; r++) {
             if (r == c) continue;
             const double f = M[r][c] / M[c][c];
-            for (int k = c; k < 5; k++) M[r][k] -= f * M[c][k];
+            for (int k = c; k < 4; k++) M[r][k] -= f * M[c][k];
         }
     }
-    const double A = M[0][4] / M[0][0], B = M[1][4] / M[1][1];
-    const double C = M[2][4] / M[2][2], D = M[3][4] / M[3][3];
-    if (A == 0 || B == 0) return false;
-    const double cx = -C / (2 * A), cy = -D / (2 * B);
-    const double k = 1 + A * cx * cx + B * cy * cy;
-    if (k / A <= 0 || k / B <= 0) return false;
-    out = {(float)cx, (float)cy, (float)std::sqrt(k / A), (float)std::sqrt(k / B)};
+    const double cu = 0.5 * M[0][3] / M[0][0], cv = 0.5 * M[1][3] / M[1][1];
+    const double r2 = M[2][3] / M[2][2] + cu * cu + cv * cv;
+    if (!(r2 > 0)) return false;
+    out = {(float)(mx + cu), (float)(my + cv), (float)std::sqrt(r2)};
     return true;
 }
 
-float radial_residual(const Ellipse& e, float x, float y, int w, int h) {
-    const float u = x / w, v = y / h;
-    return std::hypot((u - e.cx) / e.rx, (v - e.cy) / e.ry) - 1.0f;
+float radial_residual(const Circle& c, float x, float y) {
+    return std::hypot(x - c.cx, y - c.cy) / c.r - 1.0f;
 }
 
 // Where the valid region ends on each ray out of (cx, cy): the first radius
@@ -204,11 +246,208 @@ void ray_edges(const std::vector<uint8_t>& valid, int w, int h, float cx, float 
     }
 }
 
-// Ray-march, fit, drop the outliers, refit -- four times, re-centring on the
-// fit each round so a badly-placed starting centroid does not bias the edges
-// it finds. `rms` comes back over the surviving inliers.
-bool fit_valid_region(const std::vector<uint8_t>& valid, int w, int h, int nrays,
-                      Ellipse& out, float& rms) {
+// Consensus, not a trimmed least-squares fit: on OSV a sky leaves 60-70% of
+// the rays wrong, and a fit to all of them never finds the lens again. Black
+// (bx, by) scores too -- see `score` -- and `prior` bounds the centre.
+bool consensus_circle(const std::vector<float>& xs, const std::vector<float>& ys,
+                      const std::vector<float>& bx, const std::vector<float>& by,
+                      const float* prior, int w, int h, float tol, Circle& best,
+                      std::vector<size_t>& inliers) {
+    const size_t n = xs.size();
+    if (n < 8) return false;
+    const float rmin = 0.2f * (float)std::min(w, h);
+    const float rmax = std::hypot((float)w, (float)h);
+    // Where radial_centre and a fit to the rays both hold, they agree within
+    // 1.7% of the frame (OSV, Insta360, PortalCam); a fit to the half arc a
+    // sky leaves was 4.5% out.
+    const float reach = 0.025f * (float)std::max(w, h);
+    auto plausible = [&](const Circle& c) {
+        if (prior && std::hypot(c.cx - prior[0], c.cy - prior[1]) > reach) return false;
+        return c.r >= rmin && c.r <= rmax && c.cx >= 0 && c.cy >= 0 &&
+               c.cx <= (float)w && c.cy <= (float)h;
+    };
+    auto collect = [&](const Circle& c, std::vector<size_t>& out) {
+        out.clear();
+        for (size_t i = 0; i < n; i++)
+            if (std::fabs(radial_residual(c, xs[i], ys[i])) <= tol) out.push_back(i);
+    };
+    uint32_t state = 0x9E3779B9u;   // fixed, so a Look again gives the same answer
+    auto next = [&] {
+        state = state * 1664525u + 1013904223u;
+        return (size_t)(state >> 8) % n;
+    };
+    // Black begins on a second circle round the same centre, a rim's width
+    // out: its densest ring outside `c` counts for it, black inside against.
+    // It holds the centre where a lit rim on one side pulls the scene's edge.
+    std::vector<float> dist;
+    auto score = [&](const Circle& c, size_t on) {
+        long inside = 0;
+        dist.clear();
+        for (size_t i = 0; i < bx.size(); i++) {
+            const float d = std::hypot(bx[i] - c.cx, by[i] - c.cy);
+            if (d < c.r * (1.0f - tol)) inside++;
+            else dist.push_back(d);
+        }
+        std::sort(dist.begin(), dist.end());
+        size_t ring = 0;
+        for (size_t a = 0, b = 0; b < dist.size(); b++) {
+            while (dist[b] > dist[a] * (1.0f + 2.0f * tol)) a++;
+            ring = std::max(ring, b - a + 1);
+        }
+        return (long)on + (long)ring - 2 * inside;
+    };
+    std::vector<size_t> pick(3), cur;
+    size_t best_n = 0;
+    long best_s = 0;
+    for (int it = 0; it < 600; it++) {
+        pick[0] = next();
+        pick[1] = next();
+        pick[2] = next();
+        if (pick[0] == pick[1] || pick[1] == pick[2] || pick[0] == pick[2]) continue;
+        Circle c;
+        if (!fit_circle(xs, ys, pick, c) || !plausible(c)) continue;
+        collect(c, cur);
+        const long sc = score(c, cur.size());
+        if (cur.size() >= 8 && (best_n == 0 || sc > best_s)) {
+            best_s = sc;
+            best_n = cur.size();
+            best = c;
+            inliers = cur;
+        }
+    }
+    if (best_n < 8) return false;
+    for (int it = 0; it < 3; it++) {
+        Circle c;
+        if (!fit_circle(xs, ys, inliers, c) || !plausible(c)) break;
+        collect(c, cur);
+        if (cur.size() < 8) break;
+        best = c;
+        inliers.swap(cur);
+    }
+    return true;
+}
+
+// Where the edges of the frame-averaged picture point: the rim's are all that
+// survive averaging, and all radial, even under a sky. Reweighted (Cauchy) least
+// squares over the strongest 2%, so a selfie stick's edges fall away.
+bool radial_centre(const std::vector<float>& mean, int w, int h, float& cx, float& cy) {
+    std::vector<float> gx(mean.size(), 0.0f), gy(mean.size(), 0.0f), m(mean.size(), 0.0f);
+    for (int y = 1; y + 1 < h; y++)
+        for (int x = 1; x + 1 < w; x++) {
+            const size_t p = (size_t)y * w + x;
+            gx[p] = mean[p + 1] - mean[p - 1];
+            gy[p] = mean[p + w] - mean[p - w];
+            m[p] = std::hypot(gx[p], gy[p]);
+        }
+    const float thr = percentile(m, 0.98f);
+    if (!(thr > 0.0f)) return false;
+    struct Line { float x, y, tx, ty, w; };
+    std::vector<Line> lines;
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++) {
+            const size_t p = (size_t)y * w + x;
+            if (m[p] <= thr) continue;
+            lines.push_back({(float)x, (float)y, -gy[p] / m[p], gx[p] / m[p], m[p]});
+        }
+    if (lines.size() < 64) return false;
+    double c[2] = {0.5 * w, 0.5 * h};
+    double scale = 0.05 * w;
+    for (int it = 0; it < 10; it++) {
+        double A00 = 0, A01 = 0, A11 = 0, b0 = 0, b1 = 0;
+        for (const Line& l : lines) {
+            const double d = (l.tx * (c[0] - l.x) + l.ty * (c[1] - l.y)) / scale;
+            const double wt = l.w / (1.0 + d * d);
+            const double proj = l.tx * l.x + l.ty * l.y;
+            A00 += wt * l.tx * l.tx;
+            A01 += wt * l.tx * l.ty;
+            A11 += wt * l.ty * l.ty;
+            b0 += wt * l.tx * proj;
+            b1 += wt * l.ty * proj;
+        }
+        const double det = A00 * A11 - A01 * A01;
+        if (std::fabs(det) < 1e-9) return false;
+        c[0] = (A11 * b0 - A01 * b1) / det;
+        c[1] = (A00 * b1 - A01 * b0) / det;
+        scale = std::max(0.005 * w, scale * 0.7);
+    }
+    cx = (float)c[0];
+    cy = (float)c[1];
+    return cx >= 0 && cy >= 0 && cx <= (float)w && cy <= (float)h;
+}
+
+struct CircleFit {
+    Circle c;
+    float support = 0.0f;   // rays on the circle, fraction of all rays cast
+    float rms = 0.0f;       // over those, fraction of the radius
+};
+
+// Per ray, where the averaged picture steps down to the lens barrel -- on OSV a
+// darker band 5% of the radius wide before the black: the innermost drop within
+// 8% inside the deepest and 40% as deep. The deepest alone is often the band's end.
+void mean_edges(const std::vector<float>& mean, int w, int h, float cx, float cy,
+                float r0, int nrays, std::vector<float>& xs, std::vector<float>& ys) {
+    constexpr float kStep = 0.5f;
+    constexpr int kSigma = 4, kTaps = 3 * kSigma, kFan = 5;
+    float kernel[2 * kTaps + 1], ksum = 0;
+    for (int i = -kTaps; i <= kTaps; i++)
+        ksum += kernel[i + kTaps] = std::exp(-0.5f * (float)(i * i) / (kSigma * kSigma));
+    std::vector<float> v, sm, dv;
+    xs.clear();
+    ys.clear();
+    for (int k = 0; k < nrays; k++) {
+        const float th = 6.2831853f * (float)k / (float)nrays;
+        const float dx = std::cos(th), dy = std::sin(th);
+        const float r_lo = 0.85f * r0;
+        v.clear();
+        // Across the ray's own slot too: an edge that is a circle survives
+        // being averaged along itself, the scene's noise does not.
+        for (float r = r_lo; r < 1.08f * r0; r += kStep) {
+            float acc = 0;
+            int n = 0;
+            for (int f = 0; f < kFan; f++) {
+                const float a = th + 6.2831853f / (float)nrays * ((float)f / (kFan - 1) - 0.5f);
+                const int x = (int)std::lround(cx + std::cos(a) * r);
+                const int y = (int)std::lround(cy + std::sin(a) * r);
+                if (x < 0 || y < 0 || x >= w || y >= h) continue;
+                acc += mean[(size_t)y * w + x];
+                n++;
+            }
+            if (n < kFan) break;
+            v.push_back(acc / (float)n);
+        }
+        const int n = (int)v.size();
+        if (n < 20) continue;
+        sm.assign(n, 0.0f);
+        for (int i = 0; i < n; i++) {
+            float acc = 0;
+            for (int t = -kTaps; t <= kTaps; t++)
+                acc += kernel[t + kTaps] * v[std::clamp(i + t, 0, n - 1)];
+            sm[i] = acc / ksum;
+        }
+        dv.assign(n, 0.0f);
+        for (int i = 1; i + 1 < n; i++) dv[i] = 0.5f * (sm[i + 1] - sm[i - 1]);
+        int deepest = 3;
+        for (int i = 3; i < n - 3; i++)
+            if (dv[i] < dv[deepest]) deepest = i;
+        if (dv[deepest] > -1.0f) continue;   // luma per half pixel
+        int edge = deepest;
+        const int band = (int)(0.08f * r0 / kStep);
+        for (int i = std::max(3, deepest - band); i < deepest; i++)
+            if (dv[i] <= 0.4f * dv[deepest] && dv[i] <= dv[i - 1] && dv[i] <= dv[i + 1]) {
+                edge = i;
+                break;
+            }
+        const float r = r_lo + kStep * (float)edge;
+        xs.push_back(cx + dx * r);
+        ys.push_back(cy + dy * r);
+    }
+}
+
+// Edges and a fit, three times, re-centring each round. With `mean` the edges
+// are its steps (mean_edges); without, where `valid` ends.
+bool fit_valid_region(const std::vector<uint8_t>& valid, const std::vector<uint8_t>* lit,
+                      const std::vector<float>* mean, const float* prior,
+                      int w, int h, int nrays, float tol, CircleFit& out) {
     size_t n_valid = 0;
     double sx = 0, sy = 0;
     for (int y = 0; y < h; y++)
@@ -216,62 +455,77 @@ bool fit_valid_region(const std::vector<uint8_t>& valid, int w, int h, int nrays
             if (valid[(size_t)y * w + x]) { n_valid++; sx += x; sy += y; }
     if (n_valid < (size_t)w * h / 20) return false;
     float cx = (float)(sx / (double)n_valid), cy = (float)(sy / (double)n_valid);
-
-    std::vector<float> xs, ys, res, a, kx, ky;
-    for (int it = 0; it < 4; it++) {
-        ray_edges(valid, w, h, cx, cy, nrays, xs, ys);
-        if (xs.size() < (size_t)nrays / 4) return false;
-        Ellipse e;
-        if (!fit_ellipse(xs, ys, w, h, e)) return false;
-
-        // To a fixed point, not once: a ray stopping on a still region inside
-        // the circle lands 20% short, and one round takes its tolerance from a
-        // fit those rays are in -- MAD 0.14 on the OSV captures, keeping them all.
-        for (int trim = 0; trim < 6; trim++) {
-            res.resize(xs.size());
-            for (size_t i = 0; i < xs.size(); i++)
-                res[i] = radial_residual(e, xs[i], ys[i], w, h);
-            a.resize(res.size());
-            const float med = percentile(res, 0.5f);
-            for (size_t i = 0; i < res.size(); i++) a[i] = std::fabs(res[i] - med);
-            const float tol = std::max(3.0f * 1.4826f * percentile(a, 0.5f), 0.004f);
-            kx.clear();
-            ky.clear();
-            for (size_t i = 0; i < xs.size(); i++)
-                if (std::fabs(res[i]) <= tol) { kx.push_back(xs[i]); ky.push_back(ys[i]); }
-            if (kx.size() < (size_t)nrays * 2 / 5) break;
-            Ellipse e2;
-            if (!fit_ellipse(kx, ky, w, h, e2)) break;
-            const bool converged = kx.size() == xs.size();
-            e = e2;
-            xs.swap(kx);
-            ys.swap(ky);
-            if (converged) break;
-        }
-        res.resize(xs.size());
-        for (size_t i = 0; i < xs.size(); i++)
-            res[i] = radial_residual(e, xs[i], ys[i], w, h);
-        out = e;
-        cx = e.cx * w;
-        cy = e.cy * h;
+    if (prior) {
+        cx = prior[0];
+        cy = prior[1];
     }
-    if (res.empty()) return false;
-    double s = 0;
-    for (float r : res) s += (double)r * r;
-    rms = (float)std::sqrt(s / (double)res.size());
-    return true;
+
+    std::vector<float> xs, ys, bx, by;
+    std::vector<size_t> inl;
+    // Where to look for the steps: round the median ray's end, black's if
+    // there is any. Fixed, not following the fit -- one round that settles
+    // on a ring inside the scene would otherwise walk the window in after it.
+    float r0 = 0.5f * (float)std::min(w, h);
+    if (mean) {
+        const std::vector<uint8_t>& ends = lit ? *lit : valid;
+        ray_edges(ends, w, h, cx, cy, nrays, bx, by);
+        if (bx.size() < (size_t)nrays / 8 && lit)
+            ray_edges(valid, w, h, cx, cy, nrays, bx, by);
+        if (bx.size() >= (size_t)nrays / 8) {
+            std::vector<float> d(bx.size());
+            for (size_t i = 0; i < bx.size(); i++) d[i] = std::hypot(bx[i] - cx, by[i] - cy);
+            r0 = percentile(d, 0.5f);
+        }
+    }
+    bool ok = false;
+    for (int it = 0; it < 3; it++) {
+        if (mean)
+            mean_edges(*mean, w, h, cx, cy, r0, nrays, xs, ys);
+        else
+            ray_edges(valid, w, h, cx, cy, nrays, xs, ys);
+        if (xs.size() < (size_t)nrays / 4) break;
+        if (lit) ray_edges(*lit, w, h, cx, cy, nrays, bx, by);
+        Circle c;
+        if (!consensus_circle(xs, ys, bx, by, prior, w, h, tol, c, inl)) break;
+        double s = 0;
+        for (size_t i : inl) {
+            const double r = radial_residual(c, xs[i], ys[i]);
+            s += r * r;
+        }
+        out.c = c;
+        out.support = (float)inl.size() / (float)nrays;
+        out.rms = (float)std::sqrt(s / (double)inl.size());
+        ok = true;
+        cx = c.cx;
+        cy = c.cy;
+    }
+    return ok;
 }
 
-MaskShape to_shape(const Ellipse& e, float shrink) {
-    const float k = 1.0f - std::clamp(shrink, -0.5f, 0.9f);
+// How much of the frame past 1.1 r is valid: little for a lens, most of it
+// for a circle a pinhole frame happened to support. A lit barrel is inside 1.1 r.
+float valid_outside(const std::vector<uint8_t>& valid, int w, int h, const Circle& c) {
+    size_t out = 0, hit = 0;
+    const float r2 = 1.21f * c.r * c.r;
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++) {
+            const float dx = (float)x + 0.5f - c.cx, dy = (float)y + 0.5f - c.cy;
+            if (dx * dx + dy * dy <= r2) continue;
+            out++;
+            hit += valid[(size_t)y * w + x];
+        }
+    return out ? (float)hit / (float)out : 0.0f;
+}
+
+MaskShape to_shape(const Circle& c, float shrink, int w, int h) {
     MaskShape s;
     s.kind = MaskShape::Kind::Ellipse;
     s.remove = false;
-    s.cx = e.cx;
-    s.cy = e.cy;
-    s.rx = e.rx * k;
-    s.ry = e.ry * k;
-    return s;
+    s.cx = (c.cx + 0.5f) / (float)w;
+    s.cy = (c.cy + 0.5f) / (float)h;
+    s.rx = c.r / (float)w;
+    s.ry = c.r / (float)h;
+    return shrink_border(s, shrink);
 }
 
 float kept_fraction(const MaskShape& s, int w, int h) {
@@ -285,7 +539,91 @@ float kept_fraction(const MaskShape& s, int w, int h) {
     return (float)keep / (float)std::max<size_t>(px.size(), 1);
 }
 
+// A round-capped polyline as the union of capsules, measured in units of the
+// stroke's half-width on each axis: the brush becomes a unit circle.
+void fill_stroke(const MaskShape& s, int W, int H, uint8_t* out) {
+    const size_t n = s.pts.size() / 2;
+    if (n == 0 || !(s.rx > 0.0f) || !(s.ry > 0.0f)) return;
+    const float rx = s.rx * (float)W, ry = s.ry * (float)H;
+    const float kx = 1.0f / rx, ky = 1.0f / ry;
+    for (size_t i = 0; i < n; i++) {
+        const size_t j = i + 1 < n ? i + 1 : i;
+        const float ax = s.pts[2 * i] * (float)W, ay = s.pts[2 * i + 1] * (float)H;
+        const float bx = s.pts[2 * j] * (float)W, by = s.pts[2 * j + 1] * (float)H;
+        const int x0 = std::max(0, (int)std::floor(std::min(ax, bx) - rx));
+        const int x1 = std::min(W - 1, (int)std::ceil(std::max(ax, bx) + rx));
+        const int y0 = std::max(0, (int)std::floor(std::min(ay, by) - ry));
+        const int y1 = std::min(H - 1, (int)std::ceil(std::max(ay, by) + ry));
+        const float dx = (bx - ax) * kx, dy = (by - ay) * ky;
+        const float len2 = dx * dx + dy * dy;
+        for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++) {
+                const float qx = ((float)x + 0.5f - ax) * kx, qy = ((float)y + 0.5f - ay) * ky;
+                const float t = len2 > 0.0f ? std::clamp((qx * dx + qy * dy) / len2, 0.0f, 1.0f)
+                                            : 0.0f;
+                const float ex = qx - t * dx, ey = qy - t * dy;
+                if (ex * ex + ey * ey <= 1.0f) out[(size_t)y * W + x] = 1;
+            }
+    }
+}
+
 }  // namespace
+
+MaskShape shrink_border(MaskShape shape, float shrink) {
+    const float scale = 1.0f - std::clamp(shrink, -0.5f, 0.9f);
+    shape.rx *= scale;
+    shape.ry *= scale;
+    return shape;
+}
+
+bool edit_detected_border(CameraStencil& stencil, const BorderDetect& border) {
+    if (!stencil.detect_border || !border.found) return false;
+    stencil.mask.shapes.insert(stencil.mask.shapes.begin(),
+                              shrink_border(border.shape, stencil.shrink));
+    stencil.detect_border = false;
+    return true;
+}
+
+bool MaskSet::empty() const {
+    for (const auto& [camera, list] : cameras)
+        if (!list.empty()) return false;
+    return shapes.empty();
+}
+
+MaskSet mask_set_of(const FrameStencil& stencil) {
+    MaskSet out;
+    if (!stencil.per_camera()) {
+        out.shapes = stencil.mask.shapes;
+        return out;
+    }
+    // The input's own list is only a fallback here: every camera the panel
+    // knew was given an entry when separate areas were turned on.
+    const std::string first = format_mask_shapes(stencil.cameras.begin()->second.mask.shapes);
+    bool same = true;
+    for (const auto& [camera, cs] : stencil.cameras)
+        same = same && format_mask_shapes(cs.mask.shapes) == first;
+    if (same) {
+        out.shapes = stencil.cameras.begin()->second.mask.shapes;
+        return out;
+    }
+    for (const auto& [camera, cs] : stencil.cameras) out.cameras[camera] = cs.mask.shapes;
+    return out;
+}
+
+void apply_mask_set(FrameStencil& stencil, const MaskSet& set) {
+    auto put = [](CameraStencil& cs, const std::vector<MaskShape>& list) {
+        cs.mask.shapes = list;
+        if (!list.empty() && !list.front().remove) cs.detect_border = false;
+    };
+    put(stencil, set.shapes);
+    for (auto& [camera, cs] : stencil.cameras) put(cs, set.shapes);
+    for (const auto& [camera, list] : set.cameras) {
+        auto it = stencil.cameras.find(camera);
+        if (it == stencil.cameras.end())
+            it = stencil.cameras.emplace(camera, static_cast<const CameraStencil&>(stencil)).first;
+        put(it->second, list);
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Shapes
@@ -315,8 +653,42 @@ bool parse_mask_shapes(const std::string& spec, std::vector<MaskShape>& out,
             return false;
         }
         const std::string kind = piece.substr(0, sp);
+        const std::string nums = trim(piece.substr(sp + 1));
+        if (kind == "path") {
+            s.kind = MaskShape::Kind::Path;
+            if (!parse_floats(nums, s.pts) || s.pts.size() < 6 || s.pts.size() % 2) {
+                error = piece;
+                return false;
+            }
+            out.push_back(s);
+            continue;
+        }
+        if (kind == "bezier") {
+            s.kind = MaskShape::Kind::Bezier;
+            if (!parse_floats(nums, s.pts) ||
+                s.pts.size() < 2 * bezier::kAnchorFloats ||
+                s.pts.size() % bezier::kAnchorFloats) {
+                error = piece;
+                return false;
+            }
+            out.push_back(s);
+            continue;
+        }
+        if (kind == "stroke") {
+            s.kind = MaskShape::Kind::Stroke;
+            if (!parse_floats(nums, s.pts) || s.pts.size() < 4 || s.pts.size() % 2 ||
+                !(s.pts[0] > 0.0f) || !(s.pts[1] > 0.0f)) {
+                error = piece;
+                return false;
+            }
+            s.rx = s.pts[0];
+            s.ry = s.pts[1];
+            s.pts.erase(s.pts.begin(), s.pts.begin() + 2);
+            out.push_back(s);
+            continue;
+        }
         float v[4];
-        if (!parse_four(trim(piece.substr(sp + 1)), v)) {
+        if (!parse_four(nums, v)) {
             error = piece;
             return false;
         }
@@ -339,23 +711,38 @@ bool parse_mask_shapes(const std::string& spec, std::vector<MaskShape>& out,
 
 std::string format_mask_shapes(const std::vector<MaskShape>& shapes) {
     std::string out;
+    char buf[96];
     for (const MaskShape& s : shapes) {
-        char buf[128];
-        std::snprintf(buf, sizeof buf, "%s%s %.4f,%.4f,%.4f,%.4f",
-                      s.remove ? "-" : "",
-                      s.kind == MaskShape::Kind::Rect ? "rect" : "ellipse",
-                      s.cx, s.cy, s.rx, s.ry);
+        std::string piece = s.remove ? "-" : "";
+        if (s.kind == MaskShape::Kind::Bezier) {
+            // A handle is dragged by a fraction of a pixel; four places lose that at 8K.
+            piece += "bezier ";
+            for (size_t i = 0; i < s.pts.size(); i++)
+                append_printf(piece, "%s%.5f", i ? "," : "", s.pts[i]);
+        } else if (s.kind == MaskShape::Kind::Path || s.kind == MaskShape::Kind::Stroke) {
+            const bool stroke = s.kind == MaskShape::Kind::Stroke;
+            piece += stroke ? "stroke " : "path ";
+            if (stroke) append_printf(piece, "%.5f,%.5f", s.rx, s.ry);
+            for (size_t i = 0; i < s.pts.size(); i++) {
+                std::snprintf(buf, sizeof buf, "%s%.4f", i || stroke ? "," : "", s.pts[i]);
+                piece += buf;
+            }
+        } else {
+            append_printf(piece, "%s %.4f,%.4f,%.4f,%.4f",
+                          s.kind == MaskShape::Kind::Rect ? "rect" : "ellipse",
+                          s.cx, s.cy, s.rx, s.ry);
+        }
         if (!out.empty()) out += "; ";
-        out += buf;
+        out += piece;
     }
     return out;
 }
 
 bool image_size(const std::string& path, int& width, int& height) {
     int comp = 0;
-    if (exr::is_exr(path)) {
-        exr::Info info;
-        if (!exr::probe(path, info).empty()) return false;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        if (!imagefile::probe(path, info).empty()) return false;
         width = info.width;
         height = info.height;
         return true;
@@ -366,9 +753,10 @@ bool image_size(const std::string& path, int& width, int& height) {
 bool load_rgb(const std::string& path, int& width, int& height,
               std::vector<uint8_t>& out) {
     int comp = 0;
-    if (exr::is_exr(path)) {
-        exr::Info info;
-        if (!exr::decode_srgb8(path, exr::Options(), info, out).empty()) return false;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        if (!imagefile::decode_srgb8(path, imagefile::Options(), info, out).empty())
+            return false;
         width = info.width;
         height = info.height;
         return true;
@@ -399,6 +787,35 @@ bool rasterize_frame_mask(const FrameMask& m, int width, int height,
     }
     const bool base = m.shapes.empty() || m.shapes.front().remove;
 
+    // A path, curve or stroke is filled once into its own plane; the pixel
+    // loop then reads it like any other inside test, so the ordering rule is
+    // untouched.
+    std::vector<std::vector<uint8_t>> paths(m.shapes.size());
+    std::vector<float> px;
+    for (size_t k = 0; k < m.shapes.size(); k++) {
+        const MaskShape& s = m.shapes[k];
+        if (s.kind == MaskShape::Kind::Stroke) {
+            paths[k].assign((size_t)width * height, 0);
+            fill_stroke(s, width, height, paths[k].data());
+            continue;
+        }
+        if (s.kind == MaskShape::Kind::Bezier) {
+            paths[k].assign((size_t)width * height, 0);
+            bezier::flatten_closed(s.pts.data(), s.pts.size() / bezier::kAnchorFloats,
+                                   (float)width, (float)height, 0.05f, px);
+        } else if (s.kind == MaskShape::Kind::Path) {
+            paths[k].assign((size_t)width * height, 0);
+            px.resize(s.pts.size());
+            for (size_t i = 0; i + 1 < s.pts.size(); i += 2) {
+                px[i] = s.pts[i] * (float)width;
+                px[i + 1] = s.pts[i + 1] * (float)height;
+            }
+        } else {
+            continue;
+        }
+        polyfill::fill_even_odd(px.data(), px.size() / 2, width, height, paths[k].data(), 1);
+    }
+
     out.assign((size_t)width * height, 255);
     for (int y = 0; y < height; y++) {
         const float v = ((float)y + 0.5f) / (float)height;
@@ -406,9 +823,12 @@ bool rasterize_frame_mask(const FrameMask& m, int width, int height,
         for (int x = 0; x < width; x++) {
             const float u = ((float)x + 0.5f) / (float)width;
             bool keep = base;
-            for (const MaskShape& s : m.shapes) {
+            for (size_t k = 0; k < m.shapes.size(); k++) {
+                const MaskShape& s = m.shapes[k];
                 bool inside;
-                if (s.kind == MaskShape::Kind::Ellipse) {
+                if (!paths[k].empty()) {
+                    inside = paths[k][(size_t)y * width + x] != 0;
+                } else if (s.kind == MaskShape::Kind::Ellipse) {
                     if (s.rx <= 0.0f || s.ry <= 0.0f) continue;
                     const float du = (u - s.cx) / s.rx, dv = (v - s.cy) / s.ry;
                     inside = du * du + dv * dv <= 1.0f;
@@ -444,11 +864,18 @@ bool rasterize_frame_mask(const FrameMask& m, int width, int height,
 // Border detection
 // ---------------------------------------------------------------------------
 
+// Frames are box-averaged down to this before anything is fitted: at full
+// resolution sensor noise speckles the black past `dark`.
+constexpr int kFitSize = 1024;
+
 struct BorderAccumulator::Impl {
     int w = 0, h = 0, n = 0;
+    int f = 1, sw = 0, sh = 0;   // box factor and the size the fit sees
     std::vector<uint8_t> maxluma;
     std::vector<float> gsum, gsum2;
+    std::vector<float> lsum;
     std::vector<float> g;
+    std::vector<uint32_t> box;
     Gray gray;
 };
 
@@ -462,26 +889,37 @@ void BorderAccumulator::add(const uint8_t* px, int width, int height, int channe
     if (s.w == 0) {
         s.w = width;
         s.h = height;
-        s.maxluma.assign((size_t)width * height, 0);
+        s.f = std::max(1, (std::max(width, height) + kFitSize - 1) / kFitSize);
+        s.sw = std::max(1, width / s.f);
+        s.sh = std::max(1, height / s.f);
+        s.maxluma.assign((size_t)s.sw * s.sh, 0);
         s.gsum.assign(s.maxluma.size(), 0.0f);
         s.gsum2.assign(s.maxluma.size(), 0.0f);
+        s.lsum.assign(s.maxluma.size(), 0.0f);
     } else if (width != s.w || height != s.h) {
         return;   // a camera is one frame size; anything else is not ours
     }
-    s.gray.w = width;
-    s.gray.h = height;
-    s.gray.px.resize(s.maxluma.size());
-    if (channels == 1) {
-        std::memcpy(s.gray.px.data(), px, s.gray.px.size());
-    } else {
-        for (size_t i = 0; i < s.gray.px.size(); i++) {
-            const uint8_t* p = px + i * (size_t)channels;
-            s.gray.px[i] = (uint8_t)((77 * p[0] + 150 * p[1] + 29 * p[2]) >> 8);
+    s.box.assign(s.maxluma.size(), 0);
+    const int f = s.f;
+    for (int y = 0; y < s.sh * f; y++) {
+        const uint8_t* row = px + (size_t)y * width * channels;
+        uint32_t* out = &s.box[(size_t)(y / f) * s.sw];
+        for (int x = 0; x < s.sw * f; x++) {
+            const uint8_t* p = row + (size_t)x * channels;
+            out[x / f] += channels == 1 ? 256u * p[0]
+                                        : 77u * p[0] + 150u * p[1] + 29u * p[2];
         }
     }
+    s.gray.w = s.sw;
+    s.gray.h = s.sh;
+    s.gray.px.resize(s.maxluma.size());
+    const uint32_t div = 256u * (uint32_t)(f * f);
+    for (size_t i = 0; i < s.gray.px.size(); i++)
+        s.gray.px[i] = (uint8_t)(s.box[i] / div);
     gradient_magnitude(s.gray, s.g);
     for (size_t p = 0; p < s.gray.px.size(); p++) {
         s.maxluma[p] = std::max(s.maxluma[p], s.gray.px[p]);
+        s.lsum[p] += (float)s.gray.px[p];
         s.gsum[p] += s.g[p];
         s.gsum2[p] += s.g[p] * s.g[p];
     }
@@ -493,9 +931,9 @@ BorderDetect BorderAccumulator::finish(const BorderDetectOptions& o) const {
     BorderDetect d;
     d.frames = s.n;
     if (s.n < 2) return d;
-    const int w = s.w, h = s.h;
-    d.width = w;
-    d.height = h;
+    const int w = s.sw, h = s.sh;
+    d.width = s.w;
+    d.height = s.h;
 
     const size_t n_px = s.maxluma.size();
     std::vector<uint8_t> dark(n_px);
@@ -506,25 +944,9 @@ BorderDetect BorderAccumulator::finish(const BorderDetectOptions& o) const {
     }
     d.dark_fraction = (float)n_dark / (float)n_px;
 
-    auto accept = [&](const std::vector<uint8_t>& valid, BorderCue cue) {
-        Ellipse e;
-        float rms = 0.0f;
-        if (!fit_valid_region(valid, w, h, std::max(o.rays, 32), e, rms)) return false;
-        if (rms > o.max_residual) return false;
-        const MaskShape shape = to_shape(e, o.shrink);
-        const float kept = kept_fraction(shape, w, h);
-        if (kept > 0.99f) return false;   // nothing worth masking
-        d.found = true;
-        d.shape = shape;
-        d.cue = cue;
-        d.residual = rms;
-        d.kept_fraction = kept;
-        return true;
-    };
-
     // Where the frame never resolves anything, blurred so that a flat wall does
-    // not read as border. It leads: black finds only where the light stops, and
-    // a flare ring costs 6% of the radius on PortalCam, 9% on OSV.
+    // not read as border. It decides whether there is a lens at all; the edge
+    // itself comes off the averaged picture, `mean`.
     std::vector<float> act(n_px);
     for (size_t p = 0; p < n_px; p++) {
         const float mean = s.gsum[p] / (float)s.n;
@@ -532,20 +954,47 @@ BorderDetect BorderAccumulator::finish(const BorderDetectOptions& o) const {
     }
     box_blur(act, w, h, std::max(4, w / 48));
     const float thr = 0.25f * percentile(act, 0.75f);
-    std::vector<uint8_t> valid(n_px);
+    std::vector<uint8_t> valid(n_px), lit(n_px);
     size_t n_still = 0;
     for (size_t p = 0; p < n_px; p++) {
         valid[p] = (act[p] <= thr || dark[p]) ? 0 : 1;
         n_still += valid[p] ? 0 : 1;
+        lit[p] = dark[p] ? 0 : 1;
     }
-    if ((float)n_still / (float)n_px >= 0.02f && accept(valid, BorderCue::Activity))
-        return d;
+    act = {};
+    std::vector<float> mean(n_px);
+    for (size_t p = 0; p < n_px; p++) mean[p] = s.lsum[p] / (float)s.n;
 
-    // Too still a capture for that, or what it saw is not an ellipse.
-    if (d.dark_fraction >= 0.02f) {
-        for (size_t p = 0; p < n_px; p++) valid[p] = dark[p] ? 0 : 1;
-        accept(valid, BorderCue::Dark);
+    auto fit = [&](const std::vector<uint8_t>& region, const std::vector<uint8_t>* bound,
+                   const std::vector<float>* steps, const float* prior, CircleFit& f) {
+        if (!fit_valid_region(region, bound, steps, prior, w, h, std::max(o.rays, 32),
+                              o.tolerance, f))
+            return false;
+        return f.support >= o.min_support &&
+               valid_outside(region, w, h, f.c) <= o.max_outside;
+    };
+
+    float centre[2];
+    const bool centred = radial_centre(mean, w, h, centre[0], centre[1]);
+    CircleFit f;
+    d.cue = BorderCue::Activity;
+    bool found = (float)n_still / (float)n_px >= 0.02f &&
+                 fit(valid, &lit, &mean, centred ? centre : nullptr, f);
+    // Too still a capture for that, or what it saw is not a circle.
+    if (!found && d.dark_fraction >= 0.02f) {
+        d.cue = BorderCue::Dark;
+        found = fit(lit, nullptr, nullptr, nullptr, f);
     }
+    const MaskShape shape = to_shape(f.c, o.shrink, w, h);
+    const float kept = found ? kept_fraction(shape, w, h) : 1.0f;
+    if (kept > 0.99f) {   // nothing worth masking
+        d.cue = BorderCue::None;
+        return d;
+    }
+    d.found = true;
+    d.shape = shape;
+    d.residual = f.rms;
+    d.kept_fraction = kept;
     return d;
 }
 
@@ -598,6 +1047,16 @@ void intersect_with_file(std::vector<uint8_t>& px, int w, int h,
     }
 }
 
+// The mask already at `path` reads as these pixels. Rewriting it anyway would
+// only move its modification time, which is what `spirula sfm` checks feature
+// files against.
+bool mask_file_holds(const std::string& path, const std::vector<uint8_t>& px,
+                     int w, int h) {
+    int mw = 0, mh = 0;
+    std::vector<uint8_t> m;
+    return load_stencil(path, mw, mh, m) && mw == w && mh == h && m == px;
+}
+
 }  // namespace
 
 std::map<std::string, std::vector<std::string>> group_frames_by_camera(
@@ -645,11 +1104,12 @@ int64_t apply_frame_stencil(const FrameStencilRun& run,
         if (sinks.cancel && sinks.cancel->load()) return written;
         if (sinks.camera) sinks.camera(rel, (int64_t)files.size());
 
-        FrameMask fm = run.stencil.mask;
+        const CameraStencil& stencil = run.stencil.for_camera(rel);
+        FrameMask fm = stencil.mask;
         BorderDetect border;
-        if (run.stencil.detect_border) {
+        if (stencil.detect_border) {
             BorderDetectOptions o = run.detect;
-            o.shrink = run.stencil.shrink;
+            o.shrink = stencil.shrink;
             border = detect_fisheye_border(files, o);
             // First, so the shapes drawn on top are applied to it in order.
             if (border.found) fm.shapes.insert(fm.shapes.begin(), border.shape);
@@ -664,21 +1124,29 @@ int64_t apply_frame_stencil(const FrameStencilRun& run,
         }
 
         // Every frame of one camera gets the same stencil, so it is rasterized
-        // once per distinct frame size.
+        // once per distinct frame size -- and per distinct turn, the shapes
+        // being drawn in the displayed frame and written in the stored one.
         struct Sized {
             std::vector<uint8_t> px;
             std::string first;
         };
-        std::map<std::pair<int, int>, Sized> cache;
-        struct Item { std::string dst, src; int w, h; };
+        std::map<std::tuple<int, int, int>, Sized> cache;
+        struct Item { std::string dst, src; int w, h; int key_turn; };
         std::vector<Item> items;
         items.reserve(files.size());
         for (const std::string& f : files) {
             if (sinks.cancel && sinks.cancel->load()) return written;
             int w = 0, h = 0;
             if (!image_size(f, w, h)) continue;
-            Sized& s = cache[{w, h}];
-            if (s.px.empty() && !rasterize_frame_mask(fm, w, h, s.px, error)) return -1;
+            const sfm::ExifTransform t = photo_turn(f);
+            const int key_turn = t.turns_cw | (t.mirror ? 4 : 0);
+            Sized& s = cache[{w, h, key_turn}];
+            if (s.px.empty()) {
+                int dw = w, dh = h;
+                spirula::oriented_size(t.turns_cw, dw, dh);
+                if (!rasterize_frame_mask(fm, dw, dh, s.px, error)) return -1;
+                turn_pixels(inverse_turn(t), 1, s.px, dw, dh);
+            }
             const std::string name = fs::path(f).stem().string() + ".png";
             const fs::path dst = mask_root / rel / name;
             fs::create_directories(dst.parent_path(), ec);
@@ -686,7 +1154,7 @@ int64_t apply_frame_stencil(const FrameStencilRun& run,
             const bool have_src = (merge_root.empty() ? !run.replace : true) &&
                                   fs::exists(src, ec);
             items.push_back({dst.string(), have_src ? src.string() : std::string(),
-                             w, h});
+                             w, h, key_turn});
         }
 
         // A frame with a mask to fold in cannot share the stencil image: it
@@ -704,8 +1172,15 @@ int64_t apply_frame_stencil(const FrameStencilRun& run,
                 if (failed.load() ||
                     (sinks.cancel && sinks.cancel->load())) return;
                 const Item& it = items[merges[(size_t)k]];
-                std::vector<uint8_t> px = cache.at({it.w, it.h}).px;
+                std::vector<uint8_t> px = cache.at({it.w, it.h, it.key_turn}).px;
                 intersect_with_file(px, it.w, it.h, it.src, run.flip_merge);
+                if (mask_file_holds(it.dst, px, it.w, it.h)) {
+                    if (sinks.progress) {
+                        std::lock_guard<std::mutex> lk(sink_mu);
+                        sinks.progress(seen + (++done), total);
+                    }
+                    continue;
+                }
                 // Masks gathered next to the images are HARD LINKS to the ones
                 // the photos came with; writing over one would edit the user's
                 // file. Unlink first, so this only ever adds a file.
@@ -737,7 +1212,7 @@ int64_t apply_frame_stencil(const FrameStencilRun& run,
             if (!it.src.empty()) continue;
             if (sinks.cancel && sinks.cancel->load()) return written;
             if (sinks.progress) sinks.progress(++seen, total);
-            Sized& s = cache.at({it.w, it.h});
+            Sized& s = cache.at({it.w, it.h, it.key_turn});
             fs::remove(it.dst, ec);
             if (!s.first.empty()) {
                 fs::copy_file(s.first, it.dst, fs::copy_options::overwrite_existing, ec);
@@ -752,6 +1227,47 @@ int64_t apply_frame_stencil(const FrameStencilRun& run,
         }
     }
     return written;
+}
+
+int64_t intersect_mask_trees(const std::string& image_dir, const std::string& a,
+                             bool flip_a, const std::string& b,
+                             const std::string& out, const std::atomic<bool>* cancel,
+                             std::string& error) {
+    struct Item { std::string dst, a, b; int w = 0, h = 0; };
+    std::vector<Item> items;
+    std::error_code ec;
+    for (const auto& [rel, files] : group_frames_by_camera(image_dir)) {
+        for (const std::string& f : files) {
+            const fs::path name = fs::path(rel) / (fs::path(f).stem().string() + ".png");
+            Item it;
+            if (!a.empty() && fs::exists(fs::path(a) / name, ec))
+                it.a = (fs::path(a) / name).string();
+            if (!b.empty() && fs::exists(fs::path(b) / name, ec))
+                it.b = (fs::path(b) / name).string();
+            if ((it.a.empty() && it.b.empty()) || !image_size(f, it.w, it.h)) continue;
+            it.dst = (fs::path(out) / name).string();
+            fs::create_directories(fs::path(it.dst).parent_path(), ec);
+            items.push_back(std::move(it));
+        }
+    }
+    std::atomic<bool> failed{false};
+    std::mutex mu;
+    nn::parallel_for((int64_t)items.size(), [&](int64_t lo, int64_t hi) {
+        for (int64_t k = lo; k < hi; k++) {
+            if (failed.load() || (cancel && cancel->load())) return;
+            const Item& it = items[(size_t)k];
+            std::vector<uint8_t> px((size_t)it.w * it.h, 255);
+            if (!it.a.empty()) intersect_with_file(px, it.w, it.h, it.a, flip_a);
+            if (!it.b.empty()) intersect_with_file(px, it.w, it.h, it.b, false);
+            if (!stbi_write_png(it.dst.c_str(), it.w, it.h, 1, px.data(), it.w)) {
+                std::lock_guard<std::mutex> lk(mu);
+                error = it.dst;
+                failed = true;
+                return;
+            }
+        }
+    }, 1);
+    return failed.load() ? -1 : (int64_t)items.size();
 }
 
 }  // namespace app

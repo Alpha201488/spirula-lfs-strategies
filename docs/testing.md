@@ -5,10 +5,13 @@ describe is gone -- see §3 for what it covered and what now does not.
 
 ## 1. Native cross-backend parity tests (the important ones)
 
-`src/backend/tests/*.cpp` — currently 20 tools covering projection (fwd, bwd,
+`src/backend/tests/*.cpp` — tools covering projection (fwd, bwd,
 quant-grad), rasterization bwd, tile intersect, warp, FPBO, optimizer (general
-+ geometry), densify, per-pixel train, PPISP, bilagrid, multi-scale loss
-(`mask_loss_semantics`, `reg_loss_underflow` and `fpbo_split_parity` are
++ geometry), densify, per-pixel train, PPISP, bilagrid, multi-scale loss, the
+fused appearance chain and float16 / uint8 images (`appearance_parity check`
+holds the fused chain to the per-stage kernels, and `pixel_format_parity`
+holds every compact-format reader and writer to float32;
+`mask_loss_semantics`, `reg_loss_underflow` and `fpbo_split_parity` are
 self-checking rather than dump-then-compare: the first pins what an image mask
 means in the loss, in both mask modes and with none; the second sweeps log
 scales past every exp(scales) underflow threshold, down to -inf, and fails if
@@ -27,6 +30,11 @@ scalar per camera, and the no-GT sentinels passing through untouched).
 `backend/vulkan/tests/` adds 3 Vulkan-only smoke tests (runtime, pipeline,
 sort/scan).
 
+`missing_depth_supervision` is self-checking on both backends: missing and
+all-zero reference depth must give zero depth loss and gradients, while valid
+depth must retain finite supervision. It covers masks, multiple scales and
+3-million-pixel frames.
+
 **The same source builds under both backends.** Each file only touches
 `backend::`, the generated launch declarations, and `Tensor.h`. The workflow
 is dump-then-compare:
@@ -35,7 +43,7 @@ is dump-then-compare:
 # on the CUDA machine
 ./build_cuda/projection_parity dump ref.bin
 # on the target machine / device
-./build/projection_parity compare ref.bin
+./build_vulkan/projection_parity compare ref.bin
 ```
 
 Inputs are deterministic, and comparison is tolerance-based — fast-math
@@ -89,12 +97,13 @@ of guessing.
 
 ```bash
 # CUDA branch: opt-in
-bash build_develop.bash -B build_cuda -DSS_BACKEND=cuda -DSS_BUILD_BACKEND_TESTS=ON
+bash build_develop.bash -DSS_BACKEND=cuda -DSS_BUILD_BACKEND_TESTS=ON
 # Vulkan branch: built unconditionally
 bash build_develop.bash -DSS_BACKEND=vulkan
 ```
 
-Each `.cpp` becomes an executable of the same base name in the build dir.
+Each `.cpp` becomes an executable of the same base name in that backend's
+build tree -- `build_cuda/` or `build_vulkan/` (`build/` on macOS).
 
 ### Cross-machine / cross-vendor runs
 
@@ -141,6 +150,43 @@ was 140x) and brute-force matching at 22x (43 vs 1.9 ms per 8192x8192 pair, was
 64x); the matcher's remainder is DP4A, which Apple has no instruction for. The
 third is "slangc `[unroll]`" in `src/backend/vulkan/README.md`.
 
+### Under the Vulkan validation layer
+
+`SS_VK_VALIDATION=1` turns on `VK_LAYER_KHRONOS_validation` in all three
+Vulkan contexts (engine, SfM, inference), so one variable covers a whole
+`sam extract` → `sfm auto` → `geometry` → `train` → `mesh` loop. The layer
+comes with the LunarG SDK; Ubuntu's `vulkan-validationlayers` predates
+extensions the inference layer uses. The inference context logs through a
+debug messenger (`[vk-validation]`); the other two print the layer's own
+`Validation Error:` lines, errors only unless
+`VK_KHRONOS_VALIDATION_REPORT_FLAGS=error,warn,perf`.
+
+Three things that cost time:
+
+- The inference context turns the layer's handle wrapping off
+  (`unique_handles`): NVIDIA 595 reads `vkCmdDecodeVideoKHR`'s codec `pNext`
+  again at `vkQueueSubmit`, by when the layer's copy is freed, so a wrapped
+  decode segfaults at its first submit.
+- The deprecated `VK_KHRONOS_VALIDATION_ENABLES` / `VK_LAYER_ENABLES`
+  variables make the layer ignore every new-style setting, that one included.
+  Ask for Best Practices with `VK_KHRONOS_VALIDATION_VALIDATE_BEST_PRACTICES=true`.
+- Synchronization validation (`VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true`)
+  only sees descriptor-bound resources and copies. The engine and the
+  inference layer reach memory through buffer device addresses, so a clean
+  run there says nothing about their barriers; SfM binds descriptors and is
+  covered.
+
+### At wave64
+
+AMD GCN runs every kernel 64 lanes wide, and RDNA runs the `kWave64Entries`
+kernels that way. An RDNA device stands in for GCN: dump each test's
+reference at `SS_VK_SUBGROUP=32`, then compare at `SS_VK_SUBGROUP=64` on the
+same device, so only the width differs. On a Ryzen 7000 iGPU (RADV,
+2026-10-08) every dump-compare and self-checking test passed at 64, with
+errors at the level of a wave32 run compared against itself (float-atomic
+order): raster_bwd_parity max_abs 9.8e-4 against 7.3e-4, engine_train_parity
+loose rel_rms 1.3e-10 against 1.4e-10.
+
 ## 2. GUI / viewer checks
 
 The web viewer can be driven headlessly over the Chrome DevTools Protocol.
@@ -185,9 +231,72 @@ expectation, one executable. Neither exists yet.
 | training-loop logic | `TrainerCore.cpp` — `build_step_config()` is the only place it lives |
 | build system | every mode in [build.md](build.md) |
 | a comment you wrote | `python3 tools/check_comment_length.py` — the build runs it anyway ([lints](build.md#lints)) |
-| `SS_FILE` or `SS_SOURCE_ROOT` | `./build/source_path` on each toolchain — MSVC, GCC and nvcc spell `__FILE__` differently |
+| `SS_FILE` or `SS_SOURCE_ROOT` | `source_path` on each toolchain — MSVC, GCC and nvcc spell `__FILE__` differently |
+| a mesh format, or which colors it carries | `mesh_format_roundtrip` — writes every format and reads it back through the other implementation |
+| the UV atlas | `uv_atlas_split` — tens of thousands of charts that fail to flatten and must split |
+| a preset field, or a batch row's shape | `preset_roundtrip_test` |
+| what a typed-in command line becomes, or what a message may carry into it | `command_argv_test` — the message stays one argument and stays JSON-safe |
+| the home screen's recent list, or how `gui.conf` stores it | `recent_list_test` |
 | a per-cell optimizer launcher (Vulkan) | `SS_OPTIM_SLICE_CELLS=2048` on `optim_parity` / `optimgeo_parity`, which forces the multi-slice path only an SH buffer past ~24M splats would otherwise take ([SH layouts](notes/sh-quant-layout.md)) |
+| a launch through `dispatch_budgeted` (Vulkan), or a new one | its parity tool under `SS_SUBMIT_BUDGET_MS=0.01`, which splits every budgeted launch after its entry's first into ranges of one slice (`SS_VK_VERBOSE=1` prints the dispatch-base pipelines that ran them); compare against a dump made without it ([submit budget](notes/gpu-submit-budget.md)) |
+| H.265 reference handling | `hevc_reference_retention_test` on a non-NVIDIA Vulkan video-decode device with `SS_ENABLE_PATENTED=ON` |
+| H.265 encode dimensions or HEIF image correctness | `hevc_sps_crop_test` (CPU) and `heif_test` (non-NVIDIA Vulkan encode/decode); fixtures are generated at runtime |
 | anything | one short training run per backend on a public scene |
+
+## H.265 retained-reference regression
+
+With patented decoding explicitly enabled, run `build_vulkan/hevc_reference_retention_test`
+on a supported **non-NVIDIA Vulkan device** advertising H.265 Main and Main10
+video decode (on Windows, use `build_vulkan\hevc_reference_retention_test.exe`).
+Build with `build_develop.bat -DSS_BACKEND=vulkan -DSS_ENABLE_PATENTED=ON`
+on Windows or the corresponding `build_develop.bash` command on Linux.
+The committed 320×180, 72-frame fixtures in `src/video/tests/data/` are
+synthetic FFmpeg `testsrc2` clips, not private recordings. The test checks
+software-decoded RGB pixels in both the full run and after seeking backward
+across GOP boundaries; an exit code alone is not a pixel-correctness check.
+It requires an actual video-decode-capable GPU, not a CPU-only test runner.
+
+To regenerate either `hevc_main_retention` (8-bit `yuv420p`) or
+`hevc_main10_retention` (10-bit `yuv420p10le`), substitute `<format>` and
+`<name>` in these commands; FFmpeg must have `libx265`:
+
+```sh
+ffmpeg -f lavfi -i 'testsrc2=size=320x180:rate=24:duration=3' -pix_fmt <format> -c:v libx265 -preset medium -crf 20 -x265-params 'keyint=24:min-keyint=24:bframes=4:ref=4:scenecut=0:pools=2:log-level=error' <name>.mp4
+ffmpeg -i <name>.mp4 -vf 'select=eq(n\,22)+eq(n\,46)' -fps_mode passthrough -frames:v 2 -pix_fmt rgb24 -f rawvideo <name>.rgb
+```
+
+At POC 24, the short-term RPS retains four pictures marked unused by the
+current picture; following pictures use them. The second GOP exercises
+retirement and slot reuse. The Main10 test failed before the correction
+(frame 22: 10.53 dB PSNR against software) and passes with retained references;
+the threshold is 28 dB to allow host/GPU color-conversion differences.
+
+## H.265 encode cropping and HEIF round trips
+
+These regressions generate their inputs at runtime; no downloaded images,
+binary fixtures, or FFmpeg installation are needed.
+
+```bat
+build_develop.bat -DSS_BACKEND=vulkan -DSS_ENABLE_PATENTED=ON
+build_vulkan\hevc_sps_crop_test.exe
+build_vulkan\heif_test.exe
+```
+
+On Linux, use `bash build_develop.bash` with the same options and run the
+executables under `build_vulkan/` without `.exe`.
+`hevc_sps_crop_test` is CPU-only and is also registered with CTest's
+`headless` label. It checks crop arithmetic, preserved SPS syntax, sub-layer
+profile/level records, emulation prevention, and rejected malformed inputs.
+`heif_test` requires a supported non-NVIDIA Vulkan H.265 encode/decode device;
+a skipped round trip is not GPU acceptance.
+
+Keep the HEIF fixture's 256×160 tiles and its 32 dB PSNR threshold. On AMD
+Radeon AI PRO R9700, the encoder's minimum width is 384: applying a 128-pixel
+conformance crop before encoding produced a 256-wide CTB grid while the SPS
+advertised 384. Encoding uncropped and setting the display crop only in the
+returned SPS preserves the coded grid. The grid/rotated-tile checks measured
+8.0/13.7 dB before this correction and 47.9/47.5 dB afterward. The same test
+also checks grid assembly, crop, rotation, mirroring, dimensions, and EXIF.
 
 ## Profiling
 
@@ -214,8 +323,8 @@ hold to ~1%, so they can be A/B'd from a training run directly; for the rest
 use the benchmark tools, which fix the workload:
 
 ```bash
-./build/raster_bench [num_splats] [iters] [macro_log2]   # raster fwd/bwd, binning
-./build/fpbo_bench   [num_splats] [iters]                # fused projection bwd + optimizer
+./build_vulkan/raster_bench [num_splats] [iters] [macro_log2]   # raster fwd/bwd, binning
+./build_vulkan/fpbo_bench   [num_splats] [iters]                # fused projection bwd + optimizer
 ```
 
 A run that trains also prints a VRAM breakdown after the timing table: pool

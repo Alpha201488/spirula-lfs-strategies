@@ -282,6 +282,68 @@ __global__ void densify_update_weight_kernel(
 }
 
 
+// One damped Richardson-Lucy step of the learned score: an EMA of this view's
+// target (s * ratio)^power (docs/notes/learned-densify-score.md). No early
+// return: every lane takes part in the warp reduction of the stats.
+__global__ void densify_learned_score_kernel(
+    long num_splats,
+    float power,      // the score is stored as s^power
+    float rate,       // floor of the EMA weight; the first updates average
+    float log_prior,  // ln s a splat with no update renders and starts from
+    float pull,       // share of ln s pulled back to the prior per update
+    const float* __restrict__ radii,     // [N]
+    const float* __restrict__ ratio,     // [2N]: finalized ratio, then sum of weights
+    float2* __restrict__ accum_buffer,   // [N] (s^power, updates)
+    float max_scale2d,
+    float* __restrict__ oversize_accum,  // [N], null to skip
+    float2* __restrict__ stats           // [1] (sum ln s, count) of the updated
+) {
+    long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    float2 st = make_float2(0.0f, 0.0f);
+    if (idx < num_splats && radii[idx] > 0.0f) {
+        if (oversize_accum != nullptr && radii[idx] > max_scale2d)
+            oversize_accum[idx] += log2f(radii[idx] / max_scale2d);
+        if (ratio[num_splats + idx] > 0.0f) {
+            float2 a = accum_buffer[idx];
+            float r = fminf(fmaxf(ratio[idx], 1.0f / kLearnedScoreMaxRatio),
+                            kLearnedScoreMaxRatio);
+            float rp = __powf(r, power);
+            float eta = fmaxf(rate, 1.0f / (a.y + 1.0f));
+            float u = a.y > 0.0f ? a.x * ((1.0f - eta) + eta * rp)
+                                 : __expf(power * log_prior) * rp;
+            u = __expf((1.0f - pull) * __logf(fmaxf(u, kLearnedScoreFloor)) +
+                       pull * power * log_prior);
+            accum_buffer[idx] = make_float2(u, a.y + 1.0f);
+            st = make_float2(__logf(u) / power, 1.0f);
+        }
+    }
+    atomicAddFVec<WARP_SIZE>(stats, st);
+}
+
+/*[AutoHeaderGeneratorExport]*/
+void densify_learned_score_tensor(
+    int64_t num_splats,
+    float power,
+    float rate,
+    float log_prior,
+    float pull,
+    DeviceVector<float> radii,
+    DeviceVector<float> ratio,          // [2N] Avg accumulator after finalize
+    DeviceVector<float2> accum_buffer,
+    float max_scale2d,
+    DeviceVector<float> oversize_accum, // empty to skip
+    DeviceVector<float> stats           // [2], accumulated
+) {
+    if (num_splats <= 0)
+        return;
+    densify_learned_score_kernel<<<_LAUNCH_ARGS_1D(num_splats, 256)>>>(
+        (long)num_splats, power, rate, log_prior, pull,
+        radii.data_ptr(), ratio.data_ptr(), accum_buffer.data_ptr(),
+        max_scale2d, oversize_accum.data_ptr(), (float2*)stats.data_ptr());
+    CHECK_DEVICE_ERROR(cudaGetLastError());
+}
+
+
 // buf holds [num, den] planar (DensifyAccumMode::Avg); the quotient lands
 // back in the numerator lane so the score stays a contiguous [N] buffer.
 __global__ void densify_accum_finalize_kernel(
@@ -304,6 +366,198 @@ void densify_accum_finalize_tensor(
         return;
     densify_accum_finalize_kernel<<<_LAUNCH_ARGS_1D(num_splats, 256)>>>(
         (long)num_splats, accum.data_ptr());
+    CHECK_DEVICE_ERROR(cudaGetLastError());
+}
+
+
+__global__ void scale_score_by_renders_kernel(
+    long num_splats,
+    const uint32_t* __restrict__ visit_counters,
+    float2* __restrict__ score
+) {
+    long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_splats)
+        return;
+    score[idx].x *= (float)visit_renders(visit_counters[idx]);
+}
+
+// A splat's draw weight scales with how often it was rendered since it was
+// last split, so a fresh child waits for the optimizer before it is split again.
+/*[AutoHeaderGeneratorExport]*/
+void densify_scale_score_by_renders_tensor(
+    int64_t num_splats,
+    DeviceVector<uint32_t> visit_counters,  // [N]
+    DeviceVector<float2> score              // [N, 2]; lane 0 is multiplied in place
+) {
+    if (num_splats <= 0 || visit_counters.data_ptr() == nullptr || score.data_ptr() == nullptr)
+        return;
+    scale_score_by_renders_kernel<<<_LAUNCH_ARGS_1D(num_splats, 256)>>>(
+        num_splats, visit_counters.data_ptr(), score.data_ptr());
+    CHECK_DEVICE_ERROR(cudaGetLastError());
+}
+
+
+__global__ void max_weight_init_kernel(
+    long num_splats,
+    const float* __restrict__ opacs,
+    float* __restrict__ max_weight
+) {
+    long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_splats)
+        return;
+    max_weight[idx] = sigmoid(opacs[idx]);
+}
+
+__global__ void max_weight_scale_kernel(
+    long num_splats,
+    float scale,
+    float* __restrict__ max_weight
+) {
+    long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_splats)
+        return;
+    max_weight[idx] *= scale;
+}
+
+// The peak alpha * T a splat starts from: its opacity, the weight it would
+// have with nothing in front.
+/*[AutoHeaderGeneratorExport]*/
+void densify_max_weight_init_tensor(
+    int64_t num_splats,
+    DeviceVector<float> opacs,      // [N] logits
+    DeviceVector<float> max_weight  // [N] out
+) {
+    if (num_splats <= 0)
+        return;
+    max_weight_init_kernel<<<_LAUNCH_ARGS_1D(num_splats, 256)>>>(
+        num_splats, opacs.data_ptr(), max_weight.data_ptr());
+    CHECK_DEVICE_ERROR(cudaGetLastError());
+}
+
+/*[AutoHeaderGeneratorExport]*/
+void densify_max_weight_scale_tensor(
+    int64_t num_splats,
+    float scale,
+    DeviceVector<float> max_weight  // [N], multiplied in place
+) {
+    if (num_splats <= 0)
+        return;
+    max_weight_scale_kernel<<<_LAUNCH_ARGS_1D(num_splats, 256)>>>(
+        num_splats, scale, max_weight.data_ptr());
+    CHECK_DEVICE_ERROR(cudaGetLastError());
+}
+
+
+// ================
+// Per-camera visit stats
+// ================
+
+// A splat contributed to a camera when its screen opacity gradient is nonzero.
+// The few camera slots would take every atomic, so a block folds in shared
+// memory first; past kVisitMaxCams the fold is skipped.
+static constexpr int kVisitMaxCams = 256;
+
+__global__ void visit_camera_stats_zero_kernel(
+    int num_cameras,
+    const int32_t* __restrict__ cam_map,
+    float* __restrict__ cam_sum,
+    uint32_t* __restrict__ cam_cnt
+) {
+    int c = blockIdx.x * blockDim.x + threadIdx.x;
+    if (c >= num_cameras)
+        return;
+    int g = cam_map[c];
+    cam_sum[g] = 0.0f;
+    cam_cnt[g] = 0u;
+}
+
+__global__ void visit_camera_stats_kernel(
+    int64_t n_isect,
+    int64_t num_splats,
+    int num_cameras,
+    bool packed,
+    const int32_t* __restrict__ camera_ids,    // [nnz] when packed
+    const int32_t* __restrict__ gaussian_ids,  // [nnz] when packed
+    const float* __restrict__ v_screen,        // [rows, row_stride]
+    int row_stride,
+    int opac_offset,
+    const uint32_t* __restrict__ visit_counters,
+    const int32_t* __restrict__ cam_map,       // [C] local -> post camera
+    float* __restrict__ cam_sum,
+    uint32_t* __restrict__ cam_cnt
+) {
+    __shared__ uint32_t s_sum[kVisitMaxCams];
+    __shared__ uint32_t s_cnt[kVisitMaxCams];
+    const bool fold = num_cameras <= kVisitMaxCams;
+    if (fold) {
+        for (int c = threadIdx.x; c < num_cameras; c += blockDim.x) {
+            s_sum[c] = 0u;
+            s_cnt[c] = 0u;
+        }
+        __syncthreads();
+    }
+    int64_t idx = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n_isect && v_screen[idx * row_stride + opac_offset] != 0.0f) {
+        int cid = packed ? camera_ids[idx] : (int)(idx / num_splats);
+        int64_t gid = packed ? (int64_t)gaussian_ids[idx] : (idx % num_splats);
+        uint32_t r = visit_renders(visit_counters[gid]);
+        if (fold) {
+            atomicAdd(&s_sum[cid], r);
+            atomicAdd(&s_cnt[cid], 1u);
+        } else {
+            atomicAdd(&cam_sum[cam_map[cid]], (float)r);
+            atomicAdd(&cam_cnt[cam_map[cid]], 1u);
+        }
+    }
+    if (fold) {
+        __syncthreads();
+        for (int c = threadIdx.x; c < num_cameras; c += blockDim.x) {
+            if (s_cnt[c] == 0u) continue;
+            atomicAdd(&cam_sum[cam_map[c]], (float)s_sum[c]);
+            atomicAdd(&cam_cnt[cam_map[c]], s_cnt[c]);
+        }
+    }
+}
+
+/*[AutoHeaderGeneratorExport]*/
+void visit_camera_stats_zero_tensor(
+    int num_cameras,
+    DeviceVector<int32_t> cam_map,   // [C] post-split camera per batch slot
+    DeviceVector<float> cam_sum,     // [N_post]
+    DeviceVector<uint32_t> cam_cnt   // [N_post]
+) {
+    if (num_cameras <= 0 || cam_map.data_ptr() == nullptr)
+        return;
+    visit_camera_stats_zero_kernel<<<_LAUNCH_ARGS_1D(num_cameras, 256)>>>(
+        num_cameras, cam_map.data_ptr(), cam_sum.data_ptr(), cam_cnt.data_ptr());
+    CHECK_DEVICE_ERROR(cudaGetLastError());
+}
+
+/*[AutoHeaderGeneratorExport]*/
+void visit_camera_stats_tensor(
+    int64_t n_isect,
+    int64_t num_splats,
+    int num_cameras,
+    bool packed,
+    DeviceVector<int32_t> camera_ids,
+    DeviceVector<int32_t> gaussian_ids,
+    DeviceTensorFloatND v_screen,    // packed screen-gradient rows
+    int row_stride,
+    int opac_offset,
+    DeviceVector<uint32_t> visit_counters,
+    DeviceVector<int32_t> cam_map,
+    DeviceVector<float> cam_sum,
+    DeviceVector<uint32_t> cam_cnt
+) {
+    if (n_isect <= 0 || num_cameras <= 0 || v_screen.data_ptr() == nullptr ||
+        visit_counters.data_ptr() == nullptr || cam_map.data_ptr() == nullptr)
+        return;
+    visit_camera_stats_kernel<<<_LAUNCH_ARGS_1D(n_isect, 256)>>>(
+        n_isect, num_splats, num_cameras, packed,
+        camera_ids.data_ptr(), gaussian_ids.data_ptr(),
+        (const float*)v_screen.data_ptr(), row_stride, opac_offset,
+        visit_counters.data_ptr(), cam_map.data_ptr(),
+        cam_sum.data_ptr(), cam_cnt.data_ptr());
     CHECK_DEVICE_ERROR(cudaGetLastError());
 }
 

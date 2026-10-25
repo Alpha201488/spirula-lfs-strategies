@@ -178,13 +178,13 @@ Without `--dump` the same run reports 99.0% and a descriptor relative L2 of
 and PIL versus our own bicubic reaching 784, not arithmetic.
 
 ```bash
-./build/loma_test                       # cached checkpoints, or SKIP
-./build/loma_test --fetch               # download from the LoMa release
-./build/loma_test --image IMG.jpg --out /tmp/a.bin
-./build/loma_test --matcher loma-b --image IMG.jpg     # the DeDoDe-G path
-./build/loma_test --match /tmp/a.bin /tmp/b.bin --out /tmp/m.bin
+./build_vulkan/loma_test                       # cached checkpoints, or SKIP
+./build_vulkan/loma_test --fetch               # download from the LoMa release
+./build_vulkan/loma_test --image IMG.jpg --out /tmp/a.bin
+./build_vulkan/loma_test --matcher loma-b --image IMG.jpg     # the DeDoDe-G path
+./build_vulkan/loma_test --match /tmp/a.bin /tmp/b.bin --out /tmp/m.bin
 
-SS_LOMA_F32_WEIGHTS=1 SS_LOMA_DUMP=/tmp/d ./build/loma_test --image A.jpg --out /tmp/a.bin
+SS_LOMA_F32_WEIGHTS=1 SS_LOMA_DUMP=/tmp/d ./build_vulkan/loma_test --image A.jpg --out /tmp/a.bin
 python3 tools/loma/compare_ort.py --image A.jpg --ours /tmp/a.bin --dump /tmp/d
 ```
 

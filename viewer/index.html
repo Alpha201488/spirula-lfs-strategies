@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Spirula Studio Viewer</title>
-<link rel="icon" href="https://harry7557558.github.io/favicon.ico">
+<link rel="icon" href="https://harry7557558.github.io/spirula-studio/assets/icon.ico">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div id="header">
-  <div id="logo">🐚 Spirula <b>Viewer</b></div>
+  <div id="logo"><img src="https://harry7557558.github.io/spirula-studio/assets/icon_128.png" /> Spirula <b>Viewer</b></div>
   <div id="status-dot"></div>
   <div id="status-text">Ready</div>
   <div id="fps"></div>
@@ -21,7 +21,7 @@
     <canvas id="glcanvas"></canvas>
     <div id="drop-hint">
       <div class="big">Drop a model or dataset to view</div>
-      <div class="sub">3D Gaussian Splats (<b>.ply</b>) &nbsp;·&nbsp; Meshes (<b>.ply .obj .gltf .glb</b>)<br>
+      <div class="sub">3D Gaussian Splats (<b>.ply</b>) &nbsp;·&nbsp; Meshes (<b>.ply .obj .gltf .glb .stl</b>)<br>
       Datasets: <b>COLMAP</b> · <b>Nerfstudio</b> · <b>Metashape</b> — drop the folder or its files.<br>
       Drag &amp; drop, or click to browse. For textured .gltf/.obj drop the model plus its <b>.bin/.mtl/image</b> files together.</div>
     </div>
@@ -29,7 +29,7 @@
     <div id="cam-tooltip"></div>
     <div id="toast"></div>
     <div id="nav-legend"></div>
-    <input autocomplete="off" type="file" id="file-input" multiple accept=".ply,.obj,.gltf,.glb,.bin,.mtl,.png,.jpg,.jpeg,.json,.xml,.psx,.txt" style="display:none">
+    <input autocomplete="off" type="file" id="file-input" multiple accept=".ply,.obj,.gltf,.glb,.stl,.bin,.mtl,.png,.jpg,.jpeg,.json,.xml,.psx,.txt" style="display:none">
   </div>
 
   <div id="panel">
@@ -41,6 +41,7 @@
       <div id="st-splat-stats" style="display:none">
         <div class="stat"><span>Splats</span><span id="st-count">—</span></div>
         <div class="stat"><span>SH degree</span><span id="st-sh">—</span></div>
+        <div class="stat"><span>SB lobes</span><span id="st-sb">—</span></div>
       </div>
       <div id="st-mesh-stats" style="display:none">
         <div class="stat"><span>Vertices</span><span id="st-verts">—</span></div>
@@ -112,6 +113,11 @@
       <div class="row">
         <div class="label"><span>SH Degree</span><span class="val" id="v-shdeg">0</span></div>
         <input autocomplete="off" type="range" id="shdeg" min="0" max="0" step="1" value="0">
+      </div>
+      <div class="row" id="sb-row" style="display:none">
+        <div class="label"><span>Highlight lobes (SB)</span>
+          <label class="toggle"><input autocomplete="off" type="checkbox" id="show-lobes" checked><span class="track"></span></label>
+        </div>
       </div>
       <div class="row">
         <div class="label"><span>Exposure</span><span class="val" id="v-exposure">1.00</span></div>

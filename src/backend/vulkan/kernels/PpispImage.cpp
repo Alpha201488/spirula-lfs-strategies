@@ -47,10 +47,13 @@ struct AddIntoGradParams {
 };
 static_assert(sizeof(AddIntoGradParams) == 2 * 8 + 2 * 4, "layout");
 
-// (kParamType, kClampOutput), in ppisp_image.slang declaration order.
-backend::vk::SpecList spec_list(const PpispParamSpec& spec) {
+// (kParamType, kClampOutput, kExposureArithmeticMean), in ppisp_image.slang
+// declaration order.
+backend::vk::SpecList spec_list(const PpispParamSpec& spec,
+                                bool exposure_arithmetic_mean) {
     return backend::vk::SpecList{(uint32_t)spec.layout,
-                                 spec.clamp_output ? 1u : 0u};
+                                 spec.clamp_output ? 1u : 0u,
+                                 exposure_arithmetic_mean ? 1u : 0u};
 }
 
 // Fold the pixel axis across (gx, gz); gy carries the batch index.
@@ -62,8 +65,8 @@ void dispatch_image(const char* entry, const PpispParamSpec& spec,
     p.wgs_per_row = f.per_row;
     if (B > 65535 || f.rows > 65535)
         throw std::runtime_error("ppisp: image grid dimension exceeds 65535");
-    vkk::dispatch(entry, spec_list(spec), f.per_row, (uint32_t)B, f.rows, &p,
-                  sizeof(p));
+    vkk::dispatch(entry, spec_list(spec, false), f.per_row, (uint32_t)B,
+                  f.rows, &p, sizeof(p));
 }
 
 }  // namespace
@@ -130,11 +133,13 @@ void ppisp_backward(
 void compute_ppsip_regularization_forward(
     TorchTensorView ppisp_params,
     const std::array<float, (int)PPISPRegLossIndex::length> loss_weights_0,
-    std::string param_type, TorchTensorView losses, TorchTensorView raw_losses
+    std::string param_type, bool exposure_arithmetic_mean,
+    TorchTensorView losses, TorchTensorView raw_losses
 ) {
     const PpispParamSpec spec = ppisp_param_spec(param_type);
     const int64_t B = std::get<2>(ppisp_params)[0];
     const int nr = spec.num_raw_losses;
+    const backend::vk::SpecList sl = spec_list(spec, exposure_arithmetic_mean);
 
     PpispRegParams p{};
     p.ppisp_params = std::get<0>(ppisp_params);
@@ -144,7 +149,7 @@ void compute_ppsip_regularization_forward(
     for (int i = 0; i < (int)PPISPRegLossIndex::length; i++)
         p.loss_weights[i] = loss_weights_0[i];
     p.B = (int32_t)B;
-    vkk::dispatch("ppisp_image.ppisp_reg_raw_fwd", spec_list(spec),
+    vkk::dispatch("ppisp_image.ppisp_reg_raw_fwd", sl,
                   (uint32_t)((B + 31) / 32), 1, 1, &p, sizeof(p));
 
     // Weighted final pass reads the summed tail row.
@@ -157,7 +162,7 @@ void compute_ppsip_regularization_forward(
     for (int i = 0; i < (int)PPISPRegLossIndex::length; i++)
         pf.loss_weights[i] = loss_weights_0[i];
     pf.B = (int32_t)B;
-    vkk::dispatch("ppisp_image.ppisp_reg_final_fwd", spec_list(spec), 1, 1, 1,
+    vkk::dispatch("ppisp_image.ppisp_reg_final_fwd", sl, 1, 1, 1,
                   &pf, sizeof(pf));
 }
 
@@ -165,11 +170,13 @@ void compute_ppsip_regularization_backward(
     TorchTensorView ppisp_params,
     const std::array<float, (int)PPISPRegLossIndex::length> loss_weights_0,
     TorchTensorView raw_losses, TorchTensorView v_losses,
-    std::string param_type, TorchTensorView v_ppisp_params
+    std::string param_type, bool exposure_arithmetic_mean,
+    TorchTensorView v_ppisp_params
 ) {
     const PpispParamSpec spec = ppisp_param_spec(param_type);
     const int64_t B = std::get<2>(ppisp_params)[0];
     const int nr = spec.num_raw_losses;
+    const backend::vk::SpecList sl = spec_list(spec, exposure_arithmetic_mean);
 
     float* v_raw_losses =
         DevicePool::global().acquire<float>(PoolSlot::PpispVRawLosses, nr);
@@ -185,7 +192,7 @@ void compute_ppsip_regularization_backward(
     for (int i = 0; i < (int)PPISPRegLossIndex::length; i++)
         pf.loss_weights[i] = loss_weights_0[i];
     pf.B = (int32_t)B;
-    vkk::dispatch("ppisp_image.ppisp_reg_final_bwd", spec_list(spec), 1, 1, 1,
+    vkk::dispatch("ppisp_image.ppisp_reg_final_bwd", sl, 1, 1, 1,
                   &pf, sizeof(pf));
 
     // v_raw_losses -> v_ppisp_params (per image).
@@ -197,7 +204,7 @@ void compute_ppsip_regularization_backward(
     for (int i = 0; i < (int)PPISPRegLossIndex::length; i++)
         p.loss_weights[i] = loss_weights_0[i];
     p.B = (int32_t)B;
-    vkk::dispatch("ppisp_image.ppisp_reg_raw_bwd", spec_list(spec),
+    vkk::dispatch("ppisp_image.ppisp_reg_raw_bwd", sl,
                   (uint32_t)((B + 31) / 32), 1, 1, &p, sizeof(p));
 }
 

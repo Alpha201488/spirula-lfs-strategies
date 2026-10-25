@@ -314,8 +314,9 @@ KEEP int ssv_ds_parse(const char* token_c) {
             cfg.recon_dir = rel;
             try {
                 g_ds = parse_colmap_dataset(kRoot, cfg);
-            } catch (...) {
+            } catch (const std::exception& e) {
                 // Salvage a lone points3D file if the full parse failed.
+                g_error = e.what();
                 fs::path recon = fs::path(kRoot) / rel;
                 if (fs::exists(recon / "points3D.bin"))
                     g_ds.points = read_points3D_binary(recon.string());
@@ -390,7 +391,8 @@ KEEP uint8_t* ssv_ds_points_rgb()  { return g_ds.points.rgb.empty()? nullptr : g
 KEEP int      ssv_ds_num_cameras() { return (int)g_ds.num_cameras; }
 KEEP int32_t* ssv_ds_cam_models()  { return g_ds.camera_models.empty()? nullptr : g_ds.camera_models.data(); }
 KEEP float*   ssv_ds_cam_intrins() { return g_ds.intrins.empty()? nullptr : g_ds.intrins.data(); }      // [N,4]
-KEEP float*   ssv_ds_cam_dist()    { return g_ds.dist_coeffs.empty()? nullptr : g_ds.dist_coeffs.data(); } // [N,10]
+KEEP int32_t* ssv_ds_cam_dist_types() { return g_ds.camera_distortions.empty()? nullptr : g_ds.camera_distortions.data(); }
+KEEP float*   ssv_ds_cam_dist()    { return g_ds.dist_coeffs.empty()? nullptr : g_ds.dist_coeffs.data(); } // [N,kCameraDistortionParams]
 KEEP float*   ssv_ds_cam_c2w()     { return g_ds.c2w.empty()? nullptr : g_ds.c2w.data(); }               // [N,3,4]
 KEEP int32_t* ssv_ds_cam_widths()  { return g_ds.widths.empty()? nullptr : g_ds.widths.data(); }
 KEEP int32_t* ssv_ds_cam_heights() { return g_ds.heights.empty()? nullptr : g_ds.heights.data(); }
@@ -433,7 +435,7 @@ KEEP char* ssv_ds_summary_json() {
     g_json = "{\"format\":\"";
     json_escape(g_json, g_format);
     g_json += "\",\"num_images\":" + std::to_string(N);
-    g_json += ",\"num_points\":" + std::to_string((long long)g_ds.points.num());
+    g_json += ",\"num_points\":" + std::to_string((long long)(g_pts.size() / 3));
     g_json += ",\"num_groups\":" + std::to_string(groups.size());
     g_json += ",\"models\":{";
     bool first = true;

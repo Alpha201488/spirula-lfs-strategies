@@ -29,6 +29,7 @@ body {
 }
 #logo { font-weight:700; font-size:13px; letter-spacing:.06em; }
 #logo b { color: var(--accent); font-weight:700; }
+#logo img { width:28px; height:28px; margin-right:6px; vertical-align:middle; }
 #status-dot { width:8px; height:8px; border-radius:50%; background: var(--text-dim); }
 #status-dot.ok { background: var(--ok); box-shadow:0 0 6px #4ecb71aa; }
 #status-dot.err { background: var(--err); }

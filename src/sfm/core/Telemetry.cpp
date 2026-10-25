@@ -6,16 +6,21 @@
 
 #include "sfm/core/Telemetry.h"
 
+#include "core/KandaoBox.h"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <map>
 #include <sstream>
+#include <tuple>
 
 namespace sfm {
 
@@ -25,6 +30,18 @@ const char* telemetry_carrier_name(TelemetryCarrier c) {
         case TelemetryCarrier::Insta360: return "Insta360 trailer";
         case TelemetryCarrier::DjiDvtm:  return "DJI djmd track";
         case TelemetryCarrier::Camm:     return "CAMM track";
+        case TelemetryCarrier::Kandao:   return "Kandao kvar box";
+        default:                         return "none";
+    }
+}
+
+const char* telemetry_carrier_token(TelemetryCarrier c) {
+    switch (c) {
+        case TelemetryCarrier::Gpmf:     return "gpmf";
+        case TelemetryCarrier::Insta360: return "insta360";
+        case TelemetryCarrier::DjiDvtm:  return "dji";
+        case TelemetryCarrier::Camm:     return "camm";
+        case TelemetryCarrier::Kandao:   return "kandao";
         default:                         return "none";
     }
 }
@@ -190,7 +207,13 @@ struct Movie {
     uint32_t timescale = 0;
     uint64_t duration = 0;
     uint64_t creation_1904 = 0;
+    VideoProjection projection;
     std::vector<Track> tracks;
+    // Where makers put their settings as text or KLV: udta, moov/meta, and a
+    // top-level meta (Sony's XML). Copies, for video_log_profile.
+    std::vector<uint8_t> udta, moov_meta, file_meta;
+    // Kandao's two top-level boxes, payload offset and size; 0 when absent.
+    uint64_t kfix_off = 0, kfix_size = 0, kvar_off = 0, kvar_size = 0;
     double durationSec() const { return timescale ? (double)duration / timescale : 0.0; }
     // 1904-01-01 to 1970-01-01.
     double unixStart() const { return creation_1904 ? (double)creation_1904 - 2082844800.0 : 0.0; }
@@ -299,6 +322,26 @@ bool parse_trak(const uint8_t* data, size_t size, Track& tk) {
     return true;
 }
 
+// The two `udta` keys this needs: what a GoPro calls the projection, and that
+// projection's own numbers. Nested rather than scanned for, so four bytes
+// spelling PRJT inside somebody's payload cannot answer.
+void gpmf_projection(const uint8_t* p, size_t n, int depth, VideoProjection& out) {
+    for (size_t off = 0; off + 8 <= n;) {
+        const uint32_t key = be32(p + off);
+        const uint8_t type = p[off + 4];
+        const size_t len = (size_t)p[off + 5] * be16(p + off + 6);
+        if (off + 8 + len > n) break;
+        if (key == fourcc("PRJT") && type == 'F' && len >= 4)
+            out.name.assign((const char*)p + off + 8, 4);
+        else if (key == fourcc("PMOD") && type == 'L' && out.mode.empty())
+            for (size_t i = 0; i + 4 <= len && i < 64; i += 4)
+                out.mode.push_back(be32(p + off + 8 + i));
+        else if (type == 0 && depth < 4)
+            gpmf_projection(p + off + 8, len, depth + 1, out);
+        off += 8 + ((len + 3) & ~(size_t)3);
+    }
+}
+
 // Scans the top-level boxes for moov, which may follow mdat, and stops at the
 // first thing that is not a box (an Insta360 trailer, say).
 bool read_movie(const Source& src, Movie& mv, bool& is_mp4, std::string& error) {
@@ -320,6 +363,10 @@ bool read_movie(const Source& src, Movie& mv, bool& is_mp4, std::string& error) 
         }
         if (size < h || off + size > src.size()) break;
         if (type == fourcc("ftyp")) is_mp4 = true;
+        if (type == fourcc("meta") && size - h < (4u << 20))
+            src.readVec(off + h, (size_t)(size - h), mv.file_meta);
+        if (type == fourcc("kfix")) { mv.kfix_off = off + h; mv.kfix_size = size - h; }
+        if (type == fourcc("kvar")) { mv.kvar_off = off + h; mv.kvar_size = size - h; }
         if (type == fourcc("moov")) {
             if (size - h > (1ull << 30)) { error = "moov box over 1 GiB"; return false; }
             if (!src.readVec(off + h, (size_t)(size - h), moov)) { error = "truncated moov"; return false; }
@@ -343,6 +390,13 @@ bool read_movie(const Source& src, Movie& mv, bool& is_mp4, std::string& error) 
         } else if (b.type == fourcc("trak")) {
             Track tk;
             if (parse_trak(b.payload, b.payload_size, tk)) mv.tracks.push_back(std::move(tk));
+        } else if (b.type == fourcc("udta")) {
+            mv.udta.assign(b.payload, b.payload + b.payload_size);
+            Box g;
+            if (find_box(b.payload, b.payload_size, fourcc("GPMF"), g))
+                gpmf_projection(g.payload, g.payload_size, 0, mv.projection);
+        } else if (b.type == fourcc("meta")) {
+            mv.moov_meta.assign(b.payload, b.payload + b.payload_size);
         }
     });
     return true;
@@ -851,27 +905,65 @@ struct DjiClip {
     double sensor_fps = 0, imu_rate = 0, readout = 0, focal = 0;
 };
 
+// Field numbers per dvtm proto; 0 = not carried. The defaults are the Osmo
+// 360's (dvtm_oq101), and stay the guess for any proto not checked on a clip.
+struct DjiLayout {
+    uint32_t clip_focal = 8, clip_rate = 10, clip_fps = 11;
+    uint32_t cam_accel = 10;
+    uint32_t cam_iso = 0, cam_shutter = 0, cam_ct = 0;
+    uint32_t gps = 2, gps_status = 3;
+    bool coord_has_unit = true;   // false: degrees, no unit field
+    uint32_t rel_alt = 0;         // f32 mm
+    // The attitude's world is z-down: 0.23 deg from the GPS-levelled +Z of a
+    // 2090-image model of an Avata 360 flight.
+    bool attitude_z_down = false;
+    bool verified = false;
+};
+
+// Avata 360: checked frame by frame against the SRT of a 139 s flight. Its
+// ClipMeta.8 is the Osmo's .10, the IMU rate (table "ClipMeta.8"):
+// https://github.com/Kemerd/OpenOSV/blob/c09a2bfa017d0799553f01c58ccdd6063ac281cd/docs/FORMAT.md
+DjiLayout dji_layout(const std::string& proto) {
+    DjiLayout l;
+    if (proto == "dvtm_oq101.proto") {
+        l.verified = true;
+    } else if (proto == "dvtm_AVATA360.proto") {
+        l.clip_focal = 0; l.clip_rate = 8; l.clip_fps = 9;
+        l.cam_accel = 0;
+        l.cam_iso = 3; l.cam_shutter = 4; l.cam_ct = 6;
+        l.gps = 4; l.gps_status = 0;
+        l.coord_has_unit = false;
+        l.rel_alt = 5;
+        l.attitude_z_down = true;
+        l.verified = true;
+    }
+    return l;
+}
+
 // A PbField points into the buffer it was parsed from, so a sub-message's
 // field list has to outlive any pointer taken into it.
-void dji_clip(const std::vector<PbField>& clip, DjiClip& c) {
+void dji_clip(const std::vector<PbField>& clip, DjiLayout& layout, DjiClip& c) {
     const auto hdr = pb_sub(pb_find(clip, 1));
     c.proto = pb_string(pb_find(hdr, 1));
     c.serial = pb_string(pb_find(hdr, 5));
     c.firmware = pb_string(pb_find(hdr, 6));
     c.product = pb_string(pb_find(hdr, 10));
+    layout = dji_layout(c.proto);
     const auto readout = pb_sub(pb_find(clip, 4));
     if (const PbField* f = pb_find(readout, 1)) c.readout = (double)f->varint * 1e-9;
-    const auto focal = pb_sub(pb_find(clip, 8));
+    // pb_each never yields field 0, so a layout's 0 finds nothing.
+    const auto focal = pb_sub(pb_find(clip, layout.clip_focal));
     if (const PbField* f = pb_find(focal, 1)) c.focal = f->f32();
-    const auto rate = pb_sub(pb_find(clip, 10));
+    const auto rate = pb_sub(pb_find(clip, layout.clip_rate));
     if (const PbField* f = pb_find(rate, 1)) c.imu_rate = (double)f->varint;
-    const auto fps = pb_sub(pb_find(clip, 11));
+    const auto fps = pb_sub(pb_find(clip, layout.clip_fps));
     if (const PbField* f = pb_find(fps, 1)) c.sensor_fps = f->f32();
 }
 
 bool read_dji(const Source& src, const Track& tk, Telemetry& out, std::string& error) {
     std::vector<uint8_t> buf;
     DjiClip clip;
+    DjiLayout layout;
     bool have_clip = false, any = false, first = true;
     double t0 = 0;
     size_t attitude_frames = 0;
@@ -882,7 +974,7 @@ bool read_dji(const Source& src, const Track& tk, Telemetry& out, std::string& e
         if (top.empty()) continue;
         if (!have_clip) {
             if (const PbField* c = pb_find(top, 1)) {
-                dji_clip(pb_sub(c), clip);
+                dji_clip(pb_sub(c), layout, clip);
                 have_clip = !clip.proto.empty();
             }
         }
@@ -896,7 +988,24 @@ bool read_dji(const Source& src, const Track& tk, Telemetry& out, std::string& e
         const double t = t_abs - t0;
 
         const auto cam = pb_sub(pb_find(frame, 2));
-        if (const PbField* acc = pb_find(cam, 10)) {
+        if (layout.cam_iso || layout.cam_shutter || layout.cam_ct) {
+            TelemetryExposure e;
+            e.t = t;
+            const auto iso = pb_sub(pb_find(cam, layout.cam_iso));
+            if (const PbField* f = pb_find(iso, 1); f && f->wire == 5) e.iso = f->f32();
+            // Two varints [n, d] in one bytes field: n/d seconds.
+            const auto shutter = pb_sub(pb_find(cam, layout.cam_shutter));
+            if (const PbField* f = pb_find(shutter, 1); f && f->wire == 2) {
+                const uint8_t *p = f->data, *end = f->data + f->len;
+                uint64_t n = 0, d = 0;
+                if (pb_varint(p, end, n) && pb_varint(p, end, d) && p == end && n && d)
+                    e.shutter = (double)n / (double)d;
+            }
+            const auto ct = pb_sub(pb_find(cam, layout.cam_ct));
+            if (const PbField* f = pb_find(ct, 1); f && f->wire == 0) e.color_temp = (double)f->varint;
+            if (e.iso >= 0 || e.shutter >= 0 || e.color_temp >= 0) out.exposure.push_back(e);
+        }
+        if (const PbField* acc = pb_find(cam, layout.cam_accel)) {
             const auto a = pb_sub(acc);
             const PbField *x = pb_find(a, 2), *y = pb_find(a, 3), *z = pb_find(a, 4);
             if (x && y && z) {
@@ -934,20 +1043,25 @@ bool read_dji(const Source& src, const Track& tk, Telemetry& out, std::string& e
         }
 
         const auto gimbal = pb_sub(pb_find(frame, 4));
-        if (const PbField* gb = pb_find(gimbal, 2)) {
+        if (const PbField* gb = pb_find(gimbal, layout.gps)) {
             const auto g = pb_sub(gb);
             const auto coord = pb_sub(pb_find(g, 1));
             const PbField *lat = pb_find(coord, 2), *lon = pb_find(coord, 3);
             if (lat && lon) {
                 const PbField* unit = pb_find(coord, 1);
-                const bool rad = !unit || unit->varint == 0;
+                const bool rad = layout.coord_has_unit && (!unit || unit->varint == 0);
                 TelemetryGps gp;
                 gp.t = t;
                 gp.lat = lat->f64() * (rad ? 180 / kPi : 1.0);
                 gp.lon = lon->f64() * (rad ? 180 / kPi : 1.0);
                 if (const PbField* alt = pb_find(g, 2)) { gp.alt = (double)(int32_t)alt->varint * 1e-3; gp.has_alt = true; }
-                const PbField* st = pb_find(g, 3);
+                const PbField* st = pb_find(g, layout.gps_status);
                 gp.fix = !st || st->varint != 1;
+                const auto rel = pb_sub(pb_find(gimbal, layout.rel_alt));
+                if (const PbField* r = pb_find(rel, 1); r && r->wire == 5) {
+                    gp.rel_alt = r->f32() * 1e-3;
+                    gp.has_rel_alt = true;
+                }
                 out.gps.push_back(gp);
                 any = true;
             }
@@ -959,13 +1073,20 @@ bool read_dji(const Source& src, const Track& tk, Telemetry& out, std::string& e
     out.serial = clip.serial;
     out.firmware = clip.firmware;
     if (clip.readout > 0) out.frame_readout = clip.readout;
-    out.notes.push_back("dvtm proto " + clip.proto + (clip.proto == "dvtm_oq101.proto" ? "" : " (layout not verified on a sample)"));
+    if (layout.attitude_z_down && attitude_frames) out.attitude_world_up[2] = -1;
+    out.notes.push_back("dvtm proto " + clip.proto + (layout.verified ? "" : " (layout not verified on a sample)"));
     if (clip.imu_rate > 0) {
         char s[96];
-        std::snprintf(s, sizeof s, "IMU fusion rate %.0f Hz, sensor %.3f fps, focal %.1f px", clip.imu_rate, clip.sensor_fps, clip.focal);
-        out.notes.push_back(s);
+        std::snprintf(s, sizeof s, "IMU fusion rate %.0f Hz, sensor %.3f fps", clip.imu_rate, clip.sensor_fps);
+        std::string note = s;
+        if (clip.focal > 0) {
+            std::snprintf(s, sizeof s, ", focal %.1f px", clip.focal);
+            note += s;
+        }
+        out.notes.push_back(note);
     }
-    out.notes.push_back("accel is one reading per frame in g, converted; no raw gyro is written");
+    if (layout.cam_accel) out.notes.push_back("accel is one reading per frame in g, converted; no raw gyro is written");
+    else out.notes.push_back("no accelerometer and no raw gyro are written");
     if (attitude_frames) out.notes.push_back("orientation is IMU_attitude_after_fusion: sense not documented, see the check");
     return true;
 }
@@ -1021,79 +1142,113 @@ bool insta_detect(const Source& src) {
     return src.read(src.size() - 32, magic, 32) && std::memcmp(magic, kInstaMagic, 32) == 0;
 }
 
-bool read_insta360(const Source& src, const Movie* mv, Telemetry& out, std::string& error) {
-    uint8_t hdr[kInstaHeader];
-    if (!src.read(src.size() - kInstaHeader, hdr, kInstaHeader)) { error = "short Insta360 trailer"; return false; }
-    const uint64_t extra_size = le32(hdr + 32);
-    if (extra_size > src.size()) { error = "Insta360 trailer size exceeds the file"; return false; }
+struct InstaRec { uint8_t id, format; uint64_t offset, size; };
 
-    // Each record ends in [format u8][id u8][size u32]; the one nearest the
-    // header may be a table of (id, format, size, offset). Records past the
-    // thumbnail are padded apart, so a backwards walk alone lands in zeros.
-    struct Rec { uint8_t id, format; uint64_t offset, size; };
-    std::vector<Rec> recs;
+// A table of (id, format, size, offset) nearest the header is the only index:
+// an Antigravity A1 writes records in 256 KiB slots with no [format u8][id u8]
+// [size u32] descriptor after each, which an X5 has and the fallback walks.
+std::vector<InstaRec> insta_records(const Source& src, uint64_t extra_size) {
+    std::vector<InstaRec> recs;
     const uint64_t extra_start = src.size() - extra_size;
     uint64_t back = kInstaHeader + 6;
     std::vector<uint8_t> buf;
-    {
-        uint8_t r[6];
-        if (src.read(src.size() - back, r, 6) && r[1] == 0) {
-            const uint64_t size = le32(r + 2);
-            if (size <= src.size() - back && src.readVec(src.size() - back - size, (size_t)size, buf)) {
-                for (size_t o = 0; o + 10 <= buf.size(); o += 10) {
-                    const uint8_t* e = buf.data() + o;
-                    const uint64_t rsize = le32(e + 2), roff = le32(e + 6);
-                    if (e[0] == 0 || rsize == 0 || extra_start + roff + rsize + 6 > src.size()) continue;
-                    uint8_t tail[6];
-                    if (!src.read(extra_start + roff + rsize, tail, 6) || tail[1] != e[0] || le32(tail + 2) != rsize) continue;
-                    recs.push_back({e[0], e[1], extra_start + roff, rsize});
-                }
+    uint8_t r[6];
+    if (src.read(src.size() - back, r, 6) && r[1] == 0) {
+        const uint64_t size = le32(r + 2);
+        if (size <= src.size() - back && src.readVec(src.size() - back - size, (size_t)size, buf)) {
+            for (size_t o = 0; o + 10 <= buf.size(); o += 10) {
+                const uint8_t* e = buf.data() + o;
+                const uint64_t rsize = le32(e + 2), roff = le32(e + 6);
+                if (e[0] == 0 || rsize == 0 || roff + rsize > extra_size) continue;
+                recs.push_back({e[0], e[1], extra_start + roff, rsize});
             }
+            if (!recs.empty()) return recs;
         }
     }
-    const bool walk = recs.empty();
-    while (walk && back <= extra_size) {
-        uint8_t r[6];
+    while (back <= extra_size) {
         if (!src.read(src.size() - back, r, 6)) break;
         const uint64_t size = le32(r + 2);
         if (size > src.size() - back) break;
         recs.push_back({r[1], r[0], src.size() - back - size, size});
         back += size + 6;
     }
+    return recs;
+}
 
+bool insta_extra_size(const Source& src, uint64_t& extra_size) {
+    uint8_t hdr[kInstaHeader];
+    if (!src.read(src.size() - kInstaHeader, hdr, kInstaHeader)) return false;
+    extra_size = le32(hdr + 32);
+    return extra_size <= src.size();
+}
+
+InstaMeta insta_read_meta(const Source& src, const std::vector<InstaRec>& recs) {
     InstaMeta meta;
-    for (const Rec& r : recs) {
+    std::vector<uint8_t> buf;
+    for (const InstaRec& r : recs) {
         if (r.id != 1 || r.size > (16u << 20)) continue;
         if (!src.readVec(r.offset, (size_t)r.size, buf)) continue;
         insta_meta(buf.data(), buf.size(), meta);
     }
+    return meta;
+}
+
+bool insta_has_sensors(const std::vector<InstaRec>& recs) {
+    return std::any_of(recs.begin(), recs.end(), [](const InstaRec& r) { return r.id == 3 || r.id == 7; });
+}
+
+// `original`, when given, is the full-resolution file of a proxy that carries
+// no IMU or GPS of its own (an A1 PRX_*.prx beside its VID_*.insv). It is used
+// only when it names the same camera and the same first frame.
+bool read_insta360(const Source& own, const Movie* mv, Telemetry& out, std::string& error,
+                   const Source* original = nullptr, const std::string& original_name = {}) {
+    uint64_t extra_size = 0;
+    if (!insta_extra_size(own, extra_size)) { error = "Insta360 trailer size exceeds the file"; return false; }
+    std::vector<InstaRec> recs = insta_records(own, extra_size);
+    const InstaMeta meta = insta_read_meta(own, recs);
+
+    const Source* data_src = &own;
+    InstaMeta dec = meta;
+    uint64_t orig_extra = 0;
+    if (!insta_has_sensors(recs) && original && insta_detect(*original) && insta_extra_size(*original, orig_extra)) {
+        std::vector<InstaRec> orecs = insta_records(*original, orig_extra);
+        const InstaMeta ometa = insta_read_meta(*original, orecs);
+        if (insta_has_sensors(orecs) && ometa.serial == meta.serial &&
+            ometa.first_frame_ts == meta.first_frame_ts) {
+            recs = std::move(orecs);
+            dec = ometa;
+            data_src = original;
+        }
+    }
+    const Source& src = *data_src;
+    std::vector<uint8_t> buf;
 
     // Timestamps are relative to the first frame, as telemetry-parser (the
     // reference for this layout) computes them; the raw-gyro variant stamps
     // in microseconds and the float one in milliseconds.
     const double fft = (double)meta.first_frame_ts / 1000.0;
-    const double gyro_shift = meta.has_gyro_ts ? meta.gyro_ts / 1000.0 : 0.0;
+    const double gyro_shift = dec.has_gyro_ts ? dec.gyro_ts / 1000.0 : 0.0;
     auto fix_time = [&](double raw_ms) {
         double t = raw_ms / 1000.0 - fft;
-        if (meta.raw_gyro) t /= 1000.0;
+        if (dec.raw_gyro) t /= 1000.0;
         return t - gyro_shift;
     };
 
     bool any = false;
-    for (const Rec& r : recs) {
+    for (const InstaRec& r : recs) {
         if (r.id == 3) {
             if (r.size > (1ull << 31) || !src.readVec(r.offset, (size_t)r.size, buf)) { error = "unreadable Insta360 gyro record"; return false; }
-            const size_t item = meta.raw_gyro ? 8 + 6 * 2 : 8 + 6 * 8;
+            const size_t item = dec.raw_gyro ? 8 + 6 * 2 : 8 + 6 * 8;
             const size_t n = buf.size() / item;
             out.accel.reserve(out.accel.size() + n);
             out.gyro.reserve(out.gyro.size() + n);
-            const double acc_scale = meta.raw_gyro ? meta.acc_range / 32768.0 : 1.0;
-            const double gyro_scale = meta.raw_gyro ? meta.gyro_range / 32768.0 * kPi / 180.0 : 1.0;
+            const double acc_scale = dec.raw_gyro ? dec.acc_range / 32768.0 : 1.0;
+            const double gyro_scale = dec.raw_gyro ? dec.gyro_range / 32768.0 * kPi / 180.0 : 1.0;
             for (size_t i = 0; i < n; i++) {
                 const uint8_t* p = buf.data() + i * item;
                 const double t = fix_time((double)le64(p));
                 double a[3], g[3];
-                if (meta.raw_gyro) {
+                if (dec.raw_gyro) {
                     for (int k = 0; k < 3; k++) a[k] = ((double)le16(p + 8 + 2 * k) - 32768.0) * acc_scale;
                     for (int k = 0; k < 3; k++) g[k] = ((double)le16(p + 14 + 2 * k) - 32768.0) * gyro_scale;
                 } else {
@@ -1141,7 +1296,8 @@ bool read_insta360(const Source& src, const Movie* mv, Telemetry& out, std::stri
         out.video_unix_start = start;
         for (TelemetryGps& g : out.gps) g.t = g.unix_time - start;
     }
-    out.notes.push_back(std::string("gyro record ") + (meta.raw_gyro ? "raw int16" : "float64") +
+    if (data_src != &own) out.notes.push_back("IMU and GPS read from " + original_name + ": this file carries none");
+    out.notes.push_back(std::string("gyro record ") + (dec.raw_gyro ? "raw int16" : "float64") +
                         "; accel converted from g; axes are the IMU's own, not the lens frame");
     if (!meta.offset_v3.empty()) out.notes.push_back("offset_v3 lens calibration present (" +
                                                      std::to_string(meta.offset_v3.size()) + " chars)");
@@ -1150,10 +1306,143 @@ bool read_insta360(const Source& src, const Movie* mv, Telemetry& out, std::stri
 }
 
 // ================
+// Kandao kfix / kvar (QooCam)
+// ================
+
+// Measured on QooCam 3 Ultras (docs/notes/imu-gps-for-sfm.md §2.4): 20-byte
+// IMU records at 0.8 to 1 kHz, stamped on the clock PTS stamps the frames with.
+bool read_kandao(const Source& src, const Movie& mv, Telemetry& out, std::string& error) {
+    if (mv.kvar_size > (1ull << 30)) { error = "kvar box over 1 GiB"; return false; }
+    std::vector<uint8_t> kvar, kfix;
+    if (!src.readVec(mv.kvar_off, (size_t)mv.kvar_size, kvar)) { error = "truncated kvar"; return false; }
+    if (mv.kfix_size > (1u << 20) || !src.readVec(mv.kfix_off, (size_t)mv.kfix_size, kfix)) kfix.clear();
+    const std::vector<kandao::Field> var = kandao::fields(kvar.data(), kvar.size());
+    const std::vector<kandao::Field> fix = kandao::fields(kfix.data(), kfix.size());
+
+    const kandao::Field* imu = kandao::find(var, "IMU");
+    const kandao::Field* info_f = kandao::find(var, "INFO");
+    const std::string info = info_f ? info_f->str() : std::string();
+    const double gyro_range = kandao::info_value(info, "V_G_RANGE");    // deg/s at int16 full scale
+    const double accel_range = kandao::info_value(info, "V_A_RANGE");   // g at int16 full scale
+    const double axes = kandao::info_value(info, "V_IMU_F");
+    const size_t item = 8 + 6 * 2;
+    const bool imu_ok = imu && imu->size >= item && gyro_range > 0 && accel_range > 0 && (axes < 0 || axes == 6);
+
+    // PTS_UNIT 1 is microseconds; 0 and 2 are ExifTool's reading of the field.
+    double tick = 1e-6;
+    if (const kandao::Field* u = kandao::find(var, "PTS_UNIT"); u && u->size >= 4)
+        tick = le32(u->data) == 0 ? 1e-3 : le32(u->data) == 2 ? 1e-9 : 1e-6;
+    const kandao::Field* pts = kandao::find(var, "PTS");
+    const bool have_pts = pts && pts->size >= 8;
+    const uint64_t first_frame = have_pts ? le64(pts->data) : imu_ok ? le64(imu->data) : 0;
+    // The first and last frame in seconds on that clock, which the logs' ms share.
+    const double first_s = (double)first_frame * tick;
+    const double last_s = have_pts ? (double)le64(pts->data + (pts->size / 8 - 1) * 8) * tick
+                                   : first_s + mv.durationSec();
+
+    size_t reordered = 0;
+    if (imu_ok) {
+        const size_t n = imu->size / item;
+        // Firmware 1.0.1 writes a record a few places late now and then (1554 of
+        // 377240 in one clip); in time order every step is 1.2 ms again.
+        std::vector<size_t> order(n);
+        for (size_t i = 0; i < n; i++) order[i] = i;
+        for (size_t i = 1; i < n; i++) reordered += le64(imu->data + i * item) < le64(imu->data + (i - 1) * item);
+        if (reordered)
+            std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+                return le64(imu->data + a * item) < le64(imu->data + b * item);
+            });
+        const double gyro_scale = gyro_range / 32768.0 * kPi / 180.0;
+        const double accel_scale = accel_range / 32768.0 * kG;
+        out.gyro.reserve(n);
+        out.accel.reserve(n);
+        for (size_t i : order) {
+            const uint8_t* p = imu->data + i * item;
+            const double t = (double)((int64_t)le64(p) - (int64_t)first_frame) * tick;
+            double v[6];
+            for (int k = 0; k < 6; k++) v[k] = (double)(int16_t)le16(p + 8 + 2 * k);
+            out.gyro.push_back({t, v[0] * gyro_scale, v[1] * gyro_scale, v[2] * gyro_scale});
+            out.accel.push_back({t, v[3] * accel_scale, v[4] * accel_scale, v[5] * accel_scale});
+        }
+    }
+
+    // ExifTool's three layouts (Kandao.pm): GPSX, 36 bytes with a UTC time in
+    // ms; GPS after a 0xffffffff mark, 28 with an altitude; GPS without, 20.
+    // Each opens with a u32 time in ms and repeats the last fix until the next.
+    const kandao::Field* gpsx = kandao::find(var, "GPSX");
+    const kandao::Field* glog = gpsx && gpsx->size >= 36 ? gpsx : kandao::find(var, "GPS");
+    size_t head = 0, rec = glog == gpsx ? 36 : 20;
+    if (glog && glog != gpsx && glog->size >= 4 && le32(glog->data) == 0xffffffffu) { head = 4; rec = 28; }
+    const size_t records = glog && glog->size > head ? (glog->size - head) / rec : 0;
+    const size_t at = rec == 36 ? 12 : 4;
+    // Firmware 1.0.0.x stamps another clock and writes a record per frame, so
+    // there the records are spread over the frames in order.
+    bool on_clock = true;
+    for (size_t i = 0; i < records; i++) {
+        const uint8_t* p = glog->data + head + i * rec;
+        const double t = le32(p) * 1e-3;
+        const bool zero = lef64(p + at) == 0 && lef64(p + at + 8) == 0;
+        if (!zero && (t < first_s - 10 || t > last_s + 10)) on_clock = false;
+    }
+    const uint8_t* prev = nullptr;
+    for (size_t i = 0; i < records; i++) {
+        const uint8_t* p = glog->data + head + i * rec;
+        const bool zero = lef64(p + at) == 0 && lef64(p + at + 8) == 0;
+        // 0, 0 repeats stay, for read_any to count as no fix.
+        if (prev && !zero && std::memcmp(p, prev, rec) == 0) continue;
+        prev = p;
+        TelemetryGps g;
+        g.t = on_clock ? le32(p) * 1e-3 - first_s
+                       : (last_s - first_s) * (double)i / (double)std::max<size_t>(records - 1, 1);
+        if (rec == 36) g.unix_time = (double)le64(p + 4) * 1e-3;
+        g.lat = lef64(p + at);
+        g.lon = lef64(p + at + 8);
+        g.has_alt = rec != 20;
+        if (g.has_alt) g.alt = lef64(p + at + 16);
+        // No fix flag: a receiver without one writes 0, 0, which read_any drops.
+        g.fix = true;
+        out.gps.push_back(g);
+    }
+
+    // Per frame, a u32 time in ms and the shutter in microseconds.
+    if (const kandao::Field* e = kandao::find(var, "EXP"))
+        for (size_t o = 0; o + 8 <= e->size; o += 8) {
+            TelemetryExposure x;
+            x.t = le32(e->data + o) * 1e-3 - first_s;
+            x.shutter = le32(e->data + o + 4) * 1e-6;
+            out.exposure.push_back(x);
+        }
+
+    if (out.gyro.empty() && out.gps.empty() && out.exposure.empty()) return true;
+    out.carrier = TelemetryCarrier::Kandao;
+    if (const kandao::Field* f = kandao::find(fix, "PRODUCT")) out.camera = f->str();
+    if (const kandao::Field* f = kandao::find(fix, "SN")) out.serial = f->str();
+    if (const kandao::Field* f = kandao::find(fix, "SW_VER")) out.firmware = f->str();
+    if (imu_ok) {
+        char scale[64];
+        std::snprintf(scale, sizeof scale, "%.0f deg/s and %.0f g", gyro_range, accel_range);
+        out.notes.push_back(std::string("gyro and accel raw int16 at ") + scale +
+                            " full scale; axes are the IMU's own, not the lens frame");
+        if (reordered) out.notes.push_back("IMU records out of time order " + std::to_string(reordered) + " times: sorted");
+    } else if (imu) {
+        out.notes.push_back("IMU log not read: INFO names no range or a record other than six axes");
+    }
+    if (!have_pts) out.notes.push_back("no PTS table: times counted from the IMU's first sample");
+    if (records > 0)
+        out.notes.push_back(std::string(glog->name) + " log: " + std::to_string(records) + " records of " +
+                            std::to_string(rec) + " bytes, " + std::to_string(out.gps.size()) +
+                            " once repeats are dropped");
+    if (records > 0 && !on_clock)
+        out.notes.push_back("GPS record times are not on the frames' clock: spread over the frames in order");
+    return true;
+}
+
+// ================
 // Driver
 // ================
 
-bool read_any(const Source& src, Telemetry& out, std::string& error) {
+bool read_carrier(const Source& src, Telemetry& out, std::string& error,
+                  const Source* original, const std::string& original_name) {
     out = Telemetry();
     Movie mv;
     bool is_mp4 = false;
@@ -1167,16 +1456,34 @@ bool read_any(const Source& src, Telemetry& out, std::string& error) {
     if (have_movie) {
         out.video_duration = mv.durationSec();
         out.video_unix_start = mv.unixStart();
+        out.projection = mv.projection;
         for (const Track& tk : mv.tracks)
             if (tk.handler == fourcc("vide") && tk.fps() > 0) { out.video_fps = tk.fps(); break; }
     }
-    if (insta) return read_insta360(src, have_movie ? &mv : nullptr, out, error);
+    if (insta) return read_insta360(src, have_movie ? &mv : nullptr, out, error, original, original_name);
     for (const Track& tk : mv.tracks) {
         if (tk.sample_type == fourcc("gpmd")) { if (!read_gpmf(src, tk, out, error)) return false; }
         else if (tk.sample_type == fourcc("camm")) { if (!read_camm(src, tk, out, error)) return false; }
         else if (tk.sample_type == fourcc("djmd")) { if (!read_dji(src, tk, out, error)) return false; }
         if (out.carrier != TelemetryCarrier::None) break;
     }
+    if (out.carrier == TelemetryCarrier::None && mv.kvar_size > 0) return read_kandao(src, mv, out, error);
+    return true;
+}
+
+// A receiver without a fix writes 0, 0 on several cameras (a GoPro before
+// lock, an Insta360 without its phone), and nothing downstream should read
+// that as a position in the Gulf of Guinea.
+bool read_any(const Source& src, Telemetry& out, std::string& error,
+              const Source* original = nullptr, const std::string& original_name = {}) {
+    if (!read_carrier(src, out, error, original, original_name)) return false;
+    const size_t before = out.gps.size();
+    out.gps.erase(std::remove_if(out.gps.begin(), out.gps.end(),
+                                 [](const TelemetryGps& g) { return g.lat == 0 && g.lon == 0; }),
+                  out.gps.end());
+    out.gps_zero = before - out.gps.size();
+    if (out.gps_zero)
+        out.notes.push_back(std::to_string(out.gps_zero) + " GPS samples at 0, 0 (no fix) ignored");
     return true;
 }
 
@@ -1293,10 +1600,213 @@ std::string fmt(const char* f, double a, double b = 0, double c = 0) {
 // Public entry points
 // ================
 
+// An Antigravity A1 writes PRX_<stamp>.prx, a proxy, beside VID_<stamp>.insv.
+static std::string insta_original_of(const std::string& path) {
+    namespace fs = std::filesystem;
+    const fs::path p(path);
+    const std::string stem = p.stem().string();
+    std::string ext = p.extension().string();
+    for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+    if (ext != ".prx" || stem.rfind("PRX_", 0) != 0) return {};
+    for (const char* e : {".insv", ".INSV"}) {
+        const fs::path v = p.parent_path() / ("VID_" + stem.substr(4) + e);
+        std::error_code ec;
+        if (fs::is_regular_file(v, ec)) return v.string();
+    }
+    return {};
+}
+
 bool telemetry_read(const std::string& path, Telemetry& out, std::string& error) {
     FileSource src;
     if (!src.open(path)) { error = "cannot open '" + path + "'"; return false; }
+    FileSource original;
+    const std::string original_path = insta_original_of(path);
+    if (!original_path.empty() && original.open(original_path))
+        return read_any(src, out, error, &original, std::filesystem::path(original_path).filename().string());
     return read_any(src, out, error);
+}
+
+VideoProjection video_projection(const std::string& path) {
+    FileSource src;
+    if (!src.open(path)) return VideoProjection();
+    Movie mv;
+    bool is_mp4 = false;
+    std::string error;
+    if (!read_movie(src, mv, is_mp4, error)) return VideoProjection();
+    return mv.projection;
+}
+
+namespace {
+
+// DVID 1 is the "Global Settings" device; its PTCL is the colour profile.
+// FLAT is a log curve too, but not GP-Log's, so it is not one of these.
+std::string gpmf_protune_color(const uint8_t* p, size_t n) {
+    for (size_t off = 0; off + 8 <= n;) {
+        Klv k;
+        if (!klv_read(p + off, n - off, k)) break;
+        if (k.type == 0 && k.key == fourcc("DEVC")) {
+            bool global = false;
+            std::string ptcl;
+            for (size_t o = 0; o + 8 <= k.len();) {
+                Klv c;
+                if (!klv_read(k.data + o, k.len() - o, c)) break;
+                if (c.key == fourcc("DVID") && c.type == 'L' && c.len() >= 4)
+                    global = be32(c.data) == 1;
+                else if (c.key == fourcc("PTCL") && c.type == 'c')
+                    ptcl.assign((const char*)c.data, strnlen((const char*)c.data, c.len()));
+                o += 8 + c.padded();
+            }
+            if (global && !ptcl.empty()) return ptcl;
+        }
+        off += 8 + k.padded();
+    }
+    return {};
+}
+
+// `<Item name="NAME" value="VALUE"/>` in Sony's NonRealTimeMeta XML.
+std::string xml_item(const std::string& xml, const char* name) {
+    const std::string key = std::string("name=\"") + name + "\" value=\"";
+    const size_t a = xml.find(key);
+    if (a == std::string::npos) return {};
+    const size_t b = xml.find('"', a + key.size());
+    return b == std::string::npos ? std::string() : xml.substr(a + key.size(), b - a - key.size());
+}
+
+// ColorMode.color_mode, where each dvtm proto keeps it; 0 is Default and is
+// omitted, as proto3 does. -1 for a proto whose path was not read off a clip.
+int dji_color_mode(const uint8_t* sample, size_t n, std::string& proto) {
+    const auto top = pb_fields(sample, n);
+    proto = pb_string(pb_find(pb_sub(pb_find(pb_sub(pb_find(top, 1)), 1)), 1));
+    const auto stream = pb_sub(pb_find(top, 2));
+    std::vector<PbField> color;
+    if (proto == "dvtm_ac204.proto" || proto == "dvtm_oq101.proto")
+        color = pb_sub(pb_find(stream, 4));
+    else if (proto == "dvtm_AVATA360.proto" || proto == "dvtm_eagle4_wa530.proto")
+        color = pb_sub(pb_find(pb_sub(pb_find(stream, 2)), 4));
+    else
+        return -1;
+    const PbField* f = pb_find(color, 1);
+    return f && f->wire == 0 ? (int)f->varint : 0;
+}
+
+}  // namespace
+
+VideoLogProfile video_log_profile(const std::string& path) {
+    VideoLogProfile out;
+    FileSource src;
+    Movie mv;
+    bool is_mp4 = false;
+    std::string error;
+    if (!src.open(path) || !read_movie(src, mv, is_mp4, error)) return out;
+
+    const std::string xml(mv.file_meta.begin(), mv.file_meta.end());
+    const std::string gamma = xml_item(xml, "CaptureGammaEquation");
+    if (gamma == "s-log3-cine" ||
+        (gamma == "s-log3" && xml_item(xml, "CaptureColorPrimaries") == "S-Gamut3-Cine")) {
+        out.log = "s-log3-cine";
+        return out;
+    }
+
+    std::vector<uint8_t> buf;
+    for (const Track& tk : mv.tracks) {
+        if (tk.sample_type != fourcc("djmd") || tk.samples.empty()) continue;
+        const Sample& sm = tk.samples[0];
+        if (sm.size < 2 || sm.size > (16u << 20) || !src.readVec(sm.offset, sm.size, buf)) continue;
+        // dvtm_library.proto's ColorMode: 2 D-Log, 19 D-Log M (22 D-Log2, 9 HLG).
+        const int mode = dji_color_mode(buf.data(), buf.size(), out.camera);
+        out.log = mode == 2 ? "dji-d-log" : mode == 19 ? "dji-d-log-m" : "";
+        return out;
+    }
+
+    Box gpmf;
+    if (find_box(mv.udta.data(), mv.udta.size(), fourcc("GPMF"), gpmf)) {
+        // The one GP-Log LUT GoPro publishes as a technical transform is the
+        // MAX 2's, so only a 360 capture is matched to it.
+        if (gpmf_protune_color(gpmf.payload, gpmf.payload_size) == "LOG" &&
+            !mv.projection.name.empty()) {
+            out.log = "gp-log";
+            out.camera = mv.projection.name;
+        }
+        return out;
+    }
+
+    // Panasonic's Semi-Pro XML, the value of a QuickTime key of that name.
+    const std::string keys(mv.moov_meta.begin(), mv.moov_meta.end());
+    if (keys.find("com.panasonic.Semi-Pro.metadata.xml") != std::string::npos &&
+        keys.find("<CaptureGamma>V-Log</CaptureGamma>") != std::string::npos)
+        out.log = "v-log";
+    return out;
+}
+
+// PanoDewarpParams entries 3 and 4 (native_refine_far slave, master); the
+// other 22 are empty on every clip read. Track by the measured fit of each set
+// to each track's frames: docs/notes/imu-gps-for-sfm.md §2.3.
+std::vector<LensCalibration> djmd_lenses(const uint8_t* sample, size_t n) {
+    std::vector<LensCalibration> out;
+    const auto top = pb_fields(sample, n);
+    const auto hdr = pb_sub(pb_find(pb_sub(pb_find(top, 1)), 1));
+    if (pb_string(pb_find(hdr, 1)) != "dvtm_AVATA360.proto") return out;
+    const auto pano = pb_sub(pb_find(pb_sub(pb_find(top, 2)), 5));
+    for (const auto& [entry, track, name] : {std::tuple{4u, 0, "master"}, std::tuple{3u, 1, "slave"}}) {
+        const auto d = pb_sub(pb_find(pano, entry));
+        auto f32 = [&](uint32_t num) {
+            const PbField* f = pb_find(d, num);
+            return f && f->wire == 5 ? f->f32() : 0.0;
+        };
+        // lens_model 8 is the form measured above; another code is another model.
+        if (f32(24) != 8.0) continue;
+        LensCalibration l;
+        l.track = track;
+        l.lens = name;
+        l.fx = f32(1); l.fy = f32(2); l.cx = f32(3); l.cy = f32(4);
+        for (int i = 0; i < 4; i++) l.k[i] = f32(5 + (uint32_t)i);
+        l.k[4] = f32(15);
+        l.width = (int)f32(10);
+        l.height = (int)f32(11);
+        const PbField* p = pb_find(d, 20);
+        if (p && p->wire == 2 && p->len == 8) {
+            l.p1 = (double)lef32(p->data);
+            l.p2 = (double)lef32(p->data + 4);
+        }
+        if (l.fx > 0 && l.fy > 0 && l.width > 0 && l.height > 0) out.push_back(l);
+    }
+    return out;
+}
+
+namespace {
+
+std::vector<LensCalibration> lenses_of(const Source& src) {
+    Movie mv;
+    bool is_mp4 = false;
+    std::string error;
+    if (!read_movie(src, mv, is_mp4, error)) return {};
+    std::vector<uint8_t> buf;
+    for (const Track& tk : mv.tracks) {
+        if (tk.sample_type != fourcc("djmd")) continue;
+        for (size_t i = 0; i < tk.samples.size() && i < 8; i++) {
+            const Sample& sm = tk.samples[i];
+            if (sm.size < 2 || sm.size > (16u << 20) || !src.readVec(sm.offset, sm.size, buf))
+                continue;
+            std::vector<LensCalibration> lenses = djmd_lenses(buf.data(), buf.size());
+            if (!lenses.empty()) return lenses;
+        }
+    }
+    return {};
+}
+
+}  // namespace
+
+std::vector<LensCalibration> video_lenses(const std::string& path) {
+    FileSource src;
+    if (!src.open(path)) return {};
+    return lenses_of(src);
+}
+
+std::vector<LensCalibration> video_lenses(const uint8_t* data, size_t size) {
+    MemorySource src;
+    src.p = data;
+    src.n = size;
+    return lenses_of(src);
 }
 
 bool telemetry_read(const uint8_t* data, size_t size, Telemetry& out, std::string& error) {
@@ -1521,6 +2031,11 @@ std::string telemetry_report(const Telemetry& t, const TelemetryCheck& c) {
         if (!t.serial.empty()) o << "  sn " << t.serial;
         o << "\n";
     }
+    if (!t.projection.name.empty()) {
+        o << "projection   : " << t.projection.name;
+        for (uint32_t v : t.projection.mode) o << " " << v;
+        o << "\n";
+    }
     o << "video        : " << fmt("%.1f s", t.video_duration);
     if (t.video_fps > 0) o << fmt(", %.2f fps", t.video_fps);
     if (t.frame_readout > 0) o << fmt(", readout %.1f ms", t.frame_readout * 1e3);
@@ -1557,10 +2072,27 @@ std::string telemetry_report(const Telemetry& t, const TelemetryCheck& c) {
           << fmt(", spread %.1f m, path %.1f m", c.gps_spread_m, c.gps_path_m);
         if (c.gps_outliers) o << ", " << c.gps_outliers << " outliers dropped";
         if (c.gps_speed_max > 0) o << fmt(", speed max %.1f m/s", c.gps_speed_max);
+        double rlo = INFINITY, rhi = -INFINITY;
+        for (const TelemetryGps& g : t.gps)
+            if (g.has_rel_alt) { rlo = std::min(rlo, g.rel_alt); rhi = std::max(rhi, g.rel_alt); }
+        if (rlo <= rhi) o << fmt(", rel alt %.1f..%.1f m", rlo, rhi);
         const TelemetryGps& g = t.gps.front();
         o << fmt("\n               first fix %.6f, %.6f", g.lat, g.lon);
         if (g.has_alt) o << fmt(", alt %.1f m", g.alt);
         if (g.unix_time > 0) o << fmt(", unix %.3f", g.unix_time);
+        o << "\n";
+    }
+    if (!t.exposure.empty()) {
+        double lo[3] = {INFINITY, INFINITY, INFINITY}, hi[3] = {-INFINITY, -INFINITY, -INFINITY};
+        for (const TelemetryExposure& e : t.exposure) {
+            const double v[3] = {e.iso, e.shutter, e.color_temp};
+            for (int k = 0; k < 3; k++)
+                if (v[k] >= 0) { lo[k] = std::min(lo[k], v[k]); hi[k] = std::max(hi[k], v[k]); }
+        }
+        o << "exposure     : " << t.exposure.size() << " frames";
+        if (lo[0] <= hi[0]) o << fmt(", ISO %.0f..%.0f", lo[0], hi[0]);
+        if (lo[1] <= hi[1] && lo[1] > 0) o << fmt(", shutter 1/%.0f..1/%.0f s", 1 / hi[1], 1 / lo[1]);
+        if (lo[2] <= hi[2]) o << fmt(", ct %.0f..%.0f K", lo[2], hi[2]);
         o << "\n";
     }
     if (t.magnet.size()) o << "magnetometer : " << t.magnet.size() << " samples\n";

@@ -1,28 +1,17 @@
 #pragma once
 
-// PreviewRenderer -- pure-OpenGL preview of geometry the engine is not
-// rendering, into an offscreen FBO texture:
-//
-//   * the SfM sparse point cloud (vertex-colored) + training-camera frusta,
-//     shown by the viewport between "dataset loaded" and "training started",
-//     when the engine has nothing to render yet;
-//   * an extracted triangle mesh (vertex colors, or a baked texture atlas),
-//     which is what the mesh viewer and the meshing preview show.
-//
-// All of it is built in the same Z-up normalized frame the viewport
-// navigates, and the vertex shader implements the same camera models as the
-// engine viewer (pinhole / fisheye-equidistant / fisheye-equisolid /
-// equirectangular), so switching between a preview and an engine render is
-// seamless -- and a splat render and a mesh render of the same scene, shown
-// side by side, are the same view.
+// OpenGL point-cloud, camera and mesh previews in the viewport's normalized frame.
+// Projection models match the engine viewer.
 
+#include "app/gui/render/TransitionFx.h"
 #include "data/DatasetParser.h"
 #include "mesh/MeshExport.h"   // meshing::MeshData
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
-namespace spirula { class TrainerSession; }
+namespace spirula { class TrainerSession; struct RegionOverlay; }
 
 namespace gui {
 
@@ -32,16 +21,47 @@ enum class PreviewProjection {
     Pinhole = 0, Fisheye, Equisolid, Equirectangular
 };
 
+// How a frame for a FILE is drawn, as opposed to one for the viewport
+// (app/gui/render/). Every default is what the viewport already does.
+struct PreviewStyle {
+    // Cleared to nothing rather than to the viewport's grey, so the frame
+    // composites: alpha is 1 where something was drawn.
+    bool transparent = false;
+    // The cloud: 0 square, 1 circle, 2 gaussian, 3 sphere of `point_radius`
+    // (normalized frame); the screen shapes are `point_px` across.
+    int point_shape = 0;
+    float point_px = 2.0f;
+    float point_radius = 0.0f;
+    // Lens distortion: CameraDistortionType and its coefficients.
+    int tier = 0;
+    float dist[8] = {};
+    // Nothing past the plane n.p = d (normalized frame) is drawn, and the
+    // `glow` before it lights up: the sweep reveal.
+    bool clip = false;
+    float plane[4] = {0, 0, 1, 0};
+    float glow = 0.0f;
+    float glow_col[3] = {1.0f, 0.86f, 0.6f};
+    // A 3D transition moving the cloud's points or the mesh's vertices
+    // (render/TransitionFx.h): its kind, side, time, settings and scene, the
+    // scene in the normalized frame.
+    int fx = 0;
+    bool fx_in = false;
+    float fx_t = 0.0f;
+    float fx_p[2] = {0.0f, 0.0f};
+    gui::render::FxGeo fx_geo;
+};
+
 class PreviewRenderer {
 public:
     // Build GL buffers from the parsed dataset. Requires a current GL
     // context (GUI thread) and the session's load_dataset() to have
     // completed. Returns false when GL init fails (missing functions).
     bool build(const spirula::TrainerSession& session);
-    // The same, from the parsed data alone. A point cloud opened in the
-    // viewer has no session behind it and no cameras at all (`post` empty,
-    // ds.num_cameras == 0), which this handles: it simply draws no frusta.
-    bool build(const ParsedDataset& ds, const PostSplitCameras& post);
+    // The same over parsed data alone (a point file has no cameras, so no
+    // frusta). `cam_selected` is one flag per camera, drawn in the highlight
+    // colour; `cam_rgb`, [N,3] in 0..1, gives every camera its own colour instead.
+    bool build(const ParsedDataset& ds, const PostSplitCameras& post,
+               const uint8_t* cam_selected = nullptr, const float* cam_rgb = nullptr);
     // A triangle mesh, drawn shaded instead of a point cloud. `to_normalized`
     // is the similarity that maps the mesh's own coordinates into the frame
     // the viewport navigates (scale + center, as SplatViewer computes for a
@@ -75,7 +95,18 @@ public:
                     PreviewProjection proj, float sx, float sy,
                     float scene_radius, float view_dist,
                     const float view_target[3], bool show_cams,
-                    float frustum_scale, bool show_grid);
+                    float frustum_scale, bool show_grid,
+                    // How far an orthographic view's camera was pulled back
+                    // along its axis (ViewportPanel::ortho_pullback), 0 if not.
+                    float ortho_back = 0.0f,
+                    const PreviewStyle* style = nullptr);
+
+    // A region's boundary drawn over the cloud (app/webviewer/RegionOverlay.h),
+    // in the frame the built points are in; null for none. Survives a rebuild.
+    void set_overlay(std::shared_ptr<const spirula::RegionOverlay> ov, bool visible);
+    // Greys the points whose flag (one per point of the parsed cloud) is 0;
+    // `on` false puts the colours back. Uploads only on a change.
+    void dim_points_outside(std::shared_ptr<const std::vector<uint8_t>> flags, bool on);
 
     // Base frustum size (camhost::frustum_display_size, normalized frame).
     float base_camera_size() const { return _base_cam_size; }
@@ -100,6 +131,15 @@ private:
     unsigned _prog = 0;
     int _u_view = -1, _u_scale = -1, _u_dscale = -1, _u_color = -1;
     int _u_model = -1, _u_s = -1, _u_zrange = -1, _u_vp = -1;
+    // Style uniforms, one set per program: [0] lines and points, [1] mesh.
+    struct StyleLoc {
+        int tier = -1, dist = -1, clip_on = -1, clip = -1, glow = -1, glow_col = -1;
+        int fx = -1, fx_in = -1, fx_t = -1, fx_p = -1, fx_c = -1, fx_up = -1, fx_e1 = -1,
+            fx_e2 = -1, fx_radius = -1, fx_qh = -1, fx_qa = -1, fx_qr = -1;
+    } _sloc[2];
+    void style_locations(int program, unsigned prog);
+    int _u_points = -1, _u_psize = -1, _u_pradius = -1;
+    void set_style_uniforms(int program, const PreviewStyle& st);
 
     // Mesh program: same projection GLSL, shaded triangles.
     unsigned _mprog = 0;
@@ -128,12 +168,32 @@ private:
     float _t2n[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
     float _t2n_scale = 1.0f;         // normalized units per train unit
     int64_t _num_points = 0;
-    // Host copy of the displayed (stride-sampled, normalized-frame) points
-    // for double-click picking. CPU RAM only.
+    // Normalized-frame points for double-click picking.
     std::vector<float> _pick_xyz;
-    int64_t _num_cam_verts = 0;    // total frustum verts (bright then dim)
-    int64_t _num_cam_bright = 0;   // border + anchor verts (drawn full-color)
+    std::vector<float> _pts_rgb;   // the displayed points' own colours
+    int64_t _pts_stride = 1;
+    bool _pts_tinted = false;
+    std::shared_ptr<const std::vector<uint8_t>> _tint_flags;
+    // Frustum verts, in draw order: the selected cameras' lines, then the
+    // rest's borders and anchors, then the rest's dimmed interior gridlines.
+    int64_t _num_cam_verts = 0;
+    int64_t _num_cam_sel = 0;
+    int64_t _num_cam_bright = 0;
+    // With per-camera colours instead: one draw per distinct colour.
+    struct CamGroup { int64_t first, count; float rgb[3]; };
+    std::vector<CamGroup> _cam_groups;
     float _base_cam_size = 0.1f;
+
+    std::shared_ptr<const spirula::RegionOverlay> _ov, _ov_uploaded;
+    std::shared_ptr<spirula::RegionOverlay> _ov_local;   // in the normalized frame
+    bool _ov_visible = false;
+    unsigned _vao_ov = 0, _vbo_ov = 0, _vao_ovl = 0, _vbo_ovl = 0;
+    std::vector<int64_t> _ov_first;   // per layer, into the triangle buffer
+    std::vector<float> _ov_dash;      // per layer, dash period
+    int _u_alpha = -1, _u_dash = -1;
+    void upload_overlay();
+    void draw_overlay(const float view[16]);
+    void destroy_overlay_gl();
 
     unsigned _fbo = 0, _color_tex = 0, _depth_rb = 0;
     int _fbo_w = 0, _fbo_h = 0;

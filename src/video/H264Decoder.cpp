@@ -977,13 +977,26 @@ bool H264Decoder::decodeFrame(const uint8_t* data, size_t size, int nal_length_s
     pending_is_ref_ = nal_ref_idc != 0;
     pending_idr_ = idr;
 
+    // NVIDIA 595 orders references by FrameNum without FrameNumWrap, so just after
+    // frame_num wraps it predicts from the wrong picture. Shifting every FrameNum by
+    // one constant mod MaxFrameNum leaves PicNum order and differences intact.
+    const int max_frame_num = (int)sps.max_frame_num;
+    int frame_num_shift = 0;
+    for (uint32_t i = 0; i < format_.max_dpb_slots; ++i)
+        if (dpb_[i].used && !dpb_[i].long_term && dpb_[i].frame_num > (int)sh.frame_num)
+            frame_num_shift = (int)sh.frame_num + 1;
+    auto driver_frame_num = [&](int frame_num) {
+        return (uint16_t)((frame_num - frame_num_shift + max_frame_num) % max_frame_num);
+    };
+
     // Reference slots active for this picture, and the slot it will occupy.
     // The marking process runs in commitFrame(), so the slot list here is the
     // state as of the previous picture, which is exactly what the driver needs.
     out.refs.clear();
     for (uint32_t i = 0; i < format_.max_dpb_slots; ++i) {
         if (!dpb_[i].used) continue;
-        dpb_[i].std_ref.FrameNum = (uint16_t)dpb_[i].frame_num;
+        dpb_[i].std_ref.FrameNum = dpb_[i].long_term ? (uint16_t)dpb_[i].frame_num
+                                                     : driver_frame_num(dpb_[i].frame_num);
         dpb_[i].std_ref.PicOrderCnt[0] = dpb_[i].poc;
         dpb_[i].std_ref.PicOrderCnt[1] = dpb_[i].poc;
         out.refs.push_back({(int32_t)i, &dpb_[i].std_ref});
@@ -996,7 +1009,7 @@ bool H264Decoder::decodeFrame(const uint8_t* data, size_t size, int nal_length_s
     std_pic_ = StdVideoDecodeH264PictureInfo{};
     std_pic_.seq_parameter_set_id = sps.std.seq_parameter_set_id;
     std_pic_.pic_parameter_set_id = (uint8_t)sh.pps_id;
-    std_pic_.frame_num = (uint16_t)sh.frame_num;
+    std_pic_.frame_num = driver_frame_num((int)sh.frame_num);
     std_pic_.idr_pic_id = (uint16_t)sh.idr_pic_id;
     std_pic_.PicOrderCnt[0] = top_poc_;
     std_pic_.PicOrderCnt[1] = bottom_poc_;
@@ -1014,7 +1027,7 @@ bool H264Decoder::decodeFrame(const uint8_t* data, size_t size, int nal_length_s
     vk_pic_.pSliceOffsets = slice_offsets.data();
 
     setup_ref_ = StdVideoDecodeH264ReferenceInfo{};
-    setup_ref_.FrameNum = (uint16_t)sh.frame_num;
+    setup_ref_.FrameNum = std_pic_.frame_num;
     setup_ref_.PicOrderCnt[0] = top_poc_;
     setup_ref_.PicOrderCnt[1] = bottom_poc_;
     setup_ref_.flags.used_for_long_term_reference =

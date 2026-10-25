@@ -39,6 +39,7 @@ static TorchTensorView _ppisp_cam_indices_tv() {
 }
 
 void engine_init_ppisp(int n_grids, std::string param_type, bool use_adagrad,
+                       bool exposure_arithmetic_mean,
                        const std::vector<float>& exposure_init) {
     if (n_grids <= 0)
         throw std::runtime_error("engine_init_ppisp: n_grids must be > 0");
@@ -50,6 +51,7 @@ void engine_init_ppisp(int n_grids, std::string param_type, bool use_adagrad,
     engine().ppisp.param_type = (param_type == "" ? std::string("original") : param_type);
     engine().ppisp.num_params = P;
     engine().ppisp.use_adagrad = use_adagrad;
+    engine().ppisp.exposure_arithmetic_mean = exposure_arithmetic_mean;
     engine().ppisp.params.resize(PoolSlot::EngPpispParams, n_grids, P);
     if (engine().ppisp.param_type == "original") {
         ppisp_original_default_init(
@@ -79,6 +81,8 @@ void _engine_ppisp_forward_current() {
     if (C_batch <= 0) return;
     if (std::get<0>(engine().fwd.renders).data_ptr() == nullptr)
         throw std::runtime_error("engine_ppisp_forward: forward_3dgs must run first");
+    if (engine().fwd.rgb_fmt != PixelFormat::F32)
+        throw std::logic_error("engine_ppisp_forward: the render is not float32");
 
     // pre = current renders.rgb (pointer alias, no D2D copy). ppisp_forward
     // already accepts distinct in/out tensors, so we read pre and write a
@@ -193,7 +197,7 @@ float* _engine_ppisp_reg_loss_into(
 
     compute_ppsip_regularization_forward(
         params_tv, loss_weights, engine().ppisp.param_type,
-        losses_tv, raw_tv);
+        engine().ppisp.exposure_arithmetic_mean, losses_tv, raw_tv);
 
     if (compute_grad) {
         // v_losses = ones[kLoss]: gradient flows back through reg-loss sum.
@@ -217,7 +221,8 @@ float* _engine_ppisp_reg_loss_into(
 
         compute_ppsip_regularization_backward(
             params_tv, loss_weights, raw_tv, v_losses_tv,
-            engine().ppisp.param_type, v_params_tv);
+            engine().ppisp.param_type, engine().ppisp.exposure_arithmetic_mean,
+            v_params_tv);
 
         // ppisp_grads += v_params_scratch (over all N * P floats).
         size_t total = (size_t)N * engine().ppisp.num_params;
@@ -266,7 +271,7 @@ void engine_ppisp_optim_step(int step, const PpispStepConfig& cfg) {
             flat_view(engine().ppisp.g1.data_ptr()),
             flat_view(engine().ppisp.g2.data_ptr()),
             cfg.lr, step + 1, no_per_splat_steps,
-            /*l2_reg=*/0.0f, /*l2_reg_offset=*/0.0f,
+            /*l2_reg=*/0.0f, /*l2_reg_offset=*/0.0f, SbOptimCells{},
             /*grad_scale=*/1.0f, /*zero_grad=*/false);
     }
     engine().ppisp.grads.zero();

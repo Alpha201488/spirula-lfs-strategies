@@ -1,31 +1,26 @@
 // spirula-sam -- segmentation, tracking and frame extraction from a shell.
 //
-//   spirula-sam devices
 //   spirula-sam segment --model m.ggml --image cat.jpg --text "cat" --out out/
-//   spirula-sam segment --model m.ggml --image cat.jpg --point 315,250 --out out/
 //   spirula-sam track   --model m.ggml --frames frames/ --text "person" --out out/
-//   spirula-sam video   --info clip.mp4
 //   spirula-sam extract clip.mp4 --skip 30 --model m.ggml --text "person"
 //
-// The GUI drives the same library in-process (src/app/gui/DatasetPrep.cpp);
-// this is the scriptable face of it, and how a masking or extraction problem
-// gets reproduced without the GUI in the way.
-//
-// `video` and `extract` need the in-process decoder, which is only built with
-// -DSS_ENABLE_PATENTED=ON (src/app/cli/sam_extract.cpp); without it they
-// say so and point at ffmpeg.
-//
-// Diagnostics go to stderr, the result table to stdout, so a run pipes cleanly:
+// The scriptable face of what the GUI drives in-process (src/app/gui/DatasetPrep.cpp).
+// `video` needs the in-process decoder (-DSS_ENABLE_PATENTED=ON); `extract`
+// falls back to ffmpeg. Diagnostics go to stderr, the result table to stdout:
 //   spirula-sam segment ... 2>/dev/null > detections.tsv
 
 #include "app/Tools.h"
+#include "app/cli/ModelLicense.h"
 #include "i18n/catalog/Cli.h"
 #include "i18n/catalog/SamHelp.h"
+#include "app/FrameLook.h"
 #include "app/FrameMask.h"
+#include "app/FrameMaskSvg.h"
 #include "app/WriterPool.h"
 #include "nn/core/Log.h"
 #include "nn/Device.h"
 #include "nn/io/Image.h"
+#include "birefnet/BiRefNet.h"
 #include "sam/Masking.h"
 #include "sam/Sam.h"
 #ifdef SS_HAVE_VIDEO
@@ -88,7 +83,10 @@ void usage() {
     std::fprintf(stderr, "\n");
 
     line("segment --model <file> --image <file> [options]");
+    para(H::model_kinds);
     help_row("--text <phrase>", H::seg_text);
+    help_row("--detector <id|file>", H::opt_detector);
+    help_row("--detector-threshold <f>", H::opt_detector_threshold);
     help_row("--box x0,y0,x1,y1", H::seg_box);
     help_row("--neg-box x0,y0,x1,y1", H::seg_neg_box);
     help_row("--point x,y", H::seg_point);
@@ -116,7 +114,9 @@ void usage() {
     help_row("--memory-frames <n>", H::trk_memory_frames);
     help_row("--max-frames <n>", H::trk_max_frames);
     help_row("--out <dir>", H::trk_out);
+    help_row("--detector <id|file>", H::opt_detector);
     help_row("--keep-prompted", H::trk_keep_prompted);
+    help_row("--remove-prompted", H::trk_remove_prompted);
     help_row("--dilate-ratio <f>", H::mask_dilate);
     help_row("--overlay", H::trk_overlay);
     std::fprintf(stderr, "\n");
@@ -150,12 +150,13 @@ void usage() {
         std::fprintf(stderr, "        %s\n", l.c_str());
     std::fprintf(stderr, "\n");
 
-    std::fprintf(stderr, "%s --device <index|name>  --vram  --profile  "
-                         "--validate  --img-size <n>\n",
+    std::fprintf(stderr, "%s --device <index|name|auto|uuid:hex>  --vram  "
+                         "--profile  --validate  --img-size <n>\n",
                  H::label_common.get());
     help_row("--max-size <n>", H::common_max_size);
     help_row("--image-gamut <name>", H::common_image_gamut);
     help_row("--image-linear / --no-image-linear", H::common_image_linear);
+    help_row("--image-exposure auto|<stops>", H::common_image_exposure);
     std::fprintf(stderr,
                  "%s SS_NN_LOG=0..3  SS_VK_DEVICE  SS_PROFILE=1\n"
                  "             SS_VK_VALIDATION=1  SS_NN_DEBUG_SYNC=1\n",
@@ -180,6 +181,9 @@ bool parse_floats(const char* s, float* out, int n) {
 struct Options {
     std::string command;
     std::string model, image, frames, out_dir, text, neg_text, video_path;
+    std::string detector;
+    float detector_threshold = 0.3f;   // sam::MaskOptions, same default
+    std::optional<bool> keep;          // --keep-prompted / --remove-prompted
     std::string device;
     std::vector<sam::Box> pos_boxes, neg_boxes;
     std::vector<sam::Point> pos_points, neg_points;
@@ -191,7 +195,7 @@ struct Options {
     int     cur_object = 0;
     int64_t cur_frame = 0;
     bool multimask = false, show_vram = false, profile = false, validate = false;
-    bool overlay = false, keep_prompted = false;
+    bool overlay = false;
     float threshold = 0.5f, nms = 0.1f;
     float dilate_ratio = 0.05f;   // sam::MaskOptions, same default
     int max_frames = 0;
@@ -200,7 +204,8 @@ struct Options {
 
     // The frames' colour space; they convert to sRGB before the model sees them.
     std::string image_gamut;
-    std::optional<bool> image_is_linear;   // unset: an EXR's own header decides
+    std::optional<bool> image_is_linear;   // unset: the file's own declaration
+    colorspace::Exposure image_exposure;
 
     // `mask`
     std::string shape_spec, mask_image, preview;
@@ -240,6 +245,8 @@ bool parse_args(int argc, char** argv, Options& o) {
         else if (a == "--image-gamut") o.image_gamut = next("--image-gamut");
         else if (a == "--image-linear") o.image_is_linear = true;
         else if (a == "--no-image-linear") o.image_is_linear = false;
+        else if (a == "--image-exposure" &&
+                 colorspace::parse_exposure(next("--image-exposure"), o.image_exposure)) {}
         else if (a == "--frames") o.frames = next("--frames");
         else if (a == "--out") o.out_dir = next("--out");
         else if (a == "--text") o.text = next("--text");
@@ -247,7 +254,11 @@ bool parse_args(int argc, char** argv, Options& o) {
         else if (a == "--detect-every") o.detect_every = std::atoi(next("--detect-every"));
         else if (a == "--memory-frames") o.memory_frames = std::atoi(next("--memory-frames"));
         else if (a == "--max-size") o.max_size = std::atoi(next("--max-size"));
-        else if (a == "--keep-prompted") o.keep_prompted = true;
+        else if (a == "--keep-prompted") o.keep = true;
+        else if (a == "--remove-prompted") o.keep = false;
+        else if (a == "--detector") o.detector = next("--detector");
+        else if (a == "--detector-threshold")
+            o.detector_threshold = std::strtof(next("--detector-threshold"), nullptr);
         else if (a == "--info") o.video_path = next("--info");
         else if (a == "--device") o.device = next("--device");
         else if (a == "--threshold") o.threshold = std::strtof(next("--threshold"), nullptr);
@@ -318,20 +329,23 @@ int cmd_devices() {
     const int w_name = std::max(42, display_width(cmsg::sam_col_name.get()));
     const int w_type = std::max(11, display_width(cmsg::sam_col_type.get()));
     const int w_vram = std::max(8, display_width(cmsg::sam_col_vram.get()));
-    std::printf("%s %s %s %s  %s\n",
+    const int w_uuid = std::max(37, display_width(cmsg::device_uuid.get()));
+    std::printf("%s %s %s %s %s  %s\n",
                 pad_to(cmsg::sam_col_index.get(), w_idx).c_str(),
                 pad_to(cmsg::sam_col_name.get(), w_name).c_str(),
                 pad_to(cmsg::sam_col_type.get(), w_type).c_str(),
                 pad_to(cmsg::sam_col_vram.get(), w_vram).c_str(),
+                pad_to(cmsg::device_uuid.get(), w_uuid).c_str(),
                 cmsg::sam_col_status.get());
     for (const auto& d : devices) {
         char vram[32];
         std::snprintf(vram, sizeof vram, "%6.1f G", d.vram_bytes / 1073741824.0);
-        std::printf("%s %s %s %s  %s\n",
+        std::printf("%s %s %s %s %s  %s\n",
                     pad_to(std::to_string(d.index), w_idx).c_str(),
                     pad_to(d.name, w_name).c_str(),
                     pad_to(d.type, w_type).c_str(),
                     pad_to(vram, w_vram).c_str(),
+                    pad_to(d.uuid, w_uuid).c_str(),
                     d.usable ? cmsg::sam_status_ok.get()
                              : d.unusable_reason.c_str());
     }
@@ -367,18 +381,67 @@ void write_results(const Options& o, const nn::Image& image, const sam::Result& 
                         {(long long)r.detections.size(), o.out_dir}).c_str());
 }
 
+// The one mapping from the command line to the mask policy, shared by
+// `segment` (on BiRefNet or Grounding DINO) and `track`.
+sam::MaskOptions mask_options(const Options& o) {
+    sam::MaskOptions mo;
+    mo.model = o.model;
+    mo.device = o.device;
+    mo.detector = o.detector;
+    mo.detector_threshold = o.detector_threshold;
+    mo.text = o.text;
+    mo.neg_text = o.neg_text;
+    const bool subject = birefnet::find_model_source(o.model) || birefnet::is_checkpoint(o.model);
+    // BiRefNet's mask IS the subject, so keeping it is what a bare run means.
+    mo.keep_prompted = o.keep.value_or(subject);
+    if (subject && (!o.text.empty() || !o.neg_text.empty() || !o.seeds.empty()))
+        std::fprintf(stderr, "%s\n", format(cmsg::sam_subject_no_prompt, {o.model}).c_str());
+    mo.threshold = o.threshold;
+    mo.nms = o.nms;
+    mo.dilate_ratio = o.dilate_ratio;
+    mo.detect_every = o.detect_every;
+    mo.memory_frames = o.memory_frames;
+    mo.max_size = o.max_size;
+    mo.img_size = o.img_size;
+    mo.validate = o.validate;
+    mo.profile = o.profile;
+    mo.seeds = o.seeds;
+    return mo;
+}
+
+// `segment` through the mask policy: the path for a model that is not a SAM
+// session on its own -- BiRefNet, or SAM 2 with Grounding DINO finding boxes.
+int segment_with_masker(const Options& o) {
+    nn::Image image =
+        nn::load_image(o.image, o.image_gamut, o.image_is_linear, o.image_exposure);
+    if (image.empty()) return 1;
+    sam::MaskOptions mo = mask_options(o);
+    mo.video = false;
+    mo.max_size = 0;
+    sam::Masker masker;
+    std::string error;
+    sam::Mask mask;
+    sam::Result r;
+    if (!masker.init(mo, error) || !masker.run(image, mask, &r, 0)) {
+        std::fprintf(stderr, "%s\n",
+                     format(cmsg::error_line, {error.empty() ? masker.lastError() : error}).c_str());
+        return 1;
+    }
+    write_results(o, image, r, "seg");
+    if (!o.out_dir.empty()) sam::save_mask_png(mask, o.out_dir + "/seg_mask.png");
+    return 0;
+}
+
 bool load_session(const Options& o, sam::Session& session) {
     sam::ModelParams mp;
     mp.model_path = o.model;
     mp.validation = o.validate;
     mp.profile = o.profile;
     mp.img_size = o.img_size;
-    if (!o.device.empty()) {
-        char* end = nullptr;
-        long idx = std::strtol(o.device.c_str(), &end, 10);
-        if (end && *end == '\0') mp.device_index = (int)idx;
-        else mp.device_match = o.device;
-    }
+    // One spelling, resolved by the shared parser inside loadModel: "auto" or
+    // -1, an ordinal, a name substring, or "uuid:<32 hex>". An ordinal
+    // is an index here, never a substring of a GPU name.
+    mp.device = o.device;
     if (!session.loadModel(mp)) {
         std::fprintf(stderr, "%s\n",
                      format(cmsg::error_line, {session.lastError()}).c_str());
@@ -392,10 +455,15 @@ int cmd_segment(const Options& o) {
         std::fprintf(stderr, "%s\n", cmsg::sam_segment_needs.get());
         return 2;
     }
+    if (!app::require_model_license(o.model)) return 2;
+    if (!o.detector.empty() || birefnet::find_model_source(o.model) ||
+        birefnet::is_checkpoint(o.model))
+        return segment_with_masker(o);
     sam::Session session;
     if (!load_session(o, session)) return 1;
 
-    nn::Image image = nn::load_image(o.image, o.image_gamut, o.image_is_linear);
+    nn::Image image =
+        nn::load_image(o.image, o.image_gamut, o.image_is_linear, o.image_exposure);
     if (image.empty()) return 1;
     if (!session.encodeImage(image)) {
         std::fprintf(stderr, "%s\n",
@@ -438,6 +506,7 @@ int cmd_track(const Options& o) {
         std::fprintf(stderr, "%s\n", cmsg::sam_track_needs.get());
         return 2;
     }
+    if (!app::require_model_license(o.model)) return 2;
     std::vector<std::string> files;
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(o.frames, ec)) {
@@ -445,7 +514,7 @@ int cmd_track(const Options& o) {
         std::string ext = e.path().extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" ||
-            ext == ".exr")
+            ext == ".exr" || ext == ".tif" || ext == ".tiff")
             files.push_back(e.path().string());
     }
     std::sort(files.begin(), files.end());
@@ -460,22 +529,7 @@ int cmd_track(const Options& o) {
     // The mask policy -- several concepts, negatives that carve back out, and
     // which side of the mask is white -- lives in sam/Masking.h, shared with
     // `extract` and with the GUI so none of the three can disagree.
-    sam::MaskOptions mo;
-    mo.model = o.model;
-    mo.device = o.device;
-    mo.text = o.text;
-    mo.neg_text = o.neg_text;
-    mo.keep_prompted = o.keep_prompted;
-    mo.threshold = o.threshold;
-    mo.nms = o.nms;
-    mo.dilate_ratio = o.dilate_ratio;
-    mo.detect_every = o.detect_every;
-    mo.memory_frames = o.memory_frames;
-    mo.max_size = o.max_size;
-    mo.img_size = o.img_size;
-    mo.validate = o.validate;
-    mo.profile = o.profile;
-    mo.seeds = o.seeds;
+    const sam::MaskOptions mo = mask_options(o);
 
     sam::Masker masker;
     std::string error;
@@ -488,11 +542,20 @@ int cmd_track(const Options& o) {
     // Neither reading the next frame nor writing the last mask needs the GPU,
     // and together they are about a third of a frame -- see app/WriterPool.h.
     app::WriterPool writers;
-    std::future<nn::Image> ahead;
+    // The way up the model was trained on, with the turn kept so the mask goes
+    // back in the frame the file stores -- see app/FrameLook.h.
+    struct Loaded {
+        nn::Image img;
+        sfm::ExifTransform turn;
+    };
+    std::future<Loaded> ahead;
     auto load_at = [&](size_t i) {
         return std::async(std::launch::async,
-                          [p = files[i], g = o.image_gamut, l = o.image_is_linear] {
-                              return nn::load_image(p, g, l);
+                          [p = files[i], g = o.image_gamut, l = o.image_is_linear,
+                           e = o.image_exposure] {
+                              Loaded out;
+                              out.img = app::load_upright(p, g, l, e, out.turn);
+                              return out;
                           });
     };
     if (!files.empty()) ahead = load_at(0);
@@ -501,7 +564,8 @@ int cmd_track(const Options& o) {
     const double t_all = nn::now_ms();
     for (size_t f = 0; f < files.size(); ++f) {
         double t0 = nn::now_ms();
-        nn::Image frame = ahead.get();
+        Loaded loaded = ahead.get();
+        nn::Image frame = std::move(loaded.img);
         if (f + 1 < files.size()) ahead = load_at(f + 1);
         t_load += nn::now_ms() - t0;
         if (frame.empty()) continue;
@@ -538,6 +602,8 @@ int cmd_track(const Options& o) {
             if (o.overlay) {
                 sam::save_overlay_png(frame, r, path);
             } else {
+                app::turn_pixels(app::inverse_turn(loaded.turn), 1, mask.data,
+                                 mask.width, mask.height);
                 app::WriteJob wj;
                 wj.mask = std::move(mask);
                 wj.path = path;
@@ -575,8 +641,8 @@ int cmd_track(const Options& o) {
 
 void write_preview(const std::string& frame, const app::FrameMask& fm,
                    const std::string& path, const std::string& gamut,
-                   std::optional<bool> is_linear) {
-    nn::Image img = nn::load_image(frame, gamut, is_linear);
+                   std::optional<bool> is_linear, const colorspace::Exposure& exposure) {
+    nn::Image img = nn::load_image(frame, gamut, is_linear, exposure);
     if (img.empty()) return;
     std::vector<uint8_t> px;
     std::string err;
@@ -621,12 +687,18 @@ int cmd_mask(const Options& o) {
     run.stencil.mask.image = o.mask_image;
     // Named shapes are the whole answer; only an unnamed one asks for a fit.
     if (!o.shape_spec.empty()) {
-        std::string bad;
-        if (!app::parse_mask_shapes(o.shape_spec, run.stencil.mask.shapes, bad)) {
+        std::string bad, title;
+        const bool svg = o.shape_spec.size() > 4 &&
+                         o.shape_spec.compare(o.shape_spec.size() - 4, 4, ".svg") == 0;
+        // A file the GUI saved for one camera brings its set's other cameras.
+        app::MaskSet set;
+        if (svg ? !app::load_mask_svg_set(o.shape_spec, set, title, bad)
+                : !app::parse_mask_shapes(o.shape_spec, set.shapes, bad)) {
             std::fprintf(stderr, "%s\n",
                          format(cmsg::sam_mask_bad_shape, {bad}).c_str());
             return 2;
         }
+        app::apply_mask_set(run.stencil, set);
     } else {
         run.stencil.detect_border = true;
     }
@@ -662,7 +734,7 @@ int cmd_mask(const Options& o) {
             const auto it = groups.find(rel);
             if (it != groups.end() && !it->second.empty())
                 write_preview(it->second.front(), fm, preview_left,
-                              o.image_gamut, o.image_is_linear);
+                              o.image_gamut, o.image_is_linear, o.image_exposure);
             preview_left.clear();
         }
     };
@@ -685,6 +757,14 @@ int cmd_video(const Options& o) {
     std::fprintf(stderr, "%s\n", cmsg::sam_no_video_decoder.get());
     return 1;
 #else
+    // The decoder creates the inference context, so the request is frozen
+    // first: `sam video` honours --device like every other native entry point.
+    std::string dev_error;
+    if (!sam::freeze_device(o.device, dev_error, o.validate, o.profile)) {
+        std::fprintf(stderr, "%s\n",
+                     format(cmsg::error_line, {dev_error}).c_str());
+        return 1;
+    }
     const std::string why = video::VideoReader::availability();
     if (why.empty())
         std::fprintf(stderr, "%s\n", cmsg::sam_video_decode.get());
@@ -742,23 +822,20 @@ int cmd_video(const Options& o) {
 
 // Defined in src/app/cli/sam_extract.cpp; it has its own option set, so it
 // parses its own argv rather than sharing Options above.
-#ifdef SS_HAVE_VIDEO
 int sam_cli_extract(int argc, char** argv);
-#endif
 
 int spirula_sam_main(int argc, char** argv) {
     app::set_program_name(argc > 0 ? argv[0] : nullptr, "spirula sam");
+    if (argc >= 2 &&
+        (std::strcmp(argv[1], "--help") == 0 ||
+         std::strcmp(argv[1], "-h") == 0)) {
+        usage();
+        return 0;
+    }
     if (argc >= 2 && std::strcmp(argv[1], "extract") == 0) {
-#ifdef SS_HAVE_VIDEO
         int rc = sam_cli_extract(argc - 1, argv + 1);
         nn::shutdown();
         return rc;
-#else
-        std::fprintf(stderr, "%s\n",
-                     format(cmsg::sam_extract_needs_decoder,
-                            {app::program_name()}).c_str());
-        return 1;
-#endif
     }
 
     Options o;

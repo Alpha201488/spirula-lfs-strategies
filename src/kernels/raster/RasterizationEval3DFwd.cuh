@@ -40,5 +40,7 @@ std::tuple<
     const DeviceVector<int32_t> flatten_ids,    // [n_isects]
     int macro_log2,               // binning granularity
     DistortionType dist_type,
-    bool output_median
+    bool output_median,
+    bool output_depth,            // false: nothing reads the depth, leave it out
+    SplatScoreRender score
 );

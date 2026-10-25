@@ -131,6 +131,21 @@ Result evaluate(BAProblem P, RealCfg real, const char* loss) {
     return out;
 }
 
+// Pixels are gauge-invariant; the poses and points are not, and nothing here
+// fixes the gauge (map/Bundle.h), so two solves may settle at different ones.
+double reprojectionGap(const BAProblem& P, const Result& a, const Result& b) {
+    double worst = 0;
+    for (uint32_t o = 0; o < P.num_obs; o++) {
+        const uint32_t image = P.obs_image[o], point = P.obs_point[o];
+        double pa[2], pb[2];
+        project(&a.poses[6 * image], P.intr.data(), &a.points[3 * point], pa);
+        project(&b.poses[6 * image], P.intr.data(), &b.points[3 * point], pb);
+        const double dx = std::remainder(pa[0] - pb[0], P.intr[0]);
+        worst = std::max(worst, std::hypot(dx, pa[1] - pb[1]));
+    }
+    return worst;
+}
+
 bool variantBuilt(RealCfg real, const char* loss) {
     const std::string name = std::string("ba_") + realCfgName(real) + "_" + loss;
     size_t words = 0;
@@ -148,16 +163,16 @@ bool testVariant(const BAProblem& base, RealCfg real, const char* loss) {
     const double S_err = relativeMax(device.S, host.S);
     const double g_err = relativeMax(device.g, host.g);
     const double final_err = std::fabs(device.final - host.final) / std::max(1.0, host.final);
-    const double pose_err = relativeMax(device.poses, host.poses);
-    const double point_err = relativeMax(device.points, host.points);
+    const double reproj_px = reprojectionGap(base, device, host);
     // rAtan2 is approximate; fp64 CPU/device projection parity is about 1 ppm.
     const double assembly_tol = real == RealCfg::F32 ? 2e-5 : 2e-6;
     const double solve_tol = real == RealCfg::F32 ? 1e-2 : 1e-5;
+    const double reproj_tol_px = real == RealCfg::F32 ? 5e-3 : 5e-5;
     const bool descent = host.final < host.initial && device.final < device.initial;
     const bool ok = cost_err < assembly_tol && S_err < assembly_tol && g_err < assembly_tol &&
-                    final_err < solve_tol && pose_err < solve_tol && point_err < solve_tol && descent;
-    std::printf("%-8s %-8s cost %.2e  S %.2e  g %.2e  final %.2e  pose %.2e  point %.2e  %s\n",
-                realCfgName(real), loss, cost_err, S_err, g_err, final_err, pose_err, point_err,
+                    final_err < solve_tol && reproj_px < reproj_tol_px && descent;
+    std::printf("%-8s %-8s cost %.2e  S %.2e  g %.2e  final %.2e  reproj %.2e px  %s\n",
+                realCfgName(real), loss, cost_err, S_err, g_err, final_err, reproj_px,
                 ok ? "PASS" : "FAIL");
     return ok;
 }

@@ -8,6 +8,7 @@
 #include "core/Env.h"
 #include "engine/EngineCommon.h"
 #include "engine/EngineState.h"
+#include "shaders/screen_layout.h"
 
 #include <cstdio>
 #include <map>
@@ -53,12 +54,93 @@ static TorchTensorView _slice_tv_range_first_dim(const TorchTensorView& tv,
 }
 
 
+// Folds this batch's screen gradients into the per-camera visit stats. Runs
+// right after the backward, before the optimizer sorts the packed ids.
+static void _visit_accumulate_camera_stats(const std::string& primitive) {
+    auto& v = engine().visit;
+    if (!v.enabled || v.cam_sum.data_ptr() == nullptr) return;
+    const auto& cam_map = engine().bilagrid_cur_cam_indices;
+    const int C = (int)engine().camera.num;
+    if (cam_map.data_ptr() == nullptr || (int64_t)cam_map.size() < C) return;
+    if (engine().fwd.v_splats_s.empty() || engine().fwd.v_splats_s[0].data_ptr() == nullptr)
+        return;
+    const int64_t N = engine().cur_num_splats;
+    const bool packed = engine().packed;
+    const int64_t n_isect = packed ? (int64_t)engine().fwd.camera_ids.size() : (int64_t)C * N;
+    const bool gut = primitive == "3dgut";
+    visit_camera_stats_zero_tensor(C, cam_map, v.cam_sum, v.cam_cnt);
+    visit_camera_stats_tensor(
+        n_isect, N, C, packed, engine().fwd.camera_ids, engine().fwd.gaussian_ids,
+        engine().fwd.v_splats_s[0], gut ? SCRG_STRIDE : SCR2_STRIDE,
+        gut ? SCRG_OPAC : SCR2_OPAC, engine().optim.visit_counters, cam_map,
+        v.cam_sum, v.cam_cnt);
+}
+
+
+void _engine_arm_step_forward(const EngineStepConfig& cfg,
+                              DistortionType dist_type, bool image_stages) {
+    // The rendered depth and its gradient are two full-resolution floats a
+    // pixel; a step none of whose terms reads them leaves both out.
+    {
+        const auto& w = cfg.loss.weights;
+        engine().fwd.skip_depth_pending =
+            !dist_any(dist_type) && engine().gt.depth.data_ptr() == nullptr &&
+            engine().gt.normal.data_ptr() == nullptr &&
+            w[(int)LossWeightIndex::MeanMedianDepthSup] == 0.0f &&
+            w[(int)LossWeightIndex::MedianDepthNormalReg] == 0.0f &&
+            w[(int)LossWeightIndex::MedianNormalSup] == 0.0f &&
+            w[(int)LossWeightIndex::MedianRenderNormalReg] == 0.0f;
+    }
+    auto& pp = engine().ppisp;
+    pp.cur_run_before_bilagrid = cfg.ppisp.run_before_bilagrid;
+    pp.cur_run_before_color_space =
+        cfg.ppisp.run_before_color_space && engine().color_space.splat_enabled;
+    pp.forward_pending = image_stages && pp.enabled && pp.cur_run_before_color_space;
+    // The fused appearance chain can also take PPISP after the encode, when
+    // nothing stands between it and the encode.
+    pp.forward_pending_after_encode =
+        image_stages && pp.enabled && !pp.cur_run_before_color_space &&
+        (pp.cur_run_before_bilagrid || !engine().bilagrid_rgb.enabled);
+    engine().appearance.allow = cfg.loss.color_shift_reg_weight <= 0.0f;
+    // The color-shift term reads the stages' images as float.
+    engine().fwd.image_fmt_pending =
+        cfg.optim.image_bits == 16 && engine().appearance.allow
+            ? PixelFormat::F16 : PixelFormat::F32;
+    engine().appearance.transient_pending =
+        image_stages && engine().fwd.image_fmt_pending == PixelFormat::F16 &&
+        engine().bilagrid_rgb.enabled;
+    engine().background.match_luma_pending = cfg.background.match_luminance;
+}
+
+void _engine_step_image_stages(TorchTensorView cam_indices) {
+    // PPISP already ran inside the forward in the before-color-space order,
+    // and in the fused chain's after-encode one.
+    const bool ppisp_fused = engine().appearance.fused &&
+                             engine().appearance.params.ppisp != AppearancePpisp::Off;
+    const bool ppisp_after = engine().ppisp.enabled &&
+                             !engine().ppisp.cur_run_before_color_space &&
+                             !ppisp_fused;
+    const bool bg_enabled = engine().bilagrid_rgb.enabled ||
+                            engine().bilagrid_depth.enabled ||
+                            engine().bilagrid_normal.enabled;
+    if (engine().ppisp.cur_run_before_bilagrid) {
+        if (ppisp_after) engine_ppisp_forward(cam_indices);
+        if (bg_enabled)  engine_bilagrid_forward(cam_indices);
+    } else {
+        // The per-stage PPISP reads the grid's output as float.
+        if (ppisp_after) engine().fwd.image_fmt = PixelFormat::F32;
+        if (bg_enabled)  engine_bilagrid_forward(cam_indices);
+        if (ppisp_after) engine_ppisp_forward(cam_indices);
+    }
+}
+
+
 // Forward + bilagrid/PPISP forward + loss + raster/proj backward only.
 // No optimizer / densify. Used both as a per-sub-batch step in split mode
 // and as the inner of the single-batch path. Returns the loss_dict from
 // engine_compute_loss_backward; callers aggregate across sub-batches.
 static std::map<std::string, float> _engine_step_fwd_bwd_only(
-    int step,
+    int step, int max_steps,
     std::string primitive,
     int sh_degree,
     bool packed,
@@ -77,6 +159,7 @@ static std::map<std::string, float> _engine_step_fwd_bwd_only(
         !cfg.optim.use_fused_proj_bwd_optim && (cfg.optim.quantization_level != 0);
 
     _set_cur_cam_indices(bilagrid_cam_indices);
+    engine_max_weight_begin_step(step, max_steps, cfg.densify);
 
     // Pick the distortion channel set from the per-channel weights, restricted
     // to the channels this primitive renders (normal is honored only once a
@@ -132,30 +215,19 @@ static std::map<std::string, float> _engine_step_fwd_bwd_only(
     } else {
         engine().fwd.tile_active = DeviceVector<int32_t>();
     }
-    engine().ppisp.cur_run_before_bilagrid = cfg.ppisp.run_before_bilagrid;
-    engine().ppisp.cur_run_before_color_space =
-        cfg.ppisp.run_before_color_space && engine().color_space.splat_enabled;
-    engine().ppisp.forward_pending =
-        engine().ppisp.enabled && engine().ppisp.cur_run_before_color_space;
+    _engine_arm_step_forward(cfg, dist_type, /*image_stages=*/true);
+    engine().fwd.score_pending = cfg.loss.learned_score;
+    engine().learned_score.power = cfg.loss.loss_map_power * cfg.densify.score_power;
 
-    forward_3dgs(primitive, sh_degree, packed, /*output_median=*/false, (int)dist_type);
-
-    // PPISP already ran inside the forward in the before-color-space order.
-    const bool ppisp_after = engine().ppisp.enabled &&
-                             !engine().ppisp.cur_run_before_color_space;
-    const bool bg_enabled = engine().bilagrid_rgb.enabled ||
-                            engine().bilagrid_depth.enabled ||
-                            engine().bilagrid_normal.enabled;
-    if (engine().ppisp.cur_run_before_bilagrid) {
-        if (ppisp_after) engine_ppisp_forward(bilagrid_cam_indices);
-        if (bg_enabled)  engine_bilagrid_forward(bilagrid_cam_indices);
-    } else {
-        if (bg_enabled)  engine_bilagrid_forward(bilagrid_cam_indices);
-        if (ppisp_after) engine_ppisp_forward(bilagrid_cam_indices);
+    engine().fwd.kernel_cut = cfg.loss.raster_kernel_cut;
+    {
+        SplatStageTimer stage_timer;
+        forward_3dgs(primitive, sh_degree, packed, /*output_median=*/false, (int)dist_type);
     }
+    _engine_step_image_stages(bilagrid_cam_indices);
 
     auto losses = engine_compute_loss_backward(
-        step, cfg.loss.weights, cfg.loss.w_ssim,
+        step, cfg.loss.weights, cfg.loss.w_ssim, cfg.loss.perceptual_loss,
         cfg.loss.num_loss_scales, cfg.loss.loss_scale_min_pixels,
         cfg.loss.compute_loss_map,
         cfg.loss.loss_map_mode,
@@ -169,8 +241,10 @@ static std::map<std::string, float> _engine_step_fwd_bwd_only(
         cfg.loss.overexposure_reg_weight,
         cfg.loss.color_shift_reg_weight,
         cfg.loss.color_shift_reg_beta);
+    engine().fwd.kernel_cut = 0.0f;
     engine_bin_tile_observe(std::chrono::duration<double>(
         std::chrono::steady_clock::now() - step_t0).count());
+    _visit_accumulate_camera_stats(primitive);
     return losses;
 }
 
@@ -185,7 +259,10 @@ static void _engine_step_optim_and_densify(
     const EngineStepConfig& cfg,
     std::map<std::string, float>& loss_dict
 ) {
-    engine_optim_step(step, cfg.optim);
+    {
+        SplatStageTimer stage_timer;
+        engine_optim_step(step, cfg.optim);
+    }
 
     if (engine().background.enabled) {
         engine_background_optim_step(step, cfg.background);
@@ -225,9 +302,17 @@ static void _engine_step_optim_and_densify(
         ppisp_reg_readout.issue(losses_buf);
     }
 
-    int num_added = engine_densify_step(step, max_steps, cfg.densify);
+    int num_added = 0;
+    {
+        SplatStageTimer stage_timer;
+        num_added = engine_densify_step(step, max_steps, cfg.densify);
+    }
 
     loss_dict["num_added"] = (float)num_added;
+    if (densify_grows_at(cfg.densify, step, max_steps)) {
+        loss_dict["num_dead"]      = (float)engine().optim.last_num_dead;
+        loss_dict["num_relocated"] = (float)engine().optim.last_num_relocated;
+    }
     loss_dict["cur_num_splats"] = (float)engine().cur_num_splats;
     loss_dict["max_num_splats"] = (float)engine().max_num_splats;
 }
@@ -259,11 +344,13 @@ std::map<std::string, float> _engine_train_step_after_setup(
 
     if (engine().background.enabled) {
         engine_set_background_step_params(cfg.background.seed,
-                                          cfg.background.randomize_weight);
+                                          cfg.background.randomize_weight,
+                                          cfg.loss.num_loss_scales,
+                                          cfg.loss.loss_scale_min_pixels);
     }
 
     auto loss_dict = _engine_step_fwd_bwd_only(
-        step, std::move(primitive), sh_degree, packed,
+        step, max_steps, std::move(primitive), sh_degree, packed,
         bilagrid_cam_indices, cfg);
 
     _engine_step_optim_and_densify(step, max_steps, cfg, loss_dict);
@@ -350,7 +437,9 @@ static std::map<std::string, float> _engine_train_step_split_one_per_camera(
     // background blend reads them per-camera inside the forward kernel).
     if (engine().background.enabled) {
         engine_set_background_step_params(cfg.background.seed,
-                                          cfg.background.randomize_weight);
+                                          cfg.background.randomize_weight,
+                                          cfg.loss.num_loss_scales,
+                                          cfg.loss.loss_scale_min_pixels);
     }
 
     // color_shift_reg EMA: the per-call decay is beta. In single-batch mode
@@ -409,7 +498,7 @@ static std::map<std::string, float> _engine_train_step_split_one_per_camera(
         engine_viewer_capture_thumbnails(bgi_k);
 
         auto ld = _engine_step_fwd_bwd_only(
-            step, primitive, sh_degree, packed, bgi_k, cfg_sub);
+            step, max_steps, primitive, sh_degree, packed, bgi_k, cfg_sub);
 
         // Accumulate per-sub-batch accum_weight (per-splat densification
         // score from raster_bwd). engine().fwd.accum_weight points at the
@@ -494,7 +583,9 @@ std::map<std::string, float> engine_train_step_hetero(
 
     if (engine().background.enabled) {
         engine_set_background_step_params(cfg.background.seed,
-                                          cfg.background.randomize_weight);
+                                          cfg.background.randomize_weight,
+                                          cfg.loss.num_loss_scales,
+                                          cfg.loss.loss_scale_min_pixels);
     }
 
     // color_shift_reg EMA: the hook runs once per fwd/bwd, i.e. total_cams
@@ -544,7 +635,7 @@ std::map<std::string, float> engine_train_step_hetero(
             engine_viewer_capture_thumbnails(bgi_c);
 
             auto ld = _engine_step_fwd_bwd_only(
-                step, primitive, sh_degree, packed, bgi_c, cfg_sub);
+                step, max_steps, primitive, sh_degree, packed, bgi_c, cfg_sub);
 
             if (engine().fwd.accum_weight.data_ptr() != nullptr) {
                 _fold_accum_weight(accum_weight_sum, N_splats);
@@ -686,7 +777,9 @@ static std::map<std::string, float> _engine_train_step_split_warped(
 
     if (engine().background.enabled) {
         engine_set_background_step_params(cfg.background.seed,
-                                          cfg.background.randomize_weight);
+                                          cfg.background.randomize_weight,
+                                          cfg.loss.num_loss_scales,
+                                          cfg.loss.loss_scale_min_pixels);
     }
 
     EngineStepConfig cfg_sub = cfg;
@@ -763,7 +856,7 @@ static std::map<std::string, float> _engine_train_step_split_warped(
             // Reported as they come: the pass weights average to 1, so the
             // mean below is the weighted total the loss actually is.
             auto ld = _engine_step_fwd_bwd_only(
-                step, primitive, sh_degree, packed, bgi_k, cfg_pass);
+                step, max_steps, primitive, sh_degree, packed, bgi_k, cfg_pass);
 
             if (engine().fwd.accum_weight.data_ptr() != nullptr) {
                 _fold_accum_weight(accum_weight_sum, N_splats);

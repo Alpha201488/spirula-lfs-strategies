@@ -2,13 +2,66 @@
 
 #include "app/gui/TrainRunner.h"
 
+#include "backend/api/BackendRuntime.h"
+#include "engine/Engine.h"
+#include "i18n/catalog/Gui.h"
 #include "i18n/catalog/Log.h"
+#ifdef SS_HAVE_LPIPS
+#include "app/gui/FetchSource.h"
+#include "lpips/Fetch.h"
+#endif
 
 #include <algorithm>
+#include <chrono>
+#include <stdexcept>
 
 namespace gui {
 
 using spirula::TrainerSession;
+
+std::string TrainRunner::fetch_line() {
+    std::lock_guard<std::mutex> lk(_mu);
+    return _fetch_line;
+}
+
+float TrainRunner::fetch_progress() {
+    std::lock_guard<std::mutex> lk(_mu);
+    return _fetch_progress;
+}
+
+void TrainRunner::fetch_eval_models(const TrainConfig& cfg) {
+#ifdef SS_HAVE_LPIPS
+    if (!spirula::lpips_wanted(cfg) || !cfg.lpips_checkpoints.empty()) return;
+    namespace gmsg = spirula::i18n::msg::gui;
+    for (const nn::FetchFile& f : lpips::missing_files({lpips::Net::Alex, lpips::Net::Vgg})) {
+        PendingDownload d = pending_download(f);
+        d.sha256 = f.sha256;
+        FileDownload dl;
+        dl.start(d);
+        while (dl.state() == FileDownload::State::Running) {
+            if (_session && _session->stop_requested.load()) dl.cancel();
+            {
+                std::lock_guard<std::mutex> lk(_mu);
+                _fetch_line = spirula::i18n::format(gmsg::fetching_lpips, {f.file, dl.status()});
+                _fetch_progress = dl.progress();
+            }
+            for (const std::string& line : dl.drain_log()) push_log(line);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        for (const std::string& line : dl.drain_log()) push_log(line);
+        {
+            std::lock_guard<std::mutex> lk(_mu);
+            _fetch_line.clear();
+            _fetch_progress = -1.0f;
+        }
+        if (dl.state() != FileDownload::State::Done)
+            throw std::runtime_error(
+                spirula::i18n::format(gmsg::lpips_fetch_failed, {f.file, dl.status()}));
+    }
+#else
+    (void)cfg;
+#endif
+}
 
 void TrainRunner::push_log(const std::string& s) {
     std::lock_guard<std::mutex> lk(_mu);
@@ -33,6 +86,11 @@ spirula::TrainerProgress TrainRunner::latest_progress() {
     return _latest;
 }
 
+spirula::EvalProgress TrainRunner::latest_eval_progress() {
+    std::lock_guard<std::mutex> lk(_mu);
+    return _eval;
+}
+
 double TrainRunner::avg_latency_locked() const {
     if (_latencies.empty()) return -1.0;
     double sum = 0.0;
@@ -46,10 +104,7 @@ double TrainRunner::avg_step_latency() {
 }
 
 double TrainRunner::eta_seconds() {
-    std::lock_guard<std::mutex> lk(_mu);
-    const double avg = avg_latency_locked();
-    if (avg < 0.0 || _latest.total_steps <= 0) return -1.0;
-    return avg * std::max(0, _latest.total_steps - (_latest.step + 1));
+    return _session ? _session->eta_seconds() : -1.0;
 }
 
 double TrainRunner::elapsed_seconds() {
@@ -87,6 +142,13 @@ void TrainRunner::shutdown() {
     if (_web_viewer) { _web_viewer->stop(); _web_viewer.reset(); }
 }
 
+void TrainRunner::release_engine() {
+    shutdown();
+    _engine_ready = false;
+    _session.reset();
+    engine_reset();
+}
+
 void TrainRunner::load_dataset(const TrainConfig& cfg, const std::string& preset) {
     shutdown();
     _engine_ready = false;
@@ -120,6 +182,7 @@ void TrainRunner::start_training(const TrainConfig& cfg, const std::string& pres
         std::lock_guard<std::mutex> lk(_mu);
         _error.clear();
         _latest = {};
+        _eval = {};
         _latencies.clear();
         _metrics.clear();
     }
@@ -131,7 +194,17 @@ void TrainRunner::start_training(const TrainConfig& cfg, const std::string& pres
     TrainerSession* s = _session.get();
     _worker = std::thread([this, s] {
         try {
+#ifndef SS_BACKEND_VULKAN
+            // The CUDA runtime's current device is per thread; this worker
+            // does all the engine work, so it re-applies the process-wide
+            // selection before the first driver call.
+            if (!backend::device_bind())
+                throw std::runtime_error(
+                    "could not make the selected GPU current on the training "
+                    "thread; restart the application or choose another GPU");
+#endif
             s->check_config();
+            fetch_eval_models(s->cfg);
             s->load_dataset();
             s->setup_engine();
             s->viewer_base_camera_size = viewer_upload_cameras(s->post);
@@ -172,6 +245,13 @@ void TrainRunner::start_training(const TrainConfig& cfg, const std::string& pres
                 _metrics.push_back(m);
             };
             s->train(cb);
+            if (!s->stop_requested.load() && s->cfg.eval_mode != "all") {
+                _phase = Phase::Evaluating;
+                s->eval([this](const spirula::EvalProgress& p) {
+                    std::lock_guard<std::mutex> lk(_mu);
+                    _eval = p;
+                });
+            }
             _phase = Phase::Done;
         } catch (const std::exception& e) {
             std::lock_guard<std::mutex> lk(_mu);

@@ -3,10 +3,10 @@
 // numbers -- we do not own these weights and cannot embed a golden copy. That
 // is tools/moge/compare_ort.py's job, and it is the gate that matters.
 //
-//   ./build/moge_test                        # cached checkpoints, or SKIP
-//   ./build/moge_test --fetch                # download them first
-//   ./build/moge_test --model M --image IMG.jpg [--num-tokens N] [--repeat N]
-//   SS_MOGE_DUMP=/tmp/ours ./build/moge_test --model M --image IMG.jpg
+//   ./build_vulkan/moge_test                        # cached checkpoints, or SKIP
+//   ./build_vulkan/moge_test --fetch                # download them first
+//   ./build_vulkan/moge_test --model M --image IMG.jpg [--num-tokens N] [--repeat N]
+//   SS_MOGE_DUMP=/tmp/ours ./build_vulkan/moge_test --model M --image IMG.jpg
 
 #include "moge/Moge.h"
 #include "moge/model/Fetch.h"

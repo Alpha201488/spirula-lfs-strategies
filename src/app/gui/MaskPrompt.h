@@ -22,8 +22,10 @@
 // and a chip whose term is present is drawn highlighted, so the palette also
 // reads as a summary of what the prompt currently says.
 
+#include "app/gui/MaskSettings.h"
 #include "i18n/Message.h"
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -54,5 +56,38 @@ void prompt_toggle_term(std::string& prompt, const char* term);
 // `keep_subject` picks those headings, exactly as it picks the field labels.
 bool draw_subject_palette(std::string& prompt, std::string& negative,
                           bool keep_subject);
+
+// The margin a match's outline moves by, 0-50% of its size: removing grows it
+// (`dilate_ratio`), keeping trims it (`shrink_ratio`). `inline_label` puts the
+// label beside a `width` slider, else above it. True when it changed.
+bool draw_margin_slider(float& dilate_ratio, float& shrink_ratio, bool keep, float width,
+                        bool inline_label);
+
+// One colour per object, IM_COL32-packed; red is left for "not this" clicks.
+unsigned int mask_object_color(int object);
+
+// The clicked-object list: a row per object with its click counts on `frame` /
+// `camera` and elsewhere, "Another object" and the clears. Only clicks from
+// `source` count and are cleared. Writes clicks, object_count, current_object.
+void draw_mask_objects(MaskSettings& settings, long long frame, const std::string& camera,
+                       const std::string& source, bool& edited);
+
+class FileDownload;   // app/gui/ModelCache.h
+
+// The row under the checkpoint combo, in the dataset screen's own order: a
+// download in flight wins over "ready". Inline so mask_doc_test can pin it.
+enum class PickerRow { None, GetModel, Downloading, Ready };
+inline PickerRow mask_picker_row(bool has_entry, bool cached, bool downloading) {
+    if (has_entry && !cached && !downloading) return PickerRow::GetModel;
+    if (downloading) return PickerRow::Downloading;
+    return has_entry ? PickerRow::Ready : PickerRow::None;
+}
+
+// The checkpoint picker of the dataset screen and the mask editor, over the SAME
+// download; `request_download` asks consent first. A null `detector_id` (the
+// editor) drops the TextDetector combo and the non-SAM entries.
+void draw_mask_model_picker(std::string& model_id, std::string* detector_id,
+                            FileDownload& download,
+                            const std::function<void()>& request_download);
 
 }  // namespace gui

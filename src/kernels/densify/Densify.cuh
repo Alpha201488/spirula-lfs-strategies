@@ -4,6 +4,7 @@
 #include <core/Tensor.h>
 
 #include "core/NonShQuantState.h"
+#include "core/SplatVisitState.h"
 
 
 // densify_update_weight score mode. Mirrors DensifyConfig::score_mode.
@@ -13,6 +14,13 @@ enum class DensifyScoreMode : int {
     Median = 2,
     Geom   = 3,
 };
+
+// Cap on the per-pixel ratio map / rendered score map, and its reciprocal
+// floor on a splat's update ratio, so a pixel no score explains yet (or one
+// with no error at all) moves a score by a bounded factor.
+constexpr float kLearnedScoreMaxRatio = 1e4f;
+// The smallest stored s^power, which a multiplicative update can still grow.
+constexpr float kLearnedScoreFloor = 1e-30f;
 
 
 /* == AUTO HEADER GENERATOR - DO NOT EDIT THIS LINE OR ANYTHING BELOW THIS LINE == */
@@ -31,7 +39,11 @@ void normalize_clip_map_inplace_tensor(
     TorchTensorView data,  // [B, ...], rows normalized independently
     bool normalize_median,
     float clip_quantile,
-    float power
+    float power,
+    // The learned score's rendered map, same shape: the result is then the
+    // map, conditioned but not powered, over it -- the ratio the score update
+    // reads (docs/notes/learned-densify-score.md). Null skips.
+    TorchTensorView fit
 );
 
 
@@ -89,9 +101,70 @@ void densify_clip_scale_tensor(
 );
 
 
+void densify_learned_score_tensor(
+    int64_t num_splats,
+    float power,
+    float rate,
+    float log_prior,
+    float pull,
+    DeviceVector<float> radii,
+    DeviceVector<float> ratio,          // [2N] Avg accumulator after finalize
+    DeviceVector<float2> accum_buffer,
+    float max_scale2d,
+    DeviceVector<float> oversize_accum, // empty to skip
+    DeviceVector<float> stats           // [2], accumulated
+);
+
+
 void densify_accum_finalize_tensor(
     int64_t num_splats,
     DeviceVector<float> accum  // [2 * num_splats], planar num then den
+);
+
+
+void densify_scale_score_by_renders_tensor(
+    int64_t num_splats,
+    DeviceVector<uint32_t> visit_counters,  // [N]
+    DeviceVector<float2> score              // [N, 2]; lane 0 is multiplied in place
+);
+
+
+void densify_max_weight_init_tensor(
+    int64_t num_splats,
+    DeviceVector<float> opacs,      // [N] logits
+    DeviceVector<float> max_weight  // [N] out
+);
+
+
+void densify_max_weight_scale_tensor(
+    int64_t num_splats,
+    float scale,
+    DeviceVector<float> max_weight  // [N], multiplied in place
+);
+
+
+void visit_camera_stats_zero_tensor(
+    int num_cameras,
+    DeviceVector<int32_t> cam_map,   // [C] post-split camera per batch slot
+    DeviceVector<float> cam_sum,     // [N_post]
+    DeviceVector<uint32_t> cam_cnt   // [N_post]
+);
+
+
+void visit_camera_stats_tensor(
+    int64_t n_isect,
+    int64_t num_splats,
+    int num_cameras,
+    bool packed,
+    DeviceVector<int32_t> camera_ids,
+    DeviceVector<int32_t> gaussian_ids,
+    DeviceTensorFloatND v_screen,    // packed screen-gradient rows
+    int row_stride,
+    int opac_offset,
+    DeviceVector<uint32_t> visit_counters,
+    DeviceVector<int32_t> cam_map,
+    DeviceVector<float> cam_sum,
+    DeviceVector<uint32_t> cam_cnt
 );
 
 
@@ -129,7 +202,7 @@ void densify_oversize_weight_tensor(
 );
 
 
-void relocate_splats_with_long_axis_split_tensor(
+int64_t relocate_splats_with_long_axis_split_tensor(
     int64_t cur_num_splats,
     float min_opacity,
     float split_opacity_k,
@@ -142,6 +215,12 @@ void relocate_splats_with_long_axis_split_tensor(
     // draw while the kernel still propagates the raw accumulator src -> dst.
     DeviceVector<float2> sample_weights,
     DeviceVector<int32_t> bias_correction_steps,
+    DeviceVector<uint32_t> visit_counters,
+    uint32_t dead_after_steps,
+    // Peak alpha * T per splat; when given it is a second dead test against
+    // min_opacity and is carried src -> dst. dead_by_opacity keeps the first.
+    DeviceVector<float> max_weight,
+    bool dead_by_opacity,
     int sh_optim_bits,
     int num_sh,
     // SH-quant bounds buffer + layout flag used to encode (g1=0, g2=0) into
@@ -150,8 +229,7 @@ void relocate_splats_with_long_axis_split_tensor(
     bool sh_bounds_per_splat,
     // SH VALUE-quant codec copy params. When sh_value_bits != 32 we also do
     // a codec-aware src->dst copy of the SH coefficient bytes (decode src,
-    // encode dst against current dst bounds; clipping is acceptable -- see
-    // _copy_quant_sh_value_for_splat for the rationale).
+    // encode dst, widening dst's bound first -- _copy_quant_sh_value_for_splat).
     DeviceVector<uint8_t> sh_value_packed,
     DeviceVector<float2>  sh_value_bounds,
     int  sh_value_bits,             // 32 / 8 / 16
@@ -160,7 +238,9 @@ void relocate_splats_with_long_axis_split_tensor(
     // Non-SH Adam-state quant: when enabled, each relocated dst splat gets
     // its packed bytes set to codec-encoded zero against the current bound.
     NonShQuantState non_sh,
-    uint32_t seed
+    uint32_t seed,
+    int64_t max_relocate,
+    int64_t* num_dead_out
 );
 
 
@@ -177,6 +257,8 @@ void add_splats_with_long_axis_split_tensor(
     // draw while the kernel still propagates the raw accumulator src -> dst.
     DeviceVector<float2> sample_weights,
     DeviceVector<int32_t> bias_correction_steps,
+    DeviceVector<uint32_t> visit_counters,
+    DeviceVector<float> max_weight,  // carried src -> dst; empty to skip
     int sh_optim_bits,
     int num_sh,
     DeviceVector<float4> sh_quant_bounds,
@@ -208,7 +290,8 @@ void relocate_splats_mcmc_tensor(
     bool sh_value_bounds_per_splat,
     int  num_sh_buffer,
     NonShQuantState non_sh,
-    uint32_t seed
+    uint32_t seed,
+    DeviceVector<float> draw_weight   // [N] or empty: scales each live splat's draw
 );
 
 
@@ -230,7 +313,8 @@ void add_splats_mcmc_tensor(
     bool sh_value_bounds_per_splat,
     int  num_sh_buffer,
     NonShQuantState non_sh,
-    uint32_t seed
+    uint32_t seed,
+    DeviceVector<float> draw_weight   // [N] or empty: scales each live splat's draw
 );
 
 
@@ -251,7 +335,9 @@ void revised_add_noise_tensor(
     DeviceVector<float3> means,
     DeviceVector<float3> log_scales,
     DeviceVector<float4> quats,
-    DeviceVector<float> opacs
+    DeviceVector<float> opacs,
+    DeviceVector<float> peak_weight,
+    float peak_weight_scale
 );
 
 
@@ -292,4 +378,37 @@ void robust_canny_residual_tensor(
     bool* mask_in_ptr,               // optional [B*H*W] mask; nullptr for none
     float quantile,                  // Tukey cutoff = per-image q-quantile of |r|
     DeviceTensor3D<float> img_out    // [B, H, W, 1] -- written (not added)
+);
+
+
+void region_weight_tensor(
+    int64_t num_splats,
+    DeviceVector<float3> means,
+    DeviceVector<float4> quats,          // optional with scales: the cameras orient the
+    DeviceVector<float3> scales,         // test, the pattern samples it
+    DeviceVector<float4> camera_bvh,     // a label field over the cameras, index as label
+    DeviceVector<float4> camera_seeds,
+    DeviceVector<float4> pattern,        // region_sample_pattern, or empty: centre only
+    uint32_t seed,                       // turns the pattern, per call
+    DeviceVector<float4> program,        // [num_prog * 6]
+    DeviceVector<float4> field_bvh,      // the program's label field, or empty
+    DeviceVector<float4> field_seeds,
+    float inside,
+    float outside,
+    DeviceVector<float> weight           // [N] out
+);
+
+
+void densify_scale_score_tensor(
+    int64_t num_splats,
+    DeviceVector<float> weight,   // [N]
+    DeviceVector<float2> score    // [N, 2]; lane 0 is multiplied in place
+);
+
+
+void region_decay_opacity_tensor(
+    int64_t num_splats,
+    DeviceVector<float> weight,      // [N]; below 1 is outside the region
+    DeviceVector<float> opacities,   // [N] logits, scaled in place outside
+    float factor                     // in (0, 1]
 );

@@ -13,6 +13,8 @@
 // which both backends print, so the panel reports real progress rather than a
 // spinner.
 
+#include "app/gui/MeshJob.h"
+
 #include <atomic>
 #include <cstdint>
 #include <mutex>
@@ -21,49 +23,6 @@
 #include <vector>
 
 namespace gui {
-
-// What the color combo offers, in order. The values are the `--color` tokens.
-inline const char* kMeshColorModes[] = {"none", "vertex", "texture"};
-inline constexpr int kNumMeshColorModes = 3;
-
-// The output formats, in the order the checkboxes are drawn. These are the
-// `--format` tokens, and the file extensions.
-inline const char* kMeshFormats[] = {"ply", "obj", "gltf", "glb"};
-inline constexpr int kNumMeshFormats = 4;
-
-struct MeshJob {
-    // A run directory, a step-*.ckpt directory, or a splat .ply.
-    std::string checkpoint;
-    // The dataset the model was trained on. "" lets the child read it from
-    // the run's config.json; `use_data == false` passes --no-data, which
-    // meshes from Gaussian densities alone.
-    std::string data_dir;
-    bool use_data = true;
-
-    // Output base path, without an extension. "" = beside the checkpoint.
-    std::string output;
-
-    int color = 1;                     // index into kMeshColorModes
-    bool formats[kNumMeshFormats] = {true, false, false, false};
-
-    int max_cameras = 0;               // 0 = every camera
-    int texture_size = 0;              // 0 = auto (texture mode only)
-
-    // ---- advanced ----
-    float iso = 0.0f;                  // 0 = the child's default for the path
-    int bisection_iters = 3;
-    float merge_factor = 1.0f;
-    int quality_iters = 3;
-    int floater_min_faces = 10;
-    bool cull_unseen = true;
-    int carve_k = 1;
-    std::string extra_args;            // appended verbatim
-
-    // The file the preview should open when the run finishes: the richest
-    // format that was requested (a textured GLB carries its atlas, a PLY does
-    // not), plus its extension.
-    std::string preview_path() const;
-};
 
 class MeshRunner {
 public:
@@ -86,6 +45,9 @@ public:
     std::string error();
     // The mesh file written, valid once state() == Done.
     std::string output_path();
+    // Every file the run left on disk. One extraction can be asked for
+    // several formats and colors, and they are all the same surface.
+    std::vector<std::string> output_paths();
     // Vertices / faces reported by the child's final line, 0 until then.
     int64_t num_verts() const { return _verts.load(); }
     int64_t num_faces() const { return _faces.load(); }
@@ -113,6 +75,7 @@ private:
     std::atomic<int64_t> _verts{0}, _faces{0};
     std::mutex _mu;
     std::string _stage, _error, _output;
+    std::vector<std::string> _outputs;
     std::vector<std::string> _log;
 };
 

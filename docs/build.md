@@ -47,8 +47,12 @@ build_develop.bat [cmake args...]
 
 Both run codegen first (skipped gracefully if `python3` is missing — the
 generated files are committed), then the [lints](#lints), then configure +
-build into `build/`. `build_develop.bash` additionally caps the job count by
-available RAM (~750 MB/job).
+build into the tree `SS_BACKEND` names: `build_cuda/` or `build_vulkan/`.
+macOS has one backend and uses a single `build/`. The scripts pick the
+directory themselves — a `-B` of your own reaches CMake but not the build step
+that follows, so select the tree with `SS_BACKEND`, not with `-B`.
+`build_develop.bash` additionally caps the job count by available RAM
+(~750 MB/job).
 
 ## The matrix
 
@@ -60,8 +64,8 @@ available RAM (~750 MB/job).
 | parity tests | add `-DSS_BUILD_BACKEND_TESTS=ON` (Vulkan builds them unconditionally) |
 | Vulkan GUI, everything on | `bash build_develop.bash -DSS_BACKEND=vulkan -DSS_ENABLE_PATENTED=ON` |
 
-Keep the two backends in **separate build directories** so you can test both
-without reconfiguring, e.g. `-B build_cuda` and `-B build`.
+The two backends land in **separate trees**, so both can be built and tested
+from one checkout and neither reconfigures the other.
 
 ## Options
 
@@ -75,33 +79,39 @@ without reconfiguring, e.g. `-B build_cuda` and `-B build`.
 | `SS_CUDA_EMBED_PTX` | `OFF` | embed PTX beside the cubin in the CUDA fatbin. Only buys JIT onto an architecture the binary was not built for, and costs about a third of every object; the build already detects the local GPU. Turn on for a redistributable binary. |
 | `SS_SLANGC` | *(empty)* | path to a `slangc` to use; empty means find on PATH and fetch the pinned release on miss/mismatch |
 | `SS_BUILD_SFM` | `ON` for `vulkan`, `OFF` for `cuda` | `ss_sfm` + `spirula sfm` + `sfm_*_test`. Vulkan-only; a CUDA build can opt in if the Vulkan SDK is present. |
-| `SS_BUILD_SAM` | `ON` for `vulkan`, `OFF` for `cuda` | `ss_nn` + `ss_sam` + `spirula sam` + `nn_ops_test` / `sam_pipeline_test`, and the GUI's in-process masking. Same rule as SfM. |
-| `SS_ENABLE_PATENTED` | `OFF` | `ss_video` — container demux + `VK_KHR_video_decode_*`. **Read the note below before turning it on.** |
+| `SS_BUILD_SAM` | `ON` for `vulkan`, `OFF` for `cuda` | `ss_nn` + `ss_sam` + `spirula sam` + `nn_ops_test` / `sam_pipeline_test`, the GUI's in-process masking, and LPIPS in the eval pass (`ss_lpips`). Same rule as SfM. |
+| `SS_ENABLE_PATENTED` | `OFF` | `ss_video` — container demux (HEIF stills included) + `VK_KHR_video_decode_*`, and the `VK_KHR_video_encode_*` encoder behind `spirula encode`. **Read the note below before turning it on.** |
 | `SS_SFM_REALS` / `SS_SFM_LOSSES` | all | trim the bundle-adjustment shader variant matrix while iterating (`src/sfm/README.md`) |
 | `SS_CHECK_COMMENTS` | `ON` | run the comment-length lint on every build ([Lints](#lints)) |
 
 ### `SS_ENABLE_PATENTED`
 
 Off by default, and deliberately. This repository is GPLv3, and `src/video/` —
-the H.264 / H.265 / AV1 bitstream parsers and the Vulkan Video driver — is the
-one part of it carrying third-party patent exposure (H.264/H.265 via MPEG LA
-and Access Advance, AV1 via the claims asserted against AOMedia). With it off,
-that directory is neither compiled nor linked, and everything that wanted it
-falls back to an external **ffmpeg**: `spirula sam extract` and `spirula sam
-video` say so and exit, and the GUI extracts frames with ffmpeg and tells the
-user why.
+the H.264 / H.265 / AV1 bitstream parsers, the HEIF container reader, the
+Vulkan Video decode driver and the H.264 / H.265 encoder — is the one part of
+it carrying third-party patent exposure (H.264/H.265 via MPEG LA and Access
+Advance, AV1 via the claims asserted against AOMedia, and HEIF's container has
+claims of its own). With it off, that directory is neither compiled nor
+linked, and everything that wanted it falls back to an external **ffmpeg**:
+`spirula sam extract` and the GUI extract frames with ffmpeg (the GUI tells
+the user why), `spirula sam video` says so and exits, the render mode encodes
+its videos with ffmpeg (or writes frames when there is none), and HEIC photos
+are converted to JPEG by ffmpeg 7.0 or newer — without their EXIF, so SfM
+starts with no focal-length prior.
 
-Turning it on buys in-process GPU decoding: roughly 15× faster frame
-extraction (a 127-second 1080p30 clip in ten seconds rather than minutes),
-`spirula sam extract`'s masking riding along on the same device pass, and no
-ffmpeg to install. Nothing else in the build changes.
+Turning it on buys in-process GPU decoding and encoding: roughly 15× faster
+frame extraction (a 127-second 1080p30 clip in ten seconds rather than
+minutes), `spirula encode` for the render mode's videos, and no ffmpeg to
+install. A device without a video queue -- MoltenVK on every Mac -- decodes
+with ffmpeg even then.
+Nothing else in the build changes.
 
 If you distribute binaries, decide for your jurisdiction and your users before
 shipping one built with it on.
 
 ## Lints
 
-Six checks guard the source. Each fails the build, and each skips itself when
+Seven checks guard the source. Each fails the build, and each skips itself when
 its interpreter is missing — none of them is a dependency of a fresh checkout.
 
 | check | what it refuses |
@@ -112,13 +122,14 @@ its interpreter is missing — none of them is a dependency of a fresh checkout.
 | `tools/check_comments.sh` | a comment citing a file that is not in the tree |
 | `tools/check_file_macro.sh` | a bare `__FILE__` where [`SS_FILE`](../src/core/SourcePath.h) belongs |
 | `tools/check_comment_length.py` | a comment block over the [budget](../AGENTS.md#budget) |
+| `tools/check_winmacro.py` | an identifier `<windows.h>` defines as a macro ([`tools/windows_macros.txt`](../tools/windows_macros.txt)) |
 
-The first five run from `build_develop.bash` only. The comment-length check
-also runs from CMake (`cmake/SsChecks.cmake`) as the `ss_check_comment_length`
-target, which every other target is made to depend on — so a bare `ninja`, a
-`make`, or `cmake --build build --target spirula` fails on it just as the dev
-scripts do. `build_develop.bat` runs it directly, and the standalone viewer
-build includes the same module.
+The first five run from `build_develop.bash` only. The last two also run from
+CMake (`cmake/SsChecks.cmake`) as the `ss_check_comment_length` and
+`ss_check_winmacro` targets, which every other target is made to depend on — so
+a bare `ninja`, a `make`, or `cmake --build build --target spirula` fails on
+them just as the dev scripts do. `build_develop.bat` runs them directly, and
+the standalone viewer build includes the same module.
 
 ### The comment-length check
 
@@ -131,12 +142,37 @@ a block.
 ```bash
 python3 tools/check_comment_length.py          # what the build will say
 python3 tools/check_comment_length.py --all    # the whole tree, for cleanup
-SS_SKIP_COMMENT_CHECK=1 ninja -C build         # skip it for one build
-cmake -B build -DSS_CHECK_COMMENTS=OFF         # or for a whole build tree
+SS_SKIP_COMMENT_CHECK=1 ninja -C build_vulkan  # skip it for one build
+cmake -B build_vulkan -DSS_CHECK_COMMENTS=OFF  # or for a whole build tree
 ```
 
 Neither escape hatch is a fix: the comment is still over budget, and the next
 person to touch that file inherits it.
+
+### The `<windows.h>` macro check
+
+`<windows.h>` turns plain words into macros: `near` and `far` expand to
+nothing, `small` to `char`, `ERROR` to `0`, `GetObject` to `GetObjectW`. A
+variable, enumerator or method by one of those names breaks only the Windows
+build, or silently changes it. The check lexes every C-like file in the
+checkout, tracked or not, apart from build trees, `outputs/`, `src/external/`
+and dot-directories, and flags each name in
+[`tools/windows_macros.txt`](../tools/windows_macros.txt) outside a comment or a
+literal. A function-like macro such as `RGB` counts only when `(` follows it or
+the name is `#define`d, so an enumerator `RGB` passes.
+
+Three things are exempt: a branch only Windows compiles (`#ifdef _WIN32`,
+`#ifdef _MSC_VER`), where Win32 code spells `TRUE` and `INFINITE` on purpose
+and the Windows compiler sees every line; a branch Windows never compiles
+(`#ifndef _WIN32`, `#ifdef __APPLE__`); and Slang and Objective-C++ files,
+which never meet the header. The check takes about half a second and has no
+skip switch: rename the identifier. A name added to the list should come from
+the SDK headers, as the list's header describes, not from memory.
+
+A `cannot lex` or `unbalanced` report means the lexer lost its place. Either
+the file has a syntax error, or `tools/check_winmacro.py` needs a fix. It keeps
+only the first branch of an `#if` when counting brackets, and evaluates nothing
+else of the preprocessor.
 
 ## Targets
 
@@ -171,15 +207,10 @@ that stage is out of process. Masking, decoding and training are in-process.
 slangc 2026.12.0.1 hits an internal error on all three `ba_df_*` variants under
 Windows (`error[E99998]: Slang compilation aborted due to internal error`),
 deterministically; `float` and `double` are fine, and all three build on Linux.
-The double-float real is not the default (`--ba-real` defaults to `double`), so
-the workaround costs nothing on that platform:
-
-```bat
-build_develop.bat "-DSS_SFM_REALS=float;double"
-```
-
-`spirula sfm` then reports "variant not built into this binary" if something
-asks for `df`. Not yet reduced to a minimal repro or filed upstream.
+So `SS_SFM_REALS` defaults to `float;double` on Windows. The double-float real
+is not the default (`--ba-real` defaults to `double`), so this costs nothing
+unless someone asks for `--ba-real df`, which then reports "variant not built
+into this binary". Not yet reduced to a minimal repro or filed upstream.
 
 ### Known: `sfm_mask_test` fails on Windows
 
@@ -242,7 +273,8 @@ suppress).
 Only macOS has a packaging step, because only macOS has a form the binary is
 not already in. A Linux or Windows build is one file that runs where it lands;
 a Mac wants an `.app`, or the Dock shows a Terminal icon and Finder has no way
-to launch it.
+to launch it. The Linux dock's equivalent is a desktop entry, which the GUI
+writes for itself when it starts (`src/app/gui/DesktopEntry.h`).
 
 ```bash
 cmake --build build --target macos_app   # build/Spirula Studio.app
@@ -276,7 +308,7 @@ Keep it global: one translation unit built without it is one crash. A quick
 check on a built binary --
 
 ```bash
-dumpbin /imports build/spirula.exe | findstr _Mtx_init_in_situ
+dumpbin /imports build_vulkan/spirula.exe | findstr _Mtx_init_in_situ
 ```
 
 -- must print a line. If it does not, the define did not reach the build.
@@ -328,9 +360,9 @@ Notarization needs a paid Apple Developer account, so it is not wired into the
 build.
 
 One behaviour is bundle-specific: a Finder launch inherits launchd's PATH
-(`/usr/bin:/bin:/usr/sbin:/sbin`), which has no Homebrew in it, so COLMAP,
-ffmpeg and python3 would be missing from an app that finds them fine when
-started from a shell. `gui::add_desktop_search_paths()`
+(`/usr/bin:/bin:/usr/sbin:/sbin`), which has no Homebrew in it, so COLMAP and
+ffmpeg would be missing from an app that finds them fine when started from a
+shell. `gui::add_desktop_search_paths()`
 (`src/app/AppPaths.h`) appends the package managers' directories at
 startup, after any PATH the process actually inherited.
 
@@ -365,8 +397,8 @@ apart:
   that should have gone through `ss_write_if_different()`.
 - `stored deps info out of date for ...`, on *every* object, with a
   `ninja: warning: premature end of file; recovering` near the top — a corrupt
-  `build/.ninja_deps`. Ninja's recovery truncates the log but not past the bad
+  `<build dir>/.ninja_deps`. Ninja's recovery truncates the log but not past the bad
   record, so the log never heals on its own: each build's header dependencies
   are discarded when the next build loads it back. The build scripts detect
   this and repair it with `ninja -t recompact`; by hand,
-  `cmake --build build -- -t recompact` (or just delete `build/.ninja_deps`).
+  `cmake --build <build dir> -- -t recompact` (or just delete its `.ninja_deps`).

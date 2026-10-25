@@ -9,7 +9,11 @@
 #include "kernels/loss/PerPixelLoss.cuh"   // LossWeightIndex
 #include "kernels/pixelwise/PixelWise.cuh"      // PPISPRegLossIndex
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
+#include <utility>
+#include <vector>
 
 
 // LFS-style densification strategies (ported from LichtFeld Studio, GPL-3.0;
@@ -30,6 +34,10 @@ enum class StrategyId {
 struct LossConfig {
     std::array<float, (int)LossWeightIndex::length> weights{};
     float w_ssim          = 0.0f;
+    // This step's kernel (Primitive3DGS::kernel_vis): > 0 cut at that sigma and renormalized,
+    // 0 the full gaussian. Training renders only.
+    float raster_kernel_cut = 0.0f;
+    int   perceptual_loss = 0;   // PerceptualLoss: what w_ssim weights
     int   num_loss_scales = 1;
     // When positive, overrides num_loss_scales per train step based on the
     // render resolution: the number of scales is chosen so that the smallest
@@ -66,6 +74,10 @@ struct LossConfig {
     // backward reduces the map to one score per splat. Ignored when the map
     // is off.
     int   loss_map_accum_mode    = (int)DensifyAccumMode::Max;
+    // Fit per-splat scores whose rendered map matches the conditioned,
+    // unpowered loss map (DensifyConfig::learned_score): the forward renders
+    // that map and the loss divides by it. Needs loss_map_accum_mode Avg.
+    bool  learned_score          = false;
     // Positive: a pixel above this in every channel of BOTH the render and the
     // reference leaves the photometric loss (value, map, gradient, SSIM), the
     // way a masked pixel does. Negative (default) keeps every pixel.
@@ -73,7 +85,7 @@ struct LossConfig {
     // Divide the photometric weights (RGB / YUV supervision and SSIM) by
     // 0.5 / max(mean sRGB luma of this step's reference pixels, 1/255), so a
     // dark capture pulls on the splats as hard as a bright one.
-    bool  normalize_by_luminance = false;
+    float luminance_normalization = 0.0f;   // power on 0.5 / mean luma; 0 = off
     // Image-space overexposure regularization weight. When non-zero, a
     // dedicated kernel adds dL/dx of L = w * mean(max(-x, x-1, 0)^2) directly
     // into v_render_rgb (in the pre-bilagrid / pre-PPISP / pre-color-space
@@ -110,6 +122,7 @@ struct OptimConfig {
     float lr_opacities    = 0.0f;
     float lr_features_dc  = 0.0f;
     float lr_features_sh  = 0.0f;
+    float lr_features_sb  = 0.0f;   // the lobe cells of a features_sh row
 
     float max_gauss_ratio              = 0.0f;
     float scale_regularization_weight  = 0.0f;
@@ -146,6 +159,10 @@ struct OptimConfig {
     // (4 B / cell). FPBO-only; the non-FPBO Adam kernel throws when this is
     // non-32. quantization_level 1 sets it to 16.
     int   non_sh_optim_bits               = 32;
+    // The full-resolution images between the rasterizer and the loss
+    // (core/PixelFormat.h): 32, or 16 for float16. quantization_level 1 sets
+    // it to 16.
+    int   image_bits                      = 32;
     // Single SH quantization level. Collapses the FPBO dispatch's
     // (sh_optim_bits, sh_value_bits) axes down to 2 instantiations:
     //   0 = off    : fp32 everywhere
@@ -156,6 +173,8 @@ struct OptimConfig {
     // individual bits.
     int   quantization_level           = 0;
     bool  use_per_splat_bias_correction   = false;
+    // Per-splat regularizers act only on splats some camera rendered this step.
+    bool  reg_rendered_only               = false;
 
     // When true, fold projection-backward and Adam-based per-splat optim into
     // a single fused kernel (FusedProjectionBwdOptim). The engine then skips
@@ -198,6 +217,9 @@ struct OptimConfig {
 };
 
 
+// What relocation treats as dead (TrainConfig::dead_criterion).
+enum class DeadCriterion : int { Opacity = 0, MaxWeight = 1, Either = 2 };
+
 // MCMC / revised-relocate densification controls. max_world_size / noise_lr*
 // arrive pre-scaled by alpha.
 struct DensifyConfig {
@@ -211,6 +233,10 @@ struct DensifyConfig {
     int   refine_every                  = 0;
     float growth_factor                 = 1.0f;
     float min_opacity                   = 0.0f;
+    // MaxWeight compares min_opacity against each splat's peak alpha * T,
+    // halved every max_weight_half_life steps. Revised relocation only.
+    DeadCriterion dead_criterion        = DeadCriterion::Opacity;
+    float max_weight_half_life          = 800.0f;
     float max_screen_size               = 0.0f;
     float max_screen_size_clip_hardness = 0.0f;
     // With the soft penalty on, the hard clip drops to a once-per-refine
@@ -220,6 +246,7 @@ struct DensifyConfig {
     float max_world_size                = 0.0f;
     float noise_lr                      = 0.0f;
     float noise_lr_final                = 0.0f;
+    bool  noise_gate_peak_weight        = false;
     bool use_revised_densification      = true;
     int  score_mode                     = 0;    // 0=mean, 1=max, 2=median, 3=geom
     // Blend weight `w` between the image-space accum_weight score and the
@@ -233,6 +260,15 @@ struct DensifyConfig {
     // Exponent applied to a step's per-splat score after the image-to-splat
     // reduction (Avg's divide included) and before the across-step one.
     float score_power                   = 1.0f;
+    // Replace both reductions by a score s fitted to the unpowered map, stored
+    // as s^(map power x score_power) (docs/notes/learned-densify-score.md);
+    // score_mode is then unused.
+    bool  learned_score                 = false;
+    // Floor of the EMA weight of the fit's per-view target (a splat's first
+    // 1 / rate updates average), and the share of ln s pulled back to the
+    // prior per update; bicycle numbers in docs/notes/learned-densify-score.md.
+    float learned_score_rate            = 0.02f;
+    float learned_score_pull            = 0.01f;
     // Clips the per-splat score that densification actually samples -- after
     // both the image-to-splat and the across-step reduction -- at this
     // quantile of the positive scores. Outside (0, 1) nothing is clipped.
@@ -251,6 +287,16 @@ struct DensifyConfig {
     float las_split_opacity_k_init      = 0.5f;
     float las_split_opacity_k_final     = 0.6f;
     int   las_split_opacity_k_warmup    = 4500;
+    // Split events (revivals + growth) per refine step, as a fraction of the
+    // live count; revivals draw first. >= 1 leaves both uncapped.
+    float max_split_fraction            = 1.0f;
+    // Draw weight for splits scales with renders since the last split.
+    bool  split_weight_by_renders       = false;
+    // A splat unrendered for this many steps is relocated as dead; 0 = off.
+    int   dead_after_steps              = 0;
+    // (first step, splats), ascending: growth ceilings below the allocation,
+    // the progressive splat budget. Empty grows to the allocation throughout.
+    std::vector<std::pair<int, int64_t>> growth_caps;
 
     // ---- LFS-style strategy (StrategyId) and its per-strategy controls ----
     // revised = stock Spirula; igs+ / mrnf / mcmc = ported LFS strategies
@@ -278,6 +324,26 @@ struct DensifyConfig {
     float mrnf_max_screen_share        = 0.3f;    // max_screen_share
 };
 
+// The schedule engine_densify_step grows the model on; the trainer's ETA and
+// VRAM forecasts replay it.
+inline bool densify_grows_at(const DensifyConfig& c, int step, int max_steps) {
+    return c.refine_every > 0 && step > c.refine_start_iter &&
+           step % c.refine_every == 0 &&
+           step < std::max(c.refine_stop_iter, max_steps - c.refine_stop_num_iter);
+}
+inline int64_t densify_target(const DensifyConfig& c, int64_t cur, int64_t cap) {
+    return std::max(cur, std::min(cap, (int64_t)(c.growth_factor * (float)cur)));
+}
+// The ceiling growth may reach at `step`: `cap` lowered by growth_caps.
+inline int64_t densify_cap_at(const DensifyConfig& c, int step, int64_t cap) {
+    int64_t at = cap;
+    for (const auto& [first, n] : c.growth_caps) {
+        if (first > step) break;
+        at = n;
+    }
+    return std::min(at, cap);
+}
+
 
 // Per-type Adam LR + TV regularization weight. lr <= 0 disables the channel
 // for the current step (so a single config covers "enabled but skipped" too).
@@ -303,6 +369,7 @@ struct BackgroundStepConfig {
     float    lr_sh           = 0.0f;
     float    randomize_weight = 0.0f;
     uint32_t seed             = 0;
+    bool     match_luminance  = false;   // randomized draw ^ per-image power
 };
 
 

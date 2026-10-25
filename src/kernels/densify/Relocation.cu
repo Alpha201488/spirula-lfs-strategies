@@ -5,6 +5,8 @@
 #include "kernels/densify/DensifyQuantCopy.cuh"
 #include "kernels/densify/DensifyInternal.cuh"
 
+#include <algorithm>
+
 // ================
 // Relocation
 // ================
@@ -27,7 +29,9 @@ __global__ void relocate_with_long_axis_split_kernel(
     bool sh_bounds_per_splat,
     NonShQuantState non_sh,
     float2*__restrict__ densify_accum_buffer,
-    int32_t* __restrict__ bias_correction_steps
+    int32_t* __restrict__ bias_correction_steps,
+    uint32_t* __restrict__ visit_counters,
+    float* __restrict__ max_weight
 ) {
     size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= num_new_splats)
@@ -53,6 +57,12 @@ __global__ void relocate_with_long_axis_split_kernel(
     opacs[idx_src] = new_opac;
     opacs[idx_dst] = new_opac;
     quats[idx_dst] = quat;
+    // Both halves keep the parent's peak weight, scaled as alpha is.
+    if (max_weight) {
+        float w = max_weight[idx_src] * sigmoid(new_opac) / fmaxf(sigmoid(opac), 1e-12f);
+        max_weight[idx_src] = w;
+        max_weight[idx_dst] = w;
+    }
 
     // appearance - copy
     features_dc[idx_dst] = features_dc[idx_src];
@@ -103,6 +113,10 @@ __global__ void relocate_with_long_axis_split_kernel(
     }
     if (bias_correction_steps)
         bias_correction_steps[idx_dst] = 0;
+    if (visit_counters) {
+        visit_counters[idx_src] = 0u;
+        visit_counters[idx_dst] = 0u;
+    }
     #if 0
     g1_means[idx_src] = make_float3(0.0f);
     g2_means[idx_src] = make_float3(0.0f);
@@ -166,6 +180,10 @@ __global__ void compute_relocation_mask_kernel(
     const float3* __restrict__ scales,
     const float* __restrict__ opacities,
     const float3* __restrict__ features_dc,
+    const uint32_t* __restrict__ visit_counters,
+    uint32_t dead_after_steps,
+    bool dead_by_opacity,
+    const float* __restrict__ max_weight,
     bool* __restrict__ masks,
     int32_t* __restrict__ num_relocate,
     int32_t* __restrict__ relocate_indices
@@ -182,12 +200,15 @@ __global__ void compute_relocation_mask_kernel(
         float opac = opacities[idx];
         float3 feature_dc = features_dc[idx];
 
-        bool is_low_opac = sigmoid(opac) <= min_opacity;
+        bool is_low_opac = (dead_by_opacity && sigmoid(opac) <= min_opacity)
+            || (max_weight != nullptr && max_weight[idx] <= min_opacity);
 
         bool is_finite = isfinite(
             dot(mean, mean) / dot(quat, quat) + dot(scale, feature_dc) * opac
         );
-        bool relocate = is_low_opac || !is_finite
+        bool is_stale = visit_counters != nullptr && dead_after_steps != 0u
+            && visit_unrendered_steps(visit_counters[idx]) >= dead_after_steps;
+        bool relocate = is_low_opac || !is_finite || is_stale
             || SlangDensify::splat_scale_is_dead(scale);
 
         masks[idx] = !relocate;
@@ -203,8 +224,10 @@ __global__ void compute_relocation_mask_kernel(
 }
 
 
+// Returns how many dead splats were revived. `max_relocate` (<= 0 for no
+// limit) is the churn budget: the rest stay dead until a later step.
 /*[AutoHeaderGeneratorExport]*/
-void relocate_splats_with_long_axis_split_tensor(
+int64_t relocate_splats_with_long_axis_split_tensor(
     int64_t cur_num_splats,
     float min_opacity,
     float split_opacity_k,
@@ -217,6 +240,12 @@ void relocate_splats_with_long_axis_split_tensor(
     // draw while the kernel still propagates the raw accumulator src -> dst.
     DeviceVector<float2> sample_weights,
     DeviceVector<int32_t> bias_correction_steps,
+    DeviceVector<uint32_t> visit_counters,
+    uint32_t dead_after_steps,
+    // Peak alpha * T per splat; when given it is a second dead test against
+    // min_opacity and is carried src -> dst. dead_by_opacity keeps the first.
+    DeviceVector<float> max_weight,
+    bool dead_by_opacity,
     int sh_optim_bits,
     int num_sh,
     // SH-quant bounds buffer + layout flag used to encode (g1=0, g2=0) into
@@ -225,8 +254,7 @@ void relocate_splats_with_long_axis_split_tensor(
     bool sh_bounds_per_splat,
     // SH VALUE-quant codec copy params. When sh_value_bits != 32 we also do
     // a codec-aware src->dst copy of the SH coefficient bytes (decode src,
-    // encode dst against current dst bounds; clipping is acceptable -- see
-    // _copy_quant_sh_value_for_splat for the rationale).
+    // encode dst, widening dst's bound first -- _copy_quant_sh_value_for_splat).
     DeviceVector<uint8_t> sh_value_packed,
     DeviceVector<float2>  sh_value_bounds,
     int  sh_value_bits,             // 32 / 8 / 16
@@ -235,7 +263,9 @@ void relocate_splats_with_long_axis_split_tensor(
     // Non-SH Adam-state quant: when enabled, each relocated dst splat gets
     // its packed bytes set to codec-encoded zero against the current bound.
     NonShQuantState non_sh,
-    uint32_t seed
+    uint32_t seed,
+    int64_t max_relocate,
+    int64_t* num_dead_out
 ) {
     int32_t* bias_correction_steps_ptr = bias_correction_steps.data_ptr();
     bool* mask = DevicePool::global().acquire<bool>(
@@ -255,6 +285,10 @@ void relocate_splats_with_long_axis_split_tensor(
         scales.data_ptr(),
         opacs.data_ptr(),
         features_dc.data_ptr(),
+        visit_counters.data_ptr(),
+        dead_after_steps,
+        dead_by_opacity,
+        max_weight.data_ptr(),
         mask,
         num_relocate_ptr,
         dst_indices
@@ -264,14 +298,23 @@ void relocate_splats_with_long_axis_split_tensor(
     int32_t num_relocate_host = 0;
     cudaMemcpy(&num_relocate_host, num_relocate_ptr, sizeof(int32_t), cudaMemcpyDeviceToHost);
     int64_t num_relocate = (int64_t)num_relocate_host;
+    if (num_dead_out) *num_dead_out = num_relocate;
+    if (max_relocate > 0) num_relocate = std::min(num_relocate, max_relocate);
     if (num_relocate == 0)
-        return;
+        return 0;
 
     DeviceVector<float2> weights = sample_weights.data_ptr()
         ? sample_weights : densify_accum_buffer;
+    uint32_t num_eligible = 0;
     int32_t* src_indices = weighted_sample_without_replacement_internal(
         cur_num_splats, (float*)weights.data_ptr(),
-        weights.size() * 2, mask, num_relocate, seed);
+        weights.size() * 2, mask, num_relocate, seed, &num_eligible);
+    // Past the live splats of positive weight the draw returns dead ones,
+    // each also some pair's dst: the two writes race and the revival is lost.
+    // The rest wait for the next step.
+    num_relocate = std::min<int64_t>(num_relocate, num_eligible);
+    if (num_relocate == 0)
+        return 0;
 
     #define _DENSIFY_LAS_LAUNCH(T, bnd_ptr, bps) \
             relocate_with_long_axis_split_kernel<T><<<_LAUNCH_ARGS_1D(num_relocate, 256)>>>( \
@@ -289,7 +332,8 @@ void relocate_splats_with_long_axis_split_tensor(
                 bnd_ptr, bps, \
                 non_sh, \
                 densify_accum_buffer.data_ptr(), \
-                bias_correction_steps_ptr)
+                bias_correction_steps_ptr, visit_counters.data_ptr(), \
+                max_weight.data_ptr())
         if      (sh_optim_bits == 32) _DENSIFY_LAS_LAUNCH(float3, nullptr, false);
         else if (sh_optim_bits == 8)  _DENSIFY_LAS_LAUNCH(short3, sh_quant_bounds.data_ptr(), sh_bounds_per_splat);
         else if (sh_optim_bits == 4)  _DENSIFY_LAS_LAUNCH(uchar3, sh_quant_bounds.data_ptr(), sh_bounds_per_splat);
@@ -300,6 +344,7 @@ void relocate_splats_with_long_axis_split_tensor(
         cur_num_splats, num_relocate, src_indices, dst_indices,
         sh_value_packed.data_ptr(), sh_value_bounds.data_ptr(),
         num_sh, num_sh_buffer, sh_value_bits, sh_value_bounds_per_splat);
+    return num_relocate;
 }
 
 /*[AutoHeaderGeneratorExport]*/
@@ -316,6 +361,8 @@ void add_splats_with_long_axis_split_tensor(
     // draw while the kernel still propagates the raw accumulator src -> dst.
     DeviceVector<float2> sample_weights,
     DeviceVector<int32_t> bias_correction_steps,
+    DeviceVector<uint32_t> visit_counters,
+    DeviceVector<float> max_weight,  // carried src -> dst; empty to skip
     int sh_optim_bits,
     int num_sh,
     DeviceVector<float4> sh_quant_bounds,
@@ -354,7 +401,8 @@ void add_splats_with_long_axis_split_tensor(
             bnd_ptr, bps, \
             non_sh, \
             densify_accum_buffer.data_ptr(), \
-            bias_correction_steps_ptr)
+            bias_correction_steps_ptr, visit_counters.data_ptr(), \
+            max_weight.data_ptr())
     if      (sh_optim_bits == 32) _DENSIFY_LAS_ADD_LAUNCH(float3, nullptr, false);
     else if (sh_optim_bits == 8)  _DENSIFY_LAS_ADD_LAUNCH(short3, sh_quant_bounds.data_ptr(), sh_bounds_per_splat);
     else if (sh_optim_bits == 4)  _DENSIFY_LAS_ADD_LAUNCH(uchar3, sh_quant_bounds.data_ptr(), sh_bounds_per_splat);

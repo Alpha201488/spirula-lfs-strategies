@@ -62,7 +62,7 @@ void MatchMatrix::clear() {
     _dirty = true;
 }
 
-bool MatchMatrix::draw(float size, uint32_t& img_r, uint32_t& img_c) {
+bool MatchMatrix::draw(float size, PairBlock& block) {
     if (_m.empty()) return false;
     if (_dirty) {
         // Log scale: inlier counts are heavy-tailed -- a handful of adjacent
@@ -164,13 +164,7 @@ bool MatchMatrix::draw(float size, uint32_t& img_r, uint32_t& img_c) {
     }
     ImGui::EndTooltip();
 
-    // The pair the cell stands for. On the diagonal the two ranges are the
-    // same one, and an image against itself is not a pair anybody wants to
-    // look at -- its neighbour is what the band there is made of.
-    img_r = lo_r;
-    img_c = lo_c;
-    if (img_r == img_c && _m.n_images > 1)
-        img_c = std::min(_m.n_images - 1, img_r + 1);
+    block = {lo_r, std::max(hi_r, lo_r + 1), lo_c, std::max(hi_c, lo_c + 1)};
     return true;
 }
 

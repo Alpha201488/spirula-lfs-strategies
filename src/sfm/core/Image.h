@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "core/ColorSpace.h"
 #include "sfm/core/Exif.h"
 #include "sfm/core/Mask.h"
 
@@ -40,14 +41,21 @@ struct GrayImage {
     int orig_height = 0;
     std::vector<float> data;  // width*height
     std::vector<uint8_t> rgb; // empty, or width*height*3 (interleaved RGB)
-    // Optional keypoint mask, at *its own* resolution (sfm/core/Mask.h): it is
-    // sampled in uv, so it neither has to match this image's decoded size nor
-    // the source file's. Empty unless the loader was given a mask path.
+    // Laid out as `rgb`, when an exposure made `rgb` brighter than the file:
+    // point colours come from here, the detectors from `rgb`. Empty = `rgb`.
+    std::vector<uint8_t> color;
+    float gain = 1.0f;        // the exposure in `rgb` and `data`, linear light
+    float peak = 0.0f;        // largest colour value in the file; 1.0 is white
+    // Keypoint mask at its own resolution, sampled in uv (sfm/core/Mask.h).
+    // Empty unless the loader was given a mask path or the image's alpha has
+    // a transparent pixel.
     Mask mask;
     // What the file's EXIF said, if anything (sfm/core/Exif.h). Parsed here so
     // the batch decode pool absorbs the cost, and because this is the last
     // stage that touches the image file at all.
     ExifData exif;
+    // The turn was applied but the tag also asked for a mirror, which was not.
+    bool exif_mirror_dropped = false;
 
     float at(int x, int y) const { return data[(size_t)y * width + x]; }
     size_t pixels() const { return (size_t)width * height; }
@@ -65,7 +73,7 @@ inline void sampleColor(const GrayImage& img, float x, float y, uint8_t out[3]) 
     int x1c = std::max(0, std::min(img.width - 1, x0 + 1));
     int y0c = std::max(0, std::min(img.height - 1, y0));
     int y1c = std::max(0, std::min(img.height - 1, y0 + 1));
-    const uint8_t* p = img.rgb.data();
+    const uint8_t* p = img.color.empty() ? img.rgb.data() : img.color.data();
     for (int c = 0; c < 3; c++) {
         float a = p[3 * ((size_t)y0c * img.width + x0c) + c];
         float b = p[3 * ((size_t)y0c * img.width + x1c) + c];
@@ -84,7 +92,13 @@ GrayImage loadGrayImage(const std::string& path, int max_image_size = 3200,
                         bool want_color = false, const std::string& mask_path = "",
                         const std::string& gamut = "",
                         std::optional<bool> is_linear = std::nullopt,
-                        bool flip_mask = false);
+                        bool flip_mask = false,
+                        // Turns the pixels and the mask, leaving exif.orientation
+                        // at 1; a tag's MIRROR half is dropped (docs/datasets.md).
+                        bool apply_exif_orientation = false,
+                        // Intersected into `mask_path`'s (intersectMask), unflipped.
+                        const std::string& feature_mask_path = "",
+                        const colorspace::Exposure& exposure = {});
 
 // Read just the pixel dimensions from an image header (no full decode).
 // Returns false if the file is not a decodable image.

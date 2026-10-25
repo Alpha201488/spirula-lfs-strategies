@@ -27,6 +27,7 @@ namespace {
 // rectangle, and every one of them is a draw command.
 constexpr size_t kMaxDots = 500;
 constexpr size_t kMaxLines = 160;
+constexpr size_t kFewLines = 40;
 
 // The image a feature stem names. The stem carries the folder it came from, so
 // only the extension is unknown -- and the run's own extractor found the file
@@ -103,14 +104,13 @@ void PairPreview::configure(const std::string& image_dir,
     _live_matches = live_matches;
 }
 
-void PairPreview::show(uint32_t a, uint32_t b) {
+void PairPreview::show(const PairBlock& block) {
     {
         std::lock_guard<std::mutex> lk(_mu);
-        if (_shot.loaded && _shot.a == a && _shot.b == b) return;
-        if (_has_request && _req_a == a && _req_b == b) return;
-        if (_loading && _load_a == a && _load_b == b) return;
-        _req_a = a;
-        _req_b = b;
+        if (_shot.loaded && _shot.block == block) return;
+        if (_has_request && _req == block) return;
+        if (_loading && _load == block) return;
+        _req = block;
         _has_request = true;
     }
     start();
@@ -156,32 +156,70 @@ void PairPreview::stop() {
 
 void PairPreview::worker_loop() {
     for (;;) {
-        uint32_t a = 0, b = 0;
+        PairBlock block;
         {
             std::unique_lock<std::mutex> lk(_mu);
             _cv.wait(lk, [this] { return _stop || _has_request; });
             if (_stop) return;
-            a = _load_a = _req_a;
-            b = _load_b = _req_b;
+            block = _load = _req;
             _has_request = false;
             _loading = true;
         }
         Shot shot;
-        load(a, b, shot);
+        load(block, shot);
         std::lock_guard<std::mutex> lk(_mu);
         _loading = false;
         // A request for another pair that arrived while this one was loading
         // wins: the cursor has moved on and this is not what it is over.
-        if (_has_request && (_req_a != a || _req_b != b)) continue;
+        if (_has_request && _req != block) continue;
         _result = std::move(shot);
         _result_new = true;
     }
 }
 
-void PairPreview::load(uint32_t a, uint32_t b, Shot& out) {
+std::string PairPreview::index_pairs(const std::string& matches_path,
+                                     const std::string& live_matches) {
+#ifdef SS_TOOL_SFM
+    if (matches_path.empty()) return {};
+    // While matching runs there is no matches.bin yet, only the file the stage
+    // is appending to; hovering a cell then still draws the pair's matches
+    // rather than nothing (sfm/core/Progress.h, live_matches.bin).
+    std::error_code ec;
+    std::string src = matches_path;
+    if (!fs::exists(src, ec) && !live_matches.empty() &&
+        fs::exists(live_matches, ec))
+        src = live_matches;
+    const auto stamp = fs::last_write_time(src, ec);
+    if (ec) return {};
+    if (src != _pairs_src) {
+        _pairs.clear();
+        _pairs_mtime = 0;
+        _pairs_src = src;
+    }
+    if (_pairs.empty() || stamp.time_since_epoch().count() != _pairs_mtime) {
+        sfm::MatchesIndex idx;
+        if (!sfm::indexMatches(src, idx)) return {};
+        _pairs_mtime = stamp.time_since_epoch().count();
+        _pairs.clear();
+        _pairs.reserve(idx.pairs.size());
+        for (const sfm::MatchesIndex::Entry& e : idx.pairs)
+            _pairs.push_back({e.image1, e.image2, e.count, e.offset});
+        std::sort(_pairs.begin(), _pairs.end(),
+                  [](const PairEntry& x, const PairEntry& y) {
+                      return x.a != y.a ? x.a < y.a : x.b < y.b;
+                  });
+    }
+    return src;
+#else
+    (void)matches_path;
+    (void)live_matches;
+    return {};
+#endif
+}
+
+void PairPreview::load(const PairBlock& block, Shot& out) {
     out = Shot{};
-    out.a = a;
-    out.b = b;
+    out.block = block;
     out.loaded = true;
 
     std::string image_dir, mask_dir, features_dir, matches_path, live_matches;
@@ -203,10 +241,36 @@ void PairPreview::load(uint32_t a, uint32_t b, Shot& out) {
     // Out of range means the list was read before the extractor had finished
     // writing it, which is the ordinary case when matching has only just
     // started.
-    if (_stems.empty() || a >= _stems.size() || b >= _stems.size()) {
+    if (_stems.empty() || std::max(block.r1, block.c1) > _stems.size()) {
         _stems = read_image_stems(features_dir, matches_path);
         if (_stems.empty()) _stems = stems_from_images(image_dir);
     }
+
+    // A cell is a block of images once the capture outgrows the map, and its
+    // first pair is often not one that matched: the strongest pair is drawn.
+    const std::string src = index_pairs(matches_path, live_matches);
+    (void)src;
+    uint32_t a = block.r0, b = block.c0;
+    const PairEntry* entry = nullptr;
+    const auto in = [](uint32_t v, uint32_t lo, uint32_t hi) { return v >= lo && v < hi; };
+    const uint32_t lo = std::min(block.r0, block.c0);
+    const uint32_t hi = std::max(block.r1, block.c1);
+    auto it = std::lower_bound(_pairs.begin(), _pairs.end(), lo,
+                               [](const PairEntry& x, uint32_t v) { return x.a < v; });
+    for (; it != _pairs.end() && it->a < hi; ++it) {
+        const bool fwd = in(it->a, block.r0, block.r1) && in(it->b, block.c0, block.c1);
+        const bool rev = in(it->b, block.r0, block.r1) && in(it->a, block.c0, block.c1);
+        if ((!fwd && !rev) || (entry && it->count <= entry->count)) continue;
+        entry = &*it;
+        a = fwd ? it->a : it->b;
+        b = fwd ? it->b : it->a;
+    }
+    // On the diagonal an image against itself is not a pair anybody wants to
+    // look at -- its neighbour is what the band there is made of.
+    if (!entry && a == b && _stems.size() > 1)
+        b = std::min((uint32_t)_stems.size() - 1, a + 1);
+    out.a = a;
+    out.b = b;
     if (a >= _stems.size() || b >= _stems.size()) return;
 
     std::error_code ec;
@@ -247,46 +311,11 @@ void PairPreview::load(uint32_t a, uint32_t b, Shot& out) {
     out.ready = !out.left.pic.empty() || !out.right.pic.empty();
 
 #ifdef SS_TOOL_SFM
-    if (matches_path.empty() || kp[0].empty() || kp[1].empty()) return;
-    // While matching runs there is no matches.bin yet, only the file the stage
-    // is appending to; hovering a cell then still draws the pair's matches
-    // rather than nothing (sfm/core/Progress.h, live_matches.bin).
-    std::string src = matches_path;
-    if (!fs::exists(src, ec) && !live_matches.empty() &&
-        fs::exists(live_matches, ec))
-        src = live_matches;
-    const auto stamp = fs::last_write_time(src, ec);
-    if (ec) return;
-    if (src != _pairs_src) {
-        _pairs.clear();
-        _pairs_mtime = 0;
-        _pairs_src = src;
-    }
-    if (_pairs.empty() || stamp.time_since_epoch().count() != _pairs_mtime) {
-        sfm::MatchesIndex idx;
-        if (!sfm::indexMatches(src, idx)) return;
-        _pairs_mtime = stamp.time_since_epoch().count();
-        _pairs.clear();
-        _pairs.reserve(idx.pairs.size());
-        for (const sfm::MatchesIndex::Entry& e : idx.pairs)
-            _pairs.push_back({e.image1, e.image2, e.count, e.offset});
-        std::sort(_pairs.begin(), _pairs.end(),
-                  [](const PairEntry& x, const PairEntry& y) {
-                      return x.a != y.a ? x.a < y.a : x.b < y.b;
-                  });
-    }
+    if (!entry || kp[0].empty() || kp[1].empty()) return;
     // Verification writes each pair once, in whichever order pairing chose.
-    bool flipped = false;
-    PairEntry key{std::min(a, b), std::max(a, b), 0, 0};
-    auto it = std::lower_bound(_pairs.begin(), _pairs.end(), key,
-                               [](const PairEntry& x, const PairEntry& y) {
-                                   return x.a != y.a ? x.a < y.a : x.b < y.b;
-                               });
-    if (it == _pairs.end() || it->a != key.a || it->b != key.b) return;
-    flipped = it->a != a;
-
+    const bool flipped = entry->a != a;
     std::vector<sfm::FeatureMatch> m;
-    if (!sfm::readPairMatches(src, {it->a, it->b, it->count, it->offset}, m))
+    if (!sfm::readPairMatches(src, {entry->a, entry->b, entry->count, entry->offset}, m))
         return;
     out.matches = m.size();
     const size_t step = m.size() / kMaxLines + 1;
@@ -396,13 +425,26 @@ void PairPreview::draw(const ImVec2& box) {
     // whose lines fan out at every angle, is a pair that will register badly.
     if (!_shot.lines.empty() && _left.tex && _right.tex) {
         ImDrawList* dl = ImGui::GetWindowDrawList();
-        const ImU32 col = IM_COL32(255, 210, 90, 110);
-        for (size_t k = 0; k + 3 < _shot.lines.size(); k += 4)
-            dl->AddLine(ImVec2(at_a.x + _shot.lines[k] * size_a.x,
-                               at_a.y + _shot.lines[k + 1] * size_a.y),
-                        ImVec2(at_b.x + _shot.lines[k + 2] * size_b.x,
-                               at_b.y + _shot.lines[k + 3] * size_b.y),
-                        col);
+        const size_t n = _shot.lines.size() / 4;
+        // A few dozen matches is the loop closure worth checking, and faint
+        // lines lose it against the pictures: few get a colour each and rings.
+        const bool few = n <= kFewLines;
+        for (size_t k = 0; k + 3 < _shot.lines.size(); k += 4) {
+            const ImVec2 p0(at_a.x + _shot.lines[k] * size_a.x,
+                            at_a.y + _shot.lines[k + 1] * size_a.y);
+            const ImVec2 p1(at_b.x + _shot.lines[k + 2] * size_b.x,
+                            at_b.y + _shot.lines[k + 3] * size_b.y);
+            if (!few) {
+                dl->AddLine(p0, p1, IM_COL32(255, 210, 90, 110));
+                continue;
+            }
+            float r, g, b;
+            ImGui::ColorConvertHSVtoRGB((float)(k / 4) * 0.618034f, 0.75f, 1.0f, r, g, b);
+            const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(r, g, b, 0.9f));
+            dl->AddLine(p0, p1, col, px(1.5f));
+            dl->AddCircle(p0, px(3.5f), col, 0, px(1.5f));
+            dl->AddCircle(p1, px(3.5f), col, 0, px(1.5f));
+        }
     }
     ImGui::GetWindowDrawList()->PopClipRect();
 

@@ -26,6 +26,7 @@
 
 #include "backend/common/SortScan.h"
 #include "backend/vulkan/kernels/KernelCommon.h"
+#include "core/PixelFormat.h"
 
 #include <cmath>
 #include <cstdio>
@@ -66,11 +67,9 @@ struct VisFrustumParams {
     uint64_t intrins, widths, heights, camera_models, dist_coeffs, distortions,
         camera_to_worlds, lss_buffer, tri_buffer;
     float size;
-    uint32_t N;
-    uint32_t _pad0;
+    uint32_t N, wgs_per_row;
 };
-static_assert(sizeof(VisFrustumParams) == 9 * 8 + 3 * 4 + 4 /*pad*/,
-              "layout");
+static_assert(sizeof(VisFrustumParams) == 9 * 8 + 4 * 4, "layout");
 
 struct VisAabbParams {
     uint64_t buffer, aabb_reduced;
@@ -142,10 +141,12 @@ struct VisPackParams {
 static_assert(sizeof(VisPackParams) == 2 * 8 + 2 * 4, "layout");
 
 struct VisThumbParams {
-    uint64_t rgb_float, cam_indices, thumbnails, done_mask, alpha_mask;
+    uint64_t rgb, cam_indices, thumbnails, done_mask, alpha_mask;
     int32_t H_rgb, W_rgb, B_post, N, S, H_alpha, W_alpha, has_alpha;
+    uint32_t rgb_fmt;
+    int32_t _pad0;
 };
-static_assert(sizeof(VisThumbParams) == 5 * 8 + 8 * 4, "layout");
+static_assert(sizeof(VisThumbParams) == 5 * 8 + 10 * 4, "layout");
 
 /* ---- LBVH build (mirrors Visualizer.cu build_bvh<>) ---- */
 
@@ -300,9 +301,10 @@ void fill_frustums(int64_t n, const void* intrins, const void* widths,
     p.tri_buffer = (uint64_t)tri_buffer;
     p.size = size;
     p.N = (uint32_t)n;
-    vkk::dispatch("visualizer.vis_fill_frustum",
-                 backend::vk::SpecList{0u, 0u}, (uint32_t)n, 1, 1, &p,
-                 sizeof(p));
+    vkk::dispatch_flat("visualizer.vis_fill_frustum",
+                       backend::vk::SpecList{0u, 0u},
+                       n * 4 * kNumFrustumSegments, 4 * kNumFrustumSegments,
+                       &p, sizeof(p), &p.wgs_per_row);
 }
 
 // root_aabb: u32[6] mapped; min words init 0xffffffff, max words 0.
@@ -608,15 +610,17 @@ void engine_viewer_capture_thumbnails(TorchTensorView cam_indices_tv) {
     if (!engine().viewer.initialized || engine().viewer.pending_thumb <= 0)
         return;
     if (!engine().gt.has_gt) return;
-    if (engine().gt.rgb.data_ptr() == nullptr) return;
+    const TorchTensorView& gt_rgb = engine().gt.rgb;
+    if (std::get<0>(gt_rgb) == 0) return;
 
     std::lock_guard<std::mutex> _vlock(viewer_mutex());
     auto& v = engine().viewer;
     if (!v.initialized || v.pending_thumb <= 0) return;
 
-    int64_t B_post = engine().gt.rgb.size<0>();
-    int64_t H = engine().gt.rgb.size<1>();
-    int64_t W = engine().gt.rgb.size<2>();
+    const auto& gt_shape = std::get<2>(gt_rgb);
+    int64_t B_post = gt_shape[0];
+    int64_t H = gt_shape[1];
+    int64_t W = gt_shape[2];
     if (B_post <= 0 || H <= 0 || W <= 0) return;
 
     uint64_t ci_ptr = std::get<0>(cam_indices_tv);
@@ -663,7 +667,8 @@ void engine_viewer_capture_thumbnails(TorchTensorView cam_indices_tv) {
     }
 
     VisThumbParams p{};
-    p.rgb_float = (uint64_t)engine().gt.rgb.data_ptr();
+    p.rgb = std::get<0>(gt_rgb);
+    p.rgb_fmt = (uint32_t)pixel_format(gt_rgb);
     p.cam_indices = (uint64_t)d_ci;
     p.thumbnails = (uint64_t)v.thumbnails.data_ptr();
     p.done_mask = (uint64_t)v.thumbnail_done_mask.data_ptr();

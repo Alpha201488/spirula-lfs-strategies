@@ -7,37 +7,75 @@
 #include "backend/api/BackendRuntime.h"
 #include "config/TrainConfig.h"
 #include "i18n/Message.h"
-#include "app/gui/BatchTrain.h"
+#include "app/gui/BatchProcess.h"
 #include "app/gui/ColmapRunner.h"
+#include "app/gui/CommandRunner.h"
 #include "app/gui/CompareView.h"
+#include "app/gui/DenseMemoryView.h"
 #include "app/gui/Fonts.h"
 #include "app/gui/ConfigUI.h"
 #include "app/gui/FileDialog.h"
 #include "app/gui/FeatureWatcher.h"
 #include "app/gui/FilmReel.h"
 #include "app/gui/GeometryPanel.h"
+#include "app/gui/PartitionPanel.h"
+#include "app/gui/RoiEditor.h"
 #include "app/gui/ImageCompare.h"
 #include "app/gui/MatchMatrix.h"
+#include "app/gui/PickSheet.h"
+#include "app/gui/PickSheetView.h"
 #include "app/gui/PairPreview.h"
 #include "app/gui/SfmProgress.h"
 #include "app/gui/Layout.h"
+#include "app/gui/LidarStep.h"
 #include "app/gui/MeshRunner.h"
 #include "app/gui/ModelCache.h"
+#include "app/gui/RecentList.h"
+#include "app/gui/Screenshot.h"
 #include "app/gui/SegmentPanel.h"
+#include "app/gui/mask/MaskSession.h"
 #include "app/gui/SfmRunner.h"
+#include "app/gui/SourceList.h"
+#include "app/gui/SourceProbe.h"
+#include "app/gui/SourcePreview.h"
+#include "app/gui/StageEta.h"
 #include "app/gui/TelemetryProbe.h"
 #include "app/gui/TrainPreset.h"
 #include "app/gui/TrainRunner.h"
 #include "app/gui/ViewportPanel.h"
+#include "data/PointCloudFile.h"
 
+#include <cstddef>
+#include <atomic>
+#include <cstdint>
 #include <deque>
 #include <fstream>
+#include <functional>
+#include <future>
 #include <map>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
 namespace gui {
+
+// One kind of saved preset as the screen sees it: what is on disk, which one
+// is in use, and what the last save or load said. `file` is "" while the
+// built-in (or stock) settings are selected.
+template <class T>
+struct PresetPicker {
+    std::vector<T> items;
+    double scanned_at = -1.0;
+    std::string file;
+    // Which built-in is selected while `file` is empty, for the kinds that
+    // have them. "" means the stock settings.
+    std::string builtin;
+    std::string display;
+    std::string desc;
+    std::string msg;          // already formatted
+    bool msg_err = false;
+};
 
 class GuiApp {
 public:
@@ -45,12 +83,21 @@ public:
     static constexpr float kDefaultLogH = 150.0f;
     static constexpr float kDefaultPreviewH = 260.0f;
     static constexpr float kDefaultDsPanelW = 560.0f;
+    static constexpr float kEditPanelW = 300.0f;
 
     GuiApp();
     ~GuiApp();
 
     // Draw one frame (between ImGui::NewFrame and ImGui::Render).
     void frame();
+    // Something is moving without the user touching anything -- a render
+    // playing back or being written -- so frames must keep coming.
+    bool animating() const { return _compare.animating() || _mask_editor.animating() || _source_view.animating(); }
+
+    // What a script needs to know that is not on screen as a widget: the
+    // screen, what is running, what is open. A JSON object body without the
+    // braces, for gui::automation::set_state_source.
+    std::string state_json();
 
     // Window close button pressed; may open a confirmation dialog instead
     // of quitting when training is in flight.
@@ -73,10 +120,16 @@ public:
 private:
     enum class Screen { Home, NewDataset, Train, Viewer, Batch, Mesh };
     enum class PickAction {
-        None, OpenDataset, SourceImages, SourceVideo, SourceReplace, Workspace,
+        None, OpenDataset, SourceImages, SourceVideo, SourceDataset,
+        SourceReplace, Workspace,
         OutputPrefix, VocabTree, MaskModelFile, SplatFile,
-        PresetFile, PresetSaveFolder, BatchDataset, BatchOutput, BatchPresetFile,
-        MeshSource, MeshPhotos, MeshOutput, AddSplatFile
+        PresetFile, DatasetPresetFile, MeshPresetFile, PresetSaveFolder,
+        BatchDataset, BatchOutput, BatchPresetFile, BatchDatasetPresetFile,
+        BatchMeshPresetFile, BatchSourceImages, BatchSourceVideo, BatchModel,
+        MeshSource, MeshPhotos, MeshOutput, AddSplatFile, SplatFolder,
+        EditSaveFile, EditSaveFolder, RenderProjectSave, RenderProjectOpen,
+        RenderOutput, RenderAddModel, StencilFile, SeedPointcloud,
+        ConfigPath, LidarSource, ResumeRun, SourceLut
     };
     // Which reconstruction back end the New Dataset screen runs.
     enum class Engine { BuiltIn, Colmap };
@@ -93,9 +146,9 @@ private:
     static std::string settings_path();
     void load_settings();
     void save_settings();
-    // By value: callers pass elements of _recents, which this mutates.
-    void add_recent(std::string path);
-    void add_model_recent(std::string path);
+    // Onto the recent list, and saved. By value: callers pass paths out of
+    // that list, which this reorders.
+    void remember(RecentKind kind, std::string path);
     // Which remembered directory a pick starts from. Several actions share one
     // key -- a dataset is a dataset wherever it is picked -- and the mode is
     // what separates the two things SourceReplace picks.
@@ -108,19 +161,24 @@ private:
     void open_pick(PickAction a, const std::string& title,
                    FileDialog::Mode mode,
                    const std::vector<std::string>& extensions = {},
-                   const std::string& start_dir = "", bool multi = false);
+                   const std::string& start_dir = "", bool multi = false,
+                   const std::string& suggested_name = {});
 
     // ---- actions ----
-    // By value: callers pass elements of _recents, which open_dataset
-    // mutates via add_recent (a const& here would dangle).
-    // Clears the log panel unless `keep_log`: what is in it belongs to
-    // whatever was open before. The reconstruction handoff passes true,
-    // because there the log is this dataset's own build log.
+
+    // By value: callers pass paths out of _recent, which remember() reorders.
+    // Clears the log unless `keep_log`, which the reconstruction handoff
+    // passes: there the log is this dataset's own build log.
     void open_dataset(std::string dir, std::string image_dir = "",
                       std::string mask_dir = "", bool mask_flipped = false,
                       bool keep_log = false);
     // Route for user-initiated opens: confirms first when training.
     void request_open_dataset(std::string dir);
+
+    // The comparison panes, with the editing panel beside them when a pane is
+    // being edited. The viewer screen and the meshing preview share it.
+    void draw_compare_panes();
+    void open_render_output_pick(const std::string& start, const std::string& suggested);
 
     // The viewer screen: a splat file (or a checkpoint / run directory) opened
     // for looking at. Takes the engine over, so it goes through the same
@@ -132,6 +190,10 @@ private:
     // Give the engine back and leave the screen. Called before anything that
     // needs the engine for itself.
     void close_splat();
+    // Close GPU-backed previews before another native handoff.
+    void close_native_previews();
+    // close_native_previews(), and the mask editor releases its SAM session.
+    void stop_inference_users();
 
 public:
     // Drag-and-drop entry (GLFW drop callback, main thread): auto-detects
@@ -151,9 +213,46 @@ private:
     // the log rather than throwing; refuses while training, because applying
     // one re-parses the dataset and would take the running session down.
     void load_preset_file(const std::string& path);
-    // Re-scan preset_dir(), rate-limited: this runs while a dropdown is open.
+    // Re-scan each kind's preset folder, rate-limited: these run while a
+    // dropdown is open.
     void refresh_presets();
+    void refresh_dataset_presets();
+    void refresh_mesh_presets();
+
+    // ---- dataset and meshing presets ----
+    // The New Dataset screen's settings as a preset carries them, and back.
+    // Applying one never touches the inputs or the output folder.
+    DatasetSettings capture_dataset_settings() const;
+    void apply_dataset_settings(const DatasetSettings& s);
+    void apply_dataset_preset(const DatasetPreset& p);
+    // A built-in, which is the capture's own answers with the preset's over
+    // them -- and then the one question only the frames can settle.
+    void apply_dataset_builtin(const std::string& name);
+    // ... and again once the inputs change, so the order they were picked in
+    // does not decide which of the two wins.
+    void reapply_dataset_builtin();
+    void load_dataset_preset_file(const std::string& path);
+    // Meshing, the same way: the model, its photographs and the output path
+    // are what the preset is applied TO.
+    void apply_mesh_preset(const MeshPreset& p);
+    void load_mesh_preset_file(const std::string& path);
+    // The picker a screen draws above its options: combo, save, load, delete.
+    void draw_dataset_preset_picker();
+    void draw_mesh_preset_picker();
+    // Arm the shared save dialog for `kind`, seeded from what is on screen.
+    void open_preset_save(PresetKind kind);
     void start_training();
+    // ---- screenshots (defined in Screenshot.cpp) ----
+    // The button and its settings popup, ending `right` px from the row's end.
+    void draw_screenshot_controls(float right);
+    void take_screenshot();
+    // The viewer's: every splat pane, each beside its own dataset.
+    void draw_viewer_screenshot_controls();
+    void take_viewer_screenshots();
+    // The shared "..." popup, and the log lines of writes that finished.
+    void draw_screenshot_settings();
+    void poll_screenshot_jobs();
+
     // Everything that renders from the training session, released together.
     // Every path that replaces or destroys the session goes through this.
     void detach_session_views();
@@ -165,33 +264,55 @@ private:
     bool training_busy() const;   // Preparing or Training
 
     // ---- batch ----
-    // Append a row for this dataset, seeded with the preset the trainer
-    // screen is on. Shared by the picker, the recents menu and the drop
-    // handler.
+    // Append a row that trains this dataset, seeded with the preset the
+    // trainer screen is on. Shared by the picker, recents and the drop handler.
     void add_batch_row(const std::string& dataset);
-    void check_batch();                     // pre-flight every row
+    // ... and one that builds a dataset from these inputs, or meshes a model.
+    void add_batch_source_row(const std::vector<std::string>& sources);
+    void add_batch_mesh_row(const std::string& model);
+    // The training run a new row (or a new run on one) starts with: whatever
+    // the trainer screen is on.
+    BatchRun batch_run_on_screen() const;
+    void batch_edited();                    // persist, and re-check
+    // Pre-flight every row. Cheap enough (a few stats and a small JSON per
+    // preset) that nothing waits for a button: check_batch_if_stale() runs it
+    // whenever an edit or a couple of seconds have gone by.
+    void check_batch();
+    void check_batch_if_stale();
+    BatchCapabilities batch_capabilities() const;
     void request_start_batch(bool skip_invalid);
     void start_batch(bool skip_invalid);
-    // Called once per frame while a batch is live: records the row that just
+    // Called once per frame while a batch is live: records the task that just
     // finished and launches the next one.
     void advance_batch();
+    // Is the runner that owns this stage still working?
+    bool batch_stage_busy(BatchStage stage) const;
+    // Record the finished task, and skip what depended on it.
+    void record_batch_task();
+    bool launch_batch_task(BatchTask& task);
+    bool launch_batch_dataset(BatchTask& task, const BatchRow& row);
+    bool launch_batch_train(BatchTask& task, const BatchRow& row);
+    bool launch_batch_mesh(BatchTask& task, const BatchRow& row);
+    // The dataset / model a task reads, from what its row has produced so far.
+    const BatchTask* batch_task_of(int row, BatchStage stage, int variant) const;
+    void fail_batch_task(BatchTask& task, const std::string& error);
     void finish_batch();
-    // Give up on the queue without waiting for the current row (the stop
+    // Give up on the queue without waiting for the current task (the stop
     // confirmation took the session away).
     void cancel_batch();
+    // Show the screen the running stage belongs to, unless the user has
+    // walked off to look at something else.
+    void follow_batch_screen(BatchStage stage);
 
     // ---- dataset creation ----
     // Which engines this build and this machine can actually offer.
     bool builtin_sfm_available() const;
     bool colmap_available() const;
     Engine effective_engine() const;
-    // Does any input carry the 360 packing, and what the plan does to the lens.
-    bool any_pano360() const;
-    void apply_pano_lens();
-    void reset_pano_size();
     void draw_pano360_options();
     void draw_pano360_size();
     bool dataset_busy() const;
+    bool native_work_busy() const;
     // Which step a running job is on, or nullptr when none is. Both runners
     // report through the same object, so the screen reads one thing.
     RunProgress* dataset_steps();
@@ -207,22 +328,88 @@ private:
     void update_dataset_job();
     // Copies the panel-level state into whichever job struct will run.
     void sync_dataset_jobs();
-    // Path of the selected checkpoint, or "" when it is not downloaded yet.
-    std::string selected_model_path() const;
-    // Fetch it (with consent), and whether a run would need it and not find it.
-    void request_model_download();
+    // The selected checkpoint and detector; empty paths until both are here.
+    MaskModelFiles selected_mask_model() const;
+    // Fetch them (with consent), and whether a run would need them and not
+    // find them. `detector_id` is ignored for an entry that takes none.
+    void request_model_download(const std::string& id, const std::string& detector_id);
     bool mask_model_missing() const;
+    bool mask_model_missing(bool enable, const std::vector<PrepInput>& inputs) const;
+    // What is missing and the button that fetches it, or its download's bar.
+    void draw_model_fetch(FileDownload& dl, const spirula::i18n::Msg& missing,
+                          const spirula::i18n::Msg& get, const std::function<void()>& request);
     bool license_accepted(const std::string& family) const;
+    mutable std::vector<std::string> _accepted_cache;   // gui.conf, as of _accepted_frame
+    mutable int _accepted_frame = -1;
+    // Raises one modal per family not yet accepted, in order, then runs `then`.
+    // Cancelling any of them drops the rest and `then` never runs.
+    // `declined` runs when the user cancels one of them instead.
+    void request_licenses(std::vector<std::string> families, std::function<void()> then,
+                          std::function<void()> declined = nullptr);
+    void advance_license_queue();
+    // Starts a queue of files after the consent every one of them names: the dialog
+    // first when a licence is missing, the download then, nothing on a refusal.
+    // The one door for a download that is not a SAM / detector checkpoint.
+    void start_downloads_with_consent(DownloadQueue& queue, std::vector<PendingDownload> files);
+    // Said when a licence dialog is cancelled: the log, and a line by the fetch button.
+    void note_license_declined(const spirula::i18n::Msg& what);
+
+    // A batch asks for every licence its rows need, once, before the first row
+    // starts, then fetches what is missing, then starts. Never mid-batch.
+    struct BatchFetchPlan {
+        std::vector<std::string> families;                           // unaccepted, each once
+        std::vector<std::pair<std::string, std::string>> masks;      // model id, detector id
+        std::vector<std::string> geometries;
+        std::vector<size_t> fetchers;                                // _batch_fetchers still to run
+        bool empty() const {
+            return families.empty() && masks.empty() && geometries.empty() && fetchers.empty();
+        }
+    };
+    // A download a batch needs beyond the masking and geometry checkpoints. A
+    // feature registers one; the plan and the pump know no feature by name.
+    struct BatchFetcher {
+        // True when `needs` calls for a download that is not on disk yet; the
+        // licence families it would ask about are appended to `families`.
+        std::function<bool(const BatchModelNeeds& needs, std::vector<std::string>& families)> due;
+        std::function<FileDownload*()> active;   // its download while it runs, else null
+        std::function<void()> start;             // begins it (consent was given first)
+    };
+    void add_batch_fetcher(BatchFetcher f) { _batch_fetchers.push_back(std::move(f)); }
+    std::vector<BatchFetcher> _batch_fetchers;
+    BatchFetchPlan batch_fetch_plan() const;
+    void begin_batch(bool skip_invalid);
+    void pump_batch_fetch();
 
     // ---- screens ----
     void draw_menu_bar();
     void draw_home();
     void draw_home_banner(float avail, float indent);
+    // The recent list under its tabs. `scroll`: in a scrolling child of its
+    // own, filling the space left; otherwise inline, as tall as it is.
+    void draw_home_recent(bool scroll);
+    // One entry as two lines; true when clicked. `badge` names its kind.
+    bool draw_recent_row(const RecentItem& item, bool badge);
+    void draw_recent_menu(const RecentItem& item, int tab_kind);
+    // An entry's own action. By value: every one of them reorders the list.
+    void open_recent(RecentItem item);
+    // A reconstruction while something else holds the device -- unless it is
+    // the one running, whose screen it already is.
+    bool recent_blocked(const RecentItem& item) const;
+    // A dataset run's output folder back on the screen that built it: its
+    // inputs from the folder's record, and its settings once the panel
+    // arrives there (draw_dataset_form).
+    void open_reconstruction(const std::string& workspace);
+    // Drop what is gone from the list, at most every few seconds and never
+    // on this thread.
+    void probe_recent();
     void draw_new_dataset();
     void draw_dataset_source();       // input list / output / resume
-    void draw_sensor_badge(const PrepInput& s);
+    bool draw_source_lut(size_t input);
+    void draw_sensor_toggles(PrepInput& s);
     void draw_dataset_basics();       // the four or five knobs a beginner needs
     void draw_source_cameras();       // one lens per input, when there are several
+    void draw_rig_kinds(const std::vector<CameraGroup>& groups,
+                        const std::vector<std::string>& names);
     // The line under a lens picker when the input contradicts the model --
     // a panorama model on frames that are not 2:1, an ordinary lens on a
     // dual-fisheye capture. Silent unless it is sure: an input whose size
@@ -233,7 +420,23 @@ private:
     // path (an image header, or one `ffmpeg -i`) and remembered.
     bool input_pixel_size(const std::string& path, bool is_video,
                           int& w, int& h);
-    void draw_masking_options();
+    // What the masking options edit: the inputs and switches it is handed.
+    struct MaskingPanel {
+        std::vector<PrepInput>* inputs = nullptr;
+        bool* enable = nullptr;
+        bool* border = nullptr;
+        bool* features = nullptr;       // null: no reconstruction to keep them from
+        int* preview_input = nullptr;
+        std::string* frame_shapes = nullptr;
+        bool fit_lens_border = true;    // ticking the stencil fits a fisheye rim
+        bool preview_ready = true;      // frames to try the mask on
+        const spirula::i18n::Msg* preview_wait = nullptr;   // why not, when not
+        std::function<void()> open_preview;
+    };
+    MaskingPanel dataset_masking_panel();
+    void draw_masking_options(const MaskingPanel& p);
+    // The job's mask_* fields from the shared settings; `mask_enable` excepted.
+    void fill_masking(PrepJob& prep) const;
     void draw_geometry_options();
     // Opens the geometry preview on the output folder when it already holds a
     // reconstruction -- the only case where the real cameras are known -- and
@@ -250,6 +453,9 @@ private:
     bool feature_model_missing() const;
     // The step list and its bars, in place of the one stage line.
     void draw_dataset_steps();
+    void draw_scan_view(float h);
+    void draw_sharpness_view(float h);
+    void continue_frame_review();
     // The form and the button that acts on it, `height` tall.
     void draw_dataset_form(float height, bool running);
     // The frames / match map / model area, and the poll that feeds it from what
@@ -258,14 +464,17 @@ private:
     void draw_dataset_preview(float height);
     bool preview_has_content() const;
     void poll_sfm_progress();
+    void poll_dense_progress();
     // Which of the three the running step implies, or -1 for none.
     int preview_for_stage();
     // Release everything the preview holds -- GL buffers, the watcher thread,
     // the snapshot. Called when the screen is left and at shutdown.
-    void reset_dataset_preview();
+    void reset_dataset_preview(bool sweep = true);
     // "Re-run masking only" and friends: what probe_workspace already knows,
     // as the actions it implies.
     void draw_dataset_rerun(const WorkspaceState& prior);
+    void open_mask_editor(const std::string& workspace, const std::string& image_dir,
+                          const std::string& mask_dir, bool mask_flipped);
     // Throwing the whole project away rather than one step of it: the run's
     // own files, and the options, each on its own button.
     void draw_dataset_reset();
@@ -273,24 +482,38 @@ private:
     // Turning "keep intermediate files" OFF is the one option here that
     // destroys work: it is what makes a cancelled run resumable.
     void draw_drop_intermediate_modal();
+    // What pressing the button will reuse and redo (DatasetPlan.h), from the
+    // panel as it stands; the runner asks the same question of the same job.
+    const DatasetPlan& dataset_plan();
+    void draw_dataset_plan(const DatasetPlan& plan);
+    // A rebuild nobody asked for -- the frames or the reconstruction differ
+    // from the panel -- is confirmed first, with the option to keep them.
+    void draw_rebuild_confirm_modal();
+    // The settings the output folder's record says built it, onto the panel:
+    // when the folder changes, and from the plan's own button.
+    void restore_from_record(bool announce);
+    void restore_record_rows(const DatasetRecord& rec);
+    // The re-dos and the stages kept or forced: one run's worth each.
+    void forget_redo_requests();
+    // Everything start_dataset_job does once the confirmation is settled.
+    // False when the run did not start (busy, or the device could not be frozen).
+    bool launch_dataset_job();
+    // An existing dataset as an input: its images/ become the source and the
+    // folder itself the output, so the run adds to it instead of building a
+    // copy beside it.
+    void add_existing_dataset(const std::string& dir);
+    void add_dataset_folder(const std::string& dir);
     // Every option back to what a freshly picked input would have given it.
     // The inputs, the output folder and the mask prompt are not options.
     void reset_recon_options();
-    // The settings an input implies -- what a video wants, what a dual-lens
-    // 360 file wants. Asked when the list changes, and again by the reset.
-    void apply_source_presets();
-    // The single "Camera / lens" control speaks for the whole capture, so it
-    // writes to every input rather than only the first.
-    void apply_lens_to_sources(const std::string& model);
-    // Put the per-input lens list back in its canonical shape: a real model on
-    // the first row, "same as above" (an empty model) on every row that only
-    // repeats the row before it.
-    void normalize_source_lenses();
     // What one input's images are fitted with, resolved down the row list.
     void source_lens(size_t input, std::string& model, float& focal) const;
     // What the output folder holds, at 1 Hz rather than per frame: the answer
     // now costs a directory scan (a Metashape export is found by extension).
     const WorkspaceState& workspace_state();
+    // How a panel must read one input's frames: the decoder the run will use,
+    // and the FrameLook it will write them with.
+    PreviewSource preview_source(size_t input) const;
     // Opens "Try the mask" on the input the combo points at, which is also the
     // input whose clicks and stencil it edits.
     void open_mask_preview();
@@ -309,6 +532,27 @@ private:
     // the picker, the drop handler and the "mesh this run" shortcut.
     void set_mesh_source(const std::string& path);
     void start_meshing();
+    // LiDAR scans on the dataset screen (LidarSources.cpp): rows laid out as
+    // the inputs' above them, and the switches a run with them has.
+    void draw_lidar_rows(float path_w, bool one_line);
+    void draw_lidar_options();
+    void add_lidar_sources(const std::vector<std::string>& paths);
+    void replace_lidar_source(size_t i, const std::string& path);
+    void clear_lidar_sources();
+    // An XGRIDS export picked as a dataset: its fisheye model, its LAS, its
+    // masks the other way round. False when `dir` is no such export.
+    bool add_xgrids_export(const std::string& dir);
+    // E57 / LAS / LAZ by name; a PLY says in its header, and is a scan where
+    // a dataset is being put together and something to look at elsewhere.
+    static bool is_lidar_drop(const std::string& path);
+    std::vector<std::string> raw_inputs(const std::vector<std::string>& paths);
+    static bool ply_is_point_cloud(const std::string& path);
+    // The scans' photographs are the only images and could keep their poses.
+    bool scanner_poses_offered() const;
+    LidarJob lidar_job() const;
+    // The input list emptied for a different capture, with what was decided
+    // about it; the scans stay.
+    void clear_sources();
     // Would the run about to start actually get cameras? Resolves the dataset
     // the way the child does -- the folder typed here, else the `data` entry
     // in the run's config.json -- so the screen can warn BEFORE the run that
@@ -320,11 +564,59 @@ private:
     void open_mesh_preview();
     void close_mesh_preview();
     void draw_batch();
-    void draw_batch_table();
-    void draw_batch_preset_combo(BatchJob& job, int row);
+    void draw_batch_rows();
+    void draw_batch_row(BatchRow& row, int index, int& remove, int& move);
+    void draw_batch_row_dataset(BatchRow& row, int index);
+    void draw_batch_row_train(BatchRow& row, int index);
+    void draw_batch_row_mesh(BatchRow& row, int index);
+    // The dataset folder: written by the Dataset stage, read by the Train
+    // stage, so one field serves both and they cannot disagree.
+    void draw_batch_row_common_dataset(BatchRow& row, int index);
+    // The one-line summary on a collapsed row: what it does, to what.
+    std::string batch_row_summary(const BatchRow& row) const;
+    // The built-in / saved picker one stage of one row uses. True when the
+    // choice moved.
+    bool draw_batch_train_preset(BatchPreset& p, const char* id, int row, int slot);
+    // One training run: its preset, its three overrides and whether the row's
+    // Mesh stage covers it, on one line.
+    bool draw_batch_run(BatchRun& run, int row, int slot, bool meshing);
+    // The colour and format sets a row writes, over what its preset says.
+    bool draw_batch_mesh_outputs(BatchMeshOptions& mesh);
     void draw_batch_issues();
-    void draw_batch_progress();      // the running-job block on the trainer screen
+    void draw_batch_plan();          // the tasks a start would run, in order
+    // What is running, as bars: the queue, the task, and how long each has
+    // left. Drawn on the batch screen and on whichever work screen the
+    // running task belongs to, so neither has to be guessed from the other.
+    void draw_batch_progress();
+    void draw_batch_stop_buttons();
+    // How far through the running task its own runner says it is, -1 when it
+    // cannot say, and how long it has been going.
+    float batch_task_fraction();
+    double batch_task_elapsed() const;
+    // The row the running task belongs to, null when nothing is running.
+    // `_batch_current` indexes the TASKS, which outnumber the rows.
+    const BatchRow* batch_running_row() const;
+    // The command the queue runs when it is over: the field and its Test
+    // button, starting it with a message, and reporting how it went.
+    void draw_batch_command();
+    void run_batch_command(const std::string& message);
+    void poll_batch_command();
+    const spirula::i18n::Msg& batch_stage_name(BatchStage s) const;
     void draw_train_settings();      // left panel
+    void draw_device_issue_banner();
+    // Native picker and frozen identity, available from shared settings/View menu.
+    void draw_device_picker(bool as_menu = false);
+    // Lists the native devices once per session. Enumeration is side-effect
+    // free (a throwaway Vulkan instance) and never creates a logical device.
+    void load_native_devices();
+    // Resolve and register the canonical UUID without creating the inference
+    // context; reject later conflicting requests as restart-required.
+    bool freeze_native_device();
+    bool freeze_cuda_device();
+    // Copies the frozen UUID into every native job field this session owns, so
+    // one choice reaches the dataset, mask/geometry previews, reconstruction,
+    // geometry child and mesh child. Called from the freeze point.
+    void propagate_frozen_device();
     void draw_preset_picker();       // built-in + saved presets, save / load
     void draw_preset_save_modal();
     void draw_preset_delete_modal();
@@ -352,22 +644,26 @@ private:
     // The splitter and then the panel. Call after the body child has ended.
     void draw_log_panel(float height);
     void draw_confirm_modal();
+    // A stopped run, continued: its own config.json, as `spirula train --resume` builds it.
+    void open_resume(const std::string& path);
+    void draw_resume_error();
     void draw_data_error_modal();
     void handle_dialog_result(const std::vector<std::string>& paths);
-    // Take paths onto the input list, `replace` clearing what was there (a
-    // fresh pick from Home) rather than adding to it (the panel's Add buttons).
-    // Sets the per-input defaults and, unless the user has edited it, the
-    // output folder.
-    void add_sources(const std::vector<std::string>& paths, bool replace);
+    // Take paths onto the input list; `replace` clears a fresh pick's inputs.
+    // Sets defaults and the output folder; false means no input was accepted.
+    bool add_sources(const std::vector<std::string>& paths, bool replace);
+    void replace_source(size_t input, const std::string& path);
     // Re-derive what is a function of the list: the sub-folder each input's
     // images go into, and the default workspace.
     void refresh_sources();
+    void pump_source_probes();
+    void mark_source_metadata_dirty();
     void rescan_found_masks();
     // Did any input arrive with masks of its own?
     bool any_found_masks() const;
     // Adopt the EXR colour space when the pictures are EXRs, unless the user
     // has already set one by hand.
-    void adopt_exr_color_space();
+    void adopt_file_color_space();
     void run_pending_if_stopped();
     void append_logs();
     void log(const std::string& s, bool detail = false);
@@ -379,6 +675,45 @@ private:
     void clear_log();
 
     Screen _screen = Screen::Home;
+    // Which save target the editor's file picker was armed for, and whether
+    // the next model opened is being opened in order to edit it.
+    int _edit_save_target = 0;
+    bool _edit_after_open = false;
+    // The dataset screen's run behind a sparse edit it opened: its photos and
+    // masks may live outside the dataset, and training the edit needs them.
+    struct DatasetFolders {
+        std::string dir, image_dir, mask_dir;
+        bool mask_flipped = false;
+    };
+    DatasetFolders _sparse_edit_src;
+    bool _force_dense_seed = false;
+    // Progressive splat budget: the mode and one box per resolution stage.
+    void draw_splat_budget(float w);
+    int64_t starting_points();
+    std::string _seed_count_path;
+    int64_t _seed_count = -1;
+    std::filesystem::file_time_type _seed_count_time{};   // the next open trains from the dense cloud just edited
+    // A dataset already in the output folder, read the way a run would read it.
+    DatasetFolders workspace_folders(const WorkspaceState& prior) const;
+    // Open in trainer / edit reconstruction / correct masks, for one dataset.
+    void draw_dataset_open_buttons(const DatasetFolders& f, bool model);
+    // A saved sparse edit on its way to the trainer: the dataset to open and
+    // the one it was edited from. Taken up at the top of the next frame,
+    // outside the edit session that asked for it.
+    std::string _edit_train_dataset, _edit_train_source;
+    void open_edited_dataset();
+    // The same, for a model opened in order to render it.
+    bool _render_after_open = false;
+    std::string _render_project_after_open;
+    bool open_render_project(const std::string& path);
+    // Quitting with unsaved edits: the question is asked before the training
+    // one, because the answer decides whether anything is written at all.
+    bool _edit_exit_confirm = false;
+    void draw_edit_exit_modal();
+    // The same for the render's camera move; "discard" lets it go for good.
+    bool _render_exit_confirm = false, _render_discarded = false;
+    bool _quit_after_render_save = false;
+    void draw_render_exit_modal();
     bool _quit = false;
     bool _open_confirm = false;      // arm the stop-training modal
     bool _confirm_shown = false;     // modal currently expected open
@@ -391,8 +726,33 @@ private:
     std::string _pending_path;       // dataset dir for Pending::OpenDataset
     bool _pending_batch_skip = false;  // Pending::StartBatch's argument
     bool _parse_dirty = false;       // dataparser option edited -> reload
-    bool _color_space_touched = false;  // see adopt_exr_color_space
-    bool _device_locked = false;     // backend initialized -> device fixed
+    bool _color_space_touched = false;  // see adopt_file_color_space
+
+    // ---- the one frozen native GPU choice ----
+    // Typed request, including explicit Auto; frozen flag makes it immutable.
+    std::string _native_device_request;
+    bool _native_device_choice_set = false;
+    std::string _native_device_uuid;   // canonical uuid:<hex>, "" before freeze
+    std::string _native_device_name;   // driver name of the frozen device
+    std::string _native_device_error;  // last rejected request, shown inline
+    bool _native_device_frozen = false;
+
+    // The session-level CUDA engine picker is an ordinal the native side never
+    // sees. Enforced here because CUDA's device_select cannot reject a later
+    // change.
+    bool _cuda_device_locked = false;
+    int _cuda_device_index = -1;
+
+    // What the picker lists: the native Vulkan records when the build has one,
+    // backend rows otherwise. Cached: enumeration spins up a throwaway
+    // instance, and the machine's device set does not change under a session.
+    struct NativeDeviceRow {
+        std::string name, type, uuid;   // uuid canonical, "" when unreported
+        uint64_t vram_bytes = 0;
+        bool usable = false;
+    };
+    std::vector<NativeDeviceRow> _native_devices;
+    bool _native_devices_loaded = false;
 
     // Config being edited + the preset baseline it diffs against.
     TrainConfig _cfg;
@@ -402,18 +762,19 @@ private:
     // the options editor's "preset default" tooltips are relative to.
     std::string _preset = "3dgs";
     ConfigUIState _cfg_ui;
+    // Persisted: the last value the user gave save_full_checkpoint by hand. A
+    // preset only overrides it by turning it on.
+    bool _keep_full_ckpt = false;
+    ScreenshotSettings _shot;
+    std::vector<std::future<std::string>> _shot_jobs;   // path written, or throws
 
-    // Saved presets. `_preset_file` is "" while a built-in preset is selected;
-    // otherwise it is the file in use and names the row shown in the picker.
-    std::vector<TrainPreset> _presets;
-    double _presets_scanned_at = -1.0;
-    std::string _preset_file;
-    std::string _preset_display;
-    std::string _preset_desc;
-    // The last save / load outcome, already formatted, and whether it failed.
-    std::string _preset_msg;
-    bool _preset_msg_err = false;
-    // The save dialog.
+    // Saved presets, one picker per kind.
+    PresetPicker<TrainPreset> _train_presets;
+    PresetPicker<DatasetPreset> _ds_presets;
+    PresetPicker<MeshPreset> _mesh_presets;
+    // The save dialog, which the three kinds share -- it asks the same three
+    // questions whatever is being saved.
+    PresetKind _preset_save_kind = PresetKind::Train;
     bool _preset_save_open = false;    // arm the modal
     bool _preset_save_shown = false;
     // The modal stepped aside for the file dialog and wants to come back.
@@ -423,7 +784,8 @@ private:
     std::string _preset_save_path;
     // The path field follows the name until the user edits it by hand.
     bool _preset_path_edited = false;
-    // The delete confirmation, which always targets _preset_file.
+    // The delete confirmation, which always targets the picker's own file.
+    PresetKind _preset_delete_kind = PresetKind::Train;
     bool _preset_delete_open = false;
     bool _preset_delete_shown = false;
 
@@ -438,9 +800,6 @@ private:
     // object, shared by the viewer screen and the meshing preview: it owns the
     // engine while it is open, and the engine is a singleton.
     CompareView _compare;
-    // Model files opened here, most recent first, offered by the "add a
-    // model" menu. Separate from _recents, which holds datasets.
-    std::vector<std::string> _model_recents;
 
     // ---- meshing ----
     // The extraction runs as a child process (MeshRunner); the preview after
@@ -457,6 +816,21 @@ private:
     // and what it answered.
     std::string _mesh_data_probe_key;
     bool _mesh_data_probe_found = false;
+
+    // ---- laser scans the dataset is aligned with (LidarSources.cpp) ----
+    struct LidarInput {
+        std::string path;
+        std::string edit;             // the path box, until it is committed
+        int64_t points = 0;           // as the header declares
+        int64_t photos = 0;           // images an E57 carries with poses
+        std::vector<spirula::cloud::Station> stations;
+    };
+    bool read_lidar_input(const std::string& path, LidarInput& in);
+    std::vector<LidarInput> _lidar;
+    int _pick_lidar = -1;             // the row a Browse... replaces; -1 adds
+    bool _lidar_photos = true;        // the scans' photographs join the reconstruction
+    bool _lidar_in_frame = false;     // the model is already in the scans' frame
+    bool _lidar_keep_poses = true;    // ... or are all there is: no reconstruction
 
     // Dataset creation. Both runners exist; only one runs, chosen by _engine
     // (and forced when only one is available).
@@ -477,6 +851,20 @@ private:
     FilmReel _film_frames, _film_masks, _film_features, _film_geometry;
     FeatureWatcher _features;
     MatchMatrix _matrix;
+    // Every frame a run chose and what the rule made of it (the Sharpness view).
+    PickSheet _picks;
+    PickSheetView _picks_view;
+    bool _picks_pictures = false;
+    std::string _picks_workspace;    // the output folder _picks was measured for
+    float _picks_size = 48.0f;       // a thumbnail's width, unscaled
+    bool _was_reviewing = false;     // SfmRunner::reviewing(), the frame before
+    // The Sharpness view's walk of the rule over _picks, and what it was for.
+    struct PickWalk {
+        std::string key;
+        std::vector<std::vector<Pick>> rows;
+        std::vector<float> blurs, steps;
+        bool differs = false;
+    } _pick_walk;
     // The two images behind whichever cell of the match map the cursor is on.
     PairPreview _pairs_view;
     // The model as the mapper builds it, drawn by the same GL preview the
@@ -487,6 +875,26 @@ private:
     // Snapshot files already read, by their write time; 0 means "not yet".
     int64_t _model_mtime = 0, _pairs_mtime = 0, _matches_mtime = 0;
     double _sfm_polled_at = -1.0;
+    // The dense step's own model.bin (dense::progress_dir), shown in the same view.
+    int64_t _dense_model_mtime = 0;
+    double _dense_polled_at = -1.0;
+    double _dense_refresh_seconds = 0.5;
+    struct DenseLiveRead {
+        LiveModel model;
+        int64_t stamp = 0;
+        double seconds = 0;
+        bool updated = false, during_run = false;
+        std::string error;
+    };
+    std::future<DenseLiveRead> _dense_model_read;
+    std::string _dense_preview_error;
+    bool _dense_live = false;
+    DenseMemoryView _dense_memory;
+    bool _dense_memory_active = false;
+    StageEta _dense_eta;
+    std::string _resume_error;
+    bool _open_resume_error = false;
+    double _dense_started_at = 0.0;
     bool _show_preview = true;
     // Which view the panel shows: -1 follows the running step, otherwise the
     // one the user picked and wants to keep.
@@ -501,20 +909,85 @@ private:
     // to skip. Separate from GeometryJob::overwrite so pressing the button
     // does not leave the option ticked for every run after it.
     bool _redo_geometry = false;
+    bool _redo_dense = false;
+    bool _dense_rebuild = false;   // this run matches again, ignoring saved pair predictions
     // Panel-level state, copied into whichever job runs. The inputs are kept as
     // the struct both runners take (PrepInput), so the panel edits the thing
     // that runs instead of a parallel copy of it: a video file or photo folder
     // each, plus the sub-folder and the lens that belong to it.
     std::vector<PrepInput> _sources;
+    // The photo folders rigs were last guessed for; guessed again only when
+    // they change, so clearing the guessed letters sticks.
+    std::string _rig_guess_key;
+    // Keep the committed source stable while a path is edited.
+    std::vector<std::string> _source_path_edits;
+    // What an input row draws after its path box, as last measured: the
+    // buttons, then the label and sensor badge. 0 before any row was drawn.
+    float _source_controls_w = 0.0f, _source_info_w = 0.0f;
+    // Video headers are read off the UI thread; the results are applied in
+    // pump_source_probes().
+    SourceProbe _source_probe;
+    bool _source_probes_ready = true;
+    // The rate box's text per row, kept while it is being typed into: what is
+    // in the model is a number or nothing, and the box shows a caret for the
+    // nothing (draw_dataset_source).
+    std::vector<std::string> _fps_text;
+    int _fps_editing = -1;
+    // The screen's "Advanced" header as last drawn. What a beginner should not
+    // have to read -- an input's LUT, starting focal, rig -- shows in place only
+    // while it is open, so the input list is never drawn twice.
+    bool _ds_advanced = false;
     // What each input's IMU / GPS holds, read on its own thread and keyed by
     // path, so re-choosing a file already read costs nothing.
     TelemetryProbe _telemetry;
+    // The input the right-hand column previews: a row of _sources, or of
+    // _lidar when `_source_sel_scan`. Kept by path, so a row removed or moved
+    // above it does not move the selection onto another file.
+    SourcePreview _source_view;
+    std::string _source_sel;
+    bool _source_sel_scan = false;
+    // Whether that column shows the input or the run, when there is both.
+    bool _right_input = true;
+    // Each row's height on the last frame: what its selection highlight spans.
+    std::vector<float> _source_row_h, _lidar_row_h;
+    float _source_preview_h = 540.0f;   // unscaled; the one-column layout's share
+    std::string _ffmpeg_checked;
+    bool _ffmpeg_found = false;
+    bool _source_gpu_asked = false;   // a video preview froze the device, or tried to
+    void select_source(const std::string& path, bool scan);
+    // -1 when nothing is selected, or the selection names no row.
+    int selected_source() const;
+    int selected_scan() const;
+    bool source_preview_available() const;
+    bool run_preview_available();
+    PreviewInput source_preview_input() const;
+    // Who may decode video on the inference device now, and the ffmpeg that
+    // can stand in for it.
+    void update_source_preview_gpu();
+    // The run's preview or the input's, in the column or under the form.
+    void draw_dataset_right(float height);
+    void draw_source_preview(float height);
+    void close_source_preview();
+    // Selectable highlight behind an input row, sized from the last frame.
+    bool row_select_begin(float last_h, bool selected);
     std::string _workspace;
     // The output folder this screen derived from the inputs. Kept so a folder
     // the user typed is never overwritten when the input list changes.
     std::string _workspace_auto;
+    // Frames and a reconstruction whose settings differ from the panel's are
+    // kept rather than rebuilt (PlanRequest::keep_built). Forgotten when the
+    // output folder or the inputs change.
+    bool _keep_built = false;
+    std::string _keep_built_for;
+    // The reconstruction's stages ticked or unticked in the plan list
+    // (PlanRequest::parts), for this output folder only.
+    PartChoice _part_choice[kNumModelParts] = {};
+    std::string _part_choice_for;
     bool _resume = true;
     bool _mask_enable = false;
+    // Hide what the masks cover from feature detection too, not only from
+    // training (SfmJob::mask_features).
+    bool _mask_features = true;
     // PrepJob::mask_memory. Off by default: a prompt that matches a crowd pays
     // one model pass per object per frame for it. The two below only apply
     // with it on, and are kept here rather than in MaskSettings because the
@@ -526,8 +999,22 @@ private:
     // stencil); this only says whether the run is given them, so that turning
     // the option off and on again does not throw away what was drawn.
     bool _border_enable = false;
+    // A saved stencil drawn on every input, by name (StencilPreset.h); cleared
+    // once the panel edits what it drew, since the name no longer says what is.
+    std::string _frame_shapes;
+    std::vector<StencilPreset> _frame_shapes_list;   // read when the picker opens
+    void apply_frame_shapes(std::vector<PrepInput>& inputs, std::string& preset,
+                            size_t first_input = 0);
+    void save_run_stencils();
     MaskSettings _mask;
     SegmentPanel _segment;
+    // The mask correction editor (app/gui/mask/). Opened from the dataset
+    // screen and the train screen; drawn from frame() so both can reach it.
+    mask::MaskSession _mask_editor;
+    // draw_train()'s mask-folder probe: what it last checked, and when.
+    std::string _train_masks_key;
+    double _train_masks_at = -1.0;
+    bool _train_has_masks = false;
     // Which input "Try the mask" runs on: which input a new clicked object
     // prompts (MaskClick::source) and which one's stencil the panel edits.
     int _mask_preview_input = 0;
@@ -536,17 +1023,93 @@ private:
     // One job for both engines (SfmJob / ColmapJob carry a copy), the panel
     // that tries it on one frame, and the checkpoint fetch.
     GeometryJob _geometry;
+    DenseJob _dense;
+    FileDownload _dense_download;
+    std::string _dense_selected_seed;
+    std::string _dense_config_error;   // why the last advanced edit is invalid
+    void draw_dense_options();
+    void draw_dense_advanced();
+    void draw_train_mask_mode(float width);
+    void draw_seed_cloud(TrainRunner::Phase ph);
+    void draw_dataset_aux(float width);
+    bool dense_cloud_present();
+    std::string _dense_probe_data;     // dense_cloud_present()'s cache
+    double _dense_probe_time = -1.0;
+    bool _dense_probe_found = false;
+    bool _seed_other = false;          // "Other PLY file" picked, no file yet
+    // RoMa's licence and its batch fetcher. Once, before anything asks either.
+    void init_dense();
+    void request_dense_download();
+    bool dense_model_missing() const;
     GeometryPanel _geometry_panel;
+    PartitionPanel _partition_panel;
+    void open_partition_panel(const DatasetFolders& f);
+    // The region a dataset trains in: the editor, and the training screen's
+    // row that picks which saved region a run uses.
+    RoiEditor _roi_editor;
+    void open_roi_editor(const std::string& dataset, const std::string& file = "");
+    void draw_roi_row(bool busy);
+    std::vector<std::string> _roi_files;
+    std::string _roi_files_for;
+    // Queueing a partition's parts: the modal with the run's settings, the
+    // "clear what is still pending?" question, and the rows it finally adds.
+    struct PartitionQueue {
+        bool open = false, shown = false, ask_clear = false;
+        std::string partition;
+        int num_parts = 0;
+        DatasetFolders folders;
+        BatchRun run;
+        bool merge = true;
+    };
+    PartitionQueue _pq;
+    // One training row per part of a saved partition, with `_pq.run`'s
+    // settings; returns how many.
+    int add_batch_partition_rows(const DatasetFolders& f, const std::string& partition,
+                                 int num_parts);
+    void open_partition_queue(const DatasetFolders& f, const std::string& partition,
+                              int num_parts);
+    void draw_partition_queue_modal();
+    int queue_partition_rows(bool clear_pending);
+    // A Merge task runs on its own thread: the parts' models found beside
+    // the dataset, joined and written next to them.
+    std::thread _merge_thread;
+    std::atomic<bool> _merge_busy{false};
+    std::string _merge_result, _merge_error;
+    bool launch_batch_merge(BatchTask& task, const BatchRow& row);
+    // A merge that ends the queue opens in the viewer once the queue is over.
+    std::string _open_after_batch;
+    // The training session's region of interest as overlays for the trainer
+    // view, built off the GUI thread; keyed by the region it was built from.
+    struct RoiOverlays {
+        std::shared_ptr<const spirula::RegionOverlay> engine, preview;
+        std::shared_ptr<const std::vector<uint8_t>> points_inside;
+    };
+    const void* _roi_key = nullptr;
+    std::future<RoiOverlays> _roi_job;
+    void update_roi_overlay();
+    void draw_batch_row_merge(BatchRow& row, int index);
+    // Every task of the row ran and finished well.
+    bool batch_row_done(int index) const;
+    // "Clear list" and "Clear done rows" both ask first.
+    enum class BatchConfirm { None, ClearList, ClearDone, ClearUnchecked };
+    BatchConfirm _batch_confirm = BatchConfirm::None;
+    bool _batch_confirm_shown = false;
+    void draw_batch_confirm_modal();
     DownloadQueue _geom_download;
     // input_pixel_size()'s cache, keyed by input path. A zero pair is a
     // remembered "could not tell", so nothing is probed twice.
     std::map<std::string, std::pair<int, int>> _input_size;
 
-    // The segmentation checkpoint in use. Not persisted -- neither is any
-    // other masking or geometry setting, so a fresh session never runs a
-    // model the last one happened to pick.
-    std::string _model_id = "sam3-q4_0";
+    // The dataset run's checkpoint and the mask editor's (clicks, so the fast
+    // one). Not persisted, like every masking setting: a fresh session never
+    // runs a model the last one happened to pick.
+    std::string _model_id = "sam2.1-base-plus";
+    std::string _mask_detector_id = "gdino-tiny";   // its words (TextDetector)
+    std::string _mask_editor_model_id = "sam2.1-base-plus";
     ModelDownload _download;
+    // The pick _download is fetching: with a detector it is three files,
+    // started one after another as each lands.
+    std::string _download_model_id, _download_detector_id;
 
     // Interface language and the glyphs to draw it with. The font download is
     // separate from _download so that fetching a face cannot cancel a
@@ -554,44 +1117,70 @@ private:
     FontSet _fonts;
     FileDownload _font_download;
     const CjkFace* _font_fetching = nullptr;
-    // Families whose licence the user has accepted, persisted in the settings.
-    std::vector<std::string> _accepted_licenses;
+    std::string _license_notice;      // what a cancelled dialog left undone
+    BatchFetchPlan _batch_fetch;      // what the batch is fetching before it starts
+    bool _batch_fetching = false;
+    bool _batch_fetch_skip = false;
     std::string _license_prompt;      // family whose modal is open
+    std::vector<std::string> _license_queue;
+    std::function<void()> _license_then;
+    std::function<void()> _license_declined;
+    std::string _license_model_id;    // the pick it downloads
+    std::string _license_detector_id;
     bool _license_tick = false;
 
-    // Batch training. The queue is data; the driver is advance_batch(), so a
-    // running batch is an ordinary training session the trainer screen shows
-    // exactly as it shows a hand-started one.
-    std::vector<BatchJob> _batch;
+    // Batch processing. The queue is data; the driver is advance_batch(), so a
+    // running task is an ordinary dataset / training / meshing job, shown by
+    // the same screen that shows a hand-started one.
+    std::vector<BatchRow> _batch;
+    // The rows expanded into the units of work they will run as, built by
+    // start_batch() and by the plan preview. Only the running copy carries
+    // results, so the preview may be rebuilt whenever the list changes.
+    std::vector<BatchTask> _batch_tasks;
     bool _batch_dirty = false;        // edited -> persist once the widget is idle
     bool _batch_checked = false;      // a pre-flight has run since the last edit
+    // When it ran. The list is re-checked on a timer as well as on an edit:
+    // a preset file or a dataset folder can go missing while the screen is up.
+    double _batch_checked_at = -1.0;
     bool _batch_active = false;
-    bool _batch_launched = false;     // a row's session is in flight
-    int  _batch_current = -1;         // which row that is
-    bool _batch_stop_after = false;   // finish this row, then stop
+    bool _batch_launched = false;     // a task is in flight
+    int  _batch_current = -1;         // which task that is
+    bool _batch_stop_after = false;   // finish this task, then stop
     bool _batch_stop_now = false;     // ... and record it as stopped, not done
+    // Which row is open in the list, so an unattended queue is not a wall of
+    // expanded forms. -1 = none.
+    int  _batch_open_row = -1;
+    bool _batch_show_plan = false;
     std::string _batch_msg;           // already formatted; "" when there is none
     bool _batch_msg_err = false;
+    // What to run once the queue is over -- a notification, usually. Empty is
+    // "run nothing", and it is kept in gui.conf rather than in the list: it
+    // belongs to this machine, not to the rows.
+    std::string _batch_cmd;
+    CommandRunner _batch_cmd_run;
 
     FileDialog _dialog;
     PickAction _pick = PickAction::None;
     std::string _pick_key;            // dir_key() of the pick in flight
+    int _pick_lut = -1;               // which input PickAction::SourceLut sets
     int _pick_source = -1;            // which input PickAction::SourceReplace edits
+    std::string _pick_field;          // which flag PickAction::ConfigPath sets
     // Which batch row the pending pick edits; -1 appends a new row.
     int _pick_row = -1;
+    // ... and which of that row's training runs, for a pick made in one of
+    // their preset combos.
+    int _pick_slot = -1;
 
     // Settings (persisted).
-    std::vector<std::string> _recents;
+    RecentList _recent;
+    double _recent_probed_at = -1.0;
+    // Last frame's phase: a run is recorded as it reaches Done.
+    TrainRunner::Phase _seen_phase = TrainRunner::Phase::Idle;
     // Where a pick of each kind last landed, so a session opens where the last
     // one left off rather than at the home directory.
     std::map<std::string, std::string> _dialog_dirs;
     std::string _colmap_exe = "colmap";
     std::string _ffmpeg_exe = "ffmpeg";
-#ifdef _WIN32
-    std::string _python_exe = "python";
-#else
-    std::string _python_exe = "python3";
-#endif
 
     // Log console. `_log_dropped` counts the lines trimmed off the front since
     // the panel was last drawn: every one of them moves the remaining text up
@@ -630,6 +1219,8 @@ private:
     // The New Dataset screen's own column width; the trainer's _panel_w is a
     // different screen with a different sensible size.
     float _ds_panel_w = kDefaultDsPanelW;
+    // The editing panel's own width, dragged like the other two.
+    float _edit_panel_w = kEditPanelW;
     bool _show_settings = true;
     bool _layout_dirty = false;      // a splitter moved -> persist once idle
     // The New Dataset screen's run/status band, measured last frame: the form
@@ -655,12 +1246,20 @@ private:
     bool _clear_open = false, _clear_shown = false;
     std::vector<std::string> _clear_targets;
     bool _drop_intermediate_open = false, _drop_intermediate_shown = false;
+    bool _rebuild_open = false, _rebuild_shown = false;
+    DatasetPlan _rebuild_plan;   // what the confirmation lists
 
     // workspace_state()'s cache: what it was asked about and when.
     WorkspaceState _ws_state;
     std::string _ws_state_key;
     std::vector<std::string> _ws_artifacts;
     double _ws_state_at = -1.0;
+    // ... the record it holds, read on the same clock, and the plan.
+    DatasetRecord _ws_record;
+    DatasetPlan _plan;
+    // The output folder whose record last reached the panel, so a folder is
+    // restored from once, when the panel arrives at it.
+    std::string _restored_ws;
 
     // VRAM readout on the status strip, polled from the backend at ~2 Hz.
     backend::MemoryUsage _vram;

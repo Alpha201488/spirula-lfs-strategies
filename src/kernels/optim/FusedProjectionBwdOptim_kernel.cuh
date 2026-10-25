@@ -213,6 +213,7 @@ __global__ void fused_projection_bwd_optimizer_3dgs_kernel
     // g1_/g2_splats_world buffers; enabled == true -> reads/writes the
     // packed bytes against per-block float4 bounds.
     NonShQuantState non_sh,
+    SplatVisitState visit,
     // float *__restrict__ v_viewmats // [C, 4, 4] optional
     // optimizer params
     const float* __restrict__ radii,
@@ -341,6 +342,11 @@ __global__ void fused_projection_bwd_optimizer_3dgs_kernel
 
     // TODO: second-order optimizer
 
+    const bool rendered = inside && v_splat_world.opacity != 0.0f;
+    if (inside && visit.counters != nullptr)
+        visit.counters[gid] = visit_step(visit.counters[gid], rendered);
+    const bool regularize = !(visit.skip_unrendered_reg && !rendered);
+
     // add regularization to gradient
     static constexpr int kNumPerSplatLosses = 5;
     FixedArray<float, kNumPerSplatLosses> v_losses = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
@@ -359,9 +365,11 @@ __global__ void fused_projection_bwd_optimizer_3dgs_kernel
         erank_reg_weight_s3,
         quat_norm_reg_weight
     );
-    v_splat_world.scale += v_scale_t;
-    v_splat_world.quat += v_quat_t;
-    v_splat_world.opacity += v_opac_t;
+    if (regularize) {
+        v_splat_world.scale += v_scale_t;
+        v_splat_world.quat += v_quat_t;
+        v_splat_world.opacity += v_opac_t;
+    }
     v_splat_world.features_dc += dc_reg_weight *
             fmaxf(splat_world.features_dc - make_float3(0.5f / 0.28209479177387814f), 0.0f) +
         (dc_reg_weight + sh_reg_weight) *
@@ -409,7 +417,7 @@ __global__ void fused_projection_bwd_optimizer_3dgs_kernel
             g1_scale = g1_splats_world.scales(gid);
             g2_scale = g2_splats_world.scales(gid);
         }
-        if (radii != nullptr)
+        if (radii != nullptr && regularize)
             v_splat_world.scale += screen_size_hinge_grad(
                 radii[gid], max_screen_size, max_screen_size_penalty,
                 splat_world.scale,
@@ -657,7 +665,7 @@ __global__ void fused_projection_bwd_optimizer_3dgs_kernel
     [[maybe_unused]] float lr_sh = lr_features_sh * inv_bias_correction1;
     [[maybe_unused]] float* v_sh_ptr = v_splat_world.features_sh;
     float* sh_ptr = splats_world.features_sh(gid);
-    [[maybe_unused]] const float reg_weight = sh_reg_weight * (1.0f / fmaxf((float)num_sh, 1.0f));
+    [[maybe_unused]] const float reg_weight = sh_reg_weight;  // per coefficient, as fused_adam_step
 
     // SH stays in coefficient space. Linearizing the DC encode about the DC
     // colour needs |sh| << c_dc, which does not hold: measured |sh| p99 is
@@ -1006,6 +1014,7 @@ void fused_projection_bwd_optimizer_3dgs_kernel_wrapper(
     // g1_/g2_splats_world buffers; enabled == true -> reads/writes the
     // packed bytes against per-block float4 bounds.
     NonShQuantState non_sh,
+    SplatVisitState visit,
     // float *__restrict__ v_viewmats // [C, 4, 4] optional
     // optimizer params
     const float* __restrict__ radii,
@@ -1058,7 +1067,7 @@ void fused_projection_bwd_optimizer_3dgs_kernel_wrapper(
         v_splats_world, v_splats_screen,
         g1_splats_world, g2_splats_world, sh_packed, sh_quant_bounds,
         sh_value_packed, sh_value_bounds,
-        non_sh,
+        non_sh, visit,
         radii, densify_score,
         lr_means, lr_quats, lr_scales, lr_opacs, lr_features_dc, lr_features_sh,
         max_gauss_ratio,

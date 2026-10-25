@@ -158,6 +158,48 @@ void write_ply_file(const MeshData& mesh, MeshColorMode mode,
 }
 
 // ---------------------------------------------------------------------------
+// STL (binary)
+//
+// Geometry only, and every triangle carries its own three vertices: that is
+// the whole format. The facet normal is the one the file stores.
+// ---------------------------------------------------------------------------
+
+void write_stl_file(const MeshData& mesh, const std::string& base) {
+    auto f = open_binary(base + ".stl");
+    char header[80] = {};
+    std::snprintf(header, sizeof header, "Spirula Studio meshing");
+    f.write(header, 80);
+    const uint32_t n = (uint32_t)mesh.F.size();
+    f.write((const char*)&n, 4);
+
+    std::vector<char> buf;
+    buf.reserve(1 << 20);
+    auto put = [&](const void* p, size_t n2) {
+        const char* c = (const char*)p;
+        buf.insert(buf.end(), c, c + n2);
+        if (buf.size() > (1 << 20) - 64) { f.write(buf.data(), buf.size()); buf.clear(); }
+    };
+    for (const auto& t : mesh.F) {
+        const auto &A = mesh.V[t[0]], &B = mesh.V[t[1]], &C = mesh.V[t[2]];
+        float e1[3] = {B[0] - A[0], B[1] - A[1], B[2] - A[2]};
+        float e2[3] = {C[0] - A[0], C[1] - A[1], C[2] - A[2]};
+        float nx[3] = {e1[1] * e2[2] - e1[2] * e2[1],
+                       e1[2] * e2[0] - e1[0] * e2[2],
+                       e1[0] * e2[1] - e1[1] * e2[0]};
+        const float len = std::sqrt(nx[0]*nx[0] + nx[1]*nx[1] + nx[2]*nx[2]);
+        if (len > 0.0f) for (float& v : nx) v /= len;
+        put(nx, 12);
+        put(A.data(), 12);
+        put(B.data(), 12);
+        put(C.data(), 12);
+        const uint16_t attr = 0;
+        put(&attr, 2);
+    }
+    f.write(buf.data(), buf.size());
+    if (!f) fail("write failed for " + base + ".stl");
+}
+
+// ---------------------------------------------------------------------------
 // OBJ (+ MTL + PNG when textured)
 // ---------------------------------------------------------------------------
 
@@ -429,9 +471,9 @@ MeshFormatSpec parse_one_mesh_format(const std::string& token) {
         enc = s.substr(plus + 1);
         s.resize(plus);
     }
-    if (s != "ply" && s != "obj" && s != "gltf" && s != "glb")
+    if (s != "ply" && s != "obj" && s != "gltf" && s != "glb" && s != "stl")
         fail("unknown mesh format '" + token + "' (expected ply, obj, gltf, "
-             "or glb, optionally with +png / +jpg / +jpeg<quality>)");
+             "glb or stl, optionally with +png / +jpg / +jpeg<quality>)");
     spec.fmt = s;
     if (enc.empty()) return spec;                       // default: PNG
 
@@ -487,10 +529,108 @@ std::string check_export_support(const MeshFormatSpec& spec, MeshColorMode mode)
     if (spec.fmt == "obj" && mode == MeshColorMode::Vertex)
         return "OBJ has no standard per-vertex color; use a texture "
                "(or export PLY/GLTF/GLB)";
+    if (spec.fmt == "stl" && mode != MeshColorMode::None)
+        return "STL carries no color at all; use no color "
+               "(or export PLY/OBJ/GLTF/GLB)";
     if (spec.jpeg && mode != MeshColorMode::Texture)
         return "'" + spec.token() + "': a texture encoding was given but the "
                "color mode is not 'texture'";
     return "";
+}
+
+const char* mesh_color_token(MeshColorMode mode) {
+    switch (mode) {
+        case MeshColorMode::None:    return "none";
+        case MeshColorMode::Texture: return "texture";
+        default:                     return "vertex";
+    }
+}
+
+bool parse_mesh_color(const std::string& token, MeshColorMode& out) {
+    std::string s = token;
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c) { return (char)std::tolower(c); });
+    for (int i = 0; i < kNumMeshColorModes; ++i)
+        if (s == mesh_color_token((MeshColorMode)i)) {
+            out = (MeshColorMode)i;
+            return true;
+        }
+    return false;
+}
+
+std::vector<MeshColorMode> parse_mesh_colors(const std::string& csv) {
+    std::vector<MeshColorMode> out;
+    size_t pos = 0;
+    while (pos <= csv.size()) {
+        const size_t comma = csv.find(',', pos);
+        std::string tok = csv.substr(
+            pos, comma == std::string::npos ? std::string::npos : comma - pos);
+        while (!tok.empty() && std::isspace((unsigned char)tok.front())) tok.erase(tok.begin());
+        while (!tok.empty() && std::isspace((unsigned char)tok.back())) tok.pop_back();
+        if (!tok.empty()) {
+            MeshColorMode m;
+            if (!parse_mesh_color(tok, m))
+                fail("unknown color mode '" + tok +
+                     "' (expected none, vertex or texture)");
+            for (MeshColorMode o : out)
+                if (o == m)
+                    fail("color mode '" + tok + "' requested more than once");
+            out.push_back(m);
+        }
+        if (comma == std::string::npos) break;
+        pos = comma + 1;
+    }
+    return out;
+}
+
+std::string mesh_output_strip_ext(const std::string& path) {
+    for (const char* ext : {".ply", ".obj", ".gltf", ".glb", ".stl"}) {
+        const size_t n = std::strlen(ext);
+        if (path.size() > n && path.compare(path.size() - n, n, ext) == 0)
+            return path.substr(0, path.size() - n);
+    }
+    return path;
+}
+
+std::string mesh_output_base(const std::string& base_path, MeshColorMode mode,
+                             int num_modes) {
+    if (num_modes <= 1) return base_path;
+    switch (mode) {
+        case MeshColorMode::None:    return base_path + "_nocolor";
+        case MeshColorMode::Texture: return base_path + "_textured";
+        default:                     return base_path + "_vertexcolor";
+    }
+}
+
+std::vector<MeshOutputRequest> plan_mesh_outputs(
+    const std::vector<MeshFormatSpec>& specs,
+    const std::vector<MeshColorMode>& modes, const std::string& base_path,
+    std::vector<std::string>* dropped) {
+    // Which modes survive is what decides whether the names need a suffix, so
+    // the pairs are collected first and the paths only afterwards.
+    std::vector<MeshOutputRequest> out;
+    std::vector<MeshColorMode> kept;
+    for (MeshColorMode mode : modes) {
+        bool any = false;
+        for (const MeshFormatSpec& spec : specs) {
+            const std::string err = check_export_support(spec, mode);
+            if (!err.empty()) {
+                if (dropped)
+                    dropped->push_back(spec.token() + " + " +
+                                       mesh_color_token(mode) + ": " + err);
+                continue;
+            }
+            MeshOutputRequest r;
+            r.spec = spec;
+            r.mode = mode;
+            out.push_back(std::move(r));
+            any = true;
+        }
+        if (any) kept.push_back(mode);
+    }
+    for (MeshOutputRequest& r : out)
+        r.base = mesh_output_base(base_path, r.mode, (int)kept.size());
+    return out;
 }
 
 std::vector<std::string> mesh_output_paths(const MeshFormatSpec& spec,
@@ -509,9 +649,7 @@ std::vector<std::string> mesh_output_paths(const MeshFormatSpec& spec,
     return out;
 }
 
-std::string check_mesh_outputs_safe(const std::vector<MeshFormatSpec>& specs,
-                                    MeshColorMode mode,
-                                    const std::string& base_path,
+std::string check_mesh_outputs_safe(const std::vector<MeshOutputRequest>& outputs,
                                     const std::vector<std::string>& inputs) {
     std::error_code ec;
     auto same = [&](const std::string& a, const std::string& b) {
@@ -522,8 +660,8 @@ std::string check_mesh_outputs_safe(const std::vector<MeshFormatSpec>& specs,
                    std::filesystem::weakly_canonical(b, ec);
         return std::filesystem::equivalent(a, b, ec) && !ec;
     };
-    for (const MeshFormatSpec& spec : specs)
-        for (const std::string& o : mesh_output_paths(spec, mode, base_path))
+    for (const MeshOutputRequest& req : outputs)
+        for (const std::string& o : mesh_output_paths(req.spec, req.mode, req.base))
             for (const std::string& in : inputs) {
                 if (in.empty()) continue;
                 if (same(o, in))
@@ -545,6 +683,7 @@ void write_mesh(const MeshData& mesh, MeshColorMode mode,
     const std::string& fmt = spec.fmt;
     if (fmt == "ply")       write_ply_file(mesh, mode, base_path);
     else if (fmt == "obj")  write_obj_file(mesh, mode, spec, base_path);
+    else if (fmt == "stl")  write_stl_file(mesh, base_path);
     else if (fmt == "gltf") write_gltf_file(mesh, mode, spec, base_path, false);
     else                    write_gltf_file(mesh, mode, spec, base_path, true);
 

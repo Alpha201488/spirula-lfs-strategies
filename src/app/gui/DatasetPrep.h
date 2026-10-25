@@ -2,35 +2,30 @@
 
 // DatasetPrep -- everything between "the user picked a video or a folder of
 // photos" and "there is an image directory (and maybe a mask directory) ready
-// for structure-from-motion".
+// for structure-from-motion": frame extraction and selection, splitting
+// multi-lens captures, AI masking, and the resume rules. Both dataset paths --
+// the built-in SfM and the external COLMAP -- run it first.
 //
-// It was the half of ColmapRunner that had nothing to do with COLMAP: frame
-// extraction, sharpest-frame selection, splitting a multi-track 360 file into
-// one folder per lens, AI masking, and the resume rules that let an
-// interrupted run reuse what it left behind. Both dataset paths -- the
-// built-in SfM and the external COLMAP -- run it first, so a change to how
-// frames are chosen cannot apply to only one of them.
-//
-// Each stage has a built-in implementation and an external fallback:
-//
-//   frames   in-process VK_KHR_video_decode_* (SS_ENABLE_PATENTED)
-//            -> ffmpeg subprocess
-//   masks    in-process SAM 2 / SAM 3          (SS_BUILD_SAM)
-//            -> python + reference/scripts/mask.py
-//
-// The built-in path is the default when it is compiled in and the device
-// supports it; the fallback is picked automatically otherwise, and can be
-// forced (a codec the driver cannot decode, an HDR transfer ffmpeg handles
-// better). `Backends` reports what this build and this machine can actually
-// do, so the GUI can say so instead of failing at run time.
+// Frames decode in-process (SS_ENABLE_PATENTED) or through ffmpeg, which can
+// be forced for a codec the driver cannot decode or an HDR transfer ffmpeg
+// handles better. Masks come from SAM 2 / SAM 3 in-process (SS_BUILD_SAM);
+// without it only the fixed-area stencil applies. `Backends` says which, so
+// the GUI can say so instead of failing at run time.
 
+#include "app/FfmpegVideo.h"
+#include "app/FrameClip.h"
+#include "app/FrameLook.h"
 #include "app/FrameMask.h"
+#include "app/FramePick.h"
 #include "app/Pano360.h"
 #include "app/gui/FilmReel.h"
 #include "app/gui/PrepProgress.h"
 
+#include <cstddef>
 #include <algorithm>
 #include <atomic>
+#include <cstdio>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <string>
@@ -53,7 +48,7 @@ namespace gui {
 // capture, is what the ffmpeg path has to fall back on, since it resamples the
 // video to a frame rate the preview never saw.
 struct MaskClick {
-    float x = 0.0f, y = 0.0f;   // pixels of the source frame
+    float x = 0.0f, y = 0.0f;   // pixels of the frame as the run writes it
     bool  positive = true;      // "this is it" vs "not this"
     int   object = 0;
     long long frame = 0;
@@ -62,6 +57,9 @@ struct MaskClick {
     // same coordinates on another capture point at something else, so a click
     // never crosses inputs.
     std::string source;
+    // And which camera folder under it (app::frame_folders), for the same
+    // reason: a click on cam0 says nothing about where cam1 was pointing.
+    std::string camera;
 };
 
 // One camera folder found INSIDE an input: a capture handed over already split
@@ -72,11 +70,29 @@ struct SubCamera {
     std::string camera_model;        // empty = the input's own
     float focal_factor = 0.0f;       // 0 = no focal prior
     int rig = 0;                     // see PrepInput::rig
+    bool rig_dual_fisheye = false;   // see PrepInput::rig_dual_fisheye
 };
 
 // A row's rig choice: nothing, the lenses of its own input, or one of the
 // shared letters that join rows across inputs (SfmRunner::build_rigs).
-inline constexpr int kRigNone = 0, kRigOwn = 1, kRigFirstShared = 2, kRigShared = 4;
+inline constexpr int kRigNone = 0, kRigOwn = 1, kRigFirstShared = 2;
+// How many letters the rig picker may offer; it shows one per two rows.
+inline constexpr int kRigShared = 32;
+
+// A, B, ... Z, AA, AB, ...
+inline std::string rig_letter(int letter) {
+    std::string s;
+    for (int n = letter + 1; n > 0; n = (n - 1) / 26)
+        s.insert(s.begin(), (char)('A' + (n - 1) % 26));
+    return s;
+}
+
+// PrepInput::fps for "every frame" -- a 0 there already means "^". Everywhere
+// else, a rate of 0 is every frame.
+inline constexpr float kFpsEveryFrame = -1.0f;
+
+// PrepInput::lut for "no LUT", where empty would find one (input_lut).
+inline constexpr const char* kLutNone = "none";
 
 // One thing the user picked: a video file, or a folder of photos. A job holds
 // a list of them, because a capture is often shot as several clips, or on a rig
@@ -107,6 +123,33 @@ struct PrepInput {
     // Which rig this input's lenses belong to (kRig*). A multi-lens video
     // starts on its own; folders sharing a letter form one rig by file name.
     int rig = kRigNone;
+    // That rig's two folders are the back-to-back lenses of one dual-fisheye
+    // camera, so the reconstruction starts from their known relative rotation.
+    // Any row of the rig saying so is enough. A video's file says it itself.
+    bool rig_dual_fisheye = false;
+    // Kept frames per second for THIS video; 0 takes the job's. A capture shot
+    // as several clips is rarely shot at one pace, and a clip walked through
+    // slowly wants fewer frames than the one that ran past the same wall.
+    float fps = 0.0f;
+    // The part of this video extracted, seconds into it; `clip_end` 0 is the
+    // end.
+    double clip_start = 0.0, clip_end = 0.0;
+    bool clipped() const { return is_video && (clip_start > 0.0 || clip_end > 0.0); }
+    // The colour LUT baked into this video's frames as they are extracted: a
+    // spec (app/CubeLut.h), kLutNone, or empty for automatic (input_lut).
+    std::string lut;
+    // The built-in the file's own metadata asks for (app::detect_log_lut).
+    // Probed, never saved.
+    std::string lut_detected;
+    // Hand the reconstruction this input's frame order (SfmRunner::build_sequences).
+    // Off by default for videos too: off came out more accurate on captures
+    // with no repeated structure for the order to tell apart.
+    bool sequential = false;
+    // Whether the reconstruction reads this input's own sensors at all: a
+    // video's IMU and GPS track, or a photo's recorded attitude and EXIF GPS.
+    // How what is read is used is SfmJob's (sensor_gauge, metric_gps, ...).
+    bool use_imu = true;
+    bool use_gps = true;
     int video_tracks = 0;            // 0 = not probed yet
     // The camera folders found under this input, when it arrived with more
     // than one. Empty means the lens above describes all of it.
@@ -114,7 +157,17 @@ struct PrepInput {
     // The 360 packing this file was found to carry, when it carries one: two
     // EAC tracks that the job's `pano` plan turns into ordinary views. Detected
     // rather than asked for, so a capture that is not one cannot be warped.
-    app::Eac360Layout eac360;
+    app::Pano360Layout pano360;
+    // Set instead when the file says it IS a 360 packing this build cannot
+    // place, for the line that says its tracks are being left as they are.
+    bool pano360_unsupported = false;
+    // Fisheye circles packed into each frame of a .lrv / .prx / unstitched QooCam
+    // .mp4, or each .insp of a folder (app::packed_lens_count); two become cam0/, cam1/.
+    // 0 = not such an input, or not measured yet.
+    int packed_lenses = 0;
+    // The folder holds HEIC photos, which nothing downstream reads: they are
+    // converted whatever the import mode, so it cannot be read in place.
+    bool heif = false;
     // Areas of the frame that are never scene -- the fisheye border, a
     // watermark, the rig in shot. Per input because it describes a lens, and
     // resolved per camera folder when it asks for the border to be fitted
@@ -139,6 +192,10 @@ inline int& group_rig(std::vector<PrepInput>& in, const CameraGroup& g) {
 }
 inline int group_rig(const std::vector<PrepInput>& in, const CameraGroup& g) {
     return g.sub < 0 ? in[g.input].rig : in[g.input].subcameras[(size_t)g.sub].rig;
+}
+inline bool& group_rig_dual_fisheye(std::vector<PrepInput>& in, const CameraGroup& g) {
+    return g.sub < 0 ? in[g.input].rig_dual_fisheye
+                     : in[g.input].subcameras[(size_t)g.sub].rig_dual_fisheye;
 }
 
 // Where a row's settings are stored.
@@ -183,6 +240,25 @@ inline constexpr int kNumPhotoImports = 4;
 // photometric loss can tell from sensor noise.
 inline constexpr int kPhotoJpegQuality = 95;
 
+// A video the run extracted frames from, for the manifest's `captures`:
+// the stems carry the source frame index (fps 0, the file's own rate) or,
+// after the ffmpeg fallback, the kept-frame count at `fps`.
+struct PrepCapture {
+    std::string subdir;
+    std::string path;
+    double fps = 0;
+    // Every track kept the same instants, so the frames of one stem are a rig.
+    bool lockstep = false;
+    // Seconds into the video stem 0 stands for: the clip's start, after the
+    // ffmpeg fallback, which numbers from where it began reading.
+    double time_offset = 0;
+};
+
+// What the blur rule left out of images/, one path a line after a "# rule"
+// line: "- path" as the frames were made (it has no camera), a bare path when
+// moved aside since. A run that keeps the frames takes both out again.
+inline constexpr const char* kSkippedListFile = ".spirula-skipped";
+
 struct PrepJob {
     std::vector<PrepInput> inputs;   // in the order the user added them
     std::string workspace;           // output dataset dir (created)
@@ -193,6 +269,9 @@ struct PrepJob {
     // cost the extraction as well.
     bool redo_frames = false;
     bool redo_masks = false;
+    // The masks on disk are current (DatasetPlan.h): neither segmentation nor
+    // the stencil pass runs, so not one mask file is rewritten.
+    bool keep_masks = false;
     // The masks that came with the photos mark what to REMOVE, not what to
     // keep. Applied where those files are read, so everything this run writes
     // is in the one convention every reader uses (sfm/core/Mask.h).
@@ -201,32 +280,79 @@ struct PrepJob {
     // written into the dataset whatever this says.
     PhotoImport photo_import = PhotoImport::ConvertJpeg;
 
+    // The device request for built-in decoding and masking: "auto", an ordinal,
+    // a name substring or "uuid:<32 hex>". Frozen at the top of run(); a bad
+    // value fails the run.
+    std::string device;
+
     // ---- video extraction ----
-    // What a 360 capture (PrepInput::eac360) becomes. Dataset-wide: mixing
+    // What a 360 capture (PrepInput::pano360) becomes. Dataset-wide: mixing
     // panoramas and pinhole faces in one image tree describes no camera rig.
     app::Pano360Options pano;
 
-    float video_fps = 2.0f;          // kept frames per second
+    // Kept frames per second, 0 = every frame; PrepInput::fps overrides it
+    // per video.
+    float video_fps = 2.0f;
+    // Space them by view change rather than by time (app/FrameMotion.h): the
+    // rate above becomes the average and stays within `adaptive_range` of it.
+    bool  adaptive_fps = false;
+    float adaptive_range = 4.0f;
     int   sharp_window = 3;          // keep the sharpest of N (1 = off)
+    // Which chosen frames are left out after all (pick_rule below): blurred
+    // across more than `blur_px` pixels, or under `similar_bits` different
+    // from the last one kept (0 = off). Photographs too.
+    bool  skip_blurry = false;
+    float blur_px = 8.0f;
+    bool  blur_neighbour = true;
+    int   similar_bits = 0;
+    // The threshold is to be set at a pause, looking at the frames, rather
+    // than taken as it stands.
+    bool  blur_review = false;
+    // Frames left out stay in images_skipped/ beside images/. On by default:
+    // a threshold can then be eased without extracting again.
+    bool  keep_skipped = true;
+    // Stop once the frames are out and wait for run()'s `review_frames`: the
+    // screen is there to look at them. Not a setting; a batch never waits.
+    bool  review_frames = false;
+    // Not a setting: this run makes the frames step (DatasetPlan) rather than
+    // keeping an earlier run's. Kept photographs are not sorted again.
+    bool  make_frames = true;
+    // Not a setting either: the rule is applied to the frames where they lie
+    // (DatasetPrep::sort_frames), as StepPlan::sort says.
+    bool  sort_frames = false;
     // Every track of a multi-lens file keeps the same instants (one sharpness
     // window over all of them), so every frame is a rig frame. Built-in decoder only.
     bool  sync_tracks = true;
     int   max_frames = 100000;
+    // Turn every extracted frame by the rotation the capture asks for, so a
+    // portrait clip lands upright and the written files need no metadata read
+    // to be shown the right way up.
+    bool  auto_rotate = true;
     bool  force_external_decode = false;
     std::string ffmpeg_exe = "ffmpeg";
+    // How the frames already on disk were cut from each video, from the
+    // workspace's record (DatasetPlan's recorded_captures). A run that keeps
+    // them reports these, not what its own settings would have made.
+    std::vector<PrepCapture> recorded_captures;
 
     // The photographs' colour space. Frames convert to sRGB before the
     // segmenter sees them, which is what it was trained on.
     std::string image_gamut;
     std::optional<bool> image_is_linear;
+    std::string image_exposure;      // --image-exposure: "", "auto" or stops
 
     // ---- masking ----
     bool mask_enable = false;
     std::string mask_prompt;         // "people; cars; ..."
     std::string mask_negative_prompt;
+    // What reconstruction skips and training keeps ("sky; cloud"): its own
+    // tree, feature_masks/, which SfM intersects with masks/. Needs a text
+    // model, and is run even over an input that brought its own masks.
+    std::string mask_feature_prompt;
     bool mask_keep_subject = false;  // prompt names what to KEEP, not remove
-    // Share of its own size every matched object grows by before the mask is
-    // written, so the PNGs on disk carry the margin. sam::MaskOptions.
+    // Share of its own size every matched object's boundary moves by before
+    // the mask is written, so the PNGs on disk carry it. SIGNED as
+    // sam::MaskOptions::dilate_ratio is: negative trims inward.
     float mask_dilate_ratio = 0.05f;
     int  mask_max_image_size = 1600;
     float mask_threshold = 0.5f;     // detection score a match must reach
@@ -249,13 +375,97 @@ struct PrepJob {
     // its own, and run() refuses the job rather than half-mask the capture.
     std::vector<MaskClick> mask_clicks;
 
-    // Built-in: a checkpoint file (ModelCache resolves it). External: the
-    // model name reference/scripts/mask.py understands.
+    // Checkpoint files (ModelCache resolves them), with the text detector when
+    // one is paired.
     std::string mask_model_path;
-    std::string mask_model_name = "sam2.1_hiera_large";
-    bool  force_external_masking = false;
-    std::string python_exe = "python3";
+    std::string mask_detector_path;
+    float mask_detector_threshold = 0.3f;   // sam::MaskOptions::detector_threshold
 };
+
+// The rate a row is actually extracted at (0 = every frame). A row's 0 means
+// "the same as the row above", as the lens column spells a decision made once
+// for a run of clips; the first row falls back to the dataset's own rate.
+inline float input_fps(const std::vector<PrepInput>& inputs, float dataset_fps,
+                       size_t at) {
+    for (size_t k = std::min(at, inputs.size() - (inputs.empty() ? 0 : 1)) + 1;
+         k-- > 0;)
+        if (k < inputs.size() && inputs[k].fps != 0.0f)
+            return std::max(inputs[k].fps, 0.0f);
+    return std::max(dataset_fps, 0.0f);
+}
+
+// Rows extracted at one rate, named by the one that states it -- so an adaptive
+// plan can spend one budget over all of them and give the clip that moves more
+// the denser frames.
+inline size_t fps_group(const std::vector<PrepInput>& inputs, size_t at) {
+    size_t g = 0;
+    for (size_t k = 1; k <= at && k < inputs.size(); k++)
+        if (inputs[k].fps != 0.0f) g = k;
+    return g;
+}
+
+// The row `in` is. Called with an input of `job`, so pointer identity answers.
+inline size_t input_index(const PrepJob& job, const PrepInput& in) {
+    for (size_t i = 0; i < job.inputs.size(); i++)
+        if (&job.inputs[i] == &in) return i;
+    return 0;
+}
+
+inline float input_fps(const PrepJob& job, const PrepInput& in) {
+    return input_fps(job.inputs, job.video_fps, input_index(job, in));
+}
+
+// The LUT a row's frames go through, "" for none. Automatic is the file's own
+// detected LUT, else the nearest choice above; a detected one never carries
+// down -- a phone clip below a D-Log M one is not D-Log M.
+inline std::string input_lut(const std::vector<PrepInput>& inputs, size_t at) {
+    if (at >= inputs.size()) return {};
+    if (inputs[at].lut.empty() && !inputs[at].lut_detected.empty())
+        return inputs[at].lut_detected;
+    for (size_t k = at + 1; k-- > 0;)
+        if (!inputs[k].lut.empty())
+            return inputs[k].lut == kLutNone ? std::string() : inputs[k].lut;
+    return {};
+}
+
+inline std::string input_lut(const PrepJob& job, const PrepInput& in) {
+    return input_lut(job.inputs, input_index(job, in));
+}
+
+// The rule PrepJob's settings make (app/FramePick.h). Similar frames are one
+// of its settings: nothing is left out unless skip_blurry is on.
+inline app::PickRule pick_rule(const PrepJob& job) {
+    if (!job.skip_blurry) return {};
+    return app::PickRule{job.blur_px, job.blur_neighbour, job.similar_bits};
+}
+
+// The rule as kSkippedListFile's first line states it: what the frames on
+// disk are sorted by. Empty when it is off.
+inline std::string blur_rule_text(const PrepJob& job) {
+    if (!job.skip_blurry) return {};
+    char text[96];
+    std::snprintf(text, sizeof text, "blur=%g neighbour=%d similar=%d%s", job.blur_px,
+                  job.blur_neighbour ? 1 : 0, job.similar_bits,
+                  job.blur_review ? " by-hand" : "");
+    return text;
+}
+
+// No selection happens at all: no sharpness window, no motion plan.
+inline bool every_frame(const PrepJob& job, const PrepInput& in) {
+    return in.is_video && !(input_fps(job, in) > 0.0f);
+}
+
+// Nothing left for adaptive spacing to decide, which the panel warns about.
+inline bool all_videos_every_frame(const std::vector<PrepInput>& inputs,
+                                   float dataset_fps) {
+    bool any = false;
+    for (size_t i = 0; i < inputs.size(); i++) {
+        if (!inputs[i].is_video) continue;
+        if (input_fps(inputs, dataset_fps, i) > 0.0f) return false;
+        any = true;
+    }
+    return any;
+}
 
 // Images read where they are instead of gathered into the dataset's own
 // images/ (see DatasetPrep::run). Several inputs reconstruct from ONE image
@@ -263,7 +473,7 @@ struct PrepJob {
 inline bool reads_photos_in_place(const std::vector<PrepInput>& inputs,
                                   PhotoImport mode) {
     return mode == PhotoImport::InPlace && inputs.size() == 1 &&
-           !inputs[0].is_video;
+           !inputs[0].is_video && inputs[0].packed_lenses == 0 && !inputs[0].heif;
 }
 
 // Where a job's images will be, before it has run: what PrepResult::image_dir
@@ -271,14 +481,8 @@ inline bool reads_photos_in_place(const std::vector<PrepInput>& inputs,
 std::string planned_image_dir(const std::vector<PrepInput>& inputs,
                               const std::string& workspace, PhotoImport mode);
 
-// A video the run extracted frames from, for the manifest's `captures`:
-// the stems carry the source frame index (fps 0, the file's own rate) or,
-// after the ffmpeg fallback, the kept-frame count at `fps`.
-struct PrepCapture {
-    std::string subdir;
-    std::string path;
-    double fps = 0;
-};
+// What extracting `in` now would report, with the decoder this build would use.
+PrepCapture video_capture(const PrepJob& job, const PrepInput& in);
 
 struct PrepResult {
     std::vector<PrepCapture> captures;
@@ -293,33 +497,38 @@ struct PrepResult {
     // only where the run handed them on untouched; what it wrote itself is in
     // the usual convention and the readers need no flag.
     bool mask_dir_flipped = false;
+    // Absolute, "" when this run asked for none: PrepJob::mask_feature_prompt's
+    // masks, for feature extraction only. Never flipped.
+    std::string feature_mask_dir;
     int  n_images = 0;
     // images/ came out holding one sub-folder per camera -- several inputs, or
     // a multi-track video -- so intrinsics must not be shared across them.
     bool per_folder_cameras = false;
+    // The frames were extracted again over ones already there, so anything a
+    // reconstruction left describes pictures that are no longer in images/.
+    bool frames_rebuilt = false;
 };
 
-// What this build, on this machine, can do without an external tool.
-//
-// Two strings per stage on purpose: `*_reason` names the option or the missing
-// device feature and belongs in a log or a tooltip; `*_note` is the sentence
-// shown on the screen, which should tell a user what will happen rather than
-// which CMake flag was off when the binary was made.
+// What this build can do in-process. `*_reason` names the missing option or
+// device feature, for a log or a tooltip; the screen says what happens instead
+// (`video_note`, dataset::mask_objects_need_segmentation).
 struct Backends {
+    // Build-level answers only. The runtime answers (can THIS device decode?)
+    // are not here: probing them creates the inference context, which must wait
+    // until the device is frozen.
     bool builtin_video = false;
     std::string video_reason;
     std::string video_note;
     bool builtin_masking = false;
     std::string masking_reason;
-    std::string masking_note;
 };
-// Probes the Vulkan device on first call for the video answer, so call it off
-// the UI thread the first time if that matters.
+// What this binary was built with. Creates no device, so it is safe on the UI
+// thread and before a GPU choice exists.
 const Backends& backends();
 
 // Video container extensions the GUI offers, in the file dialog and for
 // drag-and-drop. Sized here so a range-for over it works from another TU.
-inline constexpr int kNumVideoExtensions = 13;
+inline constexpr int kNumVideoExtensions = 15;
 extern const char* const kVideoExtensions[kNumVideoExtensions];
 
 // Does this path name one of them? (Extension only; the file need not exist.)
@@ -327,45 +536,70 @@ bool is_video_path(const std::string& path);
 // A dual-fisheye Insta360 file: two video tracks, one per lens, and a lens the
 // default camera model does not fit.
 bool is_dual_fisheye_path(const std::string& path);
-// A GoPro MAX .360 by its name. The packing itself is what probe_eac360
+// A GoPro MAX .360 by its name. The packing itself is what probe_pano360
 // confirms; this only decides whether it is worth asking.
 bool is_pano360_path(const std::string& path);
+// An Insta360 .insp photo or .lrv / .prx proxy: one or two fisheye circles packed
+// into each frame, which PrepInput::packed_lenses counts.
+bool is_packed_lens_path(const std::string& path);
+
+// Two fisheye lenses back to back, as tracks or packed into one frame.
+inline bool is_dual_lens(const PrepInput& in) {
+    return is_dual_fisheye_path(in.path) || in.packed_lenses >= 2;
+}
+// A lens the default camera model does not fit.
+inline bool has_fisheye_lens(const PrepInput& in) {
+    return is_dual_fisheye_path(in.path) || is_packed_lens_path(in.path) ||
+           in.packed_lenses > 0;
+}
+// The lenses of the first .insp under `dir`, or 0 when it holds none.
+int probe_packed_lenses(const std::string& dir);
 
 // ---- the ffmpeg fallback, for callers that are not a preparation run -------
-//
-// Everything the GUI does to a video without the built-in decoder goes through
-// an external ffmpeg, and the mask preview needs the same two answers a
-// preparation run does -- how long the capture is, and what one frame of it
-// looks like -- without running one. Only `ffmpeg_exe` is needed (ffprobe is
-// not assumed to be installed beside it): `ffmpeg -i` prints the stream table
-// on its way to complaining that no output file was named.
+// A capture's length and one frame of it, without the built-in decoder or a
+// run (app/FfmpegVideo.h).
 
-// What an external ffmpeg says about a video. A zero means it did not say.
-struct VideoFacts {
-    double duration = 0.0;    // seconds
-    double fps = 0.0;
-    long long frames = 0;     // duration * fps; the container's own count is
-                              // not printed by `ffmpeg -i`
-    int width = 0, height = 0;   // one frame, before any scaling
-    // One entry per video stream, in the order ffmpeg lists them, which is the
-    // order `[0:v:N]` and the built-in demuxer both number them by.
-    std::vector<std::pair<int, int>> tracks;
+using app::VideoFacts;
+using app::ffmpeg_probe_video;
+
+// What one still has to reproduce of the run's own ffmpeg invocation.
+struct FfmpegStillOpts {
+    int  track = 0;
+    // ffmpeg turns the picture by the container's matrix unless told not to,
+    // which is what the built-in decoder's auto_rotate matches.
+    bool auto_rotate = true;
+    // A 360 capture: both tracks are decoded and the overlap strips cut out,
+    // so what lands in `out_path` is the EAC canvas (app::pano360_graph).
+    app::Pano360Layout eac;
+    // The sync sample at or before `seconds` instead: one decode, for a thumbnail.
+    bool keyframe = false;
+    int max_side = 0;   // scaled down to fit a square this size; 0 = as decoded
 };
-bool ffmpeg_probe_video(const std::string& ffmpeg_exe, const std::string& path,
-                        VideoFacts& out, const std::atomic<bool>& cancel);
 
 // One frame, `seconds` into the file, written to `out_path` as a JPEG.
 // False when ffmpeg is missing, was cancelled, or wrote nothing.
 bool ffmpeg_extract_frame(const std::string& ffmpeg_exe, const std::string& video,
                           double seconds, const std::string& out_path,
-                          const std::atomic<bool>& cancel);
+                          const std::atomic<bool>& cancel,
+                          const FfmpegStillOpts& opts = {});
+// Track `tracks[i]` to `out_paths[i]` from ONE run, so a rig's streams cost one
+// seek. `opts.track` is unused; a 360 canvas fills `out_paths[0]` alone.
+bool ffmpeg_extract_frames(const std::string& ffmpeg_exe, const std::string& video,
+                           double seconds, const std::vector<int>& tracks,
+                           const std::vector<std::string>& out_paths,
+                           const std::atomic<bool>& cancel,
+                           const FfmpegStillOpts& opts = {});
 
-// The 360 packing a video carries, or a layout that is not valid(). Asks the
-// built-in demuxer where there is one and ffmpeg otherwise, so the answer does
-// not depend on which decode path the run will take.
-app::Eac360Layout probe_eac360(const std::string& ffmpeg_exe,
-                               const std::string& path,
-                               const std::atomic<bool>& cancel);
+// The 360 packing a video carries, asked of the built-in demuxer where there is
+// one and of ffmpeg otherwise, so the answer does not depend on the decode path
+// the run will take. `unsupported`: app::pano360_unsupported.
+struct Pano360Probe {
+    app::Pano360Layout layout;
+    bool unsupported = false;
+};
+Pano360Probe probe_pano360(const std::string& ffmpeg_exe,
+                           const std::string& path,
+                           const std::atomic<bool>& cancel);
 
 // How many video tracks a file carries (0 when it cannot be read).
 int probe_video_tracks(const std::string& ffmpeg_exe, const std::string& path,
@@ -374,6 +608,12 @@ int probe_video_tracks(const std::string& ffmpeg_exe, const std::string& path,
 // The folders under images/<input> a video's frames go to: one per lens of a
 // dual-fisheye file or per view of a 360 plan, none for a single lens.
 std::vector<std::string> lens_dirs(const PrepJob& job, const PrepInput& in);
+
+// The frame sequences a `sequential` input is, as folders under images/: a
+// video's lens folders, or a photo folder -- one per top-level camera folder
+// when they nest (a/cam0, a/cam1, b), as a dataset made from several videos does.
+std::vector<std::vector<std::string>> input_sequences(const PrepJob& job,
+                                                      const PrepInput& in);
 
 // What a picked folder of photos actually means, by the layout conventions the
 // rest of the project already uses -- `spirula sfm auto`'s own probing and the
@@ -407,6 +647,11 @@ inline constexpr size_t kMaxCameraFolders = 64;
 // symlinks (a prepared capture's images/ is often a link into the raw one) and
 // stops at the first hit, so it is cheap enough for the UI thread.
 bool folder_has_images(const std::string& dir);
+// ... and a HEIC photo, on the same terms.
+bool folder_has_heif(const std::string& dir);
+
+// The photo extensions an input folder is indexed for.
+bool is_image_file(const std::filesystem::path& p);
 
 // Is this folder an already-reconstructed dataset -- something the trainer's
 // dataparsers can read -- rather than raw input? True for a Nerfstudio
@@ -428,16 +673,28 @@ bool folder_looks_like_dataset(const std::string& dir);
 struct WorkspaceState {
     bool frames = false;    // images/ this run would extract into
     bool features = false;  // features/, matches.bin, database.db -- reusable
-    bool masks = false;     // masks/ this run would generate into
+    bool masks = false;     // masks/ or feature_masks/ this run would generate into
+    bool input_masks = false;  // masks an input came with (PrepInput::mask_dir)
     // A reconstruction any dataset reader can open: this run's own sparse/, or
-    // the transforms.json / Metashape export of a dataset that arrived
-    // finished. A run pointed at one ADDS to it rather than rebuilding it.
+    // the transforms.json, root-level COLMAP files or Metashape export of a
+    // dataset that arrived finished. A run pointed at one ADDS to it.
     bool model = false;
     bool geometry = false;  // normals/ or depths/, which a run adds to
-    // Were the flags that built that model written down beside it
-    // (ReconStamp.h)? Without them a run cannot tell whether reusing it still
-    // answers what the panel is asking for, and reuses it regardless.
-    bool recon_stamp = false;
+    bool dense = false;
+    // The folder says what built it (DatasetRecord.h).
+    bool record = false;
+    // features/ and matches.bin under the signatures `spirula sfm` checks
+    // before reusing them, and the journal of a matching it did not finish.
+    bool extracted = false, matched = false, matching_part = false;
+    // The image folder the extraction signed, absolute: a moved dataset's
+    // features are extracted again.
+    std::string extracted_images;
+    // sparse/0 aligned to laser scans by `spirula lidar`, and with what.
+    bool aligned = false;
+    std::vector<std::string> aligned_clouds;
+    bool aligned_kept_frame = false;
+    // blur_rule_text of the rule the frames are sorted by; "" for none.
+    std::string sorted_rule;
     // Something a resumed run can pick up instead of redoing.
     bool resumable() const { return frames || features || masks; }
 };
@@ -454,6 +711,14 @@ std::vector<std::string> workspace_artifacts(const std::string& workspace,
 // own? By name, which is what makes it a convention: `--mask-dir masks` is the
 // SfM default and `mask_dir = "masks"` the dataparsers'.
 bool is_mask_folder(const std::string& path);
+
+// The correction editor's layer folder (app/gui/mask/MaskLayer.h), which a
+// finished dataset carries beside images/ and masks/ and which holds PNGs.
+bool is_mask_edits_folder(const std::string& path);
+
+// Where PrepJob::mask_feature_prompt's masks go, beside masks/ and mirroring it.
+inline constexpr const char* kFeatureMaskDirName = "feature_masks";
+bool is_feature_mask_folder(const std::string& path);
 
 // One counter for a whole step, rather than one per input: a job with three
 // videos in it should fill the bar once and never wind it back, which is the
@@ -489,14 +754,16 @@ public:
         : _prog(progress), _films(films), _cancel(cancel) {}
 
     // Called once, immediately before masking starts, and free to replace the
-    // job's mask_* fields with whatever the screen says by then -- which is
-    // what lets the masking options stay editable while frames are extracted.
-    // Anything else it touches has already been acted on.
+    // job's mask_* fields with the screen's -- so masking stays editable while
+    // frames are extracted -- and to decide redo_masks / keep_masks.
     using RefreshFn = std::function<void(PrepJob&)>;
+    // Called as the frames, then the masks, are finished.
+    using DoneFn = std::function<void(Stage, const PrepJob&)>;
 
     // False with `error` set on failure ("cancelled" when the token was set).
     bool run(const PrepJob& job, PrepResult& out, std::string& error,
-             const RefreshFn& refresh_masks = {});
+             const RefreshFn& refresh_masks = {}, const DoneFn& done = {},
+             const RefreshFn& review_frames = {});
 
     // Recursive, matching what COLMAP's feature_extractor indexes. `skip` is a
     // sub-folder not to descend into: a masks/ nested under the images is full
@@ -516,15 +783,17 @@ private:
     void log(const std::string& s, bool detail = true);
     void enter(Stage s, const std::string& text);
 
-    // One input's frames. `images` / `masks` are that input's own folders
-    // (images/<subdir>, masks/<subdir>); `masked` comes back true only when a
-    // resumed run found masks already sitting beside them.
+    // One input's frames into `images` (images/<subdir>).
     bool extract_video(const PrepJob& job, const PrepInput& in,
-                       const std::string& images, const std::string& masks,
-                       PrepResult& out, bool& masked, std::string& error);
+                       const std::string& images, PrepResult& out,
+                       std::string& error);
     bool extract_video_builtin(const PrepJob& job, const PrepInput& in,
                                const std::string& images,
                                PrepResult& out, std::string& error);
+    // The row's LUT appended to an ffmpeg filter chain, once the file has been
+    // read as one; false with `error` set when it cannot be.
+    bool append_lut_filter(const PrepJob& job, const PrepInput& in,
+                           std::string& chain, std::string& error);
     bool extract_video_ffmpeg(const PrepJob& job, const PrepInput& in,
                               const std::string& images, PrepResult& out,
                               std::string& error);
@@ -534,46 +803,65 @@ private:
     bool extract_360_ffmpeg(const PrepJob& job, const PrepInput& in,
                             const std::string& images, PrepResult& out,
                             std::string& error);
+    // A packed video's frames, written whole into `images`, cut into one
+    // folder per lens. Each frame goes once its lenses are written, so a
+    // resumed run finishes an interrupted pass.
+    bool split_packed_frames(const PrepInput& in, const std::string& images,
+                             PrepResult& out, std::string& error);
     // Photos into the dataset's own images/<subdir>, by whichever of
     // PhotoImport the job asked for -- and the masks they came with into the
     // matching masks/<subdir>, so the two trees still mirror each other.
+    bool judge_photos(const PrepJob& job, const PrepInput& in, const std::string& images,
+                      std::string& error);
+    bool sort_frames(const PrepJob& job, const PrepInput& in, const std::string& images,
+                     std::string& error);
     bool gather_photos(const PrepJob& job, const PrepInput& in,
                        const std::string& images, const std::string& masks,
                        bool& have_masks, std::string& error);
-    // Masks for ONE input's images. Run per input rather than over the whole
-    // tree so the tracker's memory bank never crosses from one capture into the
-    // next, and so clicks reach only the input they were drawn on.
-    //
-    // `folded` comes back true when the input's stencil was intersected into
-    // the masks as they were produced, which is what lets apply_stencil be
-    // skipped -- it would otherwise decode and re-encode every mask again.
+    // ONE input's masks, so a memory bank or a click never crosses captures.
+    // `folded`: its stencil went in as they were made, sparing apply_stencil a
+    // re-encode. `train` false writes only `feature_masks` ("" for none).
     bool generate_masks(const PrepJob& job, const PrepInput& in,
-                        const std::string& images, const std::string& images_rel,
-                        const std::string& masks, const std::string& masks_rel,
+                        const std::string& images, const std::string& masks,
+                        const std::string& feature_masks, bool train,
                         bool& folded, std::string& error);
     bool generate_masks_builtin(const PrepJob& job, const PrepInput& in,
                                 const std::string& images, const std::string& masks,
+                                const std::string& feature_masks, bool train,
                                 bool& folded, std::string& error);
-    bool generate_masks_python(const PrepJob& job, const std::string& images_rel,
-                               const std::string& masks_rel, std::string& error);
     // The static stencil on its own, for the masks segmentation did not make.
     // `merge_from` names the masks it folds in when they are not the ones it
     // writes -- the tree the photos arrived with; "" is `masks` itself.
     bool apply_stencil(const PrepJob& job, const PrepInput& in,
                        const std::string& images, const std::string& masks,
                        const std::string& merge_from, std::string& error);
-    int exec(const std::vector<std::string>& argv);
+    int exec(const std::vector<std::string>& argv,
+             const std::function<void(const std::string&)>& on_line = {});
     // What this input is expected to put in images/, for the step's bar: the
     // container's frame count at the run's sampling rate for a video, the file
     // count for photos, and what is already there for an input a resumed run
     // is going to keep.
     int64_t estimate_frames(const PrepJob& job, const PrepInput& in,
                             const std::string& images);
+    // Measures every video on `at`'s rate and spaces them together, once per
+    // group. A no-op unless the rate is adaptive and the built-in decoder is
+    // the one reading the file.
+    bool plan_group(const PrepJob& job, size_t at, std::string& error);
 
     RunProgress* _prog;
     RunFilms _films;
     const std::atomic<bool>& _cancel;
+    // The spacing chosen per input, and which of them have one: an adaptive
+    // plan covers a whole rate group, so it is made before any of the group is
+    // extracted rather than per video.
+    std::vector<std::vector<int64_t>> _plans;
+    std::vector<bool> _planned;
     StageTally _frames_tally, _masks_tally;
+    std::vector<std::string> _left_out;   // kSkippedListFile, as this run sorts
+    std::vector<std::string> _unbuilt;    // ... and its "- " lines
+    std::vector<bool> _streamed;          // ruled on by the built-in decoder as it went
+    bool _split_later = false;            // packed lenses wait for the review
+    bool _sorted = false;                 // sort_frames ran on some input
 };
 
 }  // namespace gui

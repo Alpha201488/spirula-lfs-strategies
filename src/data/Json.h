@@ -229,7 +229,11 @@ struct Parser {
 
 
 inline JsonValue json_parse(const std::string& text) {
-    json_detail::Parser ps{text.data(), text.data() + text.size(), text.data()};
+    // A UTF-8 BOM is what Notepad and PowerShell put in front of a file that
+    // was edited by hand, and a config lost to one is lost silently.
+    const size_t at = text.compare(0, 3, "\xEF\xBB\xBF") == 0 ? 3 : 0;
+    json_detail::Parser ps{text.data() + at, text.data() + text.size(),
+                           text.data()};
     JsonValue v = ps.parse_value(0);
     ps.skip_ws();
     if (ps.p != ps.end) ps.fail("trailing content");

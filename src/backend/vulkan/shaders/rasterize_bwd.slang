@@ -33,6 +33,8 @@ static const int kAccumMax = 1, kAccumSum = 2, kAccumAvg = 3;
 const int kViewmatGrad = 0;   // 3dgut entry only
 [SpecializationConstant]
 const int kPacked = 0;        // gaussian_ids present
+[SpecializationConstant]
+const int kMaxWeight = 0;     // o_max_weight bound
 
 static const uint TILE_SIZE_DX = 8;
 static const uint TILE_SIZE_DY = 8;
@@ -81,6 +83,12 @@ groupshared uint _rb_wtot[RB_THREADS];   // per-wave compaction totals
 groupshared uint _rb_binmax;             // 1 + max last_id over the tile's pixels
 groupshared float _rb_red[RB_THREADS];   // viewmat-grad reduction scratch
 
+// state_flags: the render's depth and its gradient are bound (a render whose
+// depth nothing reads has neither), and the RGB distortion gradient is that
+// multiple of the depth one instead of a buffer.
+static const uint kRbDepthBound = 1u;
+static const uint kRbDistRgbFromDepth = 2u;
+
 // Load the per-pixel color/distortion/median state shared by both entries.
 // `pix` is the local pixel id, `gpix` the in-image pixel id (valid only when
 // inside). Returns nothing; fills the groupshared arrays.
@@ -90,18 +98,21 @@ void _rb_load_pixel_state(
     float* render_Ts_img, float* v_render_Ts_img, uint gpix,
     float* out_rgb, float* out_depth, float* dist_rgb, float* dist_depth,
     float* v_out_rgb, float* v_out_depth, float* v_dist_rgb,
-    float* v_dist_depth, float* awmap, float* v_median) {
+    float* v_dist_depth, float* awmap, float* v_median, uint state_flags,
+    float v_dist_rgb_per_depth) {
     float T = inside ? render_Ts_img[gpix] : 0.0f;
     float v_T = inside ? v_render_Ts_img[gpix] : 0.0f;
     float4 v_c = float4(0.0f);
     if (inside) {
         v_c = float4(v_out_rgb[3 * image_pix], v_out_rgb[3 * image_pix + 1],
-                     v_out_rgb[3 * image_pix + 2], v_out_depth[image_pix]);
+                     v_out_rgb[3 * image_pix + 2],
+                     (state_flags & kRbDepthBound) != 0 ? v_out_depth[image_pix] : 0.0f);
     }
     // depth channel: convert dL/d(render depth) to dL/d(accumulated C).
     {
         float inv_alpha = 1.0f / max(1.0f - T, 1e-10f);
-        float exp_depth = inside ? out_depth[image_pix] : 0.0f;
+        float exp_depth = (inside && (state_flags & kRbDepthBound) != 0)
+                              ? out_depth[image_pix] : 0.0f;
         if (kDistType != 0) {
             float m = log(max(exp_depth, DEPTH_DIST_EPS));
             v_T += exp_depth * v_c.w * m * inv_alpha;
@@ -127,9 +138,11 @@ void _rb_load_pixel_state(
                 Dv.xyz = float3(dist_rgb[3 * image_pix],
                                 dist_rgb[3 * image_pix + 1],
                                 dist_rgb[3 * image_pix + 2]);
-                v_d.xyz = float3(v_dist_rgb[3 * image_pix],
-                                 v_dist_rgb[3 * image_pix + 1],
-                                 v_dist_rgb[3 * image_pix + 2]);
+                v_d.xyz = (state_flags & kRbDistRgbFromDepth) != 0
+                    ? float3(v_d.w * v_dist_rgb_per_depth)
+                    : float3(v_dist_rgb[3 * image_pix],
+                             v_dist_rgb[3 * image_pix + 1],
+                             v_dist_rgb[3 * image_pix + 2]);
             }
         }
         float W = max(1.0f - T, 1e-10f);
@@ -240,6 +253,7 @@ struct Raster2dBwdParams {  // via params ring
     float* v_s_screen;  // [.., SCR2_STRIDE]
     uint* o_accum_weight;   // kAccumWeight; Max writes float bits, else float
     float* o_accum_weight_den;  // kAccumAvg lane 2
+    uint* o_max_weight;     // kMaxWeight; float bits
     uint32_t I;
     uint32_t N;
     uint32_t n_isects;
@@ -247,7 +261,11 @@ struct Raster2dBwdParams {  // via params ring
     uint32_t height;
     uint32_t tile_width;
     uint32_t tile_height;
-    uint32_t macro_log2;  // was _pad0; the struct size is unchanged
+    uint32_t macro_log2;
+    float v_dist_rgb_per_depth;
+    uint32_t state_flags;  // kRb*
+    float max_weight_scale;
+    float kernel_cut;  // as RasterFwd2dParams::kernel_cut
 };
 
 struct Frag2d_ {
@@ -258,13 +276,21 @@ struct Frag2d_ {
     float3 rgb;
 };
 
+// dvis = -d vis / d sigma, which the cut kernel's renormalization scales
 [ForceInline]
-float _rb2_alpha(Frag2d_ s, float2 delta, out float sigma, out float vis) {
+float _rb2_alpha(Frag2d_ s, float2 delta, float cut, out float sigma, out float vis,
+                 out float dvis) {
     sigma =
         0.5f * (s.conic.x * delta.x * delta.x +
                 s.conic.z * delta.y * delta.y) +
         s.conic.y * delta.x * delta.y;
     vis = exp(-sigma);
+    dvis = vis;
+    if (cut > 0.0f) {
+        float inv = 1.0f / (1.0f - exp(-cut));
+        dvis = sigma < cut ? vis * inv : 0.0f;
+        vis = sigma < cut ? (vis - exp(-cut)) * inv : 0.0f;
+    }
     float alpha = min(0.999f, s.opac * vis);
     return sigma < 0.f ? 0.f : alpha;
 }
@@ -272,10 +298,10 @@ float _rb2_alpha(Frag2d_ s, float2 delta, out float sigma, out float vis) {
 // sigma / vis come from _rb2_alpha: re-deriving them here would cost a second
 // exp() on every contributing pixel.
 [ForceInline]
-void _rb2_alpha_vjp(Frag2d_ s, float2 delta, float sigma, float vis,
+void _rb2_alpha_vjp(Frag2d_ s, float2 delta, float sigma, float vis, float dvis,
                     float v_alpha, inout Frag2d_ v) {
     if (sigma >= 0.f && s.opac * vis <= 0.999f) {
-        float v_sigma = -s.opac * vis * v_alpha;
+        float v_sigma = -s.opac * dvis * v_alpha;
         v.conic += float3(0.5f * v_sigma * delta.x * delta.x,
                           v_sigma * delta.x * delta.y,
                           0.5f * v_sigma * delta.y * delta.y);
@@ -290,10 +316,10 @@ void _rb2_alpha_vjp(Frag2d_ s, float2 delta, float sigma, float vis,
 // caller's barrier is never skipped.
 [ForceInline]
 void _rb2_step(int pix_id, int splat_idx, bool active,
-               uint wg_y, uint wg_z, Frag2d_ splat,
+               uint wg_y, uint wg_z, Frag2d_ splat, float kernel_cut,
                inout Frag2d_ v_splat,
                inout float accum_weight, inout float accum_weight_den,
-               inout bool touched) {
+               inout float max_weight, inout bool touched) {
     if (pix_id < 0 || pix_id >= (int)RB_BLOCK || !active) return;
     if (splat_idx > _rb_bin[pix_id]) return;
     int gx = int(wg_z * TILE_SIZE_DX) + pix_id % (int)TILE_SIZE_DX;
@@ -301,8 +327,8 @@ void _rb2_step(int pix_id, int splat_idx, bool active,
     float2 delta = float2(splat.xy.x - (float(gx) + 0.5f),
                           splat.xy.y - (float(gy) + 0.5f));
 
-    float sigma, vis;
-    float alpha = _rb2_alpha(splat, delta, sigma, vis);
+    float sigma, vis, dvis;
+    float alpha = _rb2_alpha(splat, delta, kernel_cut, sigma, vis, dvis);
     if (alpha <= ALPHA_THRESHOLD) return;
     float4 color = float4(splat.rgb, splat.depth);
 
@@ -310,19 +336,20 @@ void _rb2_step(int pix_id, int splat_idx, bool active,
     float4 v_color;
     _rb_pixel_grad(pix_id, alpha, color, v_alpha, v_color);
 
-    _rb2_alpha_vjp(splat, delta, sigma, vis, v_alpha, v_splat);
+    _rb2_alpha_vjp(splat, delta, sigma, vis, dvis, v_alpha, v_splat);
     v_splat.rgb += v_color.xyz;
     v_splat.depth += v_color.w;
     touched = true;
 
-    if (kAccumWeight != 0) {
+    if (kAccumWeight != 0 || kMaxWeight != 0) {
         float T0 = _rb_Tg[pix_id].x;  // just updated: T0 stored in .x
         // CUDA computes the weight with the pre-update T0 = T1/(1-alpha);
         // _rb_pixel_grad stored exactly that, so reuse it.
         float w = alpha * T0;
+        if (kMaxWeight != 0) max_weight = max(max_weight, w);
         if (kAccumWeight == kAccumMax)
             accum_weight = max(accum_weight, _rb_awmap[pix_id] * w);
-        else {
+        else if (kAccumWeight != 0) {
             accum_weight += _rb_awmap[pix_id] * w;
             if (kAccumWeight == kAccumAvg) accum_weight_den += w;
         }
@@ -357,7 +384,8 @@ void rasterize_bwd_2d(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
             pix, inside, img_off + gpix, p.render_Ts + img_off,
             p.v_render_Ts + img_off, gpix, p.out_rgb, p.out_depth,
             p.dist_rgb, p.dist_depth, p.v_out_rgb, p.v_out_depth,
-            p.v_dist_rgb, p.v_dist_depth, p.awmap, p.v_median);
+            p.v_dist_rgb, p.v_dist_depth, p.awmap, p.v_median,
+            p.state_flags, p.v_dist_rgb_per_depth);
     }
     { uint prev; InterlockedMax(_rb_binmax, uint(bin_local + 1), prev); }
     GroupMemoryBarrierWithGroupSync();
@@ -457,11 +485,13 @@ void rasterize_bwd_2d(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
                                float3(0.0f)};
             float accum_weight = 0.0f;
             float accum_weight_den = 0.0f;
+            float max_weight = 0.0f;
             bool touched = false;
 
             for (int t = 0; t < batch_size + (int)RB_BLOCK - 1; t++) {
                 _rb2_step(t - int(tid), splat_idx, active, wg.y, wg.z, splat,
-                          v_splat, accum_weight, accum_weight_den, touched);
+                          p.kernel_cut, v_splat, accum_weight, accum_weight_den,
+                          max_weight, touched);
                 GroupMemoryBarrierWithGroupSync();
             }
 
@@ -487,6 +517,9 @@ void rasterize_bwd_2d(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
                         atomic_add_f32(p.o_accum_weight_den + wid,
                                        accum_weight_den);
                 }
+                if (kMaxWeight != 0 && max_weight > 0.0f)
+                    atomic_max_f32_nonneg(p.o_max_weight + wid,
+                                          max_weight * p.max_weight_scale);
             }
         }
         GroupMemoryBarrierWithGroupSync();  // done reading surv[]
@@ -542,6 +575,7 @@ struct Raster3dgutBwdParams {  // via params ring
     float* v_s_screen;  // [.., SCRG_STRIDE]
     uint* o_accum_weight;  // kAccumWeight; Max writes float bits, else float
     float* o_accum_weight_den;  // kAccumAvg lane 2
+    uint* o_max_weight;    // kMaxWeight; float bits
     float* v_viewmats;   // [I,16], kViewmatGrad
     uint32_t I;
     uint32_t N;
@@ -550,7 +584,11 @@ struct Raster3dgutBwdParams {  // via params ring
     uint32_t height;
     uint32_t tile_width;
     uint32_t tile_height;
-    uint32_t macro_log2;  // was _pad0; the struct size is unchanged
+    uint32_t macro_log2;
+    float v_dist_rgb_per_depth;
+    uint32_t state_flags;  // kRb*
+    float max_weight_scale;
+    uint32_t _pad0;
 };
 
 struct Frag3dgut_ {
@@ -572,7 +610,7 @@ struct VFrag3dgut_ {
 void _rb3_step(Raster3dgutBwdParams p, int pix_id, int splat_idx,
                bool active, float3 ray_o, Frag3dgut_ splat,
                inout VFrag3dgut_ v_splat, inout float accum_weight,
-               inout float accum_weight_den,
+               inout float accum_weight_den, inout float max_weight,
                inout float3 total_v_ray_o) {
     if (pix_id < 0 || pix_id >= (int)RB_BLOCK || !active) return;
     float4 rb = _rb_raybin[pix_id];
@@ -615,12 +653,13 @@ void _rb3_step(Raster3dgutBwdParams p, int pix_id, int splat_idx,
     v_splat.opacity += v_op;
     v_splat.rgb += v_rgb;
 
-    if (kAccumWeight != 0) {
+    if (kAccumWeight != 0 || kMaxWeight != 0) {
         float T0 = _rb_Tg[pix_id].x;
         float w = alpha * T0;
+        if (kMaxWeight != 0) max_weight = max(max_weight, w);
         if (kAccumWeight == kAccumMax)
             accum_weight = max(accum_weight, _rb_awmap[pix_id] * w);
-        else {
+        else if (kAccumWeight != 0) {
             accum_weight += _rb_awmap[pix_id] * w;
             if (kAccumWeight == kAccumAvg) accum_weight_den += w;
         }
@@ -696,7 +735,8 @@ void rasterize_bwd_3dgut(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
             pix, inside, img_off + gpix, p.render_Ts + img_off,
             p.v_render_Ts + img_off, gpix, p.out_rgb, p.out_depth,
             p.dist_rgb, p.dist_depth, p.v_out_rgb, p.v_out_depth,
-            p.v_dist_rgb, p.v_dist_depth, p.awmap, p.v_median);
+            p.v_dist_rgb, p.v_dist_depth, p.awmap, p.v_median,
+            p.state_flags, p.v_dist_rgb_per_depth);
     }
     { uint prev; InterlockedMax(_rb_binmax, uint(bin_local + 1), prev); }
     GroupMemoryBarrierWithGroupSync();
@@ -814,10 +854,11 @@ void rasterize_bwd_3dgut(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
             v_splat.rgb = float3(0.0f);
             float accum_weight = 0.0f;
             float accum_weight_den = 0.0f;
+            float max_weight = 0.0f;
 
             for (int t = 0; t < batch_size + (int)RB_BLOCK - 1; t++) {
                 _rb3_step(p, t - int(tid), splat_idx, active, ray_o, splat,
-                          v_splat, accum_weight, accum_weight_den,
+                          v_splat, accum_weight, accum_weight_den, max_weight,
                           total_v_ray_o);
                 GroupMemoryBarrierWithGroupSync();
             }
@@ -852,6 +893,9 @@ void rasterize_bwd_3dgut(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
                         atomic_add_f32(p.o_accum_weight_den + splat_wid,
                                        accum_weight_den);
                 }
+                if (kMaxWeight != 0 && max_weight > 0.0f)
+                    atomic_max_f32_nonneg(p.o_max_weight + splat_wid,
+                                          max_weight * p.max_weight_scale);
             }
         }
 

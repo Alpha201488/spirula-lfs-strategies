@@ -7,6 +7,7 @@
 //
 // Anything declared here is intentionally not part of the public Engine.h API.
 
+#include "core/PixelFormat.h"
 #include "core/Tensor.h"
 #include "kernels/loss/PerPixelLoss.cuh"   // LossIndex / LossValues / PerPixelGrads
 #include "kernels/pixelwise/PixelWise.cuh"      // PPISPRegLossIndex
@@ -15,6 +16,13 @@
 #include <cstdint>
 #include <cstddef>
 
+
+struct DensifyConfig;
+
+// Readies DeadCriterion::MaxWeight's buffer for `step`'s raster backward:
+// set to opacity on first use, freed once nothing can relocate. Idempotent
+// within a step (EngineDensify.cpp).
+void engine_max_weight_begin_step(int step, int max_steps, const DensifyConfig& cfg);
 
 // --- Raw-pointer image conversion helpers (ImageConvert.cu). ---
 void uint8_image_to_float_raw (const uint8_t*  d_in, float* d_out,
@@ -145,6 +153,13 @@ void _engine_bilagrid_backward_hook(
 void _ensure_bilagrid_optim_state();
 void _engine_bilagrid_tv_into(float* tv_buf3_device);
 
+// How many pyramid levels the per-pixel loss will actually use at this render
+// resolution. The randomized backgrounds size their cells off the same count,
+// so the two must not drift.
+int engine_resolve_num_loss_scales(int num_loss_scales,
+                                   int loss_scale_min_pixels,
+                                   int64_t H, int64_t W);
+
 // Background blend: forward runs inside forward_3dgs, out of place, so viewer
 // renders blend too. The backward hook adds v_T, rewrites v_render_rgb, and
 // folds in overexposure_reg -- which needs the blend composite.
@@ -153,6 +168,40 @@ void _engine_background_backward_hook(
     TorchTensorView v_render_rgb,
     TorchTensorView v_render_Ts,
     float overexposure_reg_weight);
+
+// The background's share of the fused appearance chain: the per-step draw
+// settings it shares with the per-stage blend, and the SH skybox rendered into
+// bg.fwd_background (forward) and taken back from its image gradient.
+void _engine_background_chain_params(AppearanceChainParams& p);
+void _engine_background_sh_backward(const float* v_background);
+void _ensure_bg_sh_optim_state();
+
+// Background blend, PPISP and the display encode in one kernel each way, from
+// forward_3dgs; engine().appearance says whether this step's forward took it.
+// The forward returns false when the per-stage kernels are to run instead.
+bool _engine_appearance_forward(AppearancePpisp ppisp);
+void _engine_appearance_backward(TorchTensorView v_render_rgb,
+                                 TorchTensorView v_render_Ts,
+                                 float overexposure_reg_weight);
+// The chain's output again, in the ImageBwd phase, for a step whose forward
+// kept it only transiently (AppearanceState::transient_post).
+DeviceTensor3D<float3> _engine_appearance_replay();
+
+// What a training step's forward renders, in which formats, and which stages it
+// fuses -- armed after the GT is installed. A preview arms the same, so it fills
+// the buffers the step sized instead of growing float32 twins of them.
+struct EngineStepConfig;
+enum class DistortionType;
+void _engine_arm_step_forward(const EngineStepConfig& cfg,
+                              DistortionType dist_type, bool image_stages);
+// PPISP and the colour grids the forward left to run, in the step's order.
+void _engine_step_image_stages(TorchTensorView cam_indices);
+
+// An image buffer of `fmt` for [C, H, W] pixels, typed as the float3 tensor the
+// engine passes renders around as; fwd.rgb_fmt says how renders.rgb is stored.
+DeviceTensor3D<float3> _engine_image(PoolSlot slot, int64_t C, int64_t H,
+                                     int64_t W, PixelFormat fmt);
+TorchTensorView _engine_image_view(const DeviceTensor3D<float3>& t, PixelFormat fmt);
 
 // Color space, from forward_3dgs after the background blend: the forward
 // encodes the render for display, the backward turns v_render_rgb back into
@@ -178,3 +227,13 @@ void engine_ensure_optim_state(int sh_optim_bits, int sh_value_bits,
 float* _engine_ppisp_reg_loss_into(
     const std::array<float, (int)PPISPRegLossIndex::length>& loss_weights,
     bool compute_grad);
+
+// Brackets one of a step's splat stages while engine_step_timing_arm() is in
+// force. Defined in EngineStepTiming.cpp.
+struct SplatStageTimer {
+    SplatStageTimer();
+    ~SplatStageTimer();
+    SplatStageTimer(const SplatStageTimer&) = delete;
+    SplatStageTimer& operator=(const SplatStageTimer&) = delete;
+    int _pair = -1;
+};

@@ -2,12 +2,21 @@
 setlocal
 rem Development build for Windows. Extra arguments are passed to CMake, e.g.
 rem   build_develop.bat -DSS_BACKEND=vulkan -DSS_BUILD_GUI=OFF
-rem Builds the standalone spirula.exe.
+rem Builds the standalone spirula.exe into build_cuda\ or build_vulkan\.
 rem Works from a plain cmd prompt: locates VS via vswhere and calls vcvars64,
 rem uses the VS-bundled CMake/Ninja when none are on PATH, and picks the
 rem newest installed CUDA toolkit unless CUDA_PATH is already set.
 
 cd /d "%~dp0"
+
+rem ---------------------------------------------------------------------------
+rem One tree per backend, so building one does not reconfigure the other. The
+rem arguments are read, never rebuilt: your own -B still reaches CMake, and the
+rem build step below would then target a tree it did not configure.
+rem ---------------------------------------------------------------------------
+set "BACKENDSEL=cuda"
+echo %* | findstr /i /c:"BACKEND=vulkan" >nul && set "BACKENDSEL=vulkan"
+set "BUILDDIR=build_%BACKENDSEL%"
 
 rem ---------------------------------------------------------------------------
 rem Codegen (optional -- the generated files are committed)
@@ -23,13 +32,14 @@ goto :comment_check
 echo python not found -- skipping codegen (using committed generated files)
 
 rem ---------------------------------------------------------------------------
-rem Comment-length gate (AGENTS.md). Also wired into CMake
-rem (cmake/SsChecks.cmake), which covers a bare cmake/ninja build; running it
-rem here fails before the configure step rather than after it.
+rem Comment-length gate (AGENTS.md), and no source naming a windows.h macro.
+rem Both are also wired into CMake (cmake/SsChecks.cmake), which covers a bare
+rem cmake/ninja build; running them here fails before the configure step.
 rem ---------------------------------------------------------------------------
 :comment_check
 where python >nul 2>&1 || goto :msvc_env
 python tools\check_comment_length.py || exit /b 1
+python tools\check_winmacro.py --quiet || exit /b 1
 
 rem ---------------------------------------------------------------------------
 rem MSVC environment. vcvars64 is called even when cl is already on PATH: a
@@ -67,7 +77,7 @@ rem pass a trailing -DCMAKE_CUDA_COMPILER=... to pick a specific one.
 rem A Vulkan build never enables the CUDA language, so passing the compiler
 rem there only earns a "manually-specified variables were not used" warning.
 rem ---------------------------------------------------------------------------
-echo %* | findstr /i /c:"BACKEND=vulkan" >nul && goto :no_cuda
+if /i "%BACKENDSEL%"=="vulkan" goto :no_cuda
 set "_CUDA_ROOT="
 for /d %%d in ("%ProgramFiles%\NVIDIA GPU Computing Toolkit\CUDA\v*") do set "_CUDA_ROOT=%%d"
 if not defined _CUDA_ROOT set "_CUDA_ROOT=%CUDA_PATH%"
@@ -85,7 +95,7 @@ set "CUDAARG="
 rem ---------------------------------------------------------------------------
 rem Configure + build (RAM-aware job count, mirrors build_develop.bash)
 rem ---------------------------------------------------------------------------
-cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release %CUDAARG% %*
+cmake -G Ninja -B "%BUILDDIR%" -DCMAKE_BUILD_TYPE=Release %CUDAARG% %*
 if %ERRORLEVEL% neq 0 exit /b 1
 
 rem ---------------------------------------------------------------------------
@@ -94,18 +104,18 @@ rem a record with a mismatched node index survives ninja's own recovery, and
 rem from then on every build discards its header dependencies and the next one
 rem recompiles every object. `-t recompact` rewrites the log and drops it.
 rem ---------------------------------------------------------------------------
-if not exist build\.ninja_deps goto :deps_done
-cmake --build build -- -t recompact >"%TEMP%\ss_ninja_deps.log" 2>&1
+if not exist "%BUILDDIR%\.ninja_deps" goto :deps_done
+cmake --build "%BUILDDIR%" -- -t recompact >"%TEMP%\ss_ninja_deps.log" 2>&1
 findstr /c:"premature end of file" /c:"bad deps log" "%TEMP%\ss_ninja_deps.log" >nul
 if errorlevel 1 goto :deps_checked
 rem The rewrite is what heals it, so a second pass is what confirms it.
-cmake --build build -- -t recompact >"%TEMP%\ss_ninja_deps.log" 2>&1
+cmake --build "%BUILDDIR%" -- -t recompact >"%TEMP%\ss_ninja_deps.log" 2>&1
 findstr /c:"premature end of file" /c:"bad deps log" "%TEMP%\ss_ninja_deps.log" >nul
 if errorlevel 1 (
-    echo repaired a corrupt build\.ninja_deps ^(this build recompiles everything once^)
+    echo repaired a corrupt %BUILDDIR%\.ninja_deps ^(this build recompiles everything once^)
 ) else (
-    echo build\.ninja_deps did not survive a recompact -- removing it
-    del /q build\.ninja_deps
+    echo %BUILDDIR%\.ninja_deps did not survive a recompact -- removing it
+    del /q "%BUILDDIR%\.ninja_deps"
 )
 :deps_checked
 del /q "%TEMP%\ss_ninja_deps.log" >nul 2>&1
@@ -118,6 +128,7 @@ for /f %%m in ('powershell -NoProfile -Command "[int]((Get-CimInstance Win32_Ope
 set /a JOBS=AVAILABLE_MB/JOB_RAM_MB
 if %JOBS% gtr %NUMBER_OF_PROCESSORS% set JOBS=%NUMBER_OF_PROCESSORS%
 if %JOBS% lss 1 set JOBS=1
+echo Build dir     : %BUILDDIR%
 echo Available RAM : %AVAILABLE_MB% MB
 echo CPU cores     : %NUMBER_OF_PROCESSORS%
 echo Using jobs    : %JOBS%
@@ -125,8 +136,8 @@ echo.
 
 rem `if errorlevel 1` is a >= test on a SIGNED value, so it reads a negative
 rem exit code as success -- a failed link returning -1 printed "Build complete".
-cmake --build build -j %JOBS%
+cmake --build "%BUILDDIR%" -j %JOBS%
 if %ERRORLEVEL% neq 0 exit /b 1
 
 echo.
-echo Build complete: build\spirula.exe
+echo Build complete: %BUILDDIR%\spirula.exe

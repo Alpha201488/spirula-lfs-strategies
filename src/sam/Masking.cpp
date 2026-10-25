@@ -1,5 +1,7 @@
 #include "sam/Masking.h"
 
+#include "birefnet/BiRefNet.h"
+#include "gdino/GroundingDino.h"
 #include "nn/core/Parallel.h"
 
 #include <algorithm>
@@ -95,11 +97,16 @@ void upscale_nearest(const std::vector<uint8_t>& src, int sw, int sh,
 
 struct Masker::Impl {
     sam::Session session;
+    birefnet::Predictor subject;
+    gdino::Detector detector;
+    bool subject_mode = false;
+    std::string loaded_subject, loaded_detector;
+    std::string error;
     // One tracker per positive phrase, plus -- when there are clicks -- one
     // more that only ever propagates what was seeded into it by hand.
     std::vector<std::unique_ptr<sam::Tracker>> trackers;
     std::unique_ptr<sam::Tracker> visual;
-    std::vector<std::string> pos, neg;
+    std::vector<std::string> pos, neg, feat;
     MaskOptions opts;
     int64_t frame = 0;
     // Seeds not yet applied, in frame order, and the instance each object was
@@ -126,8 +133,8 @@ struct Masker::Impl {
         return vp;
     }
 
-    // Only the overlay uses this; the pipeline's own mask_bounding_box lives
-    // behind sam/pipeline/, which this file is deliberately not part of.
+    // For the overlay and the subject mask's margin; the pipeline's own
+    // mask_bounding_box lives behind sam/pipeline/, which this file is not part of.
     static sam::Box bounding_box(const sam::Mask& m) {
         int x0 = m.width, y0 = m.height, x1 = -1, y1 = -1;
         for (int y = 0; y < m.height; ++y)
@@ -146,8 +153,29 @@ struct Masker::Impl {
 Masker::Masker() : impl_(new Impl()) {}
 Masker::~Masker() = default;
 
-const std::string& Masker::lastError() const { return impl_->session.lastError(); }
+const std::string& Masker::lastError() const {
+    return impl_->error.empty() ? impl_->session.lastError() : impl_->error;
+}
 sam::Session& Masker::session() { return impl_->session; }
+bool Masker::subjectMode() const { return impl_->subject_mode; }
+bool Masker::hasTarget() const {
+    return impl_->subject_mode || !impl_->pos.empty() || !impl_->opts.seeds.empty();
+}
+bool Masker::hasFeatureMask() const { return !impl_->feat.empty(); }
+
+void Masker::unload() {
+    impl_->trackers.clear();
+    impl_->visual.reset();
+    impl_->session.unload();
+    impl_->subject.unload();
+    impl_->detector.unload();
+    impl_->loaded_subject.clear();
+    impl_->loaded_detector.clear();
+}
+
+bool is_subject_model(const std::string& model) {
+    return birefnet::find_model_source(model) != nullptr || birefnet::is_checkpoint(model);
+}
 
 bool Masker::init(const MaskOptions& o, std::string& error) {
     // init() is also how a policy is *changed* -- the mask preview calls it on
@@ -160,6 +188,10 @@ bool Masker::init(const MaskOptions& o, std::string& error) {
     impl_->opts = o;
     impl_->pos = split_phrases(o.text);
     impl_->neg = split_phrases(o.neg_text);
+    impl_->feat = split_phrases(o.feature_text);
+    // Exceptions to nothing: with only feature phrases there is no union for
+    // them to carve out of.
+    if (impl_->pos.empty() && o.seeds.empty()) impl_->neg.clear();
     impl_->pending = o.seeds;
     // Applied in frame order regardless of the order they were given in, so a
     // correction drawn on frame 200 cannot land before the click on frame 3
@@ -168,14 +200,47 @@ bool Masker::init(const MaskOptions& o, std::string& error) {
                      [](const SeedPrompt& a, const SeedPrompt& b) {
                          return a.frame < b.frame;
                      });
-    if (impl_->pos.empty() && impl_->pending.empty()) {
+    impl_->error.clear();
+    impl_->subject_mode = is_subject_model(o.model);
+    // BiRefNet reads no words, so it has none to find the sky with.
+    if (impl_->subject_mode) impl_->feat.clear();
+    try {
+        if (impl_->subject_mode) {
+            if (impl_->loaded_subject != o.model) {
+                impl_->session.unload();
+                impl_->detector.unload();
+                impl_->loaded_detector.clear();
+                impl_->subject.load(o.model);
+                impl_->loaded_subject = o.model;
+            }
+            return true;
+        }
+        if (!impl_->loaded_subject.empty()) {
+            impl_->subject.unload();
+            impl_->loaded_subject.clear();
+        }
+        if (o.detector.empty()) {
+            impl_->detector.unload();
+            impl_->loaded_detector.clear();
+        } else if (impl_->loaded_detector != o.detector &&
+                   (!impl_->pos.empty() || !impl_->neg.empty() || !impl_->feat.empty())) {
+            impl_->detector.load(o.detector);
+            impl_->loaded_detector = o.detector;
+        }
+    } catch (const std::exception& e) {
+        error = e.what();
+        return false;
+    }
+    if (impl_->pos.empty() && impl_->pending.empty() && impl_->feat.empty()) {
         error = "nothing to segment: give --text, or --point to click on an object";
         return false;
     }
 
     sam::ModelParams mp;
     mp.model_path = o.model;
-    mp.device_match = o.device;
+    // One spelling, parsed by the shared resolver: an ordinal is an ordinal,
+    // a name is a name, "uuid:<hex>" is an identity -- never a name substring.
+    mp.device = o.device;
     mp.validation = o.validate;
     mp.profile = o.profile;
     mp.img_size = o.img_size;
@@ -183,9 +248,11 @@ bool Masker::init(const MaskOptions& o, std::string& error) {
         error = impl_->session.lastError();
         return false;
     }
-    if (!impl_->pos.empty() && !impl_->session.supportsTextPrompts()) {
+    if ((!impl_->pos.empty() || !impl_->feat.empty()) && o.detector.empty() &&
+        !impl_->session.supportsTextPrompts()) {
         error = "this checkpoint has no text encoder, so --text cannot be used; seed an "
-                "instance with --point instead (SAM 2 checkpoints are visual-only)";
+                "instance with --point, or pair it with --detector gdino-tiny (SAM 2 "
+                "checkpoints are visual-only)";
         return false;
     }
 
@@ -200,7 +267,9 @@ bool Masker::init(const MaskOptions& o, std::string& error) {
             vp.max_memory_frames = o.memory_frames;
             return std::make_unique<sam::Tracker>(impl_->session, vp);
         };
-        for (const std::string& p : impl_->pos) impl_->trackers.push_back(make(p));
+        // Grounding DINO detects every frame afresh, so text needs no tracker.
+        if (o.detector.empty())
+            for (const std::string& p : impl_->pos) impl_->trackers.push_back(make(p));
         // Clicked objects get their own tracker with no text, so the detector
         // never invents a second instance of something the user pointed at.
         if (!impl_->pending.empty()) impl_->visual = make("");
@@ -209,19 +278,47 @@ bool Masker::init(const MaskOptions& o, std::string& error) {
 }
 
 bool Masker::run(const nn::Image& image, sam::Mask& out, sam::Result* overlay_out,
-                 int64_t frame_id) {
+                 int64_t frame_id, sam::Mask* features_out) {
     Impl& s = *impl_;
     if (frame_id < 0) frame_id = s.frame;
+    if (features_out) *features_out = sam::Mask{};
+    // No decoder passes for a second mask nobody reads.
+    const std::vector<std::string> no_phrases;
+    const std::vector<std::string>& feat = features_out ? s.feat : no_phrases;
     const nn::Image scaled = downscale_to_fit(image, s.opts.max_size);
     const size_t n = (size_t)scaled.width * scaled.height;
     const double fx = (double)scaled.width / std::max(1, image.width);
     const double fy = (double)scaled.height / std::max(1, image.height);
     std::vector<uint8_t> hit(n, 0);
     sam::Result all;
+    sam::Result neg;
+    sam::Result feat_found;
+    s.error.clear();
 
-    if (!s.session.encodeImage(scaled)) return false;
+    if (s.subject_mode) {
+        // BiRefNet: the whole mask is one detection, so the margin and the
+        // polarity below treat it exactly as they treat a prompted object.
+        try {
+            sam::Detection d;
+            d.mask.width = scaled.width;
+            d.mask.height = scaled.height;
+            d.mask.data = s.subject.segment(scaled);
+            d.box = Impl::bounding_box(d.mask);
+            d.score = d.mask.iou_score = 1.0f;
+            const bool any = std::any_of(d.mask.data.begin(), d.mask.data.end(),
+                                         [](uint8_t v) { return v > 127; });
+            if (any) all.detections.push_back(std::move(d));
+        } catch (const std::exception& e) {
+            s.error = e.what();
+            return false;
+        }
+    } else if (!s.session.encodeImage(scaled)) {
+        return false;
+    }
 
-    if (s.opts.video) {
+    if (s.subject_mode) {
+        // The subject needs no prompt, no tracker and no second pass.
+    } else if (s.opts.video) {
         for (auto& t : s.trackers) {
             sam::Result r = t->trackEncoded();
             Impl::append(all, r);
@@ -264,7 +361,8 @@ bool Masker::run(const nn::Image& image, sam::Mask& out, sam::Result* overlay_ou
             }
         }
     } else {
-        for (const std::string& phrase : s.pos) {
+        for (const std::string& phrase : s.opts.detector.empty() ? s.pos
+                                                                 : std::vector<std::string>{}) {
             sam::ConceptPrompt cp;
             cp.text = phrase;
             cp.score_threshold = s.opts.threshold;
@@ -292,15 +390,60 @@ bool Masker::run(const nn::Image& image, sam::Mask& out, sam::Result* overlay_ou
         }
     }
 
+    // Grounding DINO: one detection pass for every phrase, positive, negative
+    // and feature-only alike, then one box-prompted SAM decode per box -- the
+    // features are already on the device.
+    if (!s.subject_mode && !s.opts.detector.empty() &&
+        (!s.pos.empty() || !s.neg.empty() || !feat.empty())) {
+        std::vector<std::string> phrases = s.pos;
+        phrases.insert(phrases.end(), s.neg.begin(), s.neg.end());
+        phrases.insert(phrases.end(), feat.begin(), feat.end());
+        std::vector<gdino::Detection> boxes;
+        try {
+            gdino::DetectOptions go;
+            go.box_threshold = s.opts.detector_threshold;
+            boxes = s.detector.detect(scaled, phrases, go);
+        } catch (const std::exception& e) {
+            s.error = e.what();
+            return false;
+        }
+        for (const gdino::Detection& b : boxes) {
+            sam::VisualPrompt vp;
+            vp.box = {b.x0, b.y0, b.x1, b.y1};
+            vp.use_box = true;
+            sam::Result r = s.session.segmentVisual(vp);
+            if (r.detections.empty()) {
+                if (!s.session.lastError().empty()) return false;
+                continue;
+            }
+            r.detections.resize(1);
+            r.detections[0].box = vp.box;
+            r.detections[0].score = b.score;
+            const size_t k = (size_t)b.phrase;
+            Impl::append(k < s.pos.size()                ? all
+                         : k < s.pos.size() + s.neg.size() ? neg
+                                                           : feat_found,
+                         r);
+        }
+    }
+
     // Negative phrases carve back out of what the positives found. The features
     // are already on the device, so this is a decoder pass only.
-    sam::Result neg;
-    for (const std::string& phrase : s.neg) {
+    for (const std::string& phrase : s.subject_mode || !s.opts.detector.empty()
+                                         ? std::vector<std::string>{}
+                                         : s.neg) {
         sam::ConceptPrompt cp;
         cp.text = phrase;
         cp.score_threshold = s.opts.threshold;
         cp.nms_threshold = s.opts.nms;
         Impl::append(neg, s.session.segmentConcept(cp));
+    }
+    for (const std::string& phrase : s.opts.detector.empty() ? feat : no_phrases) {
+        sam::ConceptPrompt cp;
+        cp.text = phrase;
+        cp.score_threshold = s.opts.threshold;
+        cp.nms_threshold = s.opts.nms;
+        Impl::append(feat_found, s.session.segmentConcept(cp));
     }
 
     // Every positive detection reached `all` as it was found, so the union and
@@ -308,24 +451,43 @@ bool Masker::run(const nn::Image& image, sam::Mask& out, sam::Result* overlay_ou
     // still in `scaled` pixels; the overlay below is what converts them.
     compose_hit(all, neg, s.opts.dilate_ratio, hit);
 
-    std::vector<uint8_t> mask(n);
-    {
-        const uint8_t* src = hit.data();
+    // Covered -> 0 (255 under `keep`), at the caller's resolution.
+    auto emit = [&](const std::vector<uint8_t>& covered, bool keep, sam::Mask& m) {
+        std::vector<uint8_t> mask(n);
+        const uint8_t* src = covered.data();
         uint8_t* dst = mask.data();
-        const bool keep = s.opts.keep_prompted;
         nn::parallel_for((int64_t)n, [src, dst, keep](int64_t lo, int64_t hi) {
             for (int64_t i = lo; i < hi; ++i)
                 dst[i] = (uint8_t)(((src[i] != 0) == keep) ? 255 : 0);
         }, /*min_chunk=*/65536);
+        m.width = image.width;
+        m.height = image.height;
+        if (scaled.width == image.width && scaled.height == image.height)
+            m.data = std::move(mask);
+        else
+            upscale_nearest(mask, scaled.width, scaled.height, m.data, image.width,
+                            image.height);
+    };
+    // With nothing to keep by name, "keep the named" would keep nothing.
+    emit(hit, s.opts.keep_prompted && hasTarget(), out);
+    if (features_out && !feat.empty()) {
+        // Grounding DINO answers a phrase it cannot place with a box round the
+        // whole frame (0.32 for "sky" indoors, 0.59 on real sky), which SAM
+        // fills with everything: as a feature mask that hides the frame.
+        const float fw = 0.95f * scaled.width, fh = 0.95f * scaled.height;
+        auto& fd = feat_found.detections;
+        fd.erase(std::remove_if(fd.begin(), fd.end(),
+                                [&](const sam::Detection& d) {
+                                    return d.box.x1 - d.box.x0 >= fw &&
+                                           d.box.y1 - d.box.y0 >= fh;
+                                }),
+                 fd.end());
+        // No margin: it covers the halo round a moving object, and grown into
+        // the skyline it would take the rooftops a distant scene registers by.
+        std::vector<uint8_t> covered(n, 0);
+        compose_hit(feat_found, sam::Result{}, 0.0f, covered);
+        emit(covered, false, *features_out);
     }
-
-    out.width = image.width;
-    out.height = image.height;
-    if (scaled.width == image.width && scaled.height == image.height)
-        out.data = std::move(mask);
-    else
-        upscale_nearest(mask, scaled.width, scaled.height, out.data, image.width,
-                        image.height);
 
     if (overlay_out) {
         // The overlay is drawn over the caller's image, so per-instance masks

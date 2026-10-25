@@ -1,22 +1,15 @@
 #pragma once
-// Prompt-to-mask policy, shared by ssam-cli and ssam-extract.
-//
-// This is the semantic layer reference/scripts/mask.py implements in
-// Python, kept in one place so the two tools cannot drift:
-//
-//   * several positive phrases, semicolon separated, unioned;
-//   * negative phrases carved back out -- a region matching one is KEPT even
-//     when it also matches a positive phrase;
-//   * the output mask says what to KEEP, so by default the prompted objects
-//     come out black and everything else white. `keep_prompted` flips that,
-//     for the case where the prompt names the subject rather than a distractor;
-//   * a longest-side cap on what the model sees, with the mask returned at the
-//     source resolution.
-//
-// It also covers the visual path, where there is no text at all and instances
-// are seeded from clicks -- see SeedPrompt.
+// Prompt-to-mask policy, shared by the CLI, the GUI's preview and its run:
+// positive phrases unioned; negative ones carved back out (a region matching
+// one is KEPT); the mask says what to keep, so prompted objects come out black
+// unless `keep_prompted`; a longest-side cap on what the model sees. Also the
+// visual path (clicks, SeedPrompt), the two non-SAM models, BiRefNet's
+// subject and Grounding DINO's boxes (MaskOptions), and the second mask that
+// keeps the sky out of feature extraction only. src/sam/README.md.
 
 #include "sam/Sam.h"
+
+#include <cstdint>
 
 #include <memory>
 #include <string>
@@ -44,17 +37,32 @@ struct SeedPrompt {
 };
 
 struct MaskOptions {
-    std::string model, device;
+    // A SAM checkpoint, or a BiRefNet one (id or path): BiRefNet masks the
+    // image's main subject and reads no prompt -- text and clicks are ignored.
+    std::string model;
+    // Grounding DINO (id or path). Set, it finds the text prompts' boxes and
+    // `model` segments them -- lang-segment-anything, which gives a SAM 2
+    // checkpoint words. Every frame is detected on its own; clicks still track.
+    std::string detector;
+    float detector_threshold = 0.3f;   // a box's best token probability
+    // The device request, in the spelling core/VulkanDeviceSelection.h parses:
+    // "auto", an ordinal, a name substring, or "uuid:<32 hex>". Empty leaves
+    // SS_VK_DEVICE and then Auto in charge; a bad value fails the run.
+    std::string device;
     std::string text, neg_text;
+    // Phrases kept out of SfM feature extraction but not out of training --
+    // the sky, whose features ride along with the clouds. Their own mask,
+    // run()'s `features_out`, from the same backbone pass as `text`.
+    std::string feature_text;
     // Clicks seeding tracked instances. The only way to prompt a SAM 2
     // checkpoint, and usable alongside text on a SAM 3 one.
     std::vector<SeedPrompt> seeds;
 
     bool  video = true;           // track across frames vs. segment each alone
     bool  keep_prompted = false;  // white = the prompted objects
-    // Grow every detection by this share of its own bounding-box mean side
-    // before the union: SAM's outlines hug the object and leave a halo of its
-    // colour behind. It grows the detected region, either side of keep_prompted.
+    // Move every detection's boundary by this share of its own bounding-box
+    // mean side before the union. SIGNED: positive grows the region, covering
+    // the halo a tight outline leaves; negative trims inside the outline.
     float dilate_ratio = 0.05f;
     float threshold = 0.5f, nms = 0.1f;
     int   detect_every = 1;
@@ -74,21 +82,25 @@ std::vector<std::string> split_phrases(const std::string& s);
 // Longest-side cap. Returns `src` unchanged when it already fits.
 nn::Image downscale_to_fit(const nn::Image& src, int max_size);
 
-// Euclidean pixels a detection of `box` grows by at `dilate_ratio`. A fraction
-// of the object's own size, so it is the same fraction whatever resolution the
-// box is measured in, and a distant object gets a smaller margin than a close one.
+// Euclidean pixels a detection of `box` moves by at `dilate_ratio`, signed as
+// the ratio is. A fraction of the object's own size, so it is the same fraction
+// whatever resolution the box is measured in, and a distant object moves less.
 int dilate_radius_px(const Box& box, float dilate_ratio);
 
-// ORs one detection's mask into `hit` (1 = covered), first grown by `radius`
-// Euclidean pixels. Growth stops at the frame border rather than wrapping: the
-// rest of the pipeline reads a mask as a plain image, seam or no seam.
+// ORs one detection's mask into `hit` (1 = covered), its boundary first moved
+// by `radius` Euclidean pixels: outward for a positive one, stopping at the
+// frame border rather than wrapping, and inward for a negative one.
 void accumulate_dilated(const Mask& mask, int radius, std::vector<uint8_t>& hit);
 
-// The union of `positive`, each detection grown by `dilate_ratio`, minus every
+// The union of `positive`, each detection moved by `dilate_ratio`, minus every
 // pixel `negative` covers. The order is load-bearing and is why this is one
 // function: a negative phrase is an explicit keep and must beat the margin.
 void compose_hit(const Result& positive, const Result& negative,
                  float dilate_ratio, std::vector<uint8_t>& hit);
+
+// Whether `model` (id or path) is a BiRefNet checkpoint: the mask is the
+// subject, so a job needs neither prompt nor clicks.
+bool is_subject_model(const std::string& model);
 
 class Masker {
 public:
@@ -99,21 +111,23 @@ public:
 
     bool init(const MaskOptions& o, std::string& error);
 
-    // Writes a mask the size of `image`: 255 where the pixel should be KEPT.
-    // `overlay_out`, when given, receives the raw detections for diagnostics.
-    //
-    // `frame_id` says which frame of the source this is, and is what
-    // SeedPrompt::frame is matched against. Callers that hand over every frame
-    // in order can leave it at -1 and get a plain 0, 1, 2 counter; the video
-    // extractor passes the decoded index instead, because it writes only the
-    // sharpest frame of each window and the two do not line up. A seed lands on
-    // the first frame at or after the one it was drawn on, so it is never lost
-    // to a frame that was skipped.
+    // A mask the size of `image`, 255 = KEEP; `features_out` likewise for
+    // feature_text, left empty without one. `frame_id` is what SeedPrompt::frame
+    // matches, -1 counting 0, 1, 2 (src/sam/README.md, "Clicked objects").
     bool run(const nn::Image& image, sam::Mask& out, sam::Result* overlay_out,
-             int64_t frame_id = -1);
+             int64_t frame_id = -1, sam::Mask* features_out = nullptr);
 
     const std::string& lastError() const;
     sam::Session& session();
+    // Whether init() chose BiRefNet: the mask is the subject, no prompt used.
+    bool subjectMode() const;
+    // Whether `out` answers anything: false when the only prompt is
+    // `feature_text`, and run() then writes a mask that keeps every pixel.
+    bool hasTarget() const;
+    // Whether run() fills `features_out`.
+    bool hasFeatureMask() const;
+    // Returns every model's weights to the device; init() loads them again.
+    void unload();
 
 private:
     struct Impl;

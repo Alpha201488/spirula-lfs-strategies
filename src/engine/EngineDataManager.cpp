@@ -21,6 +21,7 @@
 #include "i18n/catalog/Log.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <limits>
@@ -58,6 +59,9 @@ void engine_setup_data_manager(
     // joined before we begin spinning up new ones.
     engine().dm.reset();
     engine().gt_mean_luma.clear();
+    engine().visit.num_post = (int32_t)(viewmats.size() / 16);
+    engine().visit.cam_sum = DeviceVector<float>();
+    engine().visit.cam_cnt = DeviceVector<uint32_t>();
 
     engine().dm = std::make_unique<DataManager>(
         std::move(cfg), std::move(camera_models), std::move(camera_distortions),
@@ -74,6 +78,33 @@ void engine_setup_data_manager(
         std::move(train_indices),    std::move(val_indices));
 }
 
+
+void engine_set_view_stats(bool enabled) {
+    auto& v = engine().visit;
+    v.enabled = enabled && v.num_post > 0;
+    if (!v.enabled) return;
+    if (v.cam_sum.data_ptr() == nullptr) {
+        v.cam_sum.resize(PoolSlot::EngVisitCamSum, v.num_post);
+        v.cam_cnt.resize(PoolSlot::EngVisitCamCnt, v.num_post);
+        v.cam_sum.zero();
+        v.cam_cnt.zero();
+    }
+}
+
+void engine_read_view_stats(std::vector<float>& cam_sum, std::vector<uint32_t>& cam_cnt) {
+    auto& v = engine().visit;
+    cam_sum.clear(); cam_cnt.clear();
+    if (!v.enabled || v.cam_sum.data_ptr() == nullptr) return;
+    cam_sum.resize((size_t)v.num_post);
+    cam_cnt.resize((size_t)v.num_post);
+    backend::memcpy_sync(cam_sum.data(), v.cam_sum.data_ptr(),
+                         (size_t)v.num_post * sizeof(float), backend::MemcpyKind::DeviceToHost);
+    backend::memcpy_sync(cam_cnt.data(), v.cam_cnt.data_ptr(),
+                         (size_t)v.num_post * sizeof(uint32_t), backend::MemcpyKind::DeviceToHost);
+}
+
+// The stats a DataManager epoch draws on are at most this many steps old.
+static constexpr int kViewStatsPushEvery = 100;
 
 // Resolve the `split_batch` + `use_fused_proj_bwd_optim` conflict. Both
 // turned on at once is an inconsistency: split_batch loops over single
@@ -165,36 +196,54 @@ static float _sampled_mean_luma(uint64_t base, int64_t n_px, int64_t width,
 }
 
 
-// LossConfig::normalize_by_luminance: the photometric weights divided by
-// 0.5 / max(mean sRGB luma, 1/255). Leaves them alone when the step carries
-// no reference image to measure.
-static void _normalize_weights_by_luminance(LossConfig& loss, const TrainStep& stp) {
+static bool _sub_has_gt_rgb(const DecodedBatch& sub) {
+    const auto& shape = std::get<2>(sub.rgb_view);
+    return std::get<0>(sub.rgb_view) != 0 && shape.size() == 4 &&
+           shape[3] == 3 && shape[1] * shape[2] > 0;
+}
+
+// Mean display luma of row `j` of a sub-batch's reference images, through the
+// per-camera cache when the rows are whole input images (indices per row).
+static float _gt_row_luma(const DecodedBatch& sub, int64_t j) {
+    const TorchTensorView& rgb = sub.rgb_view;
+    const auto& shape = std::get<2>(rgb);
+    const int64_t px = shape[1] * shape[2];
+    const uint32_t elem = std::get<1>(rgb);
+    auto compute = [&] {
+        return _sampled_mean_luma(std::get<0>(rgb) + (uint64_t)(j * px) * 3 * elem,
+                                  px, shape[2], elem);
+    };
+    if ((int64_t)sub.indices.size() != shape[0]) return compute();
+    const int32_t id = sub.indices[(size_t)j];
+    if (id < 0) return compute();
     std::vector<float>& cache = engine().gt_mean_luma;
+    if ((size_t)id >= cache.size())
+        cache.resize((size_t)id + 1, std::numeric_limits<float>::quiet_NaN());
+    if (std::isnan(cache[(size_t)id])) cache[(size_t)id] = compute();
+    return cache[(size_t)id];
+}
+
+// LossConfig::luminance_normalization: the photometric weights times
+// 1 - factor (1 - (0.5 / max(mean sRGB luma, 1/255))). Leaves them alone when the step
+// carries no reference image to measure.
+static void _normalize_weights_by_luminance(LossConfig& loss, const TrainStep& stp,
+                                            float factor) {
     double sum = 0.0, total_px = 0.0;
     for (const auto& sub : stp.subs) {
-        const TorchTensorView& rgb = sub->rgb_view;
-        const auto& shape = std::get<2>(rgb);
-        const uint64_t base = std::get<0>(rgb);
-        if (base == 0 || shape.size() != 4 || shape[3] != 3) continue;
+        if (!_sub_has_gt_rgb(*sub)) continue;
+        const auto& shape = std::get<2>(sub->rgb_view);
         const int64_t B = shape[0], px = shape[1] * shape[2];
-        if (px <= 0 || (int64_t)sub->indices.size() != B) continue;
-        const uint32_t elem = std::get<1>(rgb);
-
+        if ((int64_t)sub->indices.size() != B) continue;
         for (int64_t j = 0; j < B; j++) {
-            const int32_t id = sub->indices[(size_t)j];
-            if (id < 0) continue;
-            if ((size_t)id >= cache.size())
-                cache.resize((size_t)id + 1, std::numeric_limits<float>::quiet_NaN());
-            if (std::isnan(cache[(size_t)id]))
-                cache[(size_t)id] = _sampled_mean_luma(
-                    base + (uint64_t)(j * px) * 3 * elem, px, shape[2], elem);
-            sum += (double)cache[(size_t)id] * (double)px;
+            if (sub->indices[(size_t)j] < 0) continue;
+            sum += (double)_gt_row_luma(*sub, j) * (double)px;
             total_px += (double)px;
         }
     }
     if (total_px <= 0.0) return;
 
-    const float scale = (float)(0.5 / std::max(sum / total_px, 1.0 / 255.0));
+    const float scale =
+        1.0f - factor * (1.0f - 0.5f / std::max((float)(sum / total_px), 1.0f / 255.0f));
     constexpr LossWeightIndex photometric[] = {
         LossWeightIndex::RgbSupL1, LossWeightIndex::RgbSupL2,
         LossWeightIndex::YSupL1,   LossWeightIndex::YSupL2,
@@ -202,6 +251,62 @@ static void _normalize_weights_by_luminance(LossConfig& loss, const TrainStep& s
     };
     for (LossWeightIndex i : photometric) loss.weights[(int)i] *= scale;
     loss.w_ssim *= scale;
+}
+
+
+// 0.5^p = luma / gain: the draw's median lands on the image's mean luma ahead
+// of PPISP, whose 2^e scales display values, or linear light (2^(e/2.2) in
+// display) when it runs before the encode. Clamped to [1/255, 1]: p in [0, 8].
+static float _bg_luma_exponent(float luma, float exposure_log2,
+                               bool ppisp_before_color_space) {
+    const double e = ppisp_before_color_space ? exposure_log2 / 2.2 : exposure_log2;
+    const double target = std::min(std::max((double)luma * std::exp2(-e), 1.0 / 255.0), 1.0);
+    return (float)-std::log2(target);
+}
+
+// BackgroundStepConfig::match_luminance: the per-slot power table the blend
+// kernels read, recomputed for this step's slots from the cached luma and the
+// current PPISP exposure, and re-uploaded whole (it is tiny).
+static void _update_background_exponents(const TrainStep& stp,
+                                         bool ppisp_before_color_space) {
+    auto& bg = engine().background;
+    std::vector<float>& luma = bg.luma_by_cam_host;
+    std::vector<float>& expo = bg.exponent_by_cam_host;
+
+    const auto& pp = engine().ppisp;
+    const int P = pp.num_params;
+    std::vector<float> ppisp_host;
+    if (pp.enabled && pp.params.data_ptr() && P > 0) {
+        ppisp_host.resize((size_t)pp.params.size<0>() * P);
+        backend::memcpy_sync(ppisp_host.data(), pp.params.data_ptr(),
+                             ppisp_host.size() * sizeof(float),
+                             backend::MemcpyKind::DeviceToHost);
+    }
+
+    bool any = false;
+    for (const auto& sub : stp.subs) {
+        if (!_sub_has_gt_rgb(*sub)) continue;
+        const int64_t B = std::get<2>(sub->rgb_view)[0];
+        const int K = std::max(sub->K, 1);
+        if ((int64_t)sub->post_offsets.size() * K < B) continue;
+        for (int64_t j = 0; j < B; j++) {
+            const size_t slot = (size_t)sub->post_offsets[(size_t)(j / K)] + (size_t)(j % K);
+            if (slot >= luma.size()) {
+                luma.resize(slot + 1, std::numeric_limits<float>::quiet_NaN());
+                expo.resize(slot + 1, 1.0f);   // the plain draw for slots never seen
+            }
+            luma[slot] = _gt_row_luma(*sub, j);
+            const float e = (slot + 1) * (size_t)P <= ppisp_host.size()
+                                ? ppisp_host[slot * (size_t)P] : 0.0f;
+            expo[slot] = _bg_luma_exponent(luma[slot], e, ppisp_before_color_space);
+            any = true;
+        }
+    }
+    if (!any) return;
+    if (bg.exponent_by_cam.size() != (int64_t)expo.size())
+        bg.exponent_by_cam.resize(PoolSlot::EngBgExponentByCam, (int64_t)expo.size());
+    backend::memcpy_sync(bg.exponent_by_cam.data_ptr(), expo.data(),
+                         expo.size() * sizeof(float), backend::MemcpyKind::HostToDevice);
 }
 
 
@@ -225,12 +330,24 @@ std::map<std::string, float> engine_train_step_managed(
         cfg_in, engine().dm->max_input_batch_size(),
         engine().dm->max_face_passes());
 
+    if (engine().visit.enabled && step % kViewStatsPushEvery == 0 && step > 0) {
+        std::vector<float> sum; std::vector<uint32_t> cnt;
+        engine_read_view_stats(sum, cnt);
+        engine().dm->set_view_stats(std::move(sum), std::move(cnt));
+    }
+
+    const auto wait_start = std::chrono::steady_clock::now();
     const TrainStep& stp = engine().dm->next_train_step();
+    engine().data_wait_seconds +=
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - wait_start).count();
     if (stp.subs.empty())
         throw std::runtime_error("engine_train_step_managed: empty training step");
 
-    if (cfg.loss.normalize_by_luminance)
-        _normalize_weights_by_luminance(cfg.loss, stp);
+    if (cfg.loss.luminance_normalization > 0.0f)
+        _normalize_weights_by_luminance(cfg.loss, stp, cfg.loss.luminance_normalization);
+    if (cfg.background.match_luminance && engine().background.enabled)
+        _update_background_exponents(
+            stp, cfg.ppisp.run_before_color_space && engine().color_space.splat_enabled);
 
     // Build a POST-split bilagrid cam-index buffer for one sub-batch.
     // bilagrid_cam_indices must be the POST-split camera id, not the input
@@ -335,6 +452,16 @@ std::map<std::string, float> engine_train_step_managed(
 }
 
 
+double engine_take_data_wait_seconds() {
+    const double s = engine().data_wait_seconds;
+    engine().data_wait_seconds = 0.0;
+    return s;
+}
+
+int engine_train_resolution_divisor() {
+    return engine().dm ? engine().dm->last_train_divisor() : 1;
+}
+
 void engine_resolve_data_error(bool retry) {
     if (engine().dm) engine().dm->resolve_data_error(retry);
 }
@@ -361,8 +488,7 @@ static TorchTensorView _slice_rows(const TorchTensorView& tv, int64_t k_start,
                            std::get<1>(tv), std::move(out));
 }
 
-// How many post-split views one pass of a batch renders -- what
-// _install_and_forward returns, needed by its caller before the call.
+// How many post-split views one pass of a batch renders.
 static int _batch_views(const DecodedBatch& b, int pass) {
     if (b.K <= 1 && b.input_source_models.empty()) return (int)b.num;
     const int C = b.face_passes.empty() ? 1 : (int)b.face_passes.size();
@@ -371,14 +497,10 @@ static int _batch_views(const DecodedBatch& b, int pass) {
     return (C == 1 ? (int)b.K : b.face_passes[(size_t)p].k1) - k0;
 }
 
-// Install a decoded batch as GT + camera params and run the forward pass;
-// neither caller wants loss, backward or optim. `with_geometry` installs the
-// depth and normal GT too, which costs the linear->ray conversion.
-static int _install_and_forward(const DecodedBatch& b, std::string primitive,
-                                int sh_degree, bool packed,
-                                bool with_geometry = false,
-                                bool input_depth_is_ray_depth = true,
-                                int dist_type = 0, int pass = 0) {
+// Install one pass of a decoded batch as GT + camera params. `with_geometry`
+// installs the depth and normal GT too, which costs the linear->ray conversion.
+static void _install_batch(const DecodedBatch& b, bool with_geometry,
+                           bool input_depth_is_ray_depth, int pass) {
     const bool geom = with_geometry;
     if (b.K <= 1 && b.input_source_models.empty()) {
         set_camera_params((int)b.width, (int)b.height,
@@ -423,14 +545,16 @@ static int _install_and_forward(const DecodedBatch& b, std::string primitive,
             b.input_intrins_view, b.input_dist_coeffs_view,
             b.input_source_models_view, b.input_source_params_view,
             _slice_rows(b.face_axes_view, k0, Kc));
-        forward_3dgs(std::move(primitive), sh_degree, packed,
-                     /*output_median=*/false, dist_type);
-        return _batch_views(b, pass);
     }
+}
 
+// Install a decoded batch and run the forward pass alone, for eval.
+static int _install_and_forward(const DecodedBatch& b, std::string primitive,
+                                int sh_degree, bool packed) {
+    _install_batch(b, /*with_geometry=*/false, true, 0);
     forward_3dgs(std::move(primitive), sh_degree, packed,
-                 /*output_median=*/false, dist_type);
-    return _batch_views(b, pass);
+                 /*output_median=*/false, 0);
+    return _batch_views(b, 0);
 }
 
 int engine_eval_forward(std::string primitive, int sh_degree, bool packed) {
@@ -456,7 +580,8 @@ int engine_eval_forward(std::string primitive, int sh_degree, bool packed) {
 
 int engine_preview_forward(int index, std::string primitive, int sh_degree,
                            bool packed, bool apply_color_correction,
-                           const LossConfig& loss, int pass, int* out_passes) {
+                           const EngineStepConfig& cfg, int pass,
+                           int* out_passes) {
     if (!engine().dm)
         throw std::runtime_error(
             "engine_preview_forward: DataManager not configured — call "
@@ -478,45 +603,26 @@ int engine_preview_forward(int index, std::string primitive, int sh_degree,
     // With the geometry GT and the training step's distortion channels: this
     // renders what the loss compares, so a loss map read off this forward
     // carries the same terms the trainer's does.
+    const LossConfig& loss = cfg.loss;
     const DistortionType dist_type = engine_distortion_type(
         engine_primitive_pixel_type(primitive),
         loss.weights[(int)LossWeightIndex::RgbDistReg],
         loss.weights[(int)LossWeightIndex::DepthDistReg],
         loss.weights[(int)LossWeightIndex::NormalDistReg]);
     // POST-split camera ids for this pass's faces, the same ones the training
-    // step hands the per-image tables. Built before the forward because the
-    // before-color-space order applies PPISP inside it.
+    // step hands the per-image tables; the forward's fused stages read them.
     const int views = _batch_views(b, pass);
     std::vector<int32_t> cam_idx((size_t)views);
     for (int v = 0; v < views; ++v)
         cam_idx[(size_t)v] = b.post_offsets[0] + k0 + v;
     TorchTensorView cam_view((uint64_t)cam_idx.data(), 4,
                              {(int64_t)views, 1LL});
-    const bool ppisp_in_forward = apply_color_correction &&
-                                  engine().ppisp.enabled &&
-                                  engine().ppisp.cur_run_before_color_space;
-    if (ppisp_in_forward) {
-        _set_cur_cam_indices(cam_view);
-        engine().ppisp.forward_pending = true;
-    }
+    _set_cur_cam_indices(cam_view);
 
-    _install_and_forward(
-        b, std::move(primitive), sh_degree, packed,
-        /*with_geometry=*/true, loss.input_depth_is_ray_depth, (int)dist_type,
-        pass);
-
-    if (apply_color_correction) {
-        const bool ppisp_after = engine().ppisp.enabled && !ppisp_in_forward;
-        const bool bg_enabled = engine().bilagrid_rgb.enabled ||
-                                engine().bilagrid_depth.enabled ||
-                                engine().bilagrid_normal.enabled;
-        if (engine().ppisp.cur_run_before_bilagrid) {
-            if (ppisp_after) engine_ppisp_forward(cam_view);
-            if (bg_enabled)  engine_bilagrid_forward(cam_view);
-        } else {
-            if (bg_enabled)  engine_bilagrid_forward(cam_view);
-            if (ppisp_after) engine_ppisp_forward(cam_view);
-        }
-    }
+    _install_batch(b, /*with_geometry=*/true, loss.input_depth_is_ray_depth, pass);
+    _engine_arm_step_forward(cfg, dist_type, apply_color_correction);
+    forward_3dgs(std::move(primitive), sh_degree, packed,
+                 /*output_median=*/false, (int)dist_type);
+    if (apply_color_correction) _engine_step_image_stages(cam_view);
     return views;
 }

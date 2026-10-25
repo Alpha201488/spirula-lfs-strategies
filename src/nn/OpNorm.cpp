@@ -15,6 +15,13 @@ struct LayerNormParams {
     uint32_t x_row_stride, out_row_stride, has_affine, groups_per_row, _pad0;
 };
 
+struct RmsNormHeadsParams {
+    uint64_t x, weight;
+    uint32_t heads, n_heads, head_dim, row_stride;
+    float    eps;
+    uint32_t groups_per_row;
+};
+
 struct GroupNormStatsParams {
     uint64_t stats, x;
     uint32_t n, channels, groups;
@@ -65,8 +72,29 @@ void layer_norm(const Tensor& out, const Tensor& x, const Tensor& w, const Tenso
         vk::Stream::Fold f = vk::Stream::fold1D(p.rows, 1);
         p.groups_per_row = f.per_row;
         vk::Stream::get().dispatch("norm.layer_norm", spec, f.per_row, f.rows, 1, &p,
-                                   sizeof(p));
+                                   sizeof(p), (double)p.rows * cols * vk::Stream::kElemWork);
     }
+}
+
+void rms_norm_heads(const Tensor& x, const Tensor& w, int64_t n, int n_heads, int head_dim,
+                    int64_t row_stride, float eps) {
+    NN_CHECK(x.dtype == DType::F32, "rms_norm_heads works in place on f32");
+    NN_CHECK(head_dim > 0 && head_dim <= 256, "rms_norm_heads: head_dim %d is past 256",
+             head_dim);
+    NN_CHECK(w.numel() >= head_dim, "rms_norm_heads: the weight is shorter than a head");
+    const KernelName entry = span_entry("norm.rms_norm_heads", {x, w});
+    RmsNormHeadsParams p{};
+    p.x = x.ptr;
+    p.weight = w.ptr;
+    p.heads = (uint32_t)(n * n_heads);
+    p.n_heads = (uint32_t)n_heads;
+    p.head_dim = (uint32_t)head_dim;
+    p.row_stride = (uint32_t)row_stride;
+    p.eps = eps;
+    vk::Stream::Fold f = vk::Stream::fold1D(p.heads, 1);
+    p.groups_per_row = f.per_row;
+    vk::Stream::get().dispatch(entry, {0u, 0u}, f.per_row, f.rows, 1, &p, sizeof(p),
+                               (double)p.heads * head_dim * vk::Stream::kElemWork);
 }
 
 void group_norm(vk::Arena& arena, const Tensor& out, const Tensor& x, const Tensor& w,
@@ -91,7 +119,7 @@ void group_norm(vk::Arena& arena, const Tensor& out, const Tensor& x, const Tens
     sp.eps = eps;
     vk::SpecList spec{0u, (uint32_t)(x.dtype == DType::F16)};
     vk::Stream::get().dispatch(stats_entry, spec, (uint32_t)groups, 1, 1, &sp,
-                               sizeof(sp));
+                               sizeof(sp), (double)n * channels * vk::Stream::kElemWork);
 
     GroupNormApplyParams ap{};
     ap.out = out.ptr;

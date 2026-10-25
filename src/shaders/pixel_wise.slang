@@ -239,7 +239,10 @@ float tone_encode(float x, no_diff int transfer) {
         return linear_rgb_to_srgb(xfer_clamp01(xfer_uncharted2(x)));
     if (transfer == kXferSrgbClamped)
         return linear_rgb_to_srgb(xfer_clamp01(x));
-    return linear_rgb_to_srgb(x);
+    // Clipped at black, open above: a wide-gamut splat outside Rec.709 lands
+    // below zero here, and the PPISP chromaticity homography downstream has a
+    // pole there (measured: display values of 1e3..1e7 on an ACEScg run).
+    return linear_rgb_to_srgb(xfer_max0(x));
 }
 
 float tone_decode(float d, int transfer) {
@@ -285,6 +288,16 @@ float3 display_to_working3(float3 rgb, int transfer, bool is_linear) {
     if (is_linear) return lin;
     return float3(linear_rgb_to_srgb(lin.x), linear_rgb_to_srgb(lin.y),
                   linear_rgb_to_srgb(lin.z));
+}
+
+// The randomized background's display draw raised to a per-image power (the
+// host's _bg_luma_exponent). p == 1 returns the draw untouched, so a run
+// without the option is bit-exact.
+[CudaDeviceExport]
+float3 background_apply_exponent(float3 display, float p) {
+    if (p == 1.0f) return display;
+    return float3(pow(max(display.x, 0.0f), p), pow(max(display.y, 0.0f), p),
+                  pow(max(display.z, 0.0f), p));
 }
 
 // Unproject an undistorted, normalized image point to a ray direction.

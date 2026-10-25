@@ -333,12 +333,12 @@ static void merge_vertices(Mesh& mesh, float merge_factor, float max_flip_deg,
             }
         }
         const auto& au = adj[u]; const auto& av = adj[v];
-        const auto& small = (au.size() < av.size()) ? au : av;
-        const auto& big   = (au.size() < av.size()) ? av : au;
+        const auto& smaller = (au.size() < av.size()) ? au : av;
+        const auto& larger  = (au.size() < av.size()) ? av : au;
         int common = 0;
-        for (int w : small) {
+        for (int w : smaller) {
             if (w == u || w == v) continue;
-            if (big.find(w) != big.end()) {
+            if (larger.find(w) != larger.end()) {
                 ++common;
                 if (w != opp0 && w != opp1) return false;
             }
@@ -1551,21 +1551,24 @@ bool generate_mesh(
         formats_csv += (formats_csv.empty() ? "" : ",") + f;
     if (formats_csv.empty()) formats_csv = "ply";
     std::vector<MeshFormatSpec> formats = parse_mesh_formats(formats_csv);
-    std::string out_base = output_path;
-    for (const char* ext : {".ply", ".obj", ".gltf", ".glb"}) {
-        size_t n = std::strlen(ext);
-        if (out_base.size() > n &&
-            out_base.compare(out_base.size() - n, n, ext) == 0) {
-            out_base.resize(out_base.size() - n);
-            break;
-        }
+    const std::string out_base = mesh_output_strip_ext(output_path);
+    std::vector<MeshColorMode> modes = cfg.colors;
+    if (modes.empty()) modes.push_back(MeshColorMode::Vertex);
+    std::vector<std::string> dropped;
+    const std::vector<MeshOutputRequest> outputs =
+        plan_mesh_outputs(formats, modes, out_base, &dropped);
+    for (const std::string& d : dropped)
+        mlog::out_raw(mlog::Stage::Wrote, "skipping " + d);
+    if (outputs.empty()) {
+        mlog::err_raw(mlog::Stage::Wrote,
+                      dropped.empty() ? std::string("nothing to write")
+                                      : dropped.front());
+        return false;
     }
-    for (const auto& spec : formats) {
-        std::string err = check_export_support(spec, cfg.color_mode);
-        if (!err.empty()) {
-            mlog::err_raw(mlog::Stage::Wrote, err);
-            return false;
-        }
+    bool want_vertex = false, want_texture = false;
+    for (const MeshOutputRequest& r : outputs) {
+        want_vertex = want_vertex || r.mode == MeshColorMode::Vertex;
+        want_texture = want_texture || r.mode == MeshColorMode::Texture;
     }
 
     OccupancyEvaluator ev(means, quats, log_scales, logit_opac, features_dc, num_splats,
@@ -1643,7 +1646,9 @@ bool generate_mesh(
     // pages back before the solver claims ~260 bytes per point.
     pts.clear(); pts.shrink_to_fit();
     auto tri = delaunay3d::compute_delaunay_3d(pts_d.data(), P, cfg.num_threads, false);
-    pts.assign(pts_d.begin(), pts_d.end());
+    pts.resize(pts_d.size());
+    std::transform(pts_d.begin(), pts_d.end(), pts.begin(),
+                   [](double v) { return static_cast<float>(v); });
     pts_d.clear(); pts_d.shrink_to_fit();
     const int M = tri.nb_cells;
     if (cfg.verbose)
@@ -1908,7 +1913,7 @@ bool generate_mesh(
 
     // ---- 7d. color: per-vertex, or a baked texture atlas ----
     auto t8 = Clock::now();
-    if (cfg.color_mode == MeshColorMode::Vertex && !mesh.V.empty()) {
+    if (want_vertex && !mesh.V.empty()) {
         const int nv = (int)mesh.V.size();
         std::vector<float> rgb(3 * nv);
         ev.colorize(&mesh.V[0][0], nv, rgb.data());
@@ -1920,7 +1925,18 @@ bool generate_mesh(
         if (cfg.verbose)
             mlog::out(mlog::Stage::Color, mmsg::seconds,
                       {mlog::num(secs_since(t8), 2)});
-    } else if (cfg.color_mode == MeshColorMode::Texture && !mesh.V.empty()) {
+    }
+
+    // ---- 8. write everything the atlas does not touch ----
+    // Before it, not after: baking splits the seam vertices, so V/F/C stop
+    // describing the mesh a vertex-colored or plain file is meant to hold.
+    if (cfg.verbose) print_mesh_stats(mesh);
+    for (const MeshOutputRequest& r : outputs)
+        if (r.mode != MeshColorMode::Texture)
+            write_mesh(mesh, r.mode, r.spec, r.base, /*verbose=*/true);
+
+    if (want_texture && !mesh.V.empty()) {
+        t8 = Clock::now();
         UVAtlasConfig uvcfg;
         uvcfg.texture_size = cfg.texture_size;
         uvcfg.gutter_px = cfg.tex_gutter_px;
@@ -1982,12 +1998,10 @@ bool generate_mesh(
         if (cfg.verbose)
             mlog::out(mlog::Stage::Texture, mmsg::seconds,
                       {mlog::num(secs_since(t8), 2)});
+        for (const MeshOutputRequest& r : outputs)
+            if (r.mode == MeshColorMode::Texture)
+                write_mesh(mesh, r.mode, r.spec, r.base, /*verbose=*/true);
     }
-
-    // ---- 8. write ----
-    if (cfg.verbose) print_mesh_stats(mesh);
-    for (const auto& spec : formats)
-        write_mesh(mesh, cfg.color_mode, spec, out_base, /*verbose=*/true);
     mlog::out(mlog::Stage::Done, mmsg::done_summary,
               {(long long)mesh.V.size(), (long long)mesh.F.size(),
                mlog::num(secs_since(t0), 2)});

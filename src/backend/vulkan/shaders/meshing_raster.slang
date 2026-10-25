@@ -506,14 +506,17 @@ struct MeshCullParams {
     int2* internal;
     float* nodeAABB;
     uint* visible;
-    uint32_t nv;
+    uint32_t first;
+    uint32_t count;
     uint32_t nf;
     uint32_t C;
     uint32_t wgs_per_row;
+    uint32_t _pad0;
 };
 
 [ForceInline]
 void _ms_cull<D : ICameraDistortion>(MeshCullParams p, int i) {
+    if (p.visible[i] != 0u) return;   // an earlier launch saw it
     float3 pt = ld3(p.verts, i);
     for (uint c = 0; c < p.C; ++c) {
         float* vm = p.viewmats + c * 16;
@@ -528,14 +531,13 @@ void _ms_cull<D : ICameraDistortion>(MeshCullParams p, int i) {
             -(vm[2] * vm[3] + vm[6] * vm[7] + vm[10] * vm[11]));
         if (!seg_blocked(pt, cam, i, p.verts, p.faces, int(p.nf),
                          p.leafMin, p.leafMax, p.internal, p.nodeAABB)) {
-            p.visible[i] = 1u;   // seen by this camera -> keep
+            p.visible[i] = 1u;
             return;
         }
     }
-    p.visible[i] = 0u;           // seen by no camera
 }
 
-#define _ms_cull_call(D) _ms_cull<D>(p, int(gid))
+#define _ms_cull_call(D) _ms_cull<D>(p, int(p.first + gid))
 
 [shader("compute")]
 [numthreads(256, 1, 1)]
@@ -543,7 +545,7 @@ void mesh_cull(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
                uniform MeshCullParams* pp) {
     MeshCullParams p = *pp;
     uint gid = (wg.y * p.wgs_per_row + wg.x) * 256 + tid;
-    if (gid >= p.nv) return;
+    if (gid >= p.count) return;
     SS_DISPATCH_DIST(_ms_cull_call)
 }
 #undef _ms_cull_call

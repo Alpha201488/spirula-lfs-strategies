@@ -19,22 +19,64 @@
 #include "mesh/MeshingRaster.h"
 
 #include "core/CameraModel.h"     // kCameraDistortionParams (portable spelling)
+#include "core/SubmitBudget.h"
 
 #include "backend/api/BackendRuntime.h"
 #include "backend/common/SortScan.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <set>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace meshing {
 
 namespace mmsg = spirula::i18n::msg::mesh;
 
+std::string camera_models_summary(const int* models, int C) {
+    std::string out;
+    for (int m : std::set<int>(models, models + C))
+        out += (out.empty() ? "" : "/") +
+               std::string(camera_model_to_string((CameraModelType)m));
+    return out;
+}
+
+void sync_checked(const char* stage) {
+    backend::device_synchronize();
+    if (const char* err = backend::last_error())
+        throw std::runtime_error(std::string("meshing: GPU error during ") +
+                                 stage + ": " + err);
+}
+
 namespace {
+
+// Largest point range one occupancy / bisection / color launch covers. Windows
+// resets the GPU when one runs past TdrDelay (2 s by default); the static field
+// measured ~37 ns/point on an RTX 5070, and 9M splats make 63M points.
+constexpr int kPointsPerLaunch = 1 << 19;
+
+// fn(first, count) over [0, n) in ranges of at most `chunk`, checking each.
+// Ranges start at 1/16 of it and grow as the budget learns the device: a
+// chunk is 19 ms on an RTX 5070 and can be seconds on an iGPU.
+template <typename Fn>
+void for_ranges(int n, int chunk, const char* stage, Fn&& fn) {
+    chunk = std::max(chunk, 1);
+    spirula::SubmitBudget budget;
+    for (int i = 0; i < n;) {
+        const int m = (int)std::min<int64_t>(n - i, budget.chunk(chunk / 16, chunk));
+        const auto t0 = std::chrono::steady_clock::now();
+        fn(i, m);
+        sync_checked(stage);
+        budget.record(m, std::chrono::duration<double>(
+                             std::chrono::steady_clock::now() - t0).count());
+        i += m;
+    }
+}
 
 // Owning device allocation. The meshing pipeline's buffers are one-shot
 // (allocated at construction, freed with the evaluator), so they go straight
@@ -181,7 +223,6 @@ struct OccupancyEvaluator::Impl {
     std::vector<float> cam_dist;      // [C*8] distortion coefficients
     std::vector<int> cam_widths;      // [C] per-camera image width
     std::vector<int> cam_heights;     // [C] per-camera image height
-    std::string cam_model;
     bool use_render = false;          // cams.valid() && cameras present
     RenderContext* rctx = nullptr;    // built when use_render
     std::vector<int> render_cam_indices;  // camera subset rendered per batch
@@ -203,6 +244,26 @@ struct OccupancyEvaluator::Impl {
         s.campos = campos; s.num_cameras = num_cameras;
         s.iso = cfg.iso;
         return s;
+    }
+
+    // The field the render path is not in use for: camera-segment when
+    // cameras are present, else the static density aggregation.
+    void occupancy_ranges(const float* d_xyz, int n, float* d_occ) const {
+        const GpuScene s = make_scene();
+        const int dynamic = num_cameras > 0 ? 1 : 0;
+        for_ranges(n, kPointsPerLaunch, "occupancy", [&](int i, int m) {
+            launch_occ(s, d_xyz + 3 * (size_t)i, m, d_occ + i, dynamic);
+        });
+    }
+
+    // d_occ = combine(d_occ, static density term) over [0, n).
+    void combine_static_occupancy(const float* d_xyz, int n, float* d_occ) const {
+        const GpuScene s = make_scene();
+        DBuf<float> d_s((size_t)std::min(n, kPointsPerLaunch));
+        for_ranges(n, kPointsPerLaunch, "occupancy", [&](int i, int m) {
+            launch_occ(s, d_xyz + 3 * (size_t)i, m, d_s, 0);
+            launch_occ_combine(m, d_occ + i, d_s);
+        });
     }
 };
 
@@ -240,7 +301,7 @@ OccupancyEvaluator::OccupancyEvaluator(
             N, d_means, d_quats, d_logsc, d_logit, d_fdc,
             impl_->mean, impl_->ax0, impl_->ax1, impl_->ax2, impl_->invs2,
             impl_->opac, impl_->radius, impl_->k2, impl_->valid, impl_->gcol);
-        backend::device_synchronize();
+        sync_checked("activation");
     }
 
     // ---- kept list + scene bbox (host) ----
@@ -331,7 +392,7 @@ OccupancyEvaluator::OccupancyEvaluator(
             launch_lbvh_init_aabb(n - 1, impl_->nodeAABB);
             launch_lbvh_aabb(n, impl_->internal, d_parent,
                              impl_->leafMin, impl_->leafMax, impl_->nodeAABB);
-            backend::device_synchronize();
+            sync_checked("LBVH build");
         }
     }
 
@@ -367,25 +428,26 @@ OccupancyEvaluator::OccupancyEvaluator(
             impl_->cam_dist.assign(cams.dist_coeffs, cams.dist_coeffs + ndist);
         impl_->cam_widths.assign(cams.widths, cams.widths + num_cameras);
         impl_->cam_heights.assign(cams.heights, cams.heights + num_cameras);
-        impl_->cam_model  = cams.camera_model;
         impl_->use_render = true;
         impl_->rctx = render_context_create(
             means, quats, log_scales, logit_opac, features_dc, N,
             impl_->cam_viewmats.data(), impl_->cam_intrins.data(),
             impl_->cam_dist.empty() ? nullptr : impl_->cam_dist.data(),
             num_cameras, impl_->cam_widths.data(), impl_->cam_heights.data(),
-            cams.camera_model, cams.distortion, cfg.carve_k, cfg.verbose);
+            cams.camera_models, cams.distortions, cfg.carve_k, cfg.verbose);
         if (cfg.verbose) {
             int w0 = impl_->cam_widths[0], h0 = impl_->cam_heights[0];
             bool uniform = true;
             for (int c = 1; c < num_cameras; ++c)
                 if (impl_->cam_widths[c] != w0 || impl_->cam_heights[c] != h0) { uniform = false; break; }
+            const std::string models =
+                camera_models_summary(cams.camera_models, num_cameras);
             if (uniform)
                 mlog::out(mlog::Stage::Loading, mmsg::intrinsics_uniform,
-                          {w0, h0, cams.camera_model});
+                          {w0, h0, models});
             else
                 mlog::out(mlog::Stage::Loading, mmsg::intrinsics_varied,
-                          {cams.camera_model});
+                          {models});
         }
     }
 }
@@ -414,7 +476,7 @@ void OccupancyEvaluator::generate_point_cloud(std::vector<float>& xyz_out) {
         impl_->num_kept, impl_->kept,
         impl_->mean, impl_->ax0, impl_->ax1, impl_->ax2, impl_->invs2,
         impl_->k2, d_out);
-    backend::device_synchronize();
+    sync_checked("point cloud");
     download(xyz_out.data(), d_out.get(), n * 3);
 }
 
@@ -423,19 +485,13 @@ void OccupancyEvaluator::evaluate(const float* xyz, int n, float* occ_out) {
     DBuf<float> d_xyz((size_t)n*3);
     DBuf<float> d_occ((size_t)n);
     upload(d_xyz.get(), xyz, (size_t)n*3);
-    GpuScene s = impl_->make_scene();
     if (impl_->render_path()) {
         render_evaluate_occupancy(impl_->rctx, impl_->render_cam_indices.data(),
             (int)impl_->render_cam_indices.size(), d_xyz, n, d_occ);
         // protect surfaces with the static density term (BVH-equivalent field)
-        DBuf<float> d_s((size_t)n);
-        launch_occ(s, d_xyz, n, d_s, 0);
-        launch_occ_combine(n, d_occ, d_s);
-        backend::device_synchronize();
+        impl_->combine_static_occupancy(d_xyz, n, d_occ);
     } else {
-        int dynamic = impl_->num_cameras > 0 ? 1 : 0;
-        launch_occ(s, d_xyz, n, d_occ, dynamic);
-        backend::device_synchronize();
+        impl_->occupancy_ranges(d_xyz, n, d_occ);
     }
     download(occ_out, d_occ.get(), (size_t)n);
 }
@@ -468,15 +524,11 @@ void OccupancyEvaluator::bisect_edges(
         std::vector<float> mid((size_t)n_edges*3), occ_mid(n_edges);
         DBuf<float> d_mid((size_t)n_edges*3);
         DBuf<float> d_occ((size_t)n_edges);
-        DBuf<float> d_occ_s((size_t)n_edges);
-        GpuScene s = impl_->make_scene();
         for (int it = 0; it < impl_->cfg.bisection_iters; ++it) {
             for (size_t k = 0; k < (size_t)n_edges*3; ++k) mid[k] = 0.5f*(lo[k]+hi[k]);
             upload(d_mid.get(), mid.data(), (size_t)n_edges*3);
             render_evaluate_occupancy(impl_->rctx, idx, ncam, d_mid, n_edges, d_occ);
-            launch_occ(s, d_mid, n_edges, d_occ_s, 0);
-            launch_occ_combine(n_edges, d_occ, d_occ_s);
-            backend::device_synchronize();
+            impl_->combine_static_occupancy(d_mid, n_edges, d_occ);
             download(occ_mid.data(), d_occ.get(), (size_t)n_edges);
             for (int e = 0; e < n_edges; ++e) {
                 bool mid_neg = (occ_mid[e] - iso) < 0.0f;
@@ -511,10 +563,13 @@ void OccupancyEvaluator::bisect_edges(
     upload(d_oa.get(), occ_a, (size_t)n_edges);
     upload(d_ob.get(), occ_b, (size_t)n_edges);
     GpuScene s = impl_->make_scene();
-    int dynamic = impl_->num_cameras > 0 ? 1 : 0;
-    launch_bisect(s, d_cloud, d_ea, d_eb, d_oa, d_ob, n_edges,
-                  impl_->cfg.bisection_iters, dynamic, d_out);
-    backend::device_synchronize();
+    const int dynamic = impl_->num_cameras > 0 ? 1 : 0;
+    const int iters = impl_->cfg.bisection_iters;
+    for_ranges(n_edges, kPointsPerLaunch / std::max(iters, 1), "bisection",
+               [&](int i, int m) {
+        launch_bisect(s, d_cloud, d_ea + i, d_eb + i, d_oa + i, d_ob + i, m,
+                      iters, dynamic, d_out + 3 * (size_t)i);
+    });
     download(xyz_out, d_out.get(), (size_t)n_edges*3);
 }
 
@@ -524,16 +579,17 @@ void OccupancyEvaluator::colorize(const float* verts, int n, float* rgb_out) {
     DBuf<float> d_c((size_t)n*3);
     upload(d_v.get(), verts, (size_t)n*3);
     GpuScene s = impl_->make_scene();
-    if (impl_->render_path()) {
+    const bool render = impl_->render_path();
+    if (render)
         render_evaluate_color(impl_->rctx, impl_->render_cam_indices.data(),
             (int)impl_->render_cam_indices.size(), d_v, n, d_c);
-        launch_colorize_fallback(s, d_v, n, d_c);
-        backend::device_synchronize();
-    } else {
-        int dynamic = impl_->num_cameras > 0 ? 1 : 0;
-        launch_colorize(s, d_v, n, d_c, dynamic);
-        backend::device_synchronize();
-    }
+    const int dynamic = impl_->num_cameras > 0 ? 1 : 0;
+    for_ranges(n, kPointsPerLaunch, "color", [&](int i, int m) {
+        const float* v = d_v + 3 * (size_t)i;
+        float* c = d_c + 3 * (size_t)i;
+        if (render) launch_colorize_fallback(s, v, m, c);
+        else        launch_colorize(s, v, m, c, dynamic);
+    });
     download(rgb_out, d_c.get(), (size_t)n*3);
 }
 

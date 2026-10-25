@@ -36,6 +36,10 @@ struct AlikedOptions {
     double min_score = 0.2;
     bool  verbose = true;
     int   device = -1;
+    // Canonical uuid:<hex>; the learned frontend configures the shared NN with
+    // this before it loads a model, so the int above never selects a device by
+    // itself.
+    std::string device_selector;
 };
 
 // LoMa's knobs. Deliberately not loma::ExtractOptions, for the same reason as
@@ -52,6 +56,8 @@ struct LomaOptions {
     double min_score = 0.0;           // DaD's density has no useful floor
     bool   verbose = true;
     int    device = -1;
+    // Canonical uuid:<hex>; see AlikedOptions::device_selector.
+    std::string device_selector;
 };
 
 struct IFeatureExtractor {
@@ -60,6 +66,13 @@ struct IFeatureExtractor {
     // One image in, its features out, in the coordinates of `img` (the caller
     // scales them back to the source file's, D46).
     virtual FeatureSet extract(const GrayImage& img) = 0;
+
+    // The same, told which image the next call will be, so an extractor that
+    // can start on it early does. `next` may be null.
+    virtual FeatureSet extractAhead(const GrayImage& img, const GrayImage* next) {
+        (void)next;
+        return extract(img);
+    }
 
     virtual const char* name() const = 0;
 

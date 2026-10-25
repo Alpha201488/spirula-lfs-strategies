@@ -10,6 +10,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -20,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/SubmitBudget.h"
 #include "sfm/core/Features.h"
 #include "sfm/core/Matches.h"
 #include "sfm/vk/EmbeddedSpirv.h"
@@ -38,6 +40,8 @@ struct MatchOptions {
     bool cross_check = true;    // keep only mutual nearest neighbours
     uint32_t max_num_matches = 32768;  // cap per pair (0 = unlimited)
     int device = -1;
+    // Canonical uuid:<hex>; wins over the ordinal, "" = shared precedence.
+    std::string device_selector;
     // Pairs per GPU submission. One command buffer holds every dispatch in a
     // batch, so the fence round trip is paid once per batch instead of per
     // pair; the batch's results are downloaded in one copy (D22).
@@ -79,12 +83,14 @@ public:
         // DP4A where the device has the instruction, the unpacked equivalent
         // where it lacks it (Intel Gen11/Gen12) or only emulates it (Apple).
         // Same integer result either way -- see bruteforce.slang.
-        dot4_ = VkContext::probeCaps(opt.device).intDotProductFast;
+        dot4_ = VkContext::probeCaps(deviceOnlyOpt(opt.device, opt.device_selector))
+                    .intDotProductFast;
         // SS_SFM_NO_DOT4=1 forces the fallback on a device that has DP4A,
         // which is how "same integer result" gets checked without the hardware
         // that lacks it.
         if (spirula::env_on("SFM_NO_DOT4")) dot4_ = false;
         VkContextOptions vo;
+        vo.selector = opt.device_selector;
         vo.deviceIndex = opt.device;
         vo.needIntDotProduct = dot4_;
         ctx_.init(vo);
@@ -164,16 +170,9 @@ private:
         return true;
     }
 
-    // How far a chunk can run from `b`: one device round trip costs a submit,
-    // a fence and a staging copy, so a chunk should be as large as the buffers
-    // allow. `batch_pairs` cannot express that -- a scoring pair (512 queries,
-    // no cross-check) produces ~32x less result data than a full match pair,
-    // so any fixed pair count either leaves the buffers empty on the small
-    // case or overruns them on the large one. Grow by *bytes* instead, bounded
-    // by the result buffer, the staging buffer and the resident descriptor
-    // block; always at least one pair, since all three are sized to hold the
-    // largest single pair. This is what turns half a million scoring pairs
-    // into dozens of submits instead of thousands.
+    // Grow a chunk by result bytes, not pair count (a scoring pair returns ~32x
+    // less than a full one), and by time: 64 cross-checked 8192^2 pairs are 2.0 s
+    // on a 2-CU RADV iGPU, which is its watchdog. Always at least one pair.
     size_t chunkEnd(const std::vector<const FeatureSet*>& feats,
                     const std::vector<std::pair<uint32_t, uint32_t>>& pairs, size_t b,
                     size_t end) {
@@ -182,23 +181,35 @@ private:
         const bool cc = opt_.cross_check;
         if (stamp_.size() < feats.size()) stamp_.assign(feats.size(), 0);
         ++epoch_;
+        const double workCap = budget_.limit();
         uint64_t res = 0, desc = used_;
+        double work = 0;
         size_t e = b;
         for (; e < end; e++) {
             const uint32_t ia = pairs[e].first, ib = pairs[e].second;
             const uint32_t na = feats[ia]->count(), nb = feats[ib]->count();
             const uint64_t addRes = (na && nb) ? (uint64_t)na + (cc ? nb : 0) : 0;
+            const double addWork = pairWork(na, nb);
             uint64_t addDesc = 0;
             for (uint32_t img : {ia, ib})
                 if (stamp_[img] != epoch_) {
                     stamp_[img] = epoch_;
                     if (!resident_.count(img)) addDesc += feats[img]->count();
                 }
-            if (e > b && (res + addRes > resCap || desc + addDesc > descCap_)) break;
+            if (e > b && (res + addRes > resCap || desc + addDesc > descCap_ ||
+                          work + addWork > workCap))
+                break;
             res += addRes;
             desc += addDesc;
+            work += addWork;
         }
         return e;
+    }
+
+    // Descriptor words the shader multiplies for one pair: what the GPU time
+    // of a chunk is proportional to, in SubmitBudget's units.
+    double pairWork(uint32_t na, uint32_t nb) const {
+        return (double)na * nb * desc_words_;
     }
 
     // Exactly one of `out` / `counts` is non-null.
@@ -217,12 +228,14 @@ private:
         std::vector<Slot> slots;
         slots.reserve(end - begin);
         uint64_t outCount = 0;
+        double work = 0;
         for (size_t k = begin; k < end; k++) {
             uint32_t ia = pairs[k].first, ib = pairs[k].second;
             uint32_t na = feats[ia]->count(), nb = feats[ib]->count();
             Slot s{ia, ib, na, nb, (uint32_t)outCount, (uint32_t)(outCount + na)};
             if (na == 0 || nb == 0) s.na = s.nb = 0;  // nothing to dispatch
             else outCount += (uint64_t)na + (cc ? nb : 0);
+            work += pairWork(s.na, s.nb);
             slots.push_back(s);
         }
         if (outCount == 0) return;
@@ -281,7 +294,10 @@ private:
             ctx_.barrier(cb);
             ctx_.recordDownload(cb, bResult_, bytes);
         }
+        const auto t0 = std::chrono::steady_clock::now();
         ctx_.submit(cb);
+        budget_.record(work, std::chrono::duration<double>(
+                                 std::chrono::steady_clock::now() - t0).count());
 
         const uint32_t* res;
         if (fused) {
@@ -367,6 +383,7 @@ private:
     std::vector<FeatureMatch> reduce(const uint32_t* rA, const uint32_t* rB, uint32_t na,
                                      uint32_t nb) const {
         std::vector<FeatureMatch> out;
+        std::vector<float> dist;
         const float r2 = opt_.max_ratio * opt_.max_ratio;
         for (uint32_t i = 0; i < na; i++) {
             uint32_t j = rA[4 * i + 0];
@@ -376,15 +393,10 @@ private:
             if (opt_.min_similarity > 0 && similarityFromD2(bestD2) < opt_.min_similarity)
                 continue;
             if (opt_.cross_check && rB[4 * j + 0] != i) continue;
-            out.push_back({i, j, std::sqrt((float)bestD2)});
+            out.push_back({i, j});
+            dist.push_back(std::sqrt((float)bestD2));
         }
-        if (opt_.max_num_matches > 0 && out.size() > opt_.max_num_matches) {
-            std::partial_sort(out.begin(), out.begin() + opt_.max_num_matches, out.end(),
-                              [](const FeatureMatch& x, const FeatureMatch& y) {
-                                  return x.distance < y.distance;
-                              });
-            out.resize(opt_.max_num_matches);
-        }
+        keepClosest(out, dist, opt_.max_num_matches);
         return out;
     }
 
@@ -516,12 +528,12 @@ private:
             if (!f.count()) continue;
             const size_t bytes = (size_t)f.count() * dsz;
             if (f.dtype == DType::U8) {
-                memcpy(blob + off, f.descriptors.data(), bytes);
+                memcpy(blob + off, f.descData(), bytes);
             } else {
                 // Float descriptors are L2-normalized on the way in. ALIKED's
                 // already are, so this is a no-op there; DeDoDe's are NOT, and
                 // both the quantization range and similarityFromD2 assume it.
-                const float* src = reinterpret_cast<const float*>(f.descriptors.data());
+                const float* src = reinterpret_cast<const float*>(f.descData());
                 for (uint32_t r = 0; r < f.count(); r++) {
                     const float* row = src + (size_t)r * dsz;
                     double sq = 0;
@@ -538,6 +550,7 @@ private:
     }
 
     MatchOptions opt_;
+    spirula::SubmitBudget budget_;
     bool dot4_ = true;  // device has VK_KHR_shader_integer_dot_product
     VkContext ctx_;
     GpuBuffer bDesc_, bNorm_, bResult_, bCol_;

@@ -2,11 +2,12 @@
 
 #include "app/gui/ImageCompare.h"
 
+#include "backend/api/BackendRuntime.h"
 #include "app/DepthColor.h"
 #include "app/TrainerCore.h"
 #include "app/gui/Layout.h"
 #include "app/gui/Ui.h"
-#include "core/ExrImage.h"
+#include "core/ImageFile.h"
 #include "engine/Engine.h"
 #include "external/stb_image.h"
 
@@ -225,6 +226,7 @@ void ImageCompare::destroy_gl() {
     for (Pane* p : {&_gt, &_render, &_gt_depth, &_render_depth,
                     &_gt_normal, &_render_normal, &_err_map})
         if (p->tex) { glDeleteTextures(1, &p->tex); p->tex = 0; }
+    _tex_dirty = true;
 }
 
 void ImageCompare::worker_loop() {
@@ -243,6 +245,12 @@ void ImageCompare::worker_loop() {
         s.job = j;
         const auto t0 = std::chrono::steady_clock::now();
         try {
+#ifndef SS_BACKEND_VULKAN
+            // CUDA current-device state is per thread; bind before the first engine call.
+            if (!backend::device_bind())
+                throw std::runtime_error(
+                    "compare: the selected GPU is not usable on this thread");
+#endif
             run_job(j, s);
         } catch (const std::exception& e) {
             s.error = e.what();
@@ -283,8 +291,9 @@ void ImageCompare::run_job(const Job& j, Shot& out) {
     bool got_err = false;
     // This step's config, so the forward renders the channels the trainer's
     // does and the error map is weighted the way this step weights it.
-    const LossConfig loss =
-        spirula::build_step_config(s.cfg, s.st, out.step).loss;
+    const EngineStepConfig step_cfg =
+        spirula::build_step_config(s.cfg, s.st, out.step);
+    const LossConfig& loss = step_cfg.loss;
 
     // One pass per run of equal-size faces (Engine.h, engine_preview_forward).
     // Views of one pass share a size, so each pass appends a block to every
@@ -304,7 +313,7 @@ void ImageCompare::run_job(const Job& j, Shot& out) {
         std::lock_guard<std::mutex> lk(s.engine_mutex);
         const int views = engine_preview_forward(
             j.index, s.cfg.primitive, sh_deg, s.cfg.packed || s.cfg.use_bvh,
-            j.color_correct, loss, pi, &npass);
+            j.color_correct, step_cfg, pi, &npass);
         auto shape = engine_get_render_rgb_shape();
         Pass q;
         q.views = (int)std::get<0>(shape);
@@ -516,12 +525,12 @@ void ImageCompare::run_job(const Job& j, Shot& out) {
     if (j.source_gt && j.index < (int)s.ds.image_filenames.size()) {
         const std::string& src = s.ds.image_filenames[(size_t)j.index];
         int w = 0, h = 0, ch = 0;
-        if (exr::is_exr(src)) {
+        if (imagefile::handles(src)) {
             // "Rec.709, not linear" is the identity: this pane shows the file's
             // own values, so an EXR is quantized without a transfer curve.
-            exr::Info info;
-            if (exr::decode_srgb8(src, exr::Options(), info, out.src,
-                                  "Rec.709", false).empty()) {
+            imagefile::Info info;
+            if (imagefile::decode_srgb8(src, imagefile::Options(), info, out.src,
+                                        "Rec.709", false).empty()) {
                 out.src_w = info.width;
                 out.src_h = info.height;
             } else {
@@ -663,8 +672,10 @@ int ImageCompare::faces() const {
     return std::max(1, K[(size_t)_index]);
 }
 
+// The session's own answer: mask files, the images' alpha, or neither when
+// load_masks is off.
 bool ImageCompare::has_masks() const {
-    return !_session->ds.mask_filenames.empty() || _session->post.any_fov_mask;
+    return _session->has_mask || _session->post.any_fov_mask;
 }
 
 void ImageCompare::select(int index) {

@@ -9,8 +9,11 @@
 #include <fstream>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "data/Yaml.h"
+#include "sfm/Pipeline.h"
+#include "sfm/core/Exif.h"
 #include "sfm/core/Manifest.h"
 #include "sfm/core/Rig.h"
 #include "sfm/tests/TestMain.h"
@@ -198,6 +201,125 @@ static int cmdManifestTest(int, char**) {
     check(image_dir2 == "given/images", "a positional image directory beats the file");
     check(cfg2.camera_mode != "single", "a --camera-mode flag beats the file");
 
+    // --no-masks against a manifest that names a mask_dir. The flag has to
+    // CLAIM the field, not merely clear it: the file fills in afterwards, and
+    // a run told to keep features out of the masks got them back this way.
+    {
+        write_file(dir + "/masked.yaml",
+                   "image_dir: images\nmask_dir: masks\n");
+        AutoRequest req;
+        const std::string err = parse_auto_args(
+            {dir + "/images", "-o", dir + "/out", "--manifest",
+             dir + "/masked.yaml", "--no-masks"},
+            req);
+        check(err.empty(), "--no-masks with a manifest parses");
+        check(req.cfg.mask_dir.empty(), "--no-masks beats a manifest's mask_dir");
+        check(req.in.mask_dir_explicit,
+              "and no sibling masks/ is looked for either");
+
+        AutoRequest req2;
+        check(parse_auto_args({dir + "/images", "-o", dir + "/out", "--manifest",
+                               dir + "/masked.yaml"},
+                              req2)
+                  .empty(),
+              "the same manifest without the flag parses");
+        check(!req2.cfg.mask_dir.empty(),
+              "and then the manifest's mask_dir is what is used");
+    }
+
+    // Sensors held back per capture and per folder: on unless said, and a
+    // switch left on signs nothing, so earlier resume states still match.
+    {
+        write_file(dir + "/sensors.yaml",
+                   "captures:\n"
+                   "  - prefix: a\n"
+                   "    telemetry: a.insv\n"
+                   "    imu: false\n"
+                   "  - prefix: b\n"
+                   "    telemetry: b.mp4\n"
+                   "exif:\n"
+                   "  - prefix: drone/\n"
+                   "    attitude: false\n"
+                   "  - prefix: .\n"
+                   "    gps: false\n");
+        const Manifest s = manifest_read(dir + "/sensors.yaml");
+        check(s.captures.size() == 2 && !s.captures[0].imu && s.captures[0].gps &&
+                  s.captures[1].imu && s.captures[1].gps,
+              "a capture's IMU switch, both on when unsaid");
+        check(s.exif.size() == 2 && s.exif[0].prefix == "drone" && s.exif[0].gps &&
+                  !s.exif[0].attitude && s.exif[1].prefix.empty() && !s.exif[1].gps,
+              "a folder's EXIF switches; '.' is the whole capture");
+        write_file(dir + "/sensors2.yaml", manifest_write(s));
+        check(manifest_write(manifest_read(dir + "/sensors2.yaml")) == manifest_write(s),
+              "the switches survive a round trip");
+
+        SfmConfig sc;
+        std::string sd;
+        check(manifest_apply(s, sc, {}, sd).empty() && sc.telemetry_inputs.size() == 2 &&
+                  !sc.telemetry_inputs[0].imu && sc.telemetry_inputs[0].gps &&
+                  sc.telemetry_inputs[1].imu,
+              "a capture's switches reach the config");
+        check(sc.exif_attitude_off == std::vector<std::string>{"drone"} &&
+                  sc.exif_gps_off == std::vector<std::string>{""},
+              "and a folder's, as prefixes");
+        check(exifPrefixCovers({"drone"}, "drone/a.jpg") &&
+                  !exifPrefixCovers({"drone"}, "drone2/a.jpg") && exifPrefixCovers({""}, "x.jpg"),
+              "a prefix covers a folder, not a name it begins");
+
+        SfmConfig on = sc;
+        on.telemetry_inputs[0].imu = true;
+        on.exif_gps_off.clear();
+        on.exif_attitude_off.clear();
+        check(stageSignature(sc, CMD_MATCH) != stageSignature(on, CMD_MATCH),
+              "held-back sensors change what matching is signed with");
+        SfmConfig none = on;
+        none.telemetry_inputs.clear();
+        check(stageSignature(on, CMD_MATCH) == stageSignature(none, CMD_MATCH),
+              "sensors left on sign nothing");
+    }
+
+    // A rig kind fills in the extrinsics it implies and survives a round trip;
+    // an explicit member refine does too.
+    {
+        write_file(dir + "/kind.yaml",
+                   "rigs:\n"
+                   "  - kind: dual-fisheye\n"
+                   "    members: [cam0, cam1]\n"
+                   "  - members:\n"
+                   "      - prefix: v0\n"
+                   "        rotation: [1, 0, 0, 0]\n"
+                   "        translation: [0, 0, 0]\n"
+                   "      - prefix: v1\n"
+                   "        rotation: [0, 0, 1, 0]\n"
+                   "        translation: [0, 0, 0]\n"
+                   "        fixed: false\n"
+                   "        refine: translation\n");
+        Manifest k = manifest_read(dir + "/kind.yaml");
+        check(k.rigs.size() == 2 && k.rigs[0].kind == "dual-fisheye" &&
+                  k.rigs[0].members[1].has_ext && k.rigs[0].members[1].dof == kRigDofAxial &&
+                  !k.rigs[0].members[1].ext_fixed &&
+                  std::fabs(k.rigs[0].members[1].ext.R[0] + 1.0) < 1e-12 &&
+                  std::fabs(k.rigs[0].members[1].ext.R[8] + 1.0) < 1e-12,
+              "dual-fisheye: back to back, the baseline its only translation");
+        check(k.rigs[1].members[1].dof == kRigDofTranslation, "refine: translation");
+        write_file(dir + "/kind2.yaml", manifest_write(k));
+        check(manifest_write(manifest_read(dir + "/kind2.yaml")) == manifest_write(k),
+              "kind and refine read back");
+        RigDef d;
+        check(parseRigArg("dual-fisheye=a/cam0,a/cam1", d).empty() && d.kind == "dual-fisheye" &&
+                  d.members.size() == 2 && d.members[1].prefix == "a/cam1" &&
+                  d.members[1].dof == kRigDofAxial,
+              "--rig dual-fisheye=...");
+        write_file(dir + "/badkind.yaml", "rigs:\n  - kind: trifocal\n    members: [a, b]\n");
+        bool bad_kind = false;
+        try {
+            manifest_read(dir + "/badkind.yaml");
+        } catch (const std::exception& e) {
+            bad_kind = std::string(e.what()).find("trifocal") != std::string::npos;
+        }
+        check(bad_kind, "an unknown rig kind names itself");
+    }
+
     // An unknown lens is caught where it is written, not 40 minutes in.
     write_file(dir + "/bad.yaml", "cameras:\n  - prefix: cam0\n    model: banana\n");
     threw = false;
@@ -207,6 +329,97 @@ static int cmdManifestTest(int, char**) {
         threw = std::string(e.what()).find("banana") != std::string::npos;
     }
     check(threw, "an unknown camera model names itself in the error");
+
+    {
+        const std::string calibrated = dir + "/calibrated.yaml";
+        write_file(calibrated,
+                   "camera_mode: folder\ncameras:\n"
+                   "  - prefix: cam0\n    model: opencv-fisheye\n"
+                   "    params: [900, 910, 1200, 1190, 0.1, -0.02, 0.003, -0.0004]\n"
+                   "  - prefix: cam1\n    model: opencv-fisheye\n"
+                   "    params: [920, 930, 1240, 1210, 0.2, -0.03, 0.004, -0.0005]\n");
+        Manifest cm = manifest_read(calibrated);
+        for (bool json : {false, true}) {
+            write_file(dir + "/roundtrip.yaml", manifest_write(cm, json));
+            check(manifest_read(dir + "/roundtrip.yaml").cameras[0].params ==
+                      cm.cameras[0].params,
+                  "full calibration round trips through YAML and JSON");
+        }
+        SfmConfig cc;
+        std::string ci;
+        check(manifest_apply(cm, cc, {}, ci).empty() && cc.finalize(CMD_AUTO).empty(),
+              "full calibration reaches the camera setup");
+        std::vector<ImageEntry> images = {{"cam0/a.jpg", 0}, {"cam1/a.jpg", 0}};
+        std::vector<FeatureSet> feats(2);
+        for (FeatureSet& f : feats) {
+            f.width = f.height = 2464;
+            f.extract_width = f.extract_height = 1232;
+            f.exif_focal = 2000;
+        }
+        CameraSetup setup = buildCameras(images, feats, cc.camera);
+        auto matches = [&](const CameraSetup& s, size_t i, const std::vector<double>& expected) {
+            double p[12]{};
+            const Camera& cam = s.cameras.at(s.ids[i]);
+            packColmap(cam, p);
+            return std::vector<double>(p, p + expected.size()) == expected &&
+                   cam.width == 2464 && cam.height == 2464;
+        };
+        check(setup.count() == 2 && matches(setup, 0, cm.cameras[0].params) &&
+                  matches(setup, 1, cm.cameras[1].params),
+              "anisotropic focal and off-centre principal point stay in source pixels");
+        check(setup.focal_known.count(setup.ids[0]) && setup.focal_given.count(setup.ids[1]),
+              "complete calibrations suppress focal search");
+        MatchesDatabase db;
+        db.images = images;
+        storeCameraSetup(db, setup);
+        writeMatches(dir + "/calibrated.bin", db);
+        MatchesDatabase reread = readMatches(dir + "/calibrated.bin");
+        CameraSetup restored;
+        check(loadCameraSetup(reread, restored) &&
+                  matches(restored, 0, cm.cameras[0].params) &&
+                  matches(restored, 1, cm.cameras[1].params),
+              "calibration survives the match-to-map file boundary");
+        const auto old_signature = stageSignature(cc, CMD_MATCH);
+        cc.camera.overrides[0].params[2] += 1e-9;
+        check(stageSignature(cc, CMD_MATCH) != old_signature,
+              "changing only the principal point invalidates cached matches");
+
+        SfmConfig prefixed;
+        parseCameraOverride("cam0=800", OverrideKind::Focal, prefixed.camera.overrides);
+        check(manifest_apply(cm, prefixed, {}, ci).empty() &&
+                  prefixed.finalize(CMD_AUTO).empty(),
+              "prefixed CLI override still applies");
+        const auto pc = buildCameras(images, feats, prefixed.camera);
+        check(pc.cameras.at(pc.ids[0]).fx == 800 && matches(pc, 1, cm.cameras[1].params),
+              "a CLI camera entry wins over the same manifest prefix");
+
+        cm.cameras.resize(1);
+        cm.cameras[0].prefix.clear();
+        SfmConfig global;
+        global.focal = 850;
+        check(manifest_apply(cm, global, {"focal"}, ci).empty() &&
+                  global.finalize(CMD_AUTO).empty(),
+              "dataset-wide calibration accepts the CLI focal override");
+        const auto gc = buildCameras(images, feats, global.camera);
+        const Camera& gcam = gc.cameras.at(gc.ids[0]);
+        check(gcam.fx == 850 && gcam.fy == 850 && gcam.cx == 1200 && gcam.cy == 1190,
+              "a dataset-wide CLI focal wins while preserving the principal point");
+
+        for (const std::string& body : {
+                 "params: [1, 2, 3, 4]",
+                 "model: opencv-fisheye\n    params: [1, 2, 3, 4]",
+                 "model: opencv-fisheye\n    params: [1, 0, 3, 4, 0, 0, 0, 0]",
+                 "model: opencv-fisheye\n    params: [-1, 2, 3, 4, 0, 0, 0, 0]",
+                 "model: opencv-fisheye\n    params: [1, 2, NaN, 4, 0, 0, 0, 0]",
+                 "model: opencv-fisheye\n    params: [1, 2, 3, 4, 0, 0, 0, 0]\n    focal: 1",
+                 "model: opencv-fisheye\n    params: [1, 2, 3, 4, 0, 0, 0, 0]\n    distortion: []"}) {
+            write_file(dir + "/bad.yaml", "cameras:\n  - prefix: cam0\n    " + body + "\n");
+            bool rejected = false;
+            try { manifest_read(dir + "/bad.yaml"); }
+            catch (const std::exception&) { rejected = true; }
+            check(rejected, "invalid or ambiguous full calibration is rejected");
+        }
+    }
 
     std::filesystem::remove_all(dir, ec);
     std::printf("manifest: 2 camera groups, YAML and JSON agree\n");

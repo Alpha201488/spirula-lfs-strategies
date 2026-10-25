@@ -79,8 +79,8 @@ void test_radius_formula() {
           "0.15 of a 400 px box is 29 px");
     check(sam::dilate_radius_px({60, 60, 139, 139}, 0.0f) == 0,
           "0 asks for no margin at all");
-    check(sam::dilate_radius_px({60, 60, 139, 139}, -0.5f) == 0,
-          "a negative ratio is not a shrink, it is off");
+    check(sam::dilate_radius_px({60, 60, 139, 139}, -0.15f) == -5,
+          "a negative ratio is the same radius, inward");
     // A wide, short box: the only shape that tells the mean of the two sides
     // apart from the longer one (14 px) or the shorter one (3 px).
     check(sam::dilate_radius_px({0, 0, 199, 49}, 0.15f) == 9,
@@ -268,6 +268,60 @@ void test_compose_matches_the_old_union() {
           "and the fixture is not trivially empty or trivially full");
 }
 
+void test_inward_geometry() {
+    std::printf("\nInward\n");
+    // The same fixture as the disc, the other way: a pixel survives exactly
+    // when the nearest pixel OUTSIDE the object is at least r away. For a
+    // rectangle that nearest one is straight up, down, left or right.
+    const int W = 240, H = 240, X0 = 40, Y0 = 40, X1 = 179, Y1 = 179;
+    const sam::Mask m = rect_mask(W, H, X0, Y0, X1, Y1);
+    const int r = sam::dilate_radius_px({(float)X0, (float)Y0, (float)X1, (float)Y1},
+                                        -0.15f);
+    check(r < 0, "the fixture asked for an inward offset");
+
+    std::vector<uint8_t> hit((size_t)W * H, 0);
+    sam::accumulate_dilated(m, r, hit);
+
+    size_t wrong = 0;
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x) {
+            const int out = (x < X0 || x > X1 || y < Y0 || y > Y1)
+                                ? 0
+                                : std::min(std::min(x - X0 + 1, X1 + 1 - x),
+                                           std::min(y - Y0 + 1, Y1 + 1 - y));
+            if ((hit[(size_t)y * W + x] != 0) != (out >= -r)) ++wrong;
+        }
+    check(wrong == 0, "every pixel survives exactly when it is r inside the edge");
+
+    size_t object_px = 0;
+    for (uint8_t b : m.data) object_px += (b > 127);
+    check(count_set(hit) > 0 && count_set(hit) < object_px,
+          "strictly smaller than the object, and not gone");
+}
+
+void test_inward_keeps_the_frame_edge() {
+    std::printf("\nInward at the frame edge\n");
+    // A subject running off the right edge of the frame. That cut is where the
+    // PICTURE ends, not where the subject does, so nothing is trimmed along it
+    // -- otherwise every close-up loses a band it never asked to lose.
+    const int W = 100, H = 100, X0 = 60, Y0 = 20, Y1 = 79;
+    const sam::Mask right = rect_mask(W, H, X0, Y0, W - 1, Y1);
+    const int r = sam::dilate_radius_px({(float)X0, (float)Y0, (float)(W - 1),
+                                         (float)Y1}, -0.15f);
+    check(r <= -3, "the edge object asks for an offset worth testing");
+
+    std::vector<uint8_t> hit((size_t)W * H, 0);
+    sam::accumulate_dilated(right, r, hit);
+    check(hit[(size_t)50 * W + (W - 1)] != 0,
+          "the column against the frame edge survives");
+    check(hit[(size_t)50 * W + (X0 - r - 1)] != 0 &&
+              hit[(size_t)50 * W + (X0 - r - 2)] == 0,
+          "while the side inside the picture is trimmed by exactly r");
+    check(hit[(size_t)(Y0 - r - 1) * W + 90] != 0 &&
+              hit[(size_t)(Y0 - r - 2) * W + 90] == 0,
+          "and so is the top, which is also inside the picture");
+}
+
 }  // namespace
 
 int main() {
@@ -276,6 +330,8 @@ int main() {
     test_scale_awareness();
     test_resolution_invariance();
     test_disc_geometry();
+    test_inward_geometry();
+    test_inward_keeps_the_frame_edge();
     test_zero_is_a_no_op();
     test_border_clips_and_does_not_wrap();
     test_negative_beats_the_margin();

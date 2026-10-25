@@ -27,6 +27,8 @@ void (*Uniform1f)(GLint, GLfloat) = nullptr;
 void (*Uniform1i)(GLint, GLint) = nullptr;
 void (*Uniform2f)(GLint, GLfloat, GLfloat) = nullptr;
 void (*Uniform4f)(GLint, GLfloat, GLfloat, GLfloat, GLfloat) = nullptr;
+void (*Uniform3f)(GLint, GLfloat, GLfloat, GLfloat) = nullptr;
+void (*Uniform1fv)(GLint, GLsizei, const GLfloat*) = nullptr;
 void (*GenBuffers)(GLsizei, GLuint*) = nullptr;
 void (*BindBuffer)(GLenum, GLuint) = nullptr;
 void (*BufferData)(GLenum, glSizeiptr, const void*, GLenum) = nullptr;
@@ -78,6 +80,8 @@ bool init() {
     load(Uniform1i, "glUniform1i");
     load(Uniform2f, "glUniform2f");
     load(Uniform4f, "glUniform4f");
+    load(Uniform3f, "glUniform3f");
+    load(Uniform1fv, "glUniform1fv");
     load(GenBuffers, "glGenBuffers");
     load(BindBuffer, "glBindBuffer");
     load(BufferData, "glBufferData");

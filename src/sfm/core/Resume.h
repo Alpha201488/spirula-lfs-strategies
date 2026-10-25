@@ -30,6 +30,12 @@ namespace resume {
 // Under the workspace, beside features/ and matches.bin. Dotted: the workspace
 // is the user's folder, and a plain name there could be theirs.
 inline constexpr const char* kDir = ".resume";
+// Under it: the extraction's and matching's signatures, and the journal.
+inline constexpr const char* kExtractSig = "extract.sig";
+inline constexpr const char* kMatchSig = "match.sig";
+inline constexpr const char* kMatchJournal = "matches.part";
+// The extraction signature's line naming the image folder, as given.
+inline constexpr const char* kSignedImages = "images=";
 
 std::filesystem::path dir(const std::string& workspace);
 

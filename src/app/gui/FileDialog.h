@@ -15,7 +15,10 @@ namespace gui {
 
 class FileDialog {
 public:
-    enum class Mode { Folder, File };
+    // FileOrFolder: a model is a file, a reconstruction a directory. Only
+    // macOS's panel returns either; elsewhere the desktop picker takes a FILE
+    // and a reconstruction is named by one of its own (a transforms.json).
+    enum class Mode { Folder, File, Save, FileOrFolder };
 
     // Whether to prefer the desktop's picker. Persisted by GuiApp; the
     // built-in browser is what a user who cannot get the system one to appear
@@ -24,14 +27,13 @@ public:
     bool native_enabled() const { return _use_native; }
     bool native_available() const { return NativeDialog::available(); }
 
-    // Arm the dialog; it opens on the next draw() call. `extensions` filters
-    // File mode (lowercase, with dot, e.g. {".mp4", ".mov"}); empty = all
-    // files. `start_dir` = initial directory ("" = last used / home).
-    // `multi_select` (File mode only) lets several files come back at once --
-    // a dataset can be built from several video clips.
+    // Arm the dialog; it opens on the next draw(). `extensions` filters File
+    // and Save (lowercase, with dot) and a Save appends the first of them to
+    // a name typed without one; `multi_select` is File only.
     void open(const std::string& title, Mode mode,
               const std::vector<std::string>& extensions = {},
-              const std::string& start_dir = "", bool multi_select = false);
+              const std::string& start_dir = "", bool multi_select = false,
+              const std::string& suggested_name = {});
 
     // Draw the modal if open. Returns true exactly once when the user
     // confirmed a selection; the picked paths are in results(), the first of
@@ -41,7 +43,9 @@ public:
     // Armed or on screen. ImGui shows one modal at a time, so a caller that is
     // itself a modal has to step aside for this one and needs to know when it
     // is gone -- whether the user confirmed or cancelled.
-    bool is_open() const { return _is_open || _want_open || _native.busy(); }
+    bool is_open() const {
+        return _is_open || _want_open || _native.busy() || !_replace_path.empty();
+    }
 
     const std::string& result() const { return _result; }
     const std::vector<std::string>& results() const { return _results; }
@@ -50,6 +54,7 @@ private:
     void refresh();
     bool is_selected(const std::string& name) const;
     void toggle(const std::string& name);
+    bool with_extension(std::string& path) const;
 
     struct Entry { std::string name; bool is_dir = false; };
 
@@ -59,6 +64,7 @@ private:
     std::vector<std::string> _extensions;
     std::string _cwd;
     std::string _path_edit;          // editable path bar
+    std::string _save_name;          // Save mode's name field
     std::vector<Entry> _entries;
     // Basenames of the highlighted entries, in the order they were clicked.
     // Single-select keeps at most one.
@@ -69,6 +75,10 @@ private:
     bool _is_open = false;
     NativeDialog _native;
     bool _use_native = true;
+    // A save whose name gained its extension here and turned out to exist:
+    // the system picker asked about a different file, so this asks again.
+    std::string _replace_path;
+    bool _ask_replace = false;
 };
 
 }  // namespace gui

@@ -711,6 +711,16 @@ enum RawPPISPRegLossIndexRQS {
     length
 };
 
+// Summed over cameras: log2(E[gain]) = 0 needs the gains, E[log2 gain] = 0
+// the exposure parameters themselves.
+[ForceInline]
+[Differentiable]
+float ppisp_raw_exposure(float exposure, bool arithmetic_mean) {
+    if (arithmetic_mean)
+        return exp2(exposure);
+    return exposure;
+}
+
 [ForceInline]
 [Differentiable]
 float varp_of_3(float a, float b, float c) {
@@ -723,13 +733,14 @@ float varp_of_3(float a, float b, float c) {
 [CudaDeviceExport]
 [Differentiable]
 float[RawPPISPRegLossIndex::length] compute_raw_ppisp_regularization_loss(
-    float[PPISP_NUM_PARAMS] params
+    float[PPISP_NUM_PARAMS] params, bool exposure_arithmetic_mean
 ) {
     PPISPParams p = get_ppisp_params(params);
     float losses[RawPPISPRegLossIndex::length] = {0.0f};
 
     // Exposure
-    losses[RawPPISPRegLossIndex::SumExposure] = p.exposure;
+    losses[RawPPISPRegLossIndex::SumExposure] =
+        ppisp_raw_exposure(p.exposure, exposure_arithmetic_mean);
 
     // Vignetting
     losses[RawPPISPRegLossIndex::SumVignettingCrSquared] =
@@ -793,12 +804,13 @@ float[RawPPISPRegLossIndex::length] compute_raw_ppisp_regularization_loss(
 [CudaDeviceExport]
 [Differentiable]
 float[RawPPISPRegLossIndexRQS::length] compute_raw_ppisp_rqs_regularization_loss(
-    float[PPISP_RQS_NUM_PARAMS] params
+    float[PPISP_RQS_NUM_PARAMS] params, bool exposure_arithmetic_mean
 ) {
     PPISPParamsRQS p = get_ppisp_rqs_params(params);
     float losses[RawPPISPRegLossIndexRQS::length] = { 0.0f };
     // Exposure
-    losses[RawPPISPRegLossIndexRQS::SumExposure] = p.exposure;
+    losses[RawPPISPRegLossIndexRQS::SumExposure] =
+        ppisp_raw_exposure(p.exposure, exposure_arithmetic_mean);
 
     // Vignetting
     losses[RawPPISPRegLossIndexRQS::SumVignettingCrSquared] =
@@ -863,24 +875,24 @@ float[RawPPISPRegLossIndexRQS::length] compute_raw_ppisp_rqs_regularization_loss
 
 [CudaDeviceExport]
 float[PPISP_NUM_PARAMS] compute_raw_ppisp_regularization_loss_vjp(
-    float[PPISP_NUM_PARAMS] params,
+    float[PPISP_NUM_PARAMS] params, bool exposure_arithmetic_mean,
     float[RawPPISPRegLossIndex::length] grad_out
 ) {
     DifferentialPair<float[PPISP_NUM_PARAMS]> dp_params = diffPair(params);
     bwd_diff(compute_raw_ppisp_regularization_loss)(
-        dp_params, grad_out
+        dp_params, exposure_arithmetic_mean, grad_out
     );
     return dp_params.d;
 }
 
 [CudaDeviceExport]
 float[PPISP_RQS_NUM_PARAMS] compute_raw_ppisp_rqs_regularization_loss_vjp(
-    float[PPISP_RQS_NUM_PARAMS] params,
+    float[PPISP_RQS_NUM_PARAMS] params, bool exposure_arithmetic_mean,
     float[RawPPISPRegLossIndexRQS::length] grad_out
 ) {
     DifferentialPair<float[PPISP_RQS_NUM_PARAMS]> dp_params = diffPair(params);
     bwd_diff(compute_raw_ppisp_rqs_regularization_loss)(
-        dp_params, grad_out
+        dp_params, exposure_arithmetic_mean, grad_out
     );
     return dp_params.d;
 }
@@ -889,13 +901,14 @@ float[PPISP_RQS_NUM_PARAMS] compute_raw_ppisp_rqs_regularization_loss_vjp(
 [CudaDeviceExport]
 [Differentiable]
 float[RawPPISPRegLossIndexNoCRF::length] compute_raw_ppisp_no_crf_regularization_loss(
-    float[PPISP_NO_CRF_NUM_PARAMS] params
+    float[PPISP_NO_CRF_NUM_PARAMS] params, bool exposure_arithmetic_mean
 ) {
     PPISPParamsNoCRF p = get_ppisp_no_crf_params(params);
     float losses[RawPPISPRegLossIndexNoCRF::length] = { 0.0f };
 
     // Exposure
-    losses[RawPPISPRegLossIndexNoCRF::SumExposure] = p.exposure;
+    losses[RawPPISPRegLossIndexNoCRF::SumExposure] =
+        ppisp_raw_exposure(p.exposure, exposure_arithmetic_mean);
 
     // Vignetting
     losses[RawPPISPRegLossIndexNoCRF::SumVignettingCrSquared] =
@@ -948,12 +961,12 @@ float[RawPPISPRegLossIndexNoCRF::length] compute_raw_ppisp_no_crf_regularization
 
 [CudaDeviceExport]
 float[PPISP_NO_CRF_NUM_PARAMS] compute_raw_ppisp_no_crf_regularization_loss_vjp(
-    float[PPISP_NO_CRF_NUM_PARAMS] params,
+    float[PPISP_NO_CRF_NUM_PARAMS] params, bool exposure_arithmetic_mean,
     float[RawPPISPRegLossIndexNoCRF::length] grad_out
 ) {
     DifferentialPair<float[PPISP_NO_CRF_NUM_PARAMS]> dp_params = diffPair(params);
     bwd_diff(compute_raw_ppisp_no_crf_regularization_loss)(
-        dp_params, grad_out
+        dp_params, exposure_arithmetic_mean, grad_out
     );
     return dp_params.d;
 }
@@ -961,12 +974,13 @@ float[PPISP_NO_CRF_NUM_PARAMS] compute_raw_ppisp_no_crf_regularization_loss_vjp(
 [CudaDeviceExport]
 [Differentiable]
 float[RawPPISPRegLossIndexNoCRFNoVig::length] compute_raw_ppisp_no_crf_no_vig_regularization_loss(
-    float[PPISP_NO_CRF_NO_VIG_NUM_PARAMS] params
+    float[PPISP_NO_CRF_NO_VIG_NUM_PARAMS] params, bool exposure_arithmetic_mean
 ) {
     PPISPParamsNoCRFNoVig p = get_ppisp_no_crf_no_vig_params(params);
     float losses[RawPPISPRegLossIndexNoCRFNoVig::length] = { 0.0f };
 
-    losses[RawPPISPRegLossIndexNoCRFNoVig::SumExposure] = p.exposure;
+    losses[RawPPISPRegLossIndexNoCRFNoVig::SumExposure] =
+        ppisp_raw_exposure(p.exposure, exposure_arithmetic_mean);
 
     const static float2x2 zca_b = float2x2(0.0480542f, -0.0043631f, -0.0043631f, 0.0481283f);
     const static float2x2 zca_r = float2x2(0.0580570f, -0.0179872f, -0.0179872f, 0.0431061f);
@@ -990,12 +1004,12 @@ float[RawPPISPRegLossIndexNoCRFNoVig::length] compute_raw_ppisp_no_crf_no_vig_re
 
 [CudaDeviceExport]
 float[PPISP_NO_CRF_NO_VIG_NUM_PARAMS] compute_raw_ppisp_no_crf_no_vig_regularization_loss_vjp(
-    float[PPISP_NO_CRF_NO_VIG_NUM_PARAMS] params,
+    float[PPISP_NO_CRF_NO_VIG_NUM_PARAMS] params, bool exposure_arithmetic_mean,
     float[RawPPISPRegLossIndexNoCRFNoVig::length] grad_out
 ) {
     DifferentialPair<float[PPISP_NO_CRF_NO_VIG_NUM_PARAMS]> dp_params = diffPair(params);
     bwd_diff(compute_raw_ppisp_no_crf_no_vig_regularization_loss)(
-        dp_params, grad_out
+        dp_params, exposure_arithmetic_mean, grad_out
     );
     return dp_params.d;
 }
@@ -1020,18 +1034,30 @@ float smooth_l1_loss(float x, float beta) {
     }
 }
 
+// sum_exposure is ppisp_raw_exposure summed over the cameras.
+[ForceInline]
+[Differentiable]
+float ppisp_exposure_mean_loss(float sum_exposure, int num_cameras,
+                               bool arithmetic_mean) {
+    float mean = sum_exposure / num_cameras;
+    if (arithmetic_mean)
+        mean = log2(mean);
+    return smooth_l1_loss(mean, 0.1f);
+}
+
 [CudaDeviceExport]
 [Differentiable]
 float[PPISPRegLossIndex::length] compute_ppisp_regularization_loss(
     float[RawPPISPRegLossIndex::length] raw_losses,
     int num_cameras,
+    bool exposure_arithmetic_mean,
     no_diff float[PPISPRegLossIndex::length] loss_weights
 ) {
     float losses[PPISPRegLossIndex::length];
 
     // Exposure mean
-    losses[PPISPRegLossIndex::ExposureMean] =
-        smooth_l1_loss(raw_losses[RawPPISPRegLossIndex::SumExposure] / num_cameras, 0.1f);
+    losses[PPISPRegLossIndex::ExposureMean] = ppisp_exposure_mean_loss(
+        raw_losses[RawPPISPRegLossIndex::SumExposure], num_cameras, exposure_arithmetic_mean);
 
     // Vignetting center (cx, cy close to 0)
     losses[PPISPRegLossIndex::VignettingCenter] =
@@ -1095,13 +1121,14 @@ float[PPISPRegLossIndex::length] compute_ppisp_regularization_loss(
 float[PPISPRegLossIndex::length] compute_ppisp_rqs_regularization_loss(
     float[RawPPISPRegLossIndexRQS::length] raw_losses,
     int num_cameras,
+    bool exposure_arithmetic_mean,
     no_diff float[PPISPRegLossIndex::length] loss_weights
 ) {
     float losses[PPISPRegLossIndex::length];
 
     // Exposure mean
-    losses[PPISPRegLossIndex::ExposureMean] =
-        smooth_l1_loss(raw_losses[RawPPISPRegLossIndexRQS::SumExposure] / num_cameras, 0.1f);
+    losses[PPISPRegLossIndex::ExposureMean] = ppisp_exposure_mean_loss(
+        raw_losses[RawPPISPRegLossIndexRQS::SumExposure], num_cameras, exposure_arithmetic_mean);
 
     // Vignetting center (cx, cy close to 0)
     losses[PPISPRegLossIndex::VignettingCenter] =
@@ -1164,12 +1191,14 @@ float[PPISPRegLossIndex::length] compute_ppisp_rqs_regularization_loss(
 float[RawPPISPRegLossIndex::length] compute_ppisp_regularization_loss_vjp(
     float[RawPPISPRegLossIndex::length] raw_losses,
     int num_cameras,
+    bool exposure_arithmetic_mean,
     float[PPISPRegLossIndex::length] loss_weights,
     float[PPISPRegLossIndex::length] grad_out
 ) {
     DifferentialPair<float[RawPPISPRegLossIndex::length]> dp_raw_losses = diffPair(raw_losses);
     bwd_diff(compute_ppisp_regularization_loss)(
-        dp_raw_losses, num_cameras, loss_weights, grad_out
+        dp_raw_losses, num_cameras, exposure_arithmetic_mean, loss_weights,
+        grad_out
     );
     return dp_raw_losses.d;
 }
@@ -1178,12 +1207,14 @@ float[RawPPISPRegLossIndex::length] compute_ppisp_regularization_loss_vjp(
 float[RawPPISPRegLossIndexRQS::length] compute_ppisp_rqs_regularization_loss_vjp(
     float[RawPPISPRegLossIndexRQS::length] raw_losses,
     int num_cameras,
+    bool exposure_arithmetic_mean,
     float[PPISPRegLossIndex::length] loss_weights,
     float[PPISPRegLossIndex::length] grad_out
 ) {
     DifferentialPair<float[RawPPISPRegLossIndexRQS::length]> dp_raw_losses = diffPair(raw_losses);
     bwd_diff(compute_ppisp_rqs_regularization_loss)(
-        dp_raw_losses, num_cameras, loss_weights, grad_out
+        dp_raw_losses, num_cameras, exposure_arithmetic_mean, loss_weights,
+        grad_out
     );
     return dp_raw_losses.d;
 }
@@ -1193,13 +1224,14 @@ float[RawPPISPRegLossIndexRQS::length] compute_ppisp_rqs_regularization_loss_vjp
 float[PPISPRegLossIndex::length] compute_ppisp_no_crf_regularization_loss(
     float[RawPPISPRegLossIndexNoCRF::length] raw_losses,
     int num_cameras,
+    bool exposure_arithmetic_mean,
     no_diff float[PPISPRegLossIndex::length] loss_weights
 ) {
     float losses[PPISPRegLossIndex::length];
 
     // Exposure mean
-    losses[PPISPRegLossIndex::ExposureMean] =
-        smooth_l1_loss(raw_losses[RawPPISPRegLossIndexNoCRF::SumExposure] / num_cameras, 0.1f);
+    losses[PPISPRegLossIndex::ExposureMean] = ppisp_exposure_mean_loss(
+        raw_losses[RawPPISPRegLossIndexNoCRF::SumExposure], num_cameras, exposure_arithmetic_mean);
 
     // Vignetting center (cx, cy close to 0)
     losses[PPISPRegLossIndex::VignettingCenter] =
@@ -1255,12 +1287,14 @@ float[PPISPRegLossIndex::length] compute_ppisp_no_crf_regularization_loss(
 float[RawPPISPRegLossIndexNoCRF::length] compute_ppisp_no_crf_regularization_loss_vjp(
     float[RawPPISPRegLossIndexNoCRF::length] raw_losses,
     int num_cameras,
+    bool exposure_arithmetic_mean,
     float[PPISPRegLossIndex::length] loss_weights,
     float[PPISPRegLossIndex::length] grad_out
 ) {
     DifferentialPair<float[RawPPISPRegLossIndexNoCRF::length]> dp_raw_losses = diffPair(raw_losses);
     bwd_diff(compute_ppisp_no_crf_regularization_loss)(
-        dp_raw_losses, num_cameras, loss_weights, grad_out
+        dp_raw_losses, num_cameras, exposure_arithmetic_mean, loss_weights,
+        grad_out
     );
     return dp_raw_losses.d;
 }
@@ -1270,13 +1304,14 @@ float[RawPPISPRegLossIndexNoCRF::length] compute_ppisp_no_crf_regularization_los
 float[PPISPRegLossIndex::length] compute_ppisp_no_crf_no_vig_regularization_loss(
     float[RawPPISPRegLossIndexNoCRFNoVig::length] raw_losses,
     int num_cameras,
+    bool exposure_arithmetic_mean,
     no_diff float[PPISPRegLossIndex::length] loss_weights
 ) {
     float losses[PPISPRegLossIndex::length];
 
     // Exposure mean
-    losses[PPISPRegLossIndex::ExposureMean] =
-        smooth_l1_loss(raw_losses[RawPPISPRegLossIndexNoCRFNoVig::SumExposure] / num_cameras, 0.1f);
+    losses[PPISPRegLossIndex::ExposureMean] = ppisp_exposure_mean_loss(
+        raw_losses[RawPPISPRegLossIndexNoCRFNoVig::SumExposure], num_cameras, exposure_arithmetic_mean);
 
     // Color mean (latent offsets close to 0)
     losses[PPISPRegLossIndex::ColorMean] = (
@@ -1309,12 +1344,14 @@ float[PPISPRegLossIndex::length] compute_ppisp_no_crf_no_vig_regularization_loss
 float[RawPPISPRegLossIndexNoCRFNoVig::length] compute_ppisp_no_crf_no_vig_regularization_loss_vjp(
     float[RawPPISPRegLossIndexNoCRFNoVig::length] raw_losses,
     int num_cameras,
+    bool exposure_arithmetic_mean,
     float[PPISPRegLossIndex::length] loss_weights,
     float[PPISPRegLossIndex::length] grad_out
 ) {
     DifferentialPair<float[RawPPISPRegLossIndexNoCRFNoVig::length]> dp_raw_losses = diffPair(raw_losses);
     bwd_diff(compute_ppisp_no_crf_no_vig_regularization_loss)(
-        dp_raw_losses, num_cameras, loss_weights, grad_out
+        dp_raw_losses, num_cameras, exposure_arithmetic_mean, loss_weights,
+        grad_out
     );
     return dp_raw_losses.d;
 }

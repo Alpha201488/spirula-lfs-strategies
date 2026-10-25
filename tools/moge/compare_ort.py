@@ -6,7 +6,7 @@ ours. Run the C++ side with SS_MOGE_DUMP=<dir> to get one .npy per stage, then
 point this at the same input.
 
     pip install onnx onnxruntime numpy
-    SS_MOGE_F32_WEIGHTS=1 SS_MOGE_DUMP=/tmp/ours ./build/moge_test \
+    SS_MOGE_F32_WEIGHTS=1 SS_MOGE_DUMP=/tmp/ours ./build_vulkan/moge_test \
         --model moge2-vits --image street.jpg --max-size 640 --num-tokens 1200
     python3 tools/moge/compare_ort.py --onnx <the same .onnx> --ours /tmp/ours
 

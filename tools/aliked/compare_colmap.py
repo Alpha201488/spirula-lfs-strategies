@@ -10,7 +10,7 @@ both sides run the same weights, so a difference here is ours.
         --FeatureExtraction.type ALIKED_N16ROT
 
     # 2. ours
-    ./build/aliked_test --image IMAGES/x.jpg --out /tmp/ours.bin
+    ./build_vulkan/aliked_test --image IMAGES/x.jpg --out /tmp/ours.bin
 
     # 3. compare
     python3 tools/aliked/compare_colmap.py /tmp/db.db /tmp/ours.bin

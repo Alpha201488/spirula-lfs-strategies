@@ -81,7 +81,8 @@ __global__ void _normalize_clip_map_kernel(
     float power,
     float* __restrict__ data,
     const float* __restrict__ inv_median,  // [B], null to skip
-    const float* __restrict__ clip         // [B], null to skip
+    const float* __restrict__ clip,        // [B], null to skip
+    const float* __restrict__ fit          // [B, N], null to skip
 ) {
     int64_t idx = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= total)
@@ -94,9 +95,11 @@ __global__ void _normalize_clip_map_kernel(
     }
     if (inv_median != nullptr)
         v *= inv_median[b];
-    // The map's flat-region background is tiny negative noise; a fractional
-    // power of it is NaN, so the floor is what makes the exponent usable.
-    if (power != 1.0f)
+    // The learned score fits the unpowered map. The flat-region background is
+    // tiny negative noise, and a fractional power of it is NaN: hence the floor.
+    if (fit != nullptr)
+        v = v > 0.0f ? v / fmaxf(fit[idx], v * (1.0f / kLearnedScoreMaxRatio)) : 0.0f;
+    else if (power != 1.0f)
         v = powf(fmaxf(v, 0.0f), power);
     data[idx] = v;
 }
@@ -106,14 +109,19 @@ void normalize_clip_map_inplace_tensor(
     TorchTensorView data,  // [B, ...], rows normalized independently
     bool normalize_median,
     float clip_quantile,
-    float power
+    float power,
+    // The learned score's rendered map, same shape: the result is then the
+    // map, conditioned but not powered, over it -- the ratio the score update
+    // reads (docs/notes/learned-densify-score.md). Null skips.
+    TorchTensorView fit
 ) {
     // Quantiles are scale-equivariant and x -> x^p is monotone, so clipping
     // against the un-normalized cutoff and rescaling and powering after is
     // the normalize-then-clip-then-power result in one pass.
     const bool do_clip = (clip_quantile > 0.0f && clip_quantile < 1.0f);
     const bool do_power = (power != 1.0f);
-    if (!normalize_median && !do_clip && !do_power)
+    const float* fit_ptr = (const float*)std::get<0>(fit);
+    if (!normalize_median && !do_clip && !do_power && fit_ptr == nullptr)
         return;
     float* ptr = (float*)std::get<0>(data);
     if (ptr == nullptr)
@@ -145,7 +153,8 @@ void normalize_clip_map_inplace_tensor(
     _normalize_clip_map_kernel<<<_LAUNCH_ARGS_1D(total, 256)>>>(
         total, N, power, ptr,
         normalize_median ? inv_median : nullptr,
-        do_clip ? clip : nullptr
+        do_clip ? clip : nullptr,
+        fit_ptr
     );
     CHECK_DEVICE_ERROR(cudaGetLastError());
 }
@@ -281,7 +290,8 @@ __global__ void compute_efraimidis_spirakis_weight_kernel(
     uint32_t seed,
     const float* weights,
     const bool* mask,
-    float* out_weights
+    float* out_weights,
+    int32_t* num_eligible  // null to skip counting
 ) {
     int64_t idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numel)
@@ -293,6 +303,9 @@ __global__ void compute_efraimidis_spirakis_weight_kernel(
     if (mask != nullptr && !mask[idx])
         w = 0.0f;
     out_weights[idx] = w;
+    // Strictly negative: a positive weight the mask admits. -0.0 is not one.
+    if (num_eligible != nullptr && w < 0.0f)
+        atomicAdd(num_eligible, 1);
 }
 
 __global__ void iota_kernel(
@@ -312,13 +325,20 @@ int32_t* weighted_sample_without_replacement_internal(
     int64_t weights_numel,
     bool* masks_ptr,
     uint32_t num_sample,
-    uint32_t seed
+    uint32_t seed,
+    uint32_t* num_eligible
 ) {
     // int stride = (int)(weights_numel / numel);
     int stride = 2;  // above is incorrect during warmup
 
     float* sorting_values = DevicePool::global().acquire<float>(
         PoolSlot::DensifyWswrSortingValues, numel);
+    int32_t* d_eligible = nullptr;
+    if (num_eligible) {
+        d_eligible = DevicePool::global().acquire<int32_t>(
+            PoolSlot::DensifyWswrEligible, 1);
+        cudaMemset(d_eligible, 0, sizeof(int32_t));
+    }
 
     compute_efraimidis_spirakis_weight_kernel<<<_LAUNCH_ARGS_1D(numel, 256)>>>(
         numel,
@@ -326,9 +346,15 @@ int32_t* weighted_sample_without_replacement_internal(
         seed,
         weights_ptr,
         masks_ptr,
-        sorting_values
+        sorting_values,
+        d_eligible
     );
     CHECK_DEVICE_ERROR(cudaGetLastError());
+    if (num_eligible) {
+        int32_t h = 0;
+        cudaMemcpy(&h, d_eligible, sizeof(int32_t), cudaMemcpyDeviceToHost);
+        *num_eligible = (uint32_t)h;
+    }
 
     int32_t* out_idx = DevicePool::global().acquire<int32_t>(
         PoolSlot::DensifyWswrOutIdx, num_sample);

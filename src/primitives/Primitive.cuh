@@ -41,6 +41,17 @@ constexpr bool accum_any(DensifyAccumMode m) { return m != DensifyAccumMode::Non
 constexpr int accum_lanes(DensifyAccumMode m)
     { return m == DensifyAccumMode::Avg ? 2 : 1; }
 
+// The learned densification score's map: s blended like a colour and
+// normalized by coverage, as depth is (docs/notes/learned-densify-score.md).
+// s_i = score[i].x^exponent, or `prior` until the update count score[i].y > 0.
+struct SplatScoreRender {
+    const float2* score = nullptr;  // [N]; null renders no map
+    float* out = nullptr;           // [I, H, W]
+    float exponent = 1.0f;
+    float prior = 1.0f;
+    bool enabled() const { return score != nullptr; }
+};
+
 // Depth distortion operates on log depth (ln z). This floor keeps the log/exp
 // and the 1/z gradient chain finite for non-positive depths (the eval3d path
 // already guarantees z > 0; the 2D path does not). Must match in fwd + bwd.
@@ -72,12 +83,12 @@ public:
     static void resize(
         TensorTuple& tensors,
         int64_t batch, int64_t height, int64_t width,
-        PoolSlot key
+        PoolSlot key, bool with_depth = true
     ) {
         const VramCategory cat = slot_category(key);
         const std::string  base = slot_name(key);
         std::get<0>(tensors).resize_dynamic(cat, base + ".rgb", batch, height, width);
-        if (has_depth(type))
+        if (has_depth(type) && with_depth)
             std::get<1>(tensors).resize_dynamic(cat, base + ".depth", batch, height, width);
         if (has_normal(type))
             std::get<2>(tensors).resize_dynamic(cat, base + ".normal", batch, height, width);
@@ -157,11 +168,12 @@ public:
 
 #ifdef __CUDACC__
 
+    // A render whose depth nothing reads leaves the depth buffer out.
     template<RenderOutputType type>
     __device__ RenderOutput load(long idx) const {
         return {
             rgbs[idx],
-            has_depth(type) ? depths[idx] : _default_depth,
+            has_depth(type) ? (depths ? depths[idx] : 0.0f) : _default_depth,
             has_normal(type) ? normals[idx] : _default_normal,
         };
     }
@@ -232,7 +244,7 @@ public:
     template<RenderOutputType type>
     __device__ void saveParamsToBuffer(Buffer &buffer, long idx) {
         buffer.rgbs[idx] = rgb;
-        if (has_depth(type)) buffer.depths[idx] = depth;
+        if (has_depth(type) && buffer.depths) buffer.depths[idx] = depth;
         if (has_normal(type)) buffer.normals[idx] = normal;
     }
 

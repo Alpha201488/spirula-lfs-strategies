@@ -1,6 +1,6 @@
 // exr_decode -- the EXR reader against a corpus OpenEXR itself produced.
 //
-//   python tools/gen_exr_cases.py /tmp/exr_cases && ./build/exr_decode /tmp/exr_cases
+//   python tools/gen_exr_cases.py /tmp/exr_cases && ./build_vulkan/exr_decode /tmp/exr_cases
 //
 // Every case must decode BIT-EXACTLY to its .f32 companion, on one thread and
 // on many; a case named err_* must be refused with a non-empty message.

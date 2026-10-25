@@ -3,7 +3,8 @@
 // What the sensors in a chosen input actually hold, read off the GUI thread.
 //
 // A video carries its IMU and GPS in a track (sfm/core/Telemetry.h); a folder
-// of photographs carries GPS in each file's EXIF. The panel asks about a path
+// of photographs carries GPS in each file's EXIF and, from a drone, the camera
+// attitude in its XMP (sfm/core/Attitude.h). The panel asks about a path
 // on every frame it draws the row, so the first ask queues the read and every
 // later one returns whatever is known by then.
 
@@ -23,10 +24,13 @@ struct TelemetryInfo {
     // A video's streams, and the carrier they came in ("" when none did).
     bool gyro = false, accel = false, attitude = false, gps = false;
     std::string carrier;
-    // A photo folder: files whose EXIF carries a position, out of those read.
-    int with_gps = 0, photos = 0;
+    // A photo folder: files carrying a position, and an attitude, out of
+    // those read.
+    int with_gps = 0, with_attitude = 0, photos = 0;
 
-    bool any() const { return gyro || accel || attitude || gps || with_gps; }
+    bool any() const {
+        return gyro || accel || attitude || gps || with_gps || with_attitude;
+    }
 };
 
 class TelemetryProbe {

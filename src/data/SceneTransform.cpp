@@ -2,6 +2,8 @@
 
 #include "data/SceneTransform.h"
 
+#include "data/Json.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -241,7 +243,8 @@ void rotation_to_euler_intrinsic(const double R[9], const char order[3],
 
 std::string scene_transform_json(const SceneTransform& train_from_world,
                                  const std::string& center_mode,
-                                 const double center_world[3]) {
+                                 const double center_world[3],
+                                 const GeoReference& world_geo) {
     const SceneTransform world_from_train = train_from_world.inverse();
     std::string s = "{\n";
     s += "  \"format\": \"spirula-scene-transform\",\n";
@@ -274,6 +277,11 @@ std::string scene_transform_json(const SceneTransform& train_from_world,
         "t). translation_before_rotation is the equivalent shift applied first "
         "(p_out = s R (p + t_pre)); for train_from_world it is minus "
         "centering.center_world.",
+        "georeference, present when the dataset was fitted to GPS, places the "
+        "world frame on Earth: x east, y north and z up, in metres from the "
+        "point at origin_lat, origin_lon (WGS-84 degrees) and origin_alt "
+        "(metres, the height as alt_source recorded it; absent when the fixes "
+        "carried none).",
     };
     const int n_lines = (int)(sizeof(lines) / sizeof(lines[0]));
     for (int i = 0; i < n_lines; i++)
@@ -281,6 +289,14 @@ std::string scene_transform_json(const SceneTransform& train_from_world,
     s += "  ],\n";
     s += "  \"centering\": {\"mode\": " + quoted(center_mode) +
          ", \"center_world\": " + arr(center_world, 3) + "},\n";
+    if (world_geo.ok) {
+        s += "  \"georeference\": {\"frame\": \"enu\", \"origin_lat\": " + num(world_geo.lat_deg) +
+             ", \"origin_lon\": " + num(world_geo.lon_deg);
+        if (!world_geo.alt_source.empty())
+            s += ", \"origin_alt\": " + num(world_geo.alt_m) +
+                 ", \"alt_source\": " + quoted(world_geo.alt_source);
+        s += "},\n";
+    }
     s += "  \"train_from_world\": {\n";
     s += similarity_block(train_from_world, "    ");
     s += "  },\n";
@@ -289,6 +305,48 @@ std::string scene_transform_json(const SceneTransform& train_from_world,
     s += "  }\n";
     s += "}\n";
     return s;
+}
+
+bool read_scene_transform_json(const std::string& path, SceneTransform& out) {
+    JsonValue root;
+    try {
+        root = json_parse_file(path);
+    } catch (const std::exception&) {
+        return false;
+    }
+    const JsonValue* T = root.find("train_from_world");
+    if (!T || !T->is_object()) return false;
+    const JsonValue* rot = T->find("rotation");
+    const JsonValue* R = rot ? rot->find("matrix_3x3_flat_row_major") : nullptr;
+    const JsonValue* t = T->find("translation");
+    if (!R || !R->is_array() || R->arr.size() != 9 || !t || !t->is_array() || t->arr.size() != 3)
+        return false;
+    SceneTransform s;
+    s.scale = T->get_double("scale", 1.0);
+    for (int i = 0; i < 9; i++) s.R[i] = R->arr[(size_t)i].as_double();
+    for (int i = 0; i < 3; i++) s.t[i] = t->arr[(size_t)i].as_double();
+    if (!(s.scale > 0)) return false;
+    out = s;
+    return true;
+}
+
+bool read_scene_centering_json(const std::string& path, std::string& center_mode,
+                               double center_world[3]) {
+    JsonValue root;
+    try {
+        root = json_parse_file(path);
+    } catch (const std::exception&) {
+        return false;
+    }
+    const JsonValue* c = root.find("centering");
+    const JsonValue* mode = c ? c->find("mode") : nullptr;
+    const JsonValue* at = c ? c->find("center_world") : nullptr;
+    if (!mode || mode->type != JsonValue::Type::String || !at || !at->is_array() ||
+        at->arr.size() != 3)
+        return false;
+    center_mode = mode->as_string();
+    for (int i = 0; i < 3; i++) center_world[i] = at->arr[(size_t)i].as_double();
+    return true;
 }
 
 }  // namespace spirula

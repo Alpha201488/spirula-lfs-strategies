@@ -35,9 +35,9 @@ GPU-exec per run, binning tile 16 / 32 / 64 / 128 px:
 
 | dataset | 16 | 32 | 64 | 128 |
 |---|---|---|---|---|
-| mandeltorus 40M, 7680², `a` = 89 px | 36.0 s | 15.2 | **13.7** | 18.1 |
+| synthetic 40M, 7680², `a` = 89 px | 36.0 s | 15.2 | **13.7** | 18.1 |
 | peak VRAM, same | 56.8 GiB | 28.4 | 19.8 | 17.0 |
-| dye-alley 4M, 3840², `a` = 14 px | 13.9 s | **11.0** | 12.9 | 17.9 |
+| dual-fisheye 4M, 3840², `a` = 14 px | 13.9 s | **11.0** | 12.9 | 17.9 |
 
 On a discrete RTX 5070 (DJI equirect 7680x3840, 1M splats, `a` = 65 px) the
 same ordering holds but the spread is far smaller: 5635 / 5205 / 5295 ms at
@@ -57,6 +57,26 @@ intersection buffers at the finest size the run ever touches, and descending
 reaches the optimum from above. A rejected direction is retried every 40
 windows, so the choice keeps following the splat size as training changes it.
 `SS_BIN_TILE_LOG=1` prints each decision.
+
+A coarser trial is the dangerous direction: every micro tile walks its whole
+macro tile's list, so one step up quadruples that scan, and on a dense scene
+at low resolution the pair count barely falls to pay for it. Two guards:
+
+- No coarser probe while the last measured pairs per visible splat is under
+  `(1 + 1/2)^2 = 2.25` -- a mean footprint under half a tile, where doubling
+  the tile cuts pairs by under a third.
+- A coarser trial whose first step (warm-up included) takes over twice its
+  baseline is abandoned on that step instead of running its whole 6-step
+  window.
+
+What made these necessary: a 5M-splat run on 432 px views (a 360 capture
+split into five faces, M2 Max) lost its device to macOS's GPU watchdog,
+`kIOGPUCommandBufferCallbackErrorImpactingInteractivity`, on the first step
+of a 128 px trial, after 3000 steps at 16-64 px; with `SS_VK_DEBUG_SYNC=1`
+the last kernel to finish was `rasterize_fwd_2d` at the 128 px grid. The
+Vulkan backend now also splits a rasterization past the submit budget
+(docs/notes/gpu-submit-budget.md), so a trial that still slips through costs
+time, not the device.
 
 The intersect additionally coarsens *within* a step, re-running the count pass
 (~0.3% of a step, and flat in tile size), whenever the exact pair total would

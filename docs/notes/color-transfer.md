@@ -24,7 +24,7 @@ display = TONE( M · (is_linear ? c : EOTF_sRGB(c)) )
 | value | display encode |
 |---|---|
 | `none` (unset) | image side: `srgb`. splat side: whatever the image side resolved to |
-| `srgb` | sRGB OETF, unbounded — the default, and what matches a photograph |
+| `srgb` | sRGB OETF, clipped at black and open above — the default, and what matches a photograph |
 | `srgb-clamped` | clipped to `[0,1]`, then the OETF |
 | `aces` | Narkowicz ACES fit, clipped, then the OETF |
 | `filmic` | Hejl / Burgess-Dawson (its gamma is baked in) |
@@ -58,7 +58,7 @@ image side, which is what keeps the render matching the photographs.
 
 ## Why a tone curve is worth having
 
-Under `srgb`, the OETF is monotone and unbounded, so a photograph whose pixel
+Under `srgb`, the OETF is monotone and unbounded above, so a photograph whose pixel
 reads 0.99 is explained by a splat at linear 0.977 and nothing more. Every
 capture that nearly clipped is reconstructed as if it had not been bright.
 
@@ -102,12 +102,22 @@ the only place the curves are not exact inverses of each other.
 
 ## What else the pair decides
 
-- **Seed colours.** An 8-bit point cloud is display values; they are decoded
-  through the transfer before the gamut matrix and re-encoded only if the
-  splats are stored display-side (`seed_splats`, gated on
-  `--convert-initial-point-cloud-color`).
+- **Seed colours.** The point cloud has its own triple,
+  `--point-color-is-linear` / `-transfer` / `-gamut`, each following the
+  image side when unset, since a reconstruction samples its colours from the
+  photographs. Where it differs from the splat side, `PointToSplat`
+  (`TrainerCore.cpp`) takes each seed to its display value and back out
+  through the splat side; the tone round trip is skipped when the two
+  transfers match, because the clipped curves do not invert. An `--init-ply`
+  DC goes through the same conversion.
 - **The noise background.** `--background-mode noise` draws in display space
   and inverts both halves per pixel, so mid-grey stays mid-grey on screen.
+  `--background-match-luminance` first raises the draw to a per-image power,
+  computed on the host each step from the photo's mean luma and its current
+  PPISP exposure (`_bg_luma_exponent`), that puts the draw's median on that
+  luma ahead of the exposure, so a night capture is not plugged with haze to
+  hide a mid-grey background. The draw's 0 and 1 are fixed points, so the
+  `pseudorandom` corners are unaffected once the warm-up is over.
 
 ## `none` is unset, everywhere
 

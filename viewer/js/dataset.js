@@ -20,38 +20,45 @@ const M_PINHOLE = 0, M_FISHEYE = 1, M_EQUISOLID = 2, M_EQUIRECT = 3;
 const NSEG = 16;                       // segments per image edge (Visualizer.cu:93)
 const FRUSTUM_COLOR = [110, 175, 255]; // base wireframe color (light blue)
 
-// ---- distortion (OpenCV + thin-prism + b1/b2 mix), dist = [k1 k2 k3 k4 p1 p2 s1 s2 b1 b2]
-function hasDistortion(d) { for (let i = 0; i < 10; i++) if (d[i]) return true; return false; }
+// ---- distortion tiers (CameraDistortionType, core/CameraModel.h); each tier
+// has its own coefficient order, dist = [8]:
+//   OpenCV     k1 k2 p1 p2
+//   ThinPrism  k1 k2 k3 k4 p1 p2 sx1 sy1
+const D_OPENCV = 1, D_THIN_PRISM = 2;   // 0 = none
 
-function distort(u, v, d) {
+function distort(u, v, d, type) {
   const r2 = u*u + v*v;
-  const radial = 1 + r2*(d[0] + r2*(d[1] + r2*(d[2] + r2*d[3])));
-  const xd = u*radial + 2*d[4]*u*v + d[5]*(r2 + 2*u*u) + d[6]*r2;
-  const yd = v*radial + 2*d[5]*u*v + d[4]*(r2 + 2*v*v) + d[7]*r2;
-  return [xd + d[8]*xd + d[9]*yd, yd];   // b1/b2 mix into x (projection_utils.cuh:1166)
+  if (type === D_OPENCV) {
+    const [k1, k2, p1, p2] = d;
+    const radial = 1 + r2*(k1 + r2*k2);
+    return [u*radial + 2*p1*u*v + p2*(r2 + 2*u*u),
+            v*radial + 2*p2*u*v + p1*(r2 + 2*v*v)];
+  }
+  const [k1, k2, k3, k4, p1, p2, sx1, sy1] = d;
+  const radial = 1 + r2*(k1 + r2*(k2 + r2*(k3 + r2*k4)));
+  return [u*radial + 2*p1*u*v + p2*(r2 + 2*u*u) + sx1*r2,
+          v*radial + 2*p2*u*v + p1*(r2 + 2*v*v) + sy1*r2];
 }
 
 // Solve distort(q) = (u,v) for q (undistorted), Newton with numerical
-// Jacobian. Mirrors undistort_point_0 (projection_utils.cuh:1170-1263)
-// INCLUDING its failure conditions: after the iterations the solution must
-// have a well-posed forward Jacobian (min(det, J00, J11) > 0 — the
-// is_valid_distortion criterion) and re-distort to within 0.01 of the input.
-// Outside the calibrated domain (e.g. image corners of a >180° fisheye whose
-// polynomial has gone non-monotonic) this returns null and the caller bisects
-// toward the image center, exactly like fill_frustum_segments_kernel.
-function jacobian(qx, qy, d) {
+// Jacobian. Mirrors undistort_point / is_valid_distortion
+// (projection_utils.slang) INCLUDING their failure conditions, so outside the
+// calibrated domain (e.g. image corners of a >180° fisheye whose polynomial
+// has gone non-monotonic) this returns null and the caller bisects toward the
+// image center, exactly like fill_frustum_segments_kernel.
+function jacobian(qx, qy, d, type) {
   const e = 1e-5;
-  const f = distort(qx, qy, d);
-  const fx = distort(qx + e, qy, d), fy = distort(qx, qy + e, d);
+  const f = distort(qx, qy, d, type);
+  const fx = distort(qx + e, qy, d, type), fy = distort(qx, qy + e, d, type);
   return [ (fx[0]-f[0])/e, (fx[1]-f[1])/e,     // j00 j10
            (fy[0]-f[0])/e, (fy[1]-f[1])/e ];   // j01 j11
 }
-function undistort(u, v, d) {
+function undistort(u, v, d, type) {
   let qx = u, qy = v;
   for (let it = 0; it < 8; it++) {
-    const f = distort(qx, qy, d);
+    const f = distort(qx, qy, d, type);
     const rx = f[0] - u, ry = f[1] - v;
-    const [j00, j10, j01, j11] = jacobian(qx, qy, d);
+    const [j00, j10, j01, j11] = jacobian(qx, qy, d, type);
     const det = j00*j11 - j01*j10;
     if (Math.abs(det) < 1e-12) break;
     const inv = 1/det;
@@ -59,10 +66,11 @@ function undistort(u, v, d) {
     qy -= (-j10*rx + j00*ry)*inv;
   }
   if (!isFinite(qx) || !isFinite(qy)) return null;
-  const [J00, J10, J01, J11] = jacobian(qx, qy, d);
-  const det = J00*J11 - J01*J10;
-  if (Math.min(det, J00, J11) <= 0) return null;         // ill-posed / folded
-  const f = distort(qx, qy, d);
+  const [J00, J10, J01, J11] = jacobian(qx, qy, d, type);
+  const m = Math.min(J00*J11 - J01*J10, J00, J11);
+  if (!(m > 0.25 && m < 4)) return null;                  // ill-posed / folded
+  const f = distort(qx, qy, d, type);
+  if (qx*f[0] + qy*f[1] < 0) return null;
   if (Math.hypot(f[0]-u, f[1]-v) >= 0.01) return null;   // did not converge
   return [qx, qy];
 }
@@ -70,15 +78,15 @@ function undistort(u, v, d) {
 // Unproject a normalized image point uv=((px-cx)/fx,(py-cy)/fy) to a unit ray in
 // camera space (CV convention: +Z forward, +Y down). Returns null when outside
 // the valid domain. Mirrors generate_ray (projection_utils.cuh:1368).
-function generateRay(u, v, model, d) {
+function generateRay(u, v, model, d, dtype) {
   if (model === M_EQUIRECT) {
     if (Math.abs(u) > Math.PI || Math.abs(v) > Math.PI/2) return null;
     const cl = Math.cos(v);
     return [cl*Math.sin(u), Math.sin(v), cl*Math.cos(u)];
   }
   let uu = u, vv = v;
-  if (hasDistortion(d)) {
-    const q = undistort(u, v, d);
+  if (dtype === D_OPENCV || dtype === D_THIN_PRISM) {
+    const q = undistort(u, v, d, dtype);
     if (!q) return null;               // outside the distortion's valid domain
     uu = q[0]; vv = q[1];
   }
@@ -99,7 +107,7 @@ function generateRay(u, v, model, d) {
 function norm3(x, y, z) { const l = Math.hypot(x, y, z) || 1; return [x/l, y/l, z/l]; }
 
 // Camera-space size-1 frustum wireframe (CV convention).
-// key: model + resolution + intrinsics + distortion.
+// key: model + resolution + intrinsics + distortion tier + coefficients.
 //
 // Pinhole keeps the classic look: image-border rectangle + 4 apex->corner
 // anchors. Wide models (fisheye / equisolid / equirectangular) sit on a sphere
@@ -114,7 +122,7 @@ function norm3(x, y, z) { const l = Math.hypot(x, y, z) || 1; return [x/l, y/l, 
 //
 // Returns { lines: [{pts, closed, dim}], anchors: [point], maxR }.
 function frustumTemplate(cam) {
-  const { fx, fy, model, dist } = cam;
+  const { fx, fy, model, dist, distType } = cam;
   const w = cam.w || Math.round(2*cam.cx) || 1;
   const h = cam.h || Math.round(2*cam.cy) || 1;
   const cx = cam.cx, cy = cam.cy;
@@ -133,12 +141,12 @@ function frustumTemplate(cam) {
   // Unproject one normalized image point; outside the valid domain, shrink uv
   // toward the principal point until it re-enters (Visualizer.cu:146-157).
   const ray = (u, v) => {
-    let dir = generateRay(u, v, model, dist);
+    let dir = generateRay(u, v, model, dist, distType);
     if (!dir) {
       let t0 = 0, t1 = 1, best = null;
       for (let k = 0; k < 12; k++) {
         const s = 0.5*(t0+t1);
-        const rr = generateRay(u*s, v*s, model, dist);
+        const rr = generateRay(u*s, v*s, model, dist, distType);
         if (rr) { t0 = s; best = rr; } else t1 = s;
       }
       dir = best || [0, 0, 1];
@@ -220,7 +228,7 @@ export function buildFrustums(cameras) {
 
   const templates = new Map();
   const keyOf = (c) => c.model+'|'+c.w+'|'+c.h+'|'+c.fx.toFixed(3)+'|'+c.fy.toFixed(3)+
-                       '|'+c.cx.toFixed(3)+'|'+c.cy.toFixed(3)+'|'+c.dist.join(',');
+                       '|'+c.cx.toFixed(3)+'|'+c.cy.toFixed(3)+'|'+c.distType+'|'+c.dist.join(',');
   const camTmpl = new Array(N);
   let total = 0;
   for (let i = 0; i < N; i++) {

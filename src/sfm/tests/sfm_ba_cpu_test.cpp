@@ -174,21 +174,41 @@ void testJacobianRig(const char* name, const double* intr0, std::mt19937& rng) {
     report(name, worst, 1e-6);
 }
 
-// At a zero angle-axis -- the identity every seed pair starts from -- the norm
-// has no derivative. That belongs to the axis columns alone.
+// At a zero angle-axis -- the identity every seed pair starts from -- the
+// rotation still has a derivative, -[p]x, on the frame and on the extrinsic.
 template <class M>
-void testZeroRotation(const char* name, const double* intr) {
-    double pose[6] = {0, 0, 0, 0.1, -0.2, 0.0};
+void testZeroRotation(const char* name, const double* intr0) {
+    double pose[6] = {0, 0, 0, 0.1, -0.2, 0.0}, ext[6] = {0, 0, 0, 0.05, 0.0, -0.03};
     double X[3] = {0.3, -0.4, 3.0}, obs[2] = {5.0, -2.0};
-    double r[2], Jc[2 * (6 + M::kNumIntr)], Jp[6];
-    bacpu::jacobian<M>(pose, intr, X, obs, r, Jc, Jp);
-    const int DOF = 6 + M::kNumIntr;
-    bool ok = std::isfinite(r[0]) && std::isfinite(r[1]);
-    for (int i = 0; i < 6; i++) ok = ok && std::isfinite(Jp[i]);
-    for (int row = 0; row < 2; row++)
-        for (int k = 3; k < DOF; k++) ok = ok && std::isfinite(Jc[row * DOF + k]);
-    printf("%-34s %s\n", name, ok ? "                          PASS" : "  FAIL");
-    if (!ok) g_fail++;
+    double intr[M::kNumIntr];
+    for (int i = 0; i < M::kNumIntr; i++) intr[i] = intr0[i];
+    constexpr int DOF = 12 + M::kNumIntr;
+    double r[2], Jc[2 * DOF], Jp[6], Js[2 * (6 + M::kNumIntr)], Jps[6];
+    bacpu::jacobianRig<M>(pose, ext, intr, X, obs, r, Jc, Jp);
+    bacpu::jacobian<M>(pose, intr, X, obs, r, Js, Jps);
+    double worst = 0;
+    for (int k = 0; k < 12; k++) {
+        double* p = k < 6 ? &pose[k] : &ext[k - 6];
+        const double h = 1e-6, keep = *p;
+        double rp[2], rm[2], sp[2], sm[2];
+        *p = keep + h;
+        bacpu::residualRig<M>(pose, ext, intr, X, obs, rp);
+        if (k < 6) bacpu::residual<M>(pose, intr, X, obs, sp);
+        *p = keep - h;
+        bacpu::residualRig<M>(pose, ext, intr, X, obs, rm);
+        if (k < 6) bacpu::residual<M>(pose, intr, X, obs, sm);
+        *p = keep;
+        for (int row = 0; row < 2; row++) {
+            const double num = (rp[row] - rm[row]) / (2 * h), ana = Jc[row * DOF + k];
+            double e = std::fabs(num - ana) / std::max(1.0, std::fabs(num) + std::fabs(ana));
+            if (k < 6) {
+                const double ns = (sp[row] - sm[row]) / (2 * h), as = Js[row * (DOF - 6) + k];
+                e = std::max(e, std::fabs(ns - as) / std::max(1.0, std::fabs(ns) + std::fabs(as)));
+            }
+            worst = std::max(worst, std::isfinite(e) ? e : 1e300);
+        }
+    }
+    report(name, worst, 1e-6);
 }
 
 void testEquirectSeamResidual() {
@@ -296,9 +316,12 @@ Reference referenceSolve(const BAProblem& P, double lambda, double lossParam,
                                            &P.obs_xy[2 * (size_t)o], r, jc, Jp);
                 const double sw = std::sqrt(decltype(L)::weight(r[0] * r[0] + r[1] * r[1],
                                                                 lossParam));
+                const uint32_t mask = ne ? P.members[member].mask : 0;
                 for (int row = 0; row < 2; row++) {
-                    for (uint32_t a = 0; a < 6 + ne; a++)
+                    for (uint32_t a = 0; a < 6; a++)
                         Jc[row * kMaxCamDof + a] = jc[row * DOF + a] * sw;
+                    for (uint32_t i = 0, k = 6; i < 6; i++)
+                        if ((mask >> i) & 1u) Jc[row * kMaxCamDof + k++] = jc[row * DOF + 6 + i] * sw;
                     for (uint32_t i = 0; i < gr.n_intr; i++)
                         Jc[row * kMaxCamDof + 6 + ne + i] = jc[row * DOF + 6 + NE + i] * sw;
                 }
@@ -411,10 +434,10 @@ double relMax(const double* a, const double* b, size_t n) {
 // and the parameters the step leaves behind.
 void testAgainstReference(uint32_t model, uint32_t groups, const char* loss, bool cg,
                           uint32_t nImg = 9, int nfree = -1, uint32_t rig = 0,
-                          bool rig_free = true) {
+                          bool rig_free = true, uint32_t rig_mask = kExtAll) {
     const double lambda = 1e-2;
     BAProblem P = makeProblem(model, nImg, 90, groups, 0.15, 7 * model + groups, nfree, rig,
-                              rig_free);
+                              rig_free, rig_mask);
     if (P.num_obs < 100) {
         printf("model %u: too few observations, skipped\n", model);
         return;
@@ -430,6 +453,7 @@ void testAgainstReference(uint32_t model, uint32_t groups, const char* loss, boo
     opt.verbose = false;
     opt.solver = cg ? SolverSel::CG : SolverSel::Dense;
     opt.cg_tol = 1e-12;
+    opt.cg_model_tol = 0;
     opt.cg_max_iters = 4000;
     opt.cg_fallback = CgFallback::Off;
 
@@ -463,10 +487,15 @@ void testAgainstReference(uint32_t model, uint32_t groups, const char* loss, boo
         smax = std::max(smax, std::fabs(R.dU[i]));
     }
     for (const BAProblem::Member& m : P.members)
-        for (uint32_t j = 0; j < m.n_free; j++) {
-            const double want = P2.exts[m.ext_offset + j] - R.dU[m.ext_col + j];
-            dmax = std::max(dmax, std::fabs(P.exts[m.ext_offset + j] - want));
+        for (uint32_t i = 0, j = 0; m.n_free && i < 6; i++) {
+            if (!((m.mask >> i) & 1u)) {
+                dmax = std::max(dmax, std::fabs(P.exts[m.ext_offset + i] - P2.exts[m.ext_offset + i]));
+                continue;
+            }
+            const double want = P2.exts[m.ext_offset + i] - R.dU[m.ext_col + j];
+            dmax = std::max(dmax, std::fabs(P.exts[m.ext_offset + i] - want));
             smax = std::max(smax, std::fabs(R.dU[m.ext_col + j]));
+            j++;
         }
     for (const BAProblem::Group& gr : P.groups)
         for (uint32_t j = 0; j < gr.n_intr; j++) {
@@ -504,6 +533,7 @@ void testFullSolve(uint32_t model, uint32_t groups, uint32_t rig = 0) {
         opt.verbose = false;
         opt.solver = k ? SolverSel::CG : SolverSel::Dense;
         opt.cg_tol = 1e-10;
+        opt.cg_model_tol = 0;
         opt.cg_max_iters = 2000;
         opt.cg_fallback = CgFallback::Off;
         bacpu::Solver s(P, opt);
@@ -584,6 +614,9 @@ int run(int argc, char** argv) {
         testAgainstReference(3, 1, "huber", true, 7, 6, rig, true);
         testAgainstReference(7, 1, "huber", false, 7, -1, rig, true);
         testAgainstReference(6, 1, "cauchy", true, 7, -1, rig, true);
+        // A dual-fisheye lens: rotation and t.z, or t.z alone.
+        testAgainstReference(6, 1, "huber", false, 7, -1, rig, true, 0x27);
+        testAgainstReference(3, 1, "huber", true, 7, 6, rig, true, 0x20);
     }
 
     if (!quick)

@@ -10,13 +10,164 @@ implementation, shared by the CLI trainer, the GUI and the WASM viewer.
 
 | format | inputs | parser |
 |---|---|---|
-| COLMAP | `cameras`/`images`/`points3D` in `.bin` or `.txt` | `ColmapParser.cpp` |
-| Nerfstudio | `transforms.json` + a PLY point cloud | `NerfstudioParser.cpp` (PLY reader lives here) |
-| Metashape | camera-export `.xml` + `.ply`, optionally a `.psx` project for filename disambiguation | `MetashapeParser.cpp` (XML via `app/Xml.h`, zips via `external/miniz`) |
+| COLMAP | `cameras`/`images`, and `points3D` if there is one, in `.bin` or `.txt` | `ColmapParser.cpp` |
+| Nerfstudio | `transforms.json`, and a PLY point cloud if there is one | `NerfstudioParser.cpp` (PLY reader lives here) |
+| Metashape | camera-export `.xml`, a `.ply` if there is one, optionally a `.psx` project for filename disambiguation; or a `.psx` project alone | `MetashapeParser.cpp` (XML via `app/Xml.h`, zips via `external/miniz`) |
+
+The point cloud is optional in every format: a dataset without one, or with an
+empty one, parses to poses alone and the trainer seeds it at random (below).
+
+A Metashape `.psx` with no camera-export `.xml` beside it is read directly:
+the active chunk's sensors, components and camera poses from
+`<name>.files/.../chunk.zip`, photo paths from the first frame's `frame.zip`,
+and the chosen component's tie points (coloured by track) from its
+`point_cloud.zip` as the seed cloud. The project has to be saved after
+*Align Photos*; one that never was fails with "no camera ... is aligned". When
+the folder holds several `.xml` or `.psx` files the parser will not guess:
+name one with `--metashape-xml` / `--metashape-psx` (the GUI's *Metashape
+project file* under All Options).
+
+An E57 laser scan is not read in place: it is written out once as a Nerfstudio
+dataset (below, "E57 laser scans"), which then opens like any other.
 
 Default subdirectory names: `images/`, `masks/`, `depths/`, `normals/`.
 The COLMAP reconstruction directory is auto-detected over
 `{sparse/0, colmap/sparse/0, sparse, colmap, .}` unless `recon_dir` is set.
+An image name in `images.txt` / `images.bin` is relative to the image folder,
+as COLMAP writes it; a name relative to the dataset instead
+(`images/frame_000001.png`, which some exporters write) is accepted when that
+is where the file is. Masks, depths and normals are then looked up by the
+name relative to the image folder, as always.
+
+A finished dataset -- any of the layouts above, a COLMAP model sitting at its
+root included -- is an input like any other on the GUI's dataset screen: its
+model is reused, and the run only adds what was asked for (masks, depth and
+normals). `spirula geometry <dataset>` does the depth-and-normal half from the
+command line. Both write `depths/` and `normals/` beside `images/`, where the
+parsers already look, and touch nothing else. When a dataset has them, the
+trainer's Basic Options shows **Use dataset depth maps** (off by default; on
+sets `depth_supervision_weight` to the preset's value, or 0.05) and **Use
+dataset normal maps** (on by default); unticking zeroes the weight.
+
+Which network makes them is `--model`: MoGe-2 (the default, ~0.4 s an image),
+Metric3D v2, or Marigold v2, whose detail is the finest by a margin and which
+takes seconds an image and an 11 GB install built from 45 GB streamed once
+(`spirula geometry --install marigold-v2`, or the GUI's download button).
+`src/marigold/README.md` has its numbers.
+
+## Masks
+
+A training image's mask comes from up to two places:
+
+- **a mask file** in `masks/`, found by the image's name (`frame.png`,
+  `frame.jpg.png`, `frame_mask.png`), white where the image is kept;
+  `flip_mask` swaps that for files that paint what to remove;
+- **the image's own alpha channel**, for an RGBA (or gray + alpha) image whose
+  alpha is not opaque everywhere -- a render or a cut-out with a transparent
+  background. PNG, TIFF and EXR (its `A` channel) alike. Opaque from 128 up
+  (0.5 for an EXR), the gate the dataset screen's JPEG conversion uses when it
+  turns alpha into a mask file. `spirula sfm` reads the same alpha when it
+  finds features, so a cut-out's background gets no keypoints either.
+
+With both, a pixel is kept only where both keep it, and `flip_mask` applies
+to the file alone: alpha always means "transparent is not the subject". The two
+are ANDed at whichever size is finer -- the image's training size or the mask
+file's -- with the alpha area-resampled before the gate, and
+`mask_boundary_offset` then moves the edge of the result. A mask file whose
+aspect ratio differs from its image's is stretched onto it with a warning.
+`load_masks` off ignores both.
+
+Against a constant background (`background_mode` `color`), a cut-out image's
+colour is also composited onto `background_color` by its alpha as it is
+decoded (an EXR's colour is premultiplied, so the background fills only what
+its alpha leaves): a transparent pixel's ground truth is the background it is
+rendered on, which is what eval scores a render against over the whole frame,
+what the Images tab shows, and what a soft edge renders as. The other background modes
+have no one colour to composite onto and keep the stored one.
+
+What a masked-out pixel means is `apply_loss_for_mask` (the GUI's Mask mode):
+ignored ("Ignore distractors") or trained as empty space ("Cut out
+background"). Left unset it resolves per dataset: cut out when the only masks
+are the images' alpha; ignore otherwise. An explicit policy retains precedence. `config.json` records the
+resolved value. The dense panel and trainer use the same Mask mode control;
+Don't use masks disables both alpha and sidecar masks.
+
+Which files carry alpha is read from their headers, then settled by decoding
+the first, middle and last of them: an RGBA export that is opaque everywhere is
+no mask. Training decodes each such image twice, once for its colour and once
+for its alpha.
+
+A dataset the GUI built may also carry `feature_masks/`, mirroring `masks/`:
+what its "Hide from the reconstruction only" prompt matched (the 360-camera
+preset's `sky; cloud`). Only the reconstruction reads it -- `spirula sfm
+--feature-masks`, intersected with `--masks` -- so training never sees it and
+still learns the sky.
+
+## Seed points
+
+`seed_pointcloud` replaces the dataset's seed cloud with an external ordinary
+PLY (ASCII or binary little-endian), for example a registered LiDAR cloud.
+It requires `x`, `y`, `z`, `red`, `green`, `blue`; coordinates must be finite
+and the cloud nonempty. Integer RGB is 0–255; floating RGB is 0–1.
+Relative paths resolve from the dataset directory; absolute paths also work.
+The CLI flag is `--seed-pointcloud lidar.ply`. Left empty, it picks the
+dataset's finished dense cloud (`dense/roma.ply`, [dense.md](dense.md)) when
+there is one; `sparse` always keeps the format's own cloud. In the GUI, Basic
+Options shows a **Starting points** choice only when the dataset has a dense
+cloud or a seed is already set: **Dense cloud**, **Sparse points** or **Other
+PLY file** with a file picker. Otherwise the flag is under All Options. Switching built-in training presets preserves
+this selection, and the GUI warns when resume, a Gaussian PLY or random
+initialization bypasses it.
+
+The external cloud replaces, rather than appends to, the format's own cloud.
+It must already align with the cameras in the source dataset coordinate frame
+(for Nerfstudio, before undoing `applied_transform`). It passes through the
+same centering, scaling and region filtering as the native cloud, including
+when the evaluation camera subset is parsed. Camera files and sparse points
+on disk are not modified. This path is saved in training presets and config.json.
+
+`init_ply` remains the entry for an already-trained Gaussian PLY.
+With `init_ply`, the seed cloud contributes only if `init_ply_add_points` is
+enabled; resume restores checkpoint splats instead. `random_init=always`
+still replaces the selected cloud with random points. Leave `seed_pointcloud`
+empty on a dataset without a dense cloud, or set it to `sparse`, to keep the
+format's existing behavior.
+
+The splats start from the dataset's point cloud. `random_init` decides when
+they start from points drawn at random around the cameras instead: `auto` (the
+default) when the dataset has no point cloud or an empty one, `always` in place
+of whatever it has, `never` not at all -- a dataset without points is then an
+error, as it was before the option existed. `src/data/RandomPoints.h` draws
+them, `TrainerSession::load_dataset()` puts them in `ds.points`, so the GUI's
+preview shows the cloud that will be used and `seed_splats()` treats it like
+any other.
+
+- **How many:** `random_init_fraction` of `cap_max` (0.1: 100k of 1M).
+- **Colour:** uniform random 8-bit RGB, which then goes through the same
+  seed-colour conversion (`point_color_*` to `splat_color_*`) a
+  reconstruction's colours do.
+- **Centre** (`random_init_center`): the median, focus or mean of the camera
+  positions -- `dsparse::scene_center`, the modes `--scene-center` uses -- or
+  the origin of the training frame.
+- **Spread:** the cameras' second moment about that centre, `M = mean(d dT)`,
+  gives the principal axes. Along each, `random_init_spread` takes the mean of
+  the squared projections (the eigenvalues of M) or their median, which
+  ignores a few far-off cameras; the isotropic variance is a third of the mean
+  or median squared distance. `random_init_std` multiplies every standard
+  deviation, so below 1 packs the cloud inside the camera positions (an object
+  they circle) and above 1 spreads it past them (a room they stand in).
+- **Shape** (`random_init_distribution`): `isotropic-gaussian`,
+  `anisotropic-gaussian` along those axes, or a uniform `ellipsoid` or oriented
+  `box`, sized so their covariance is the anisotropic Gaussian's (semi-axes
+  `sqrt(5)` and half-extents `sqrt(3)` standard deviations). Cameras that all
+  sit at one height have no vertical spread, and every shape but the isotropic
+  one comes out flat.
+
+The draw is seeded, so the same settings give the same cloud. Cameras that do
+not spread about the centre at all -- one camera, or `origin` placed exactly on
+a lone one -- are an error rather than a cloud of zero size. The log line
+`Seed points drawn at random` gives the count, shape, centre and the three
+standard deviations it used.
 
 ## Camera models
 
@@ -322,20 +473,107 @@ what a geo-referenced reconstruction needs -- a model millions of units from
 its origin loses metres to single precision otherwise. The modes are
 `point-median` (geometric median of the seed cloud), `camera-median`,
 `camera-focus` (the point the optical axes converge on), `point-mean` and
-`camera-mean`; `none` (the default) keeps the frame the files came in. The
-shift, and the identity rotation and scale that go with it, are written to
+`camera-mean`; `none` keeps the frame the files came in.
+
+`auto`, the default, is `point-median` for a scene that lies far from its
+origin for its size and `none` for every other: it centres when the camera
+positions AND the seed points each have a geometric median more than
+`--scene-center-threshold` (20) times their own radius -- the median distance
+to that median -- from the origin. Precision is relative, so the test is
+scale-free: an ECEF or UTM capture is thousands of radii out, a COLMAP or
+Nerfstudio frame a few. The cameras are tested first and most datasets stop
+there; the points' verdict uses at most 2^18 of them, and only a centring
+scene pays for the full median (`dsparse::resolve_scene_center`). A dataset
+without points is decided, and centred, on its cameras alone.
+
+The shift, and the identity rotation and scale that go with it, are written to
 `scene_transform.json` in the run folder in every common spelling (4x4
 matrices, quaternions, Euler angles), so a downstream tool can put the
 splats back into the dataset's frame without converting anything by hand.
+When the dataset's `gauge.txt` gives a GPS origin (src/sfm/README.md), the file
+also has a `georeference` block: the dataset frame is east-north-up metres
+about `origin_lat` / `origin_lon` / `origin_alt`, so `world_from_train` and
+that point together put a splat on the map.
 The centre is taken over every frame before the train/eval split and over
-the whole seed cloud, so both splits, `spirula mesh` and the viewers -- all
-of which re-read `config.json` -- land in the same frame.
+the whole seed cloud. The eval split re-parses with the mode `auto` resolved
+to, and `spirula mesh` takes the recorded centre from `scene_transform.json`
+rather than measuring again (it reads neither the run's seed cloud nor its
+outlier filter), so both land in the training frame. A run whose
+`config.json` predates `--scene-center` resumes as `none`.
 
 The same six modes are also a *view* setting, offered by all three viewers as
 a "center" menu (camera position median by default) that moves the orbit
 pivot and nothing else. `src/data/SceneCenter.h` is the one implementation;
 the table of centres travels to a viewer on `ViewerRenderConfig::centers`,
 and the training viewer's browser client fetches it from `/scene`.
+
+## EXIF orientation
+
+A phone held upright records a **landscape file plus a tag** that says to turn
+it. Nothing in a reconstruction pipeline reads that tag by default -- COLMAP
+does not, and neither did this one -- so a portrait capture arrives as a scene
+lying on its side, and the images look wrong in any viewer that does read it.
+
+Three things now deal with it, at three different points:
+
+1. **Frames pulled out of a video** are written already turned by the
+   container's display matrix (`app/FrameExtract.h`, `auto_rotate`, on by
+   default; `spirula sam extract --no-autorotate` declines). ffmpeg does the
+   same for the fallback path, so both decoders write the same pixels. The
+   files carry no orientation metadata afterwards, so nothing downstream has
+   to agree about anything.
+2. **Photos copied into a dataset** with "Copy, re-encoded as JPEG" are
+   re-encoded when their tag asks for a turn, with the turn baked into the
+   pixels and the tag reset to 1. The rest of the EXIF block is carried over
+   unchanged -- the focal-length prior and the GPS are what the reconstruction
+   would otherwise lose.
+3. **Photos read as they are** keep their tag, and `--exif-orientation` says
+   what it is worth. It is a flag of `spirula sfm` and of `spirula train`, and
+   **the two must be given the same value**: it decides what frame the model
+   and the images share.
+
+| `--exif-orientation` | the pixels | the model | reads correctly in |
+|---|---|---|---|
+| `none` | untouched | levelled by the image's own up | -- (the scene is on its side) |
+| `orient` (default) | untouched | levelled by the tag's up | software that ignores EXIF, and software that reads it |
+| `apply` | turned on load | levelled by the image's own up, which is now the tag's | software that reads EXIF |
+
+`orient` is the default because it is the only one that leaves the pair usable
+either way: the files on disk are untouched, so a reader that ignores EXIF
+still sees images that match the cameras, while the scene itself stands up.
+`apply` is for a pipeline whose every consumer applies the tag; a model built
+with it describes the TURNED frame, so a training run over it needs `apply`
+too, and a run that forgets is told so by name (the warning that the image is
+its camera transposed).
+
+**A mirrored tag (2, 4, 5, 7) is a compromise in `apply`.** Mirroring an image
+cannot be undone by moving the camera -- the pose that fits mirrored pixels is
+the mirror image of the real one -- so only the rotation is applied and the run
+warns. `orient` needs no compromise: a mirror does not move which way is up.
+
+**Every model sees the picture upright; every map it produces is written in
+the stored frame.** SAM and the geometry networks were trained on pictures the
+way up they are meant to be shown, and a photo case 3 left alone is not that
+way up. So masking and `spirula geometry` turn what goes IN by the tag
+(`app::load_upright`) and turn the mask, the depth and the normals back out by
+its inverse (`app::inverse_turn`) -- a normal map's vectors along with its
+pixels, x and y being image axes. The files beside an image are then in the
+image's own frame, which is the pair `orient` and `none` need; `apply` turns
+both together on load, so it needs the same pair.
+
+**The GUI's previews are the same pictures.** "Try the mask" goes through
+`gui/PreviewFrames.h`, which applies the input's `app::FrameLook` -- the turn
+above, the downscale, a 360 file's unwrap into views -- and for a video
+decodes through `app::extract_frames_at`, the entry point extraction itself
+uses. So the frame on screen is the one the masker sees, and a click on it
+names a pixel the run will read. The geometry preview reads its frames STORED,
+because those come with a camera that describes the stored pixels, and turns
+the warped FACE instead -- exactly as `spirula geometry` does.
+
+One thing this does not reach: `spirula sfm merge` has no features to read the
+tag from, so it reads it back off the image files (`sfm/map/Orient.h`,
+`fillExifOrientations`); without `--image-dir` it falls back to the image's
+own up.
 
 ## Train/eval split
 
@@ -374,12 +612,15 @@ reconstruction.
 A caller with no image decoders leaves `probe_image_size` null and gets the
 reconstruction's resolution unchanged; the WebAssembly viewer does exactly that.
 
-## 360 cameras (GoPro MAX `.360`)
+## 360 cameras (GoPro MAX and MAX 2 `.360`)
 
 The ten views of a frame share one file stem under `cam0/` .. `cam9/`, so
 `--rig cam0,cam1,...,cam9` (Spirula Studio: the input's rig row, on by
-default for a `.360`) reconstructs them as one pose per frame with the
-inter-view poses calibrated from the capture -- `src/sfm/README.md` "Rigs".
+default for a `.360`) reconstructs them as one pose per frame. Spirula Studio
+also hands the reconstruction the rotation it cut each view at, as the start
+of a refinement in which the five views of one lens keep its centre --
+`src/sfm/README.md` "Rigs". Without that (a bare `--rig`) the inter-view poses
+are calibrated from the capture instead.
 
 `src/app/Pano360.h` is the one implementation: it recognises the packing,
 plans the views, and resamples them. Both decode paths go through it -- ffmpeg
@@ -394,7 +635,7 @@ video modes, 0 and 4 for timelapse -- enumerate them, do not hardcode).
 Together they are a YouTube-style **EAC 3x2 cubemap**: the first track is the
 top row (LEFT, FRONT, RIGHT), the second the bottom (DOWN rot270, BACK rot90,
 UP rot270). Faces are square and as tall as a track. Each track carries three
-of them plus **two 32 px overlap strips**, inserted at the centre lines of its
+of them plus **two overlap strips**, inserted at the centre lines of its
 two side faces, which is where the two lenses meet:
 
 | mode | track | face | strips | canvas |
@@ -414,11 +655,43 @@ face=1344/strip=32 (1.24 against 1.50 for the constants in ffmpeg's
 unmerged `gopromax_opencl` patch, which are wrong). The canvas the filter
 graph builds is bit-identical to the one the in-process path assembles.
 
+### The MAX 2 layout, which is a different thing entirely
+
+A MAX 2 writes 5952x1920 tracks, which the arithmetic above happily reads as
+`face=1920, strip=96` -- and that is wrong. Its tracks are **not** a cube map
+between them. Each one is a whole **equirectangular panorama of the sphere**,
+already stitched, with the sides padded to fill the frame:
+
+```
+5952 = 1008 + 3936 + 1008          3936 px = 360 deg, 10.933 px/deg
+1920 rows out of the 1968 a 2:1 panorama would want: +-87.8 deg of elevation
+```
+
+The two tracks hold the same sphere in different orientations (the second is
+rolled about 90 degrees), so either alone is complete; the first is the one
+standing upright and is the only one read. The 1008 px of side padding repeat
+the far side of the panorama from the other lens, so they are dropped.
+
+Nothing about the frame size says where the panorama sits inside it, so the
+camera's own `PMOD` is what places it -- rows cut, then padding -- and both
+numbers have to agree about where the quarter turn lands or the file is
+refused. `PRJT` is "EACO" on both generations and cannot tell them apart; the
+MAX 2 writes a fourth `PMOD` entry and the MAX does not.
+
+These numbers were measured, not documented: the padding boundaries are the
+only strong column discontinuities in the frame (x=1008 and x=4944), which
+fixes the period at 3936; matching the two tracks against each other as one
+rotated sphere peaks at 175.6 degrees of elevation, which is what 10.933
+px/deg over 1920 rows predicts; and 60 frames of the cropped panorama
+reconstruct at **100% registered, 1.02 px mean reprojection** under the
+fixed-geometry equirectangular camera model, which no wrong projection does.
+
 ### What it is unwrapped into
 
 `--360 faces` (the default) cuts **ten perspective views, five per lens**;
 `--360 equirect` makes one 2:1 panorama; the GUI offers the same two under
-"Unwrap into". Faces are the default because the raw file is **not stitched**:
+"Unwrap into". (A MAX 2 is stitched already, so it gets **six** views instead
+-- see below.) Faces are the default because a MAX file is **not stitched**:
 the two lenses meet at azimuth +-90 degrees -- the centre line of the side
 faces -- with real parallax across that seam, and no single camera model
 describes both sides of it.
@@ -464,14 +737,29 @@ rectilinear face would take 4/pi = 1.27x, and the extra goes to the corners.
 Ten views per frame multiply the image count, and the views of one frame share
 no features: they are held together by pairs across TIME, so pairing must stay
 content-based (`--pairs auto`, or COLMAP's vocabulary tree) rather than
-sequential, which would give ten disconnected chains. A rig constraint would
-tie them together directly -- `docs/notes/sfm-rig-constraints.md` surveys what
-that would take.
+sequential, which would give ten disconnected chains. The rig ties them
+together directly -- `docs/notes/sfm-rig-constraints.md`.
 
 Equirectangular remains available and is one image per frame, but it puts both
 lenses into one spherical camera, seam and all, and reconstruction downsamples
 it to `--max-image-size` (1600 px for the learned front ends at `--quality
 high`) -- about 4.4 px per degree, against 16.7 for a 1504 px face.
+
+### A MAX 2's views
+
+A stitched panorama has no seam to keep views off, so faces mode gives it a
+plain **cube of six** at 100 degrees, and equirect mode hands the panorama
+over as it is. The cube is stood on a corner -- face centres at +-35.26
+degrees of elevation, 120 apart in azimuth -- rather than axis-aligned:
+
+- A panorama's poles are its own weak point, a few rows of source stretched
+  around the whole frame. A face pointed straight up or down is a starburst
+  through most of its area. Stood on a corner, no face centre is near a pole
+  and the smear is confined to face corners.
+- Every face then holds some horizon, which is what carries the features.
+  Measured on 38 frames of an 8K clip: **56% of images registered**
+  axis-aligned, **74%** stood on a corner, at 0.61 px mean reprojection. The
+  two faces that still lag are the ones looking at the operator and the mount.
 
 ### What it cannot do for you
 
@@ -482,10 +770,415 @@ high`) -- about 4.4 px per degree, against 16.7 for a 1504 px face.
   than to three sliders nobody can visualise. `src/sfm/core/Telemetry.h` reads
   them and `viewer/telemetry.html` plots them, but nothing consumes them yet;
   `docs/notes/imu-gps-for-sfm.md` is the plan for what will.
-- **Click prompts for masking.** Clicks are recorded on the camera's own
-  frame, which the unwrap reshapes. Prompt a 360 capture with text.
 - **The operator.** Whoever is holding it is in the downward and rearward views
   of every frame of most captures, and wants masking out.
+
+## Frames out of a video
+
+One frame every `skip` source frames, the sharpest of a window of `keep`
+around each. Both decode paths choose the same frames (`app/FrameExtract.h`),
+and the GUI's rate is **per input**: a capture shot as several clips is rarely
+shot at one pace, so `PrepInput::fps` overrides the job's for that video.
+
+The rate is a column of the input list rather than a field in the settings, so
+it sits beside the video it describes. The first video's box holds the
+dataset-wide rate -- that is what a preset carries and what every item of a
+batch starts from, and it is why the box is there even for a lone video; every
+row below it shows `^`, the convention the lens column already uses, so a dozen
+clips off one camera stay one decision. Typing the rate above back into a `^`
+row returns it to following (`normalize_source_fps`).
+The rows on one rate are also one **budget** when the rate is adaptive: they
+are measured together and spaced against one view-change-per-frame, so of two
+clips at "2 fps" the one that walks briskly gets the denser frames and the one
+shot from a bench gets fewer. Each still keeps its own rate bounds. Rows
+measured by different models are NOT one budget -- see below.
+
+A workspace records what its frames were extracted with
+(`.spirula-dataset.json`, docs/notes/dataset-rerun.md). A re-run whose answer
+differs -- a different rate, a different unwrap, another clip in the list --
+asks before it goes back to the video, and drops the features and matches that
+describe the old frames.
+
+### A clip of a video
+
+Only part of a video can be used: drag the handles under the dataset screen's
+preview, or `spirula sam extract --start 1:30 --end 2:45`. Frames keep the
+**source** frame index as their name in both decoders, which is what keeps a
+clip's frames on the camera's IMU and GPS; the GUI's ffmpeg fallback, which
+numbers its candidates from where it started reading, records that start as
+the capture's `time_offset` instead. The clip is part of what the frames were
+extracted with, so changing it re-extracts. docs/notes/source-preview.md.
+
+### Colour LUTs
+
+Log footage is flat; a video row can name a 3D LUT that is baked into its
+frames as they are extracted, so SfM, masking, depth and the trained model all
+see the maker's intended Rec.709 colours. The GUI shows the column only under
+Advanced (the row says which LUT is in effect either way); `spirula sam
+extract --lut <file.cube | name | auto>` is the same thing on the command line.
+
+- **Automatic** is the row's default. A camera original whose own metadata
+  says it was shot in a log profile Spirula knows gets that maker's LUT --
+  DJI D-Log and D-Log M (Osmo 360, Osmo Action 5 Pro, Avata 360), GoPro
+  GP-Log on a MAX 2, Sony S-Log3/S-Gamut3.Cine, Panasonic V-Log
+  (`sfm::video_log_profile`, in builds with the built-in SfM). The colour tags are never evidence: log clips
+  are tagged BT.709 or BT.2020 like any other. Otherwise a row takes the
+  choice made on a row above it, as the rate column does; a detected LUT
+  stays with its own file.
+- **The built-in LUTs** are formulas: each maker's published log curve and
+  gamut, then a look fitted to what the maker's own LUT does to natural
+  photographs -- 0.1 to 1.6 of an 8-bit level off it on average there -- or,
+  for GoPro, GoPro's own exact formulas (docs/notes/log-luts.md). Nothing of
+  a maker's LUT ships, and nothing is downloaded at run time.
+- **A .cube file** is read as is; one with a 1D shaper in front is refused.
+
+The built-in decoder maps the LUT in the YCbCr-to-RGB shader, before the
+8-bit rounding, so a 10-bit log clip keeps its precision through the
+expansion. The GUI's ffmpeg route uses ffmpeg's own `lut3d` (a built-in is
+written to a `.cube` in the temp directory for it); frame extraction decoding
+through ffmpeg maps the 8-bit frames it keeps, after the window has been
+scored, so the LUT cannot change which frames are chosen. The LUT is part of
+what the frames were extracted with, so changing it re-extracts.
+
+### Adaptive spacing
+
+`--adaptive` (the GUI: "Adapt the rate to the motion") spaces the kept frames
+by how much the **view** changed instead of by how much time passed. The rate
+asked for becomes the average; the realized rate stays within `--adaptive-range`
+either side of it, and the frame count comes out the same.
+
+`app/FrameMotion.h` measures it. A grid of about 500 points is tracked between
+small grey frames by pyramidal Lucas-Kanade, one global model is fitted to the
+flow by RANSAC, and two numbers come out:
+
+- **coverage** -- the share of the frame's content that left it, as the area of
+  the frame carried over by the fitted model and cut back to the frame. Pan and
+  zoom cost; roll costs only its corners, which is right, because a rolled
+  frame still sees what it saw.
+- **parallax** -- the flow the global model could not explain, as the 75th
+  percentile of the residual. This is what a translation past something close
+  produces and what a translation towards something far does not.
+
+`cost = coverage + 2 * parallax`. The weight is the only hand-set number: a
+tenth of the frame of unexplained disparity is a harder match than a tenth of
+the frame of pan, and carries the triangulation the pan does not.
+
+That per-step number is what the Motion view draws, but it is **not** what the
+plan adds up. Coverage summed over a gap counts a wobble every time it passes:
+a wrist that turns the frame a degree left and a degree back has moved nothing
+and scores twice. So each step also carries the affine it fitted, in
+unit-square frame coordinates (`MotionStep`), and the plan **composes** them
+from the last kept frame to the candidate and takes the coverage of the
+result -- the wobble composes back to the identity and costs nothing. Parallax
+is a residual and composes through nothing, so it is still summed. Measured
+over one-second gaps on two handheld DJI clips, composing drops the typical
+window to 0.65-0.70 of its summed coverage and the shakiest tenth to 0.0-0.4:
+that tenth used to buy frames and now does not. A sphere's steps compose to the
+identity by construction (nothing leaves a sphere), so its plan is unchanged,
+bit for bit.
+
+The global model depends on what the frames are pictures of:
+
+| capture | model | coverage |
+|---|---|---|
+| ordinary video | 2D affine, in the image | the frame carried over |
+| `.360` | a rotation of the SPHERE, through the packing's own mapping | 0 |
+| dual fisheye (`.insv`, `.osv`) | a rotation of the sphere, equidistant lens | 0 |
+
+A camera that sees every direction keeps every direction when it turns, so a
+360 capture spinning on the spot scores nothing and is given frames at the
+slowest rate the bounds allow. That is the whole point of fitting the rotation
+in 3D rather than fitting a homography per track: on a sphere, turning is free
+and only moving is not.
+
+That also means a sphere's cost and a flat capture's are **not the same
+number**. A sphere's is a residual and nothing else; a flat one's is 70%
+coverage on a handheld walk, because every wobble of the wrist turns the frame
+over. Measured across five clips of one walk, a `.osv` scored 0.07-0.17 per
+second against 0.70-0.83 for the DJI flat clips beside it -- so pooled into one
+budget the flat clips took 2.4x the rate asked for and the 360s were left at
+0.28x, far enough apart to stop matching. A budget is therefore shared only
+among the inputs one model measured against one angle (`same_scale`), and the
+budgets themselves split by the frames the fixed schedule would have given
+each. The same five clips then land between 0.66x and 1.48x.
+
+The price is that a flat clip shot from a bench can no longer hand its frames
+to a 360 that is walking. Nothing makes those two numbers comparable: turning
+is free on a sphere and is most of the cost on a flat frame, so there is no
+scale factor between them to find.
+
+What does NOT change the cost is the source resolution. Every source is reduced
+to the same grey frame before anything is tracked (`motion_frame_size`), which
+holds to 2% end to end: one fisheye clip at 3840 and 1920 px scored 0.0904 and
+0.0909 per second, one flat clip at 2688, 1344 and 672 px scored 0.720, 0.707
+and 0.716.
+
+Two details that were measured rather than chosen:
+
+- A sphere frame is analyzed at **four times the pixels** of a flat one. It
+  spans three times the angle, and at flat resolution the tracking floor is
+  itself a degree wide and drowns the parallax.
+- The step is found by **bisection** on the wanted count, not as
+  `total / count`. A burst of motion swallows several steps' budget within one
+  sample and can spend only one frame of it, which left plans a third short.
+
+It costs one extra decode pass over the first track of each video: measured at
++21% on a dual-fisheye `.osv` (whose main pass already decodes two tracks) and
+up to +100% on a 1080p clip, with the tracking itself overlapped with the
+decode. Nothing is buffered: a video's worth of pictures does not fit, and a
+plan cannot be made until the whole cost curve is known.
+
+In the GUI, without the built-in decoder the same plan is made from the
+candidate frames ffmpeg already extracts, at `fps x max(window, range)` instead of
+`fps x window` so there are enough of them for the fastest rate it may ask for
+(`gui/FrameSelect.h`). That path plans one video at a time -- the candidates of
+a whole group are not on disk at once -- and it numbers the frames it keeps by
+the candidate they were, not by how many it has kept. The stem is what times a
+frame against the video's IMU and GPS (`sfm/map/SensorGauge.h`), and an
+adaptive plan leaves nothing evenly spaced for a frame rate to recover it from.
+
+`spirula sam extract` has no candidates on disk. Without the built-in decoder
+(a build without `SS_ENABLE_PATENTED`, a device without a video queue such as
+MoltenVK's, or `--decoder ffmpeg`) it reads decoded pictures out of ffmpeg over
+a pipe, one process per track, into the same loop the built-in decoder feeds
+(`app/FrameDecode.h`) -- so `--sync`, `--adaptive`, the 360 views and masking
+all work there too, and the stems are source frame indices either way. Its
+motion pass takes every frame's Y plane and reduces it on the host exactly as
+`video.slang`'s thumbnail does, which makes the plan the built-in one: on a
+1920 px dual-fisheye `.insv`, `--sync --adaptive --skip 30` gave identical
+motion costs and 93 of 94 kept frames in common, and a fixed `--skip 30` 39 of
+40 (the rest is the sharpness score, CPU against GPU). That pass decodes in
+software, because NVDEC's download squeezed a full-range Y plane into studio
+range: 38 s against 11 s on that clip.
+
+The pass reports as it goes, in two places. It enters the Frames step itself --
+nothing else has, since a whole rate group is measured before any of it is
+written, and the panel draws no bar at all for a step that is not running -- and
+moves a bar across the group's total length, naming the video it is on. A
+13-minute 1080p clip scans at about 165 frames a second, so without the bar the
+screen sat unchanged for over two minutes with the GPU pinned, which reads as a
+hang.
+
+The **Motion** view beside the run's other previews is the rest of it: one row
+per input, in the order they were given, each drawing the view change along that
+capture as it is measured and, under it, the rate the plan settled on. Every row
+is on ONE scale, because a clip that moves twice as much as its neighbour is
+exactly why it took the frames off it. A folder of photographs is a row that
+says it has no motion rather than a gap in the list.
+
+### Leaving out blurry frames
+
+Choosing the sharpest frame of a window never leaves a frame out, so through a
+shaky stretch the least bad frames still reach the dataset. `--blur-reject <px>`
+(the GUI: "Skip blurry frames") rules on each chosen frame afterwards, and
+`--similar <n>` leaves out one that is nearly the last frame kept. Both are off
+unless asked for, and read nothing but pixels: no shutter time, gyroscope or
+EXIF.
+
+- **The measure** (`app/FrameSharpness.h`, `edge_width_px`): how many pixels the
+  sharpest of a frame's strong edges take to cross, at half size, along the
+  wider of the two axes. Blur widens every edge, so the sharpest ones move with
+  it; a sharp frame of softly shaded things still has narrow edges among its
+  wide ones. Every edge counts, into a histogram, so the GPU copy
+  (`blur/EdgeWidthGpu.h`, on the inference layer's device) gives the same
+  number: it measures where the build has that device, and `SS_BLUR_CPU=1`
+  measures on the host. `edge_width_test` holds the two together.
+- **The rule** (`app/FramePick.h`, `PickRule`): blur is that width less the
+  capture's own sharpest frames (the 10th percentile, plus 8%) in quadrature,
+  so the threshold is a length in pixels of the frame as extracted. The
+  percentile is over the whole capture wherever every frame is measured before
+  the first is ruled on (`whole_capture`): photographs, ffmpeg's candidates, a
+  sort, and the GUI's closing pass over what the built-in decoder ruled on as
+  it went. Against only the frames so far, a clip that opens in motion calls
+  its smear the lens; `spirula sam extract` still works that way. A frame past
+  the threshold is left out, but never more than two in a row, so a bad
+  stretch is thinned rather than cut. A frame nothing could be measured on is
+  kept.
+- **Similarity**: a 64-bit difference hash against the last frame kept; fewer
+  than `n` differing bits is a duplicate. A camera standing still is not a bad
+  stretch, so there is no cap on these. A frame with no hash is like no other.
+
+`--skipped-dir <dir>` writes the frames left out there instead of dropping them,
+and `--report <csv>` lists every chosen frame with its width, blur and verdict.
+
+In the GUI, "Skip blurry frames" sits under "Adapt the rate to the motion" and,
+while it is on, shows its settings whatever Advanced says: the threshold in
+pixels, the neighbour rule, the similarity threshold (part of the same switch),
+whether to keep the skipped frames, and "Set by hand", which pauses the run
+once the frames are out so the threshold is set in the **Sharpness** view while
+looking at them, before anything is built on those frames. It pauses only where
+every frame can still change sides -- not for a rig or a 360 video through the
+built-in decoder. The same rule sorts a folder of photographs (camera folders
+holding the same file names are a rig, judged and moved whole), and a finished
+dataset can be sorted again by a tighter rule without reconstructing it:
+docs/notes/dataset-rerun.md.
+
+## E57 laser scans
+
+Two ways in. On the GUI's dataset screen a laser scan (E57, LAS or PLY) is an
+input like photos and videos -- **Add LiDAR scan...**, or drop the file: the
+reconstruction runs, then is aligned with the scan (rotation, translation and
+scale) and written as a COLMAP model whose seed points are the scan's, with
+tracks; an E57 that carries photographs can be the only input.
+[notes/lidar-alignment.md](notes/lidar-alignment.md) is that path.
+
+`spirula e57 <scan.e57> [<folder>]` is the other: no reconstruction at all,
+the scanner's registered images, poses and point cloud written straight out
+as a Nerfstudio dataset. It is what the rest of this section describes, and
+the scanner-pose half of it is what the dataset screen falls back to for
+photographs its reconstruction cannot place (a tripod's cube faces).
+
+Tested so far with scans from a Leica BLK360 tripod scanner and an XGRIDS
+Lixel handheld scanner on macOS -- the two the camera conventions below were
+measured on -- and from a Matterport Pro3 on Windows.
+
+| file | from the scan |
+|---|---|
+| `images/` | each usable image's JPEG or PNG, copied byte for byte (PNG preferred when both are there) |
+| `masks/` | an image's `imageMask`, when it has one: any non-zero pixel is kept |
+| `transforms.json` | per-frame intrinsics and OpenGL camera-to-world, in full double precision |
+| `sparse_pc.ply` | the point clouds of every scan, posed into one frame and thinned (or all of them, `--points all`); `double` coordinates, since a geo-referenced scan sits millions of metres from its origin |
+| `depths/`, `normals/` | what the laser measured behind every pixel (below); `--no-depth` leaves them out |
+| `gauge.txt` | `oriented 1`, `metric 1` (below) |
+
+`data/E57Reader.h` is the reader, with no libE57Format and no Xerces behind
+it. The XML section goes through `data/Xml.h`; the binary sections are read
+through the 1020-of-1024-byte pages (the page checksums are not verified), and
+the point records through the bit-packed bytestreams of the compressed vectors.
+`bitPackCodec` is the only codec the standard defines, and a file naming any
+other is refused. A value runs on from one data packet into the next, so each
+field's chunks are concatenated rather than decoded packet by packet. Points
+flagged invalid (`cartesianInvalidState` / `sphericalInvalidState` non-zero),
+and points at exactly the scanner's origin, which writers use for empty cells,
+are dropped. Colour is normalised by the scan's `colorLimits`, or failing that
+by the field's own range; a scan with no colour is seeded grey from its
+intensity.
+
+### Which images become cameras
+
+| representation | camera |
+|---|---|
+| `pinholeRepresentation` | `PINHOLE`, `fx = focalLength / pixelWidth`, `fy = focalLength / pixelHeight`, `cx = principalPointX + 0.5` |
+| `sphericalRepresentation` | `EQUIRECTANGULAR`, when it covers the whole sphere (360 x 180 degrees, within 1%) |
+| `cylindricalRepresentation` | skipped: the engine has no cylindrical camera |
+| `visualReferenceRepresentation` | skipped: it carries no calibration |
+
+An image without a pose, or without a JPEG or PNG, is skipped too, and the run
+says which and why. `--no-pinhole` / `--no-panoramas` (two checkboxes in the
+GUI) leave a kind out.
+
+### The camera conventions, measured
+
+The standard does not pin down the axes of an image's own frame, so they were
+measured on real scans from two devices: a Leica BLK360 tripod scanner (pinhole
+cube faces) and an XGRIDS Lixel handheld scanner (panoramas). Each file's
+coloured points were projected into its images under all 48 signed axis
+permutations, and the permutation whose colours matched the image was kept:
+
+- **Pinhole**: the image frame is OpenGL's -- x right, y up, looking down -z,
+  well clear of every other permutation on every image tested.
+- **Spherical**: the centre column looks along +x, +z is up, and columns run
+  clockwise seen from above. The margin is narrower, because the points come
+  from one merged SLAM cloud, so the ones hidden from a panorama are projected
+  into it too.
+- **Principal point**: pixel centres on integers. Shifting the sample by half a
+  pixel either way raises the error, so `+0.5` gives the engine's convention.
+
+`e57_dataset_test` holds the parser and the engine's camera math to these:
+through `transforms.json` and back, every camera puts a world point on the
+pixel the E57 file has it at, to 0.002 px.
+
+### The alignment check
+
+Every conversion repeats that measurement on the file at hand, since another
+exporter could read the standard differently. For each kind of image, six are
+compared with the scan: the front-most points are rendered into a 320 px map of
+each and the Pearson correlation of their colour with the photo's is taken --
+exposure-blind -- under the assumed camera orientation and the 23 other turns
+of its axes. Another orientation replaces the assumed one only when it
+correlates 0.1 better and at 0.25 or more; the run then says so, and so does
+the screen. On both devices' scans the assumed orientation won by a wide
+margin, and `e57_dataset_test` feeds it a photo stored with OpenCV's axes and
+expects it turned back. A scan without colour cannot be checked, and the run
+says that too.
+
+### Depth and normal maps
+
+`app/ScanDepth.h` renders each image's depth from a draw of up to 40M points,
+bucketed into 2 m cells so a pinhole face projects only the cells in front of
+it. A point covers the pixels its share of the surface does -- the cell's
+spacing, `edge / sqrt(count)`, at its range, at most 3 px either side -- so a
+sparse surface still hides the one behind it; then a pixel much further than
+its window's nearest is dropped and the small holes a sparse surface leaves are
+filled from four or more neighbours on one surface (a straight edge has three,
+so a silhouette does not creep into the sky). Normals are taken from that depth
+with the engine's own stencil (`points_to_normal`), in the camera's OpenCV
+frame, facing it.
+
+The maps are 1600 px on the long side, so every face of one camera shares a
+size and batches without the trainer resampling across the holes. Depth is
+16-bit millimetres, 0 where the scan says nothing (the sky, and anything past
+65.5 m); a normal is `127.5 + 127.5 n`, black where there is none -- the two
+"no ground truth" sentinels `spirula geometry` writes. Pinhole maps hold depth
+along the optical axis and panoramas depth along the ray, and a dataset that
+mixes them follows the trainer's own majority vote (`resolve_ray_depth`). The
+normals are used by default (`normal_supervision_weight` 0.01); depth needs
+`--depth-supervision-weight`, and the loss is scale-and-shift invariant, so
+the laser's metres constrain shape rather than distance. `scan_depth_test`
+checks a plane, a sparse patch in front of it and a sphere around a panorama.
+
+On a tripod scan they improved the structure of held-out faces (SSIM) a
+little and left PSNR where it was: those faces are limited by how few
+viewpoints the stations give, not by the geometry.
+
+A face has depth only where the scan has the surface: a cropped export, or a
+face looking past the scan's reach, leaves the rest at 0.
+
+### The frame
+
+E57 is in metres by definition, and scanners level their frame: on both
+devices' scans the floor and ceiling are flat in z to the centimetre, where a
+frame tilted a few degrees spreads them over many. So `gauge.txt` says
+`oriented 1` and `metric 1`, and the viewer takes +Z as up rather than guessing
+up from the cameras -- which would be wrong here: a handheld scanner's panorama
+camera leans by several degrees, and a tripod station can too.
+
+### Seed points
+
+A scan holds tens of millions of points, bunched around each station. They are
+thinned to about `--points` (default 500,000, half the trainer's default
+`cap_max`, so the densifier has room to add detail), one per occupied voxel.
+`--points all` ("Use every point") keeps them all, 27 bytes each on disk; the
+trainer still keeps at most `cap_max` of them, drawn at random.
+Each voxel keeps the mean of its points, and the voxel edge is found by
+bisection so the count lands within 2% under the target. What is thinned is a
+uniform draw of eight times the target (at least 8M points, at most 40M), which
+bounds the memory.
+
+Voxels rather than a random draw, because a random draw keeps the density
+bias: most of a terrestrial scan's points are within a few metres of a station.
+
+### Masks
+
+`spirula e57` writes an image's `imageMask`, when it has one, to `masks/`.
+On the dataset screen the scan's photographs are inputs of their own, masked
+like any other photo folder.
+
+### What a scan does not give you
+
+- **The tripod.** The downward face of a tripod station can be a black disc where
+  the scanner painted out itself and the tripod, and nothing in the masking
+  stack targets a fixed region in some images only. The correction editor's
+  propagate can copy one hand-drawn disc to each downward face.
+- **The sky.** An upward face is sky with no points behind it. With the default
+  black background the trainer paints it with bright splats close to the
+  station, which then hang in front of every other face of that station;
+  `background_mode sh` (a learned skybox) is the setting for outdoor scans, and
+  by far the larger gain on held-out faces.
+- **Viewpoints.** A station is one centre of projection for all of its faces,
+  so a tripod scan has as many viewpoints as stations -- far fewer than a
+  walk-around video gives -- and a held-out face is a view nothing near it was
+  trained on.
 
 ## Preprocessing tools
 

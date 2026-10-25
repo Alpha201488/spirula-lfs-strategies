@@ -36,6 +36,7 @@ public:
         LoadError,  // preview parse failed
         Preparing,  // start_training: re-parse + engine setup
         Training,   // step loop running
+        Evaluating, // held-out render and metrics pass running
         Done,       // finished or stopped (checkpoint saved); engine viewable
         TrainError, // training pipeline failed
     };
@@ -63,6 +64,10 @@ public:
     // shutdown() asks to stop too, and must not undo the user's answer.
     void request_stop(bool save = true);
     void shutdown();              // stop + join (app exit / new session)
+    // ... and give the engine's VRAM back with it. The session goes too, so
+    // the trainer screen has nothing left to render: call it only when
+    // something else needs the device -- a reconstruction, a meshing child.
+    void release_engine();
 
     Phase phase() const { return _phase.load(); }
     // Did the finished run write a final checkpoint? False only after a stop
@@ -84,16 +89,22 @@ public:
 
     // Latest per-step progress (copy).
     spirula::TrainerProgress latest_progress();
-    // Mean over the last 100 steps, which is also what the ETA is built from.
-    // A single step's latency swings several-fold with whether a viewer
-    // render landed on it, so it is not a number to put on screen.
+    spirula::EvalProgress latest_eval_progress();
+    // Mean over the last 100 steps. A single step's latency swings
+    // several-fold with whether a viewer render landed on it, so it is not a
+    // number to put on screen.
     double avg_step_latency();
-    double eta_seconds();         // < 0 when unknown
+    double eta_seconds();         // TrainerSession::eta_seconds; < 0 when unknown
     // Time spent in the step loop, pauses excluded: < 0 before a session
     // exists, 0 until the loop starts, frozen once it ends.
     double elapsed_seconds();
     void get_metrics(std::vector<MetricPoint>& out);
     std::vector<std::string> drain_log();
+
+    // While start_training() downloads an LPIPS checkpoint: the line to show
+    // and 0..1 (-1 unknown). Empty otherwise.
+    std::string fetch_line();
+    float fetch_progress();
 
     // ---- Unreadable dataset file ------------------------------------------
 
@@ -109,6 +120,9 @@ private:
     double avg_latency_locked() const;   // caller holds _mu
     void join_worker();
     bool await_data_decision(const std::string& what);
+    // What setup_engine() would download, fetched with a progress readout
+    // instead; throws when a file does not arrive.
+    void fetch_eval_models(const TrainConfig& cfg);
 
     std::unique_ptr<spirula::TrainerSession> _session;
     std::unique_ptr<ViewerServer> _web_viewer;
@@ -124,9 +138,12 @@ private:
     mutable std::mutex _mu;       // guards everything below
     std::string _error;
     spirula::TrainerProgress _latest;
+    spirula::EvalProgress _eval;
     std::deque<double> _latencies;
     std::vector<MetricPoint> _metrics;
     std::vector<std::string> _log;
+    std::string _fetch_line;
+    float _fetch_progress = -1.0f;
 };
 
 }  // namespace gui

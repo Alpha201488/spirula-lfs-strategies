@@ -24,6 +24,7 @@
 #include "core/Common.cuh"
 #include "core/Tensor.h"
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -33,6 +34,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 
@@ -82,16 +84,42 @@ struct DataManagerConfig {
     // Hard upper bound on RAM consumed by ready / partially-ready batches.
     int prefetch_batches = 4;
 
-    // Swap keep and ignore in every mask, before mask_boundary_offset. For
-    // masks that mark what to EXCLUDE, the other convention in the wild.
+    // Swap keep and ignore in every mask file, before mask_boundary_offset.
+    // For masks that mark what to EXCLUDE, the other convention in the wild.
     bool flip_mask = false;
 
-    // Signed boundary offset applied to binarized masks at decode time,
-    // expressed as a fraction of sqrt(W*H) of the decoded mask. Positive ->
-    // dilate (grow) foreground; negative -> erode (shrink) foreground; zero
-    // disables. Implemented via separable Felzenszwalb-Huttenlocher squared
-    // Euclidean distance transform on CPU (O(N) per row+col, exact).
+    // One flag per input image whose alpha channel is a cut-out
+    // (data/ImageProbe.h). Its mask is the alpha, opaque from 128 up, ANDed
+    // with its mask file if it has one; flip_mask turns only the file.
+    std::vector<uint8_t> alpha_masks;
+
+    // One flag per input image whose alpha is composited onto composite_color
+    // (display-referred, 0..1) as its colour is decoded -- the constant
+    // background it is rendered against, so a transparent pixel's GT is that.
+    std::vector<uint8_t> composite_alpha;
+    std::array<float, 3> composite_color{0.0f, 0.0f, 0.0f};
+
+    // Quarter turns clockwise to load each image with, one per input camera
+    // (ParsedDataset::exif_quarter_turns). Mask, depth and normal come from the
+    // same frame and turn with it. Empty when no image asks for one.
+    std::vector<uint8_t> exif_quarter_turns;
+
+    // Dilate (+) or erode (-) the final mask by this fraction of sqrt(W*H) of
+    // the decoded mask, by an exact squared distance transform; 0 disables.
     float mask_boundary_offset = 0.0f;
+
+    // Deficit view sampling: an image is drawn per pass in proportion to
+    // ((median + 1) / (mean render count of the splats it showed + 1))^power,
+    // clamped to [1/max_ratio, max_ratio]. Off, every image is drawn once.
+    bool  deficit_sampling  = false;
+    float deficit_power     = 0.5f;
+    float deficit_max_ratio = 8.0f;
+
+    // (first step, divisor) stages for training batches (data/ResolutionSchedule.h);
+    // empty trains at the loaded size. `first_step` is the step a resumed run
+    // continues from. Validation and fetch_one always use divisor 1.
+    std::vector<std::pair<int64_t, int>> resolution_stages;
+    int64_t first_step = 0;
 };
 
 
@@ -134,6 +162,9 @@ struct DecodedBatch {
     int32_t                width  = 0;     // post-split W (= input W when K=1)
     int32_t                height = 0;     // post-split H
     int32_t                num    = 0;     // post-split B (= input B * K)
+    // Progressive-resolution divisor this batch was scaled by (1 = loaded size).
+    // Its RGB is the group's input image area-filtered to input_width x input_height.
+    int32_t                resolution_divisor = 1;
     CameraModelType        model  = (CameraModelType)-1;   // PINHOLE when K>1
     CameraDistortionType   distortion = CameraDistortionType::None;  // None when K>1
 
@@ -350,6 +381,13 @@ public:
     // close, so the next fetch throws instead of blocking forever.
     void resolve_data_error(bool retry);
 
+    // ---- View stats -------------------------------------------------------
+
+    // Per POST-split camera: the sum and count of the render counters of the
+    // splats it contributed to at its last render (engine_read_view_stats).
+    // The next epoch's schedule draws on it under deficit_sampling.
+    void set_view_stats(std::vector<float> cam_sum, std::vector<uint32_t> cam_cnt);
+
     // ---- Stats ------------------------------------------------------------
 
     int64_t num_train()     const;
@@ -372,6 +410,9 @@ public:
 
     // Most render passes one input image costs: 1 unless faces differ in size.
     int max_face_passes() const;
+
+    // The progressive-resolution divisor of the last training step handed out.
+    int last_train_divisor() const;
 
 private:
     std::unique_ptr<DataManagerImpl> _impl;

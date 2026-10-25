@@ -30,6 +30,15 @@ std::string str_of(const JsonValue& v, const std::string& path, const char* key)
     return v.str;
 }
 
+// An entry's optional true/false; absent is true.
+bool flag_of(const JsonValue& entry, const char* key, const std::string& path, const char* list) {
+    const JsonValue* v = entry.find(key);
+    if (!v) return true;
+    if (v->type != JsonValue::Type::Bool)
+        bad(path, std::string(list) + ": " + key + ": expected true or false");
+    return v->b;
+}
+
 // Relative to the manifest, so a capture and the file describing it move
 // together; absolute paths are left alone.
 std::string resolve(const std::string& p, const fs::path& base) {
@@ -98,6 +107,24 @@ Manifest manifest_read(const std::string& path) {
                     mc.distortion.push_back(d.num);
                 }
             }
+            if (const JsonValue* v = c.find("params")) {
+                CamModel model;
+                if (mc.model.empty() || !parseCamModelName(mc.model, model))
+                    bad(path, "params: an explicit camera model is required");
+                if (c.find("focal") || c.find("distortion"))
+                    bad(path, "params: cannot be combined with focal or distortion");
+                if (!v->is_array() || v->arr.size() != (size_t)camColmapParams(model))
+                    bad(path, "params: expected " + std::to_string(camColmapParams(model)) +
+                                  " numbers for " + mc.model);
+                for (const JsonValue& p : v->arr) {
+                    if (p.type != JsonValue::Type::Number || !std::isfinite(p.num))
+                        bad(path, "params: expected finite numbers");
+                    mc.params.push_back(p.num);
+                }
+                for (int i = 0; i < camInfo(model).ba_focal; i++)
+                    if (!(mc.params[(size_t)i] > 0))
+                        bad(path, "params: focal lengths must be positive");
+            }
             m.cameras.push_back(std::move(mc));
         }
     }
@@ -107,6 +134,7 @@ Manifest manifest_read(const std::string& path) {
             if (!r.is_object()) bad(path, "rigs: each entry is a mapping");
             RigDef d;
             if (const JsonValue* v = r.find("name")) d.name = str_of(*v, path, "name");
+            if (const JsonValue* v = r.find("kind")) d.kind = str_of(*v, path, "kind");
             if (const JsonValue* v = r.find("captures")) {
                 if (!v->is_array()) bad(path, "rigs: captures: expected a list of prefixes");
                 for (const JsonValue& c : v->arr) d.captures.push_back(str_of(c, path, "captures"));
@@ -146,6 +174,11 @@ Manifest manifest_read(const std::string& path) {
                         if (v->type != JsonValue::Type::Bool) bad(path, "rigs: fixed: expected true or false");
                         md.ext_fixed = v->b;
                     }
+                    if (const JsonValue* v = m.find("refine")) {
+                        const std::string s = str_of(*v, path, "refine");
+                        if (!parseRigDof(s, md.dof))
+                            bad(path, "rigs: refine: '" + s + "' is not one of " + kRigDofNames);
+                    }
                 } else {
                     bad(path, "rigs: a member is a prefix or a mapping");
                 }
@@ -155,7 +188,24 @@ Manifest manifest_read(const std::string& path) {
                 d.members.push_back(std::move(md));
             }
             if (d.members.size() < 2) bad(path, "rigs: a rig needs at least two members");
+            if (std::string err = applyRigKind(d); !err.empty()) bad(path, "rigs: " + err);
             m.rigs.push_back(std::move(d));
+        }
+    }
+    if (const JsonValue* seqs = root.find("sequences")) {
+        if (!seqs->is_array()) bad(path, "sequences: expected a list");
+        for (const JsonValue& e : seqs->arr) {
+            if (!e.is_object()) bad(path, "sequences: each entry is a mapping");
+            SequenceDef d;
+            const JsonValue* mem = e.find("members");
+            if (!mem || !mem->is_array()) bad(path, "sequences: an entry needs a members list");
+            for (const JsonValue& v : mem->arr) {
+                std::string p = str_of(v, path, "members");
+                while (!p.empty() && (p.back() == '/' || p.back() == '\\')) p.pop_back();
+                d.members.push_back(p == "." ? std::string() : p);
+            }
+            if (d.members.empty()) bad(path, "sequences: an entry needs at least one member");
+            m.sequences.push_back(std::move(d));
         }
     }
     if (const JsonValue* caps = root.find("captures")) {
@@ -174,7 +224,23 @@ Manifest manifest_read(const std::string& path) {
                 if (v->type != JsonValue::Type::Number) bad(path, "time_offset: expected a number");
                 mc.time_offset = v->num;
             }
+            mc.imu = flag_of(c, "imu", path, "captures");
+            mc.gps = flag_of(c, "gps", path, "captures");
             m.captures.push_back(std::move(mc));
+        }
+    }
+    if (const JsonValue* exif = root.find("exif")) {
+        if (!exif->is_array()) bad(path, "exif: expected a list");
+        for (const JsonValue& e : exif->arr) {
+            if (!e.is_object()) bad(path, "exif: each entry is a mapping");
+            ManifestExif me;
+            if (const JsonValue* v = e.find("prefix")) me.prefix = str_of(*v, path, "prefix");
+            while (!me.prefix.empty() && (me.prefix.back() == '/' || me.prefix.back() == '\\'))
+                me.prefix.pop_back();
+            if (me.prefix == ".") me.prefix.clear();
+            me.gps = flag_of(e, "gps", path, "exif");
+            me.attitude = flag_of(e, "attitude", path, "exif");
+            m.exif.push_back(std::move(me));
         }
     }
     return m;
@@ -223,6 +289,12 @@ std::string manifest_write(const Manifest& m, bool json) {
                 for (double x : c.distortion) d.arr.push_back(number(x));
                 e.obj.emplace_back("distortion", std::move(d));
             }
+            if (!c.params.empty()) {
+                JsonValue p;
+                p.type = JsonValue::Type::Array;
+                for (double x : c.params) p.arr.push_back(number(x));
+                e.obj.emplace_back("params", std::move(p));
+            }
             cams.arr.push_back(std::move(e));
         }
         root.obj.emplace_back("cameras", std::move(cams));
@@ -234,6 +306,7 @@ std::string manifest_write(const Manifest& m, bool json) {
             JsonValue e;
             e.type = JsonValue::Type::Object;
             if (!d.name.empty()) e.obj.emplace_back("name", text(d.name));
+            if (!d.kind.empty()) e.obj.emplace_back("kind", text(d.kind));
             if (!d.captures.empty()) {
                 JsonValue caps;
                 caps.type = JsonValue::Type::Array;
@@ -258,12 +331,27 @@ std::string manifest_write(const Manifest& m, bool json) {
                 o.obj.emplace_back("rotation", std::move(rot));
                 o.obj.emplace_back("translation", std::move(tr));
                 if (!md.ext_fixed) o.obj.emplace_back("fixed", boolean(false));
+                if (md.dof != kRigDofAll) o.obj.emplace_back("refine", text(rigDofName(md.dof)));
                 mem.arr.push_back(std::move(o));
             }
             e.obj.emplace_back("members", std::move(mem));
             rigs.arr.push_back(std::move(e));
         }
         root.obj.emplace_back("rigs", std::move(rigs));
+    }
+    if (!m.sequences.empty()) {
+        JsonValue seqs;
+        seqs.type = JsonValue::Type::Array;
+        for (const SequenceDef& d : m.sequences) {
+            JsonValue mem;
+            mem.type = JsonValue::Type::Array;
+            for (const std::string& p : d.members) mem.arr.push_back(text(p.empty() ? "." : p));
+            JsonValue e;
+            e.type = JsonValue::Type::Object;
+            e.obj.emplace_back("members", std::move(mem));
+            seqs.arr.push_back(std::move(e));
+        }
+        root.obj.emplace_back("sequences", std::move(seqs));
     }
     if (!m.captures.empty()) {
         JsonValue caps;
@@ -275,9 +363,24 @@ std::string manifest_write(const Manifest& m, bool json) {
             e.obj.emplace_back("telemetry", text(c.telemetry));
             if (c.fps > 0) e.obj.emplace_back("fps", number(c.fps));
             if (c.time_offset != 0) e.obj.emplace_back("time_offset", number(c.time_offset));
+            if (!c.imu) e.obj.emplace_back("imu", boolean(false));
+            if (!c.gps) e.obj.emplace_back("gps", boolean(false));
             caps.arr.push_back(std::move(e));
         }
         root.obj.emplace_back("captures", std::move(caps));
+    }
+    if (!m.exif.empty()) {
+        JsonValue exif;
+        exif.type = JsonValue::Type::Array;
+        for (const ManifestExif& x : m.exif) {
+            JsonValue e;
+            e.type = JsonValue::Type::Object;
+            e.obj.emplace_back("prefix", text(x.prefix.empty() ? "." : x.prefix));
+            e.obj.emplace_back("gps", boolean(x.gps));
+            e.obj.emplace_back("attitude", boolean(x.attitude));
+            exif.arr.push_back(std::move(e));
+        }
+        root.obj.emplace_back("exif", std::move(exif));
     }
     return json ? json_write(root) : yaml_write(root);
 }
@@ -306,6 +409,8 @@ std::string manifest_apply(const Manifest& m, SfmConfig& cfg,
             if (c.focal > 0 && !seen.count("focal")) cfg.focal = c.focal;
             if (!c.distortion.empty() && !seen.count("distortion"))
                 cfg.camera.extra = c.distortion;
+            if (!c.params.empty() && cfg.camera_model == c.model)
+                cfg.camera.params = c.params;
             continue;
         }
         CameraOverride o;
@@ -325,14 +430,21 @@ std::string manifest_apply(const Manifest& m, SfmConfig& cfg,
             o.has_extra = true;
             o.extra = c.distortion;
         }
+        o.params = c.params;
         // Among equal-length prefixes the earliest entry wins
         // (cameraOverrideFor), and the command line's were pushed while argv
         // was parsed -- so appending here is what lets a flag beat the file.
         cfg.camera.overrides.push_back(o);
     }
     for (const ManifestCapture& c : m.captures)
-        cfg.telemetry_inputs.push_back({c.prefix, resolve(c.telemetry, base), c.fps, c.time_offset});
+        cfg.telemetry_inputs.push_back(
+            {c.prefix, resolve(c.telemetry, base), c.fps, c.time_offset, c.imu, c.gps});
+    for (const ManifestExif& x : m.exif) {
+        if (!x.gps) cfg.exif_gps_off.push_back(x.prefix);
+        if (!x.attitude) cfg.exif_attitude_off.push_back(x.prefix);
+    }
     for (const RigDef& r : m.rigs) cfg.rigs.push_back(r);
+    for (const SequenceDef& d : m.sequences) cfg.sequences.push_back(d);
     return {};
 }
 

@@ -19,6 +19,7 @@
 #include <cmath>
 #include <functional>
 #include <random>
+#include <type_traits>
 #include <vector>
 
 namespace sfm {
@@ -80,6 +81,17 @@ static double scoreModel(const Model& m, int n, double thr2, const Res& res,
     return score;
 }
 
+// The non-minimal solver, handed the incumbent model when it takes one: a
+// local optimization that refines rather than refits needs somewhere to start,
+// and the inlier set alone does not say where.
+template <class Refit, class Model>
+static auto refitModels(const Refit& refit, const std::vector<int>& idx, const Model& m) {
+    if constexpr (std::is_invocable_v<Refit, const std::vector<int>&, const Model&>)
+        return refit(idx, m);
+    else
+        return refit(idx);
+}
+
 // `fit` / `refit` / `res` are deduced, so callers pass lambdas and everything
 // inlines; the FitFn / ResidualFn aliases above still work for a caller that
 // wants a type-erased one. Model stays explicit at the call sites.
@@ -123,7 +135,7 @@ RansacReport<Model> loransac(int n, int min_samples, const Fit& fit, const Refit
                 if (best.inlier_mask[i]) lo_idx.push_back(i);
             if ((int)lo_idx.size() < min_samples) break;
             const int before = best.num_inliers;
-            for (const Model& m : refit(lo_idx)) consider(m);
+            for (const Model& m : refitModels(refit, lo_idx, best.model)) consider(m);
             if (best.num_inliers <= before) break;  // converged
         }
     };

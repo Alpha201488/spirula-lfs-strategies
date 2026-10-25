@@ -19,30 +19,20 @@
  */
 
 #include <cstdint>
-#include <string>
 
 namespace meshing {
 
 struct RenderContext;
 
-// Build a render context. All pointers are HOST arrays (uploaded internally).
-//   means/quats/log_scales/logit_opac/features_dc : raw (un-activated) splat
-//       params, [num_splats * {3,4,3,1,3}]; the projection activates them.
-//   viewmats : [num_cameras*16] row-major world->cam 4x4
-//   intrins  : [num_cameras*4]  fx, fy, cx, cy
-//   dist     : [num_cameras*8] distortion coefficients (may be null => zeros)
-//   widths   : [num_cameras] per-camera image width   (HOST array)
-//   heights  : [num_cameras] per-camera image height  (HOST array)
-//   verbose  : report per-camera progress on the long render loops. Each of
-//       them renders EVERY selected camera once, which on a large capture is
-//       minutes of silence otherwise -- and the progress display upstream has
-//       nothing to move until the phase ends.
+// All pointers are HOST arrays, uploaded here, laid out as Meshing.h's
+// CameraParams; the splat params are raw (un-activated). `verbose` reports
+// progress per camera, as each render loop covers every selected camera.
 RenderContext* render_context_create(
     const float* means, const float* quats, const float* log_scales,
     const float* logit_opac, const float* features_dc, int num_splats,
     const float* viewmats, const float* intrins, const float* dist,
     int num_cameras, const int* widths, const int* heights,
-    const std::string& camera_model, const std::string& distortion,
+    const int* camera_models, const int* distortions,
     int carve_k, bool verbose);
 
 void render_context_destroy(RenderContext*);

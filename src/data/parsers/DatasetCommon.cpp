@@ -5,13 +5,17 @@
 #include "data/DatasetParser.h"
 #include "data/SourceCamera.h"
 #include "i18n/catalog/Data.h"
+#include "sfm/core/Exif.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 
 namespace fs = std::filesystem;
@@ -21,13 +25,55 @@ constexpr double kPi = 3.14159265358979323846;   // MSVC has no M_PI by default
 
 namespace dsparse {
 
+ColmapPoints3D read_seed_pointcloud(const std::string& dataset_dir,
+                                   const std::string& path) {
+    const std::string resolved = (fs::path(dataset_dir) / fs::path(path)).string();
+    ColmapPoints3D points = read_ply_points(resolved);
+    if (points.num() == 0)
+        throw std::runtime_error(spirula::i18n::format(
+            spirula::i18n::msg::data::seed_cloud_empty, {resolved}));
+    for (double v : points.xyz)
+        if (!std::isfinite(v))
+            throw std::runtime_error(spirula::i18n::format(
+                spirula::i18n::msg::data::seed_cloud_nonfinite, {resolved}));
+    return points;
+}
+
+// Each image's EXIF Orientation, or an empty vector when nothing asks for a
+// turn. Only JPEG carries the tag, so anything else is skipped without opening
+// it -- a dataset of PNGs costs nothing.
+std::vector<uint8_t> read_exif_orientations(const std::string& mode,
+                                            const std::vector<std::string>& paths) {
+    std::vector<uint8_t> out;
+    if (mode.empty() || mode == "none") return out;
+    out.assign(paths.size(), 1);
+    bool any = false;
+    for (size_t i = 0; i < paths.size(); i++) {
+        std::string ext = fs::path(paths[i]).extension().string();
+        for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+        if (ext != ".jpg" && ext != ".jpeg") continue;
+        out[i] = (uint8_t)sfm::exifOrientation(paths[i]);
+        any = any || out[i] != 1;
+    }
+    if (!any) out.clear();
+    return out;
+}
+
+// The up each image is levelled by, in the c2w (OpenGL) convention: x right,
+// y UP, so the CV vector sfm::exifUpInCamera gives has its y negated.
+static void exif_up_gl(uint8_t orientation, double up[3]) {
+    sfm::exifUpInCamera(orientation, up);
+    up[1] = -up[1];
+}
+
 // ---------------------------------------------------------------------------
 // up = normalize(mean c2w Y column), R_align: up -> +Z, center = mean camera
 // position, scale = 1 / max |R_align (pos - center)|. The up/poses pair only;
 // the rest is reference/python/camera_utils.py and check_config() warns.
 // ---------------------------------------------------------------------------
 double compute_normalized_transform(const double* c2w, int64_t n,
-                                     double T_out[16], double R_out[9]) {
+                                     double T_out[16], double R_out[9],
+                                     const uint8_t* exif_orientation) {
     std::fill(T_out, T_out + 16, 0.0);
     T_out[0] = T_out[5] = T_out[10] = T_out[15] = 1.0;
     if (R_out) {
@@ -35,16 +81,24 @@ double compute_normalized_transform(const double* c2w, int64_t n,
         R_out[0] = R_out[4] = R_out[8] = 1.0;
     }
     if (n <= 0) return 1.0;
+    std::vector<double> pos(n * 3);
+    for (int64_t i = 0; i < n; i++)
+        for (int r = 0; r < 3; r++) pos[i*3 + r] = c2w[i*12 + r*4 + 3];
+    const std::vector<char> inlier = outlier_keep_mask(pos, n, kStrayCameraThreshold);
     double up[3] = {0, 0, 0}, center[3] = {0, 0, 0};
+    int64_t n_inlier = 0;
     for (int64_t i = 0; i < n; i++) {
-        for (int r = 0; r < 3; r++) {
-            up[r]     += c2w[i*12 + r*4 + 1];
-            center[r] += c2w[i*12 + r*4 + 3];
-        }
+        double u[3] = {0, 1, 0};
+        if (exif_orientation) exif_up_gl(exif_orientation[i], u);
+        for (int r = 0; r < 3; r++)
+            for (int k = 0; k < 3; k++) up[r] += c2w[i*12 + r*4 + k] * u[k];
+        if (!inlier[i]) continue;
+        n_inlier++;
+        for (int r = 0; r < 3; r++) center[r] += pos[i*3 + r];
     }
     double un = std::sqrt(up[0]*up[0] + up[1]*up[1] + up[2]*up[2]);
     for (auto& u : up) u /= std::max(un, 1e-12);
-    for (auto& c : center) c /= (double)n;
+    for (auto& c : center) c /= (double)n_inlier;
 
     double axis[3] = {up[1], -up[0], 0.0};              // up x z
     double s = std::sqrt(axis[0]*axis[0] + axis[1]*axis[1]);
@@ -67,13 +121,16 @@ double compute_normalized_transform(const double* c2w, int64_t n,
 
     double max_abs = 0.0;
     for (int64_t i = 0; i < n; i++) {
+        if (!inlier[i]) continue;
         double d[3];
         for (int r = 0; r < 3; r++) d[r] = c2w[i*12 + r*4 + 3] - center[r];
         for (int r = 0; r < 3; r++)
             max_abs = std::max(max_abs,
                 std::abs(R[r][0]*d[0] + R[r][1]*d[1] + R[r][2]*d[2]));
     }
-    double scale_factor = 1.0 / std::max(max_abs, 1e-12);
+    // Cameras all in one place (one photo, a tripod's turn) have no size to
+    // fit, and 1/1e-12 leaves train_to_normalized singular in float.
+    const double scale_factor = max_abs > 1e-9 ? 1.0 / max_abs : 1.0;
 
     // T_n_from_camera = scale * [R_align | -R_align @ center]
     for (int r = 0; r < 3; r++) {
@@ -106,6 +163,12 @@ void invert_affine4x4(const double in[16], double out[16]) {
     }
     out[12] = out[13] = out[14] = 0.0;
     out[15] = 1.0;
+}
+
+void train_to_normalized_inverse(const ParsedDataset& ds, double out[16]) {
+    double T[16];
+    for (int i = 0; i < 16; i++) T[i] = ds.train_to_normalized[i];
+    invert_affine4x4(T, out);
 }
 
 
@@ -201,13 +264,14 @@ void assign_val_split(ParsedDataset& ds, float validation_fraction) {
 std::string find_aux_file(const std::string& aux_dir_s, const std::string& rel_name,
                           const char* suffix_tag) {
     fs::path aux_dir(aux_dir_s);
+    const fs::path rel = fs::path(rel_name).lexically_normal();
+    if (rel.empty() || rel.is_absolute() || *rel.begin() == "..") return "";
     if (!fs::is_directory(aux_dir)) return "";
-    fs::path rel(rel_name);
     std::string stem_rel = (rel.parent_path() / rel.stem()).string();
     const std::string exts[] = {".png", ".PNG", ".jpg", ".JPG", ".jpeg", ".JPEG"};
     std::vector<std::string> candidates;
     for (const auto& e : exts) {
-        candidates.push_back(rel_name + e);   // image.jpg.png
+        candidates.push_back(rel.string() + e);   // image.jpg.png
         candidates.push_back(stem_rel + e);   // image.png
     }
     candidates.push_back(stem_rel + "_" + suffix_tag + ".png");   // image_mask.png
@@ -216,6 +280,14 @@ std::string find_aux_file(const std::string& aux_dir_s, const std::string& rel_n
         if (fs::exists(p)) return p.string();
     }
     return "";
+}
+
+
+std::string relative_under(const std::string& path, const std::string& dir) {
+    const fs::path rel = fs::path(path).lexically_normal().lexically_relative(
+        fs::path(dir).lexically_normal());
+    if (rel.empty() || *rel.begin() == "..") return "";
+    return rel.generic_string();
 }
 
 
@@ -434,6 +506,43 @@ std::array<double, 3> scene_center(CenterMode mode, const double* c2w, int64_t n
 }
 
 namespace {
+// Whether |c| exceeds `threshold` times the median distance of `pos` to c.
+bool far_from_origin(const double* pos, int64_t n, const std::array<double, 3>& c,
+                     float threshold, int64_t step) {
+    std::vector<double> dist;
+    dist.reserve((size_t)(n / step + 1));
+    for (int64_t i = 0; i < n; i += step) {
+        const double dx = pos[i*3] - c[0], dy = pos[i*3+1] - c[1], dz = pos[i*3+2] - c[2];
+        dist.push_back(std::sqrt(dx*dx + dy*dy + dz*dz));
+    }
+    const double radius = median_of(dist);
+    return std::sqrt(c[0]*c[0] + c[1]*c[1] + c[2]*c[2]) > (double)threshold * radius;
+}
+}  // namespace
+
+ResolvedCenter resolve_scene_center(const std::string& name, float auto_threshold,
+                                    const double* c2w, int64_t n,
+                                    const double* points, int64_t m) {
+    if (name != "auto") {
+        const CenterMode mode = center_mode_from_name(name);
+        return {mode, scene_center_t(mode, c2w, n, points, m, 3, 0)};
+    }
+    // Cameras first: there are few of them, and most datasets stop here.
+    if (n > 0) {
+        const std::vector<double> cams = camera_positions(c2w, n);
+        const std::array<double, 3> c = geometric_median_t(cams.data(), n, 3, 0);
+        if (!far_from_origin(cams.data(), n, c, auto_threshold, 1)) return {};
+        if (m <= 0) return {CenterMode::CameraMedian, c};
+    }
+    if (m <= 0) return {};
+    // A verdict needs a radius, not every point: sampled as a viewport centre is.
+    constexpr int64_t kSamples = 1 << 18;
+    const std::array<double, 3> c = geometric_median_t(points, m, 3, kSamples);
+    if (!far_from_origin(points, m, c, auto_threshold, sample_step(m, kSamples))) return {};
+    return {CenterMode::PointMedian, m <= kSamples ? c : geometric_median_t(points, m, 3, 0)};
+}
+
+namespace {
 template <typename T>
 CenterTable scene_centers_t(const double* c2w, int64_t n, const T* points,
                             int64_t m, int stride, const double* A) {
@@ -461,13 +570,16 @@ CenterTable scene_centers(const double* c2w, int64_t n, const double* points,
 CenterTable scene_centers(const ParsedDataset& ds) {
     const int64_t n = std::min<int64_t>(ds.num_cameras, (int64_t)ds.c2w.size() / 12);
     std::vector<double> c2w(ds.c2w.begin(), ds.c2w.begin() + n * 12);
-    double A[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
-    if (ds.train_frame_scale != 1.0f) {
-        double T[16];
-        for (int i = 0; i < 16; i++) T[i] = ds.train_to_normalized[i];
-        invert_affine4x4(T, A);
-    }
+    double A[16];
+    train_to_normalized_inverse(ds, A);
     return scene_centers_t(c2w.data(), n, ds.points.xyz.data(), ds.points.num(), 3, A);
+}
+
+ResolvedCenter parse_center(const DatasetParserConfig& cfg, const double* c2w,
+                            int64_t n, const ColmapPoints3D& points) {
+    if (cfg.center) return {center_mode_from_name(cfg.center_mode), *cfg.center};
+    return resolve_scene_center(cfg.center_mode, cfg.center_auto_threshold, c2w, n,
+                                points.xyz.data(), points.num());
 }
 
 std::vector<char> outlier_keep_mask(const std::vector<double>& pos,
@@ -481,7 +593,9 @@ std::vector<char> outlier_keep_mask(const std::vector<double>& pos,
         double dx = pos[i*3] - y[0], dy = pos[i*3+1] - y[1], dz = pos[i*3+2] - y[2];
         dist[i] = std::sqrt(dx*dx + dy*dy + dz*dz);
     }
-    double mad = median_of(dist);
+    std::vector<double> sorted = dist;   // median_of reorders its argument
+    double mad = median_of(sorted);
+    if (!(mad > 0.0)) return keep;   // most cameras at one spot: no spread to judge by
     for (int64_t i = 0; i < n; i++)
         keep[i] = dist[i] <= (double)threshold * mad;
     return keep;
@@ -516,20 +630,28 @@ void fit_camera_resolution(const DatasetParserConfig& cfg,
                            const std::string& image_path,
                            double& W, double& H,
                            double& fx, double& fy, double& cx, double& cy,
-                           RedistortSource* src)
+                           RedistortSource* src, int turns_cw)
 {
     if (!(W > 0.0) || !(H > 0.0)) return;
     double tw = W, th = H;
     int iw = 0, ih = 0;
     if (cfg.probe_image_size && !image_path.empty() &&
         cfg.probe_image_size(image_path.c_str(), &iw, &ih) && iw > 0 && ih > 0) {
+        // The camera describes the image as it will be LOADED, which a quarter
+        // turn transposes.
+        if (turns_cw & 1) std::swap(iw, ih);
         tw = std::min(tw, (double)iw);
         th = std::min(th, (double)ih);
         // The height the width ratio implies, against the height on disk: one
         // pixel of slack for the rounding an honest downscaler does.
         if (std::fabs(H * ((double)iw / W) - (double)ih) > 1.0 &&
             first_time(0, iw, ih, W, H))
-            warn(spirula::i18n::msg::data::camera_image_aspect,
+            // A transposed pair is the EXIF-orientation mismatch, not a
+            // stranger's images, and says so rather than sending the reader
+            // looking for the wrong thing.
+            warn(iw == (int)H && ih == (int)W
+                     ? spirula::i18n::msg::data::camera_image_transposed
+                     : spirula::i18n::msg::data::camera_image_aspect,
                  {image_path, size_str(iw, ih), size_str(W, H)});
     }
 
@@ -555,6 +677,34 @@ void fit_camera_resolution(const DatasetParserConfig& cfg,
     if (src && src->source_model >= 0)
         srccam::rescale(src->source_model, src->params, sx, sy);
     W = tw; H = th;
+}
+
+void read_gauge(const std::string& dir, ParsedDataset& ds) {
+    std::ifstream f(dir + "/gauge.txt");
+    if (!f) return;
+    auto number = [](const std::string& v, double& out) {
+        char* end = nullptr;
+        out = std::strtod(v.c_str(), &end);
+        return end != v.c_str() && !*end;
+    };
+    spirula::GeoReference& geo = ds.gauge_geo;
+    bool lat = false, lon = false, alt = false;
+    // Line at a time, so a comment with an odd number of words cannot shift
+    // every key onto the wrong value.
+    std::string line;
+    while (std::getline(f, line)) {
+        std::istringstream in(line);
+        std::string key, value;
+        if (!(in >> key >> value) || key[0] == '#') continue;
+        if (key == "oriented") ds.gauge_oriented = value == "1";
+        else if (key == "metric") ds.gauge_metric = value == "1";
+        else if (key == "origin_lat") lat = number(value, geo.lat_deg);
+        else if (key == "origin_lon") lon = number(value, geo.lon_deg);
+        else if (key == "origin_alt") alt = number(value, geo.alt_m);
+        else if (key == "alt_source") geo.alt_source = value;
+    }
+    geo.ok = lat && lon;
+    if (!alt) geo.alt_source.clear();
 }
 
 }  // namespace dsparse

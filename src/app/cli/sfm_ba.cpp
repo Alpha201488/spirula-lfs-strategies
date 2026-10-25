@@ -1,13 +1,13 @@
-// `spirula-sfm ba` -- the bundle adjuster driven directly on a BAL problem
-// (Bundle Adjustment in the Large), for benchmarking and solver debugging.
-// Its own translation unit because it shares nothing with the pipeline
-// subcommands but the solver. See src/sfm/ba/README.md.
+// `spirula-sfm ba` -- one global bundle adjustment of a sparse model, the one
+// the mapper runs, written back out; or the solver on a BAL problem (Bundle
+// Adjustment in the Large), for benchmarking. See src/sfm/ba/README.md.
 #include <chrono>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <random>
 
+#include "sfm/Pipeline.h"
 #include "sfm/SfmConfig.h"
 #include "sfm/ba/Problem.h"
 #include "sfm/ba/Solver.h"
@@ -43,8 +43,9 @@ void printBaHelp(FILE* out) {
     using spirula::i18n::wrap;
 
     std::fprintf(out, "spirula-sfm ba -- %s\n\n", H::sum_ba.get());
-    std::fprintf(out, "%s\n  spirula-sfm ba <BAL_PROBLEM.TXT|SPARSE_MODEL_DIR> "
-                      "[options]\n\n", H::label_usage.get());
+    std::fprintf(out, "%s\n  spirula-sfm ba <INPUT_MODEL_DIR> <OUTPUT_MODEL_DIR> [options]\n"
+                      "  spirula-sfm ba <BAL_PROBLEM.TXT> <OUTPUT.PLY> [options]\n\n",
+                 H::label_usage.get());
 
     std::fprintf(out, "%s\n", H::label_description.get());
     for (const spirula::i18n::Msg* m : {&H::ba_desc_1, &H::ba_desc_2}) {
@@ -59,13 +60,13 @@ void printBaHelp(FILE* out) {
     struct Row { const char* flag; const char* def; const spirula::i18n::Msg* help; };
     static const Row kRows[] = {
         {"--real {float|double|df|cpu}", "double", &H::ba_opt_real},
-        {"--loss {trivial|huber|cauchy}", "trivial", &H::ba_opt_loss},
-        {"--loss-param X", "1", &H::ba_opt_loss_param},
+        {"--loss {trivial|huber|cauchy}", "huber", &H::ba_opt_loss},
+        {"--loss-param X", "2", &H::ba_opt_loss_param},
         {"--model {snavely|snavely_f}", "snavely", &H::ba_opt_model},
         {"--shared-intrinsics", "", &H::ba_opt_shared_intrinsics},
-        {"--rig PREFIX,PREFIX,...", "", &H::opt_rig},
+        {"--rig [KIND=]PREFIX,PREFIX,...", "", &H::opt_rig},
         {"--solver {auto|dense|cg}", "auto", &H::ba_opt_solver},
-        {"--max-iters N", "", &H::ba_opt_max_iters},
+        {"--max-iters N", "50", &H::ba_opt_max_iters},
         {"--damping X", "", &H::ba_opt_damping},
         {"--rtol X", "", &H::ba_opt_rtol},
         {"--patience N", "", &H::ba_opt_patience},
@@ -73,9 +74,7 @@ void printBaHelp(FILE* out) {
         {"--cg-tol X", "", &H::ba_opt_cg_tol},
         {"--cg-fallback {auto|on|off}", "", &H::ba_opt_cg_fallback},
         {"--vram-budget MB", "", &H::ba_opt_vram_budget},
-        {"--ply PREFIX", "", &H::ba_opt_ply},
-        {"-o, --output DIR", "", &H::ba_opt_output},
-        {"--device N", "", &H::ba_opt_device},
+        {"--device <index|name|auto|-1|uuid:hex>", "", &H::ba_opt_device},
         {"--validate", "", &H::ba_opt_validate},
         {"--profile", "", &H::ba_opt_profile},
         {"--quiet", "", &H::ba_opt_quiet},
@@ -89,8 +88,9 @@ void printBaHelp(FILE* out) {
 
     std::fprintf(out,
         "\n%s\n"
-        "  spirula-sfm ba problem-49-7776-pre.txt --real df --loss huber\n"
-        "  spirula-sfm ba problem-1778-993923-pre.txt --solver cg --vram-budget 4096\n\n",
+        "  spirula-sfm ba sparse/0 sparse/0\n"
+        "  spirula-sfm ba sparse/0 refined/0 --real cpu --max-iters 100\n"
+        "  spirula-sfm ba problem-1778-993923-pre.txt out.ply --solver cg --vram-budget 4096\n\n",
         H::label_examples.get());
     for (const std::string& line : wrap(H::ba_note.get(), 78))
         std::fprintf(out, "%s\n", line.c_str());
@@ -98,7 +98,7 @@ void printBaHelp(FILE* out) {
 
 // The rig table over a written model's image names, with each member's
 // extrinsic averaged from the poses -- what the mapper's calibration would
-// have found, so the benchmark builds the same rigged problem it builds.
+// have found, so --rig builds the same rigged problem it builds.
 static sfm::RigTable rigTableForModel(sfm::Reconstruction& rec,
                                       const std::vector<sfm::RigDef>& defs) {
     uint32_t n = 0;
@@ -145,68 +145,86 @@ static size_t calibratedMembers(const sfm::Reconstruction& rec) {
 }
 
 int cmdBa(int argc, char** argv) {
-    std::string file, ply_prefix, out_dir, loss = "trivial", model = "snavely";
+    std::vector<std::string> paths;
+    std::string loss = "trivial", model = "snavely";
     SolverOptions opt;
     bool shared_intr = false, loss_given = false;
     std::vector<sfm::RigDef> rig_defs;
 
     for (int i = 0; i < argc; i++) {
         std::string a = argv[i];
-        auto next = [&]() { return std::string(argv[++i]); };
-        if (a == "--help" || a == "-h") { printBaHelp(stdout); return 0; }
-        else if (a == "--real") opt.real = realCfgFromName(next());
-        else if (a == "--loss") { loss = next(); loss_given = true; }
-        else if (a == "--spv-path") opt.spv_path = next();
-        else if (a == "--loss-param") { opt.loss_param = std::stof(next()); loss_given = true; }
-        else if (a == "-o" || a == "--output") out_dir = next();
-        else if (a == "--model") model = next();
-        else if (a == "--shared-intrinsics") shared_intr = true;
-        else if (a == "--rig") {
-            sfm::RigDef d;
-            const std::string err = sfm::parseRigArg(next(), d);
-            if (!err.empty()) {
-                fprintf(stderr, "spirula-sfm ba: error: %s\n", err.c_str());
+        auto next = [&]() {
+            if (i + 1 >= argc) throw std::runtime_error(a + " needs a value");
+            return std::string(argv[++i]);
+        };
+        try {
+            if (a == "--help" || a == "-h") { printBaHelp(stdout); return 0; }
+            else if (a == "--real") opt.real = realCfgFromName(next());
+            else if (a == "--loss") { loss = next(); loss_given = true; }
+            else if (a == "--spv-path") opt.spv_path = next();
+            else if (a == "--loss-param") { opt.loss_param = std::stof(next()); loss_given = true; }
+            else if (a == "--model") model = next();
+            else if (a == "--shared-intrinsics") shared_intr = true;
+            else if (a == "--rig") {
+                sfm::RigDef d;
+                const std::string err = sfm::parseRigArg(next(), d);
+                if (!err.empty()) throw std::runtime_error(err);
+                rig_defs.push_back(std::move(d));
+            }
+            else if (a == "--max-iters") opt.max_iters = std::stoi(next());
+            else if (a == "--damping") opt.init_damping = std::stod(next());
+            else if (a == "--rtol") opt.rtol = std::stod(next());
+            else if (a == "--patience") opt.patience = std::stoi(next());
+            else if (a == "--solver") {
+                std::string s = next();
+                opt.solver = s == "dense" ? SolverSel::Dense
+                           : s == "cg"    ? SolverSel::CG
+                                          : SolverSel::Auto;
+            } else if (a == "--vram-budget") opt.vram_budget_mb = std::stod(next());
+            else if (a == "--cg-iters") opt.cg_max_iters = std::stoi(next());
+            else if (a == "--cg-tol") opt.cg_tol = std::stod(next());
+            else if (a == "--cg-fallback") {
+                std::string s = next();
+                opt.cg_fallback = s == "on"  ? CgFallback::On
+                                : s == "off" ? CgFallback::Off
+                                             : CgFallback::Auto;
+            }
+            else if (a == "--device") {
+                const std::string v = next();
+                const std::string request = v.empty() ? "auto" : v;
+                // Retain the integer spelling at the input boundary; the canonical
+                // UUID is what the solver carries.
+                const spirula::vkselect::Request req = spirula::vkselect::parseRequest(request);
+                if (req.kind == spirula::vkselect::Request::Kind::Malformed)
+                    throw std::runtime_error("--device " + request + ": " + req.error);
+                if (req.kind == spirula::vkselect::Request::Kind::Ordinal) opt.device = req.ordinal;
+                // Keep the spelling for every non-ordinal request, Auto included:
+                // an explicit `auto` must resolve as Auto rather than fall through
+                // to the environment.
+                else opt.device_selector = request;
+            }
+            else if (a == "--validate") opt.validate = true;
+            else if (a == "--profile") opt.profile = true;
+            else if (a == "--quiet") opt.verbose = false;
+            else if (a[0] != '-') paths.push_back(a);
+            else {
+                fprintf(stderr, "spirula-sfm ba: error: unknown option %s\n", a.c_str());
+                fprintf(stderr, "Try 'spirula-sfm ba --help' for more information.\n");
                 return 1;
             }
-            rig_defs.push_back(std::move(d));
-        }
-        else if (a == "--max-iters") opt.max_iters = std::stoi(next());
-        else if (a == "--damping") opt.init_damping = std::stod(next());
-        else if (a == "--rtol") opt.rtol = std::stod(next());
-        else if (a == "--patience") opt.patience = std::stoi(next());
-        else if (a == "--ply") ply_prefix = next();
-        else if (a == "--solver") {
-            std::string s = next();
-            opt.solver = s == "dense" ? SolverSel::Dense
-                       : s == "cg"    ? SolverSel::CG
-                                      : SolverSel::Auto;
-        } else if (a == "--vram-budget") opt.vram_budget_mb = std::stod(next());
-        else if (a == "--cg-iters") opt.cg_max_iters = std::stoi(next());
-        else if (a == "--cg-tol") opt.cg_tol = std::stod(next());
-        else if (a == "--cg-fallback") {
-            std::string s = next();
-            opt.cg_fallback = s == "on"  ? CgFallback::On
-                            : s == "off" ? CgFallback::Off
-                                         : CgFallback::Auto;
-        }
-        else if (a == "--device") opt.device = std::stoi(next());
-        else if (a == "--validate") opt.validate = true;
-        else if (a == "--profile") opt.profile = true;
-        else if (a == "--quiet") opt.verbose = false;
-        else if (a[0] != '-') file = a;
-        else {
-            fprintf(stderr, "spirula-sfm ba: error: unknown option %s\n", a.c_str());
-            fprintf(stderr, "Try 'spirula-sfm ba --help' for more information.\n");
+        } catch (const std::exception& e) {
+            fprintf(stderr, "spirula-sfm ba: error: %s\n", e.what());
             return 1;
         }
     }
 
-    if (file.empty()) {
-        fprintf(stderr, "spirula-sfm ba: error: a BAL problem file or sparse model "
-                        "directory is required\n");
+    if (paths.size() != 2) {
+        fprintf(stderr, "spirula-sfm ba: error: an input (sparse model directory or BAL "
+                        "problem) and an output are required\n");
         fprintf(stderr, "Try 'spirula-sfm ba --help' for more information.\n");
         return 1;
     }
+    const std::string file = paths[0], out_path = paths[1];
 
     int model_id = -1;
     for (int m = 0; m < kNumModels; m++)
@@ -216,18 +234,36 @@ int cmdBa(int argc, char** argv) {
         return 1;
     }
 
+    // Resolve the request once, before the solve builds anything: a device this
+    // machine cannot honour is a usage error here, not the CPU fallback below
+    // (which exists for a device that genuinely lacks the arithmetic).
+    {
+        const std::string text = !opt.device_selector.empty()
+                                     ? opt.device_selector
+                                     : (opt.device >= 0 ? std::to_string(opt.device) : "");
+        if (!text.empty()) {
+            const spirula::vkselect::Resolution res = VkContext::resolveSelector(
+                spirula::vkselect::parseRequest(text));
+            if (!res.ok()) {
+                fprintf(stderr, "spirula-sfm ba: error: --device %s: %s\n", text.c_str(),
+                        res.error.c_str());
+                return 1;
+            }
+            opt.device_selector = res.selector;
+        }
+    }
+
     // both debug hooks pin the solver selection they need
     if (spirula::env("SFM_DUMP_SG")) opt.solver = SolverSel::Dense;
     const bool cmp_step = spirula::env("SFM_CMP_STEP") != nullptr;
     if (cmp_step) {
         opt.solver = SolverSel::CG;
         opt.cg_fallback = CgFallback::On;
+        opt.cg_model_tol = 0;  // --cg-tol alone sets how exact the step is
     }
 
-    // A directory is a COLMAP sparse model: build the same problem the mapper's
-    // global BA builds and drive the solver on it. This is how the solver is
-    // profiled on real captures rather than on BAL. The mapper's loss defaults
-    // come along with it, since matching what the pipeline runs is the point.
+    // A directory is a COLMAP sparse model: build the problem the mapper's
+    // global BA builds, with its loss defaults and the rigs its run wrote.
     std::error_code dir_ec;
     const bool is_model = std::filesystem::is_directory(file, dir_ec);
 
@@ -238,21 +274,27 @@ int cmdBa(int argc, char** argv) {
     if (is_model) {
         sfm::BundleOptions bopt;
         if (!loss_given) { loss = bopt.loss; opt.loss_param = bopt.loss_param; }
-        rec = sfm::Reconstruction::readBinary(file);
+        try {
+            rec = sfm::Reconstruction::readBinary(file);
+            if (!rig_defs.empty()) {
+                rigs = rigTableForModel(rec, rig_defs);
+                fprintf(stderr, "[model] %zu rig(s), %zu member(s) calibrated from the poses\n",
+                        rigs.rigs.size(), (size_t)calibratedMembers(rec));
+            } else {
+                rigs = sfm::readRigs(file, rec);
+                if (!rigs.empty())
+                    fprintf(stderr, "[model] %zu rig(s), %zu member(s) from rigs.txt\n",
+                            rigs.rigs.size(), (size_t)calibratedMembers(rec));
+            }
+        } catch (const std::exception& e) {
+            fprintf(stderr, "spirula-sfm ba: error: %s\n", e.what());
+            return 1;
+        }
         bopt.real = opt.real;
         bopt.verbose = opt.verbose;
         bopt.device = opt.device;
-        if (!rig_defs.empty()) {
-            try {
-                rigs = rigTableForModel(rec, rig_defs);
-            } catch (const std::exception& e) {
-                fprintf(stderr, "spirula-sfm ba: error: %s\n", e.what());
-                return 1;
-            }
-            bopt.rigs = &rigs;
-            fprintf(stderr, "[model] %zu rig(s), %zu member(s) calibrated from the poses\n",
-                    rigs.rigs.size(), (size_t)calibratedMembers(rec));
-        }
+        bopt.device_selector = opt.device_selector;
+        if (!rigs.empty()) bopt.rigs = &rigs;
         layout = sfm::buildBundle(rec, bopt);
         if (layout.P.num_images < 2) {
             fprintf(stderr, "spirula-sfm ba: error: %s holds no registered model\n", file.c_str());
@@ -263,14 +305,17 @@ int cmdBa(int argc, char** argv) {
     }
     opt.loss = loss;
     BAProblem P = is_model ? std::move(layout.P) : loadBAL(file, model_id, shared_intr);
-    BundleSolver solver(P, opt);
-    solver.init();
     auto t1 = std::chrono::high_resolution_clock::now();
-    double t_pre = std::chrono::duration<double>(t1 - t0).count();
 
-    if (!ply_prefix.empty()) writePly((ply_prefix + "_before.ply").c_str(), P.points);
-
-    if (spirula::env("SFM_DUMP_SG")) {
+    if (spirula::env("SFM_DUMP_SG") || cmp_step) {
+        BundleSolver solver(P, opt);
+        solver.init();
+        if (cmp_step) {
+            // SS_SFM_CMP_STEP: solve one assembly with both CG and dense, print
+            // the step difference (--cg-tol / --cg-iters control CG accuracy)
+            solver.debugCompareStep((float)atof(env_or("SFM_CMP_STEP_LAMBDA", "0.01")));
+            return 0;
+        }
         solver.debugAssemble(atof(env_or("SFM_DUMP_SG_LAMBDA", "0.01")));
         std::string base = spirula::env("SFM_DUMP_SG");
         std::vector<double> v = solver.debugPackedS();
@@ -282,27 +327,33 @@ int cmdBa(int argc, char** argv) {
         return 0;
     }
 
-    // SS_SFM_CMP_STEP: solve one assembly with both CG and dense, print the
-    // step difference (use --cg-tol / --cg-iters to control CG accuracy)
-    if (cmp_step) {
-        double lam = atof(env_or("SFM_CMP_STEP_LAMBDA", "0.01"));
-        solver.debugCompareStep((float)lam);
-        return 0;
+    const sfm::BundleRun run = sfm::solveBundle(P, opt, nullptr);
+    double t_pre = std::chrono::duration<double>(t1 - t0).count() + run.t_init;
+
+    try {
+        if (is_model) {
+            namespace fs = std::filesystem;
+            sfm::writeBundle(rec, layout, P);
+            fs::create_directories(out_path);
+            rec.writeBinary(out_path);
+            sfm::writeRigs(out_path, rec, rigs.empty() ? nullptr : &rigs);
+            const fs::path gauge = fs::path(file) / "gauge.txt";
+            if (fs::exists(gauge) && !fs::equivalent(file, out_path))
+                fs::copy_file(gauge, fs::path(out_path) / "gauge.txt",
+                              fs::copy_options::overwrite_existing);
+        } else {
+            writePly(out_path.c_str(), P.points);
+        }
+    } catch (const std::exception& e) {
+        fprintf(stderr, "spirula-sfm ba: error: %s: %s\n", out_path.c_str(), e.what());
+        return 1;
     }
+    fprintf(stderr, "[model] wrote %s\n", out_path.c_str());
 
-    solver.solve();
-    solver.downloadParams();
-
-    if (!ply_prefix.empty()) writePly((ply_prefix + "_after.ply").c_str(), P.points);
-    if (is_model && !out_dir.empty()) {
-        sfm::writeBundle(rec, layout, P);
-        std::filesystem::create_directories(out_dir);
-        rec.writeBinary(out_dir);
-    }
-
-    const SolverStats& st = solver.stats();
-    printf("real=%s loss=%s model=%s solver=%s%s\n", realCfgName(solver.real()), loss.c_str(),
-           model.c_str(), st.solver, shared_intr ? " shared-intrinsics" : "");
+    const SolverStats& st = run.stats;
+    printf("real=%s loss=%s solver=%s", realCfgName(run.real), loss.c_str(), st.solver);
+    if (!is_model) printf(" model=%s%s", model.c_str(), shared_intr ? " shared-intrinsics" : "");
+    printf("\n");
     {
         namespace H = spirula::i18n::msg::sfmhelp;
         using spirula::i18n::format;

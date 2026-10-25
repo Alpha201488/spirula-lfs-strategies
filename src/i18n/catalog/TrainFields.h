@@ -363,69 +363,73 @@ SS_MSG(save_full_checkpoint,
     RU("Сохранять точки для продолжения"),
     TR("Sürdürülebilir denetim noktaları kaydet"));
 SS_MSG(save_full_checkpoint_help,
-    EN("Also store everything needed to resume training later, not just the finished "
-       "splats. Checkpoints get much larger because they carry every splat slot "
-       "and the optimizer state. Leave off if you only want the exported splat "
-       "file."),
-    JA("仕上がったスプラットだけでなく、後で学習を再開するのに必要なものもすべ"
-       "て保存します。すべてのスプラット枠とオプティマイザの状態を持つので、チ"
-       "ェックポイントはかなり大きくなります。書き出したスプラットファイルだけ"
-       "が欲しいならオフのままにしてください。"),
-    ZH_HANS("除了训练好的泼溅，还保存以后继续训练所需的一切。检查点会大得多，"
-            "因为它包含每个泼溅槽位和优化器状态。如果只想要导出的泼溅文件，就"
-            "保持关闭。"),
-    ZH_HANT("除了訓練好的潑濺，還儲存以後繼續訓練所需的一切。檢查點會大得多，"
-            "因為它包含每個潑濺槽位和最佳化器狀態。如果只想要匯出的潑濺檔案，"
-            "就保持關閉。"),
-    KO("완성된 스플랫뿐 아니라 나중에 학습을 이어가는 데 필요한 것도 모두 저장"
-       "합니다. 모든 스플랫 자리와 옵티마이저 상태를 담기 때문에 체크포인트가"
-       " 훨씬 커집니다. 내보낸 스플랫 파일만 필요하면 꺼 두십시오."),
-    DE("Zusätzlich alles speichern, was zum späteren Fortsetzen nötig ist, nicht "
-       "nur die fertigen Splats. Checkpoints werden viel größer, weil sie jeden "
-       "Splat-Platz und den Optimiererzustand mitführen. Ausgeschaltet lassen, "
-       "wenn nur die exportierte Splat-Datei gebraucht wird."),
-    FR("Enregistrer aussi tout ce qu'il faut pour reprendre l'entraînement plus "
-       "tard, pas seulement les splats finis. Les sauvegardes deviennent bien "
-       "plus grosses car elles portent chaque emplacement de splat et l'état "
-       "de l'optimiseur. À laisser décoché si seul le fichier de splats exporté "
-       "vous intéresse."),
-    ES("Guardar además todo lo necesario para reanudar el entrenamiento más tarde, "
-       "no solo los splats terminados. Los puntos de control se vuelven mucho "
-       "mayores porque llevan cada hueco de splat y el estado del optimizador. "
-       "Déjelo sin marcar si solo quiere el archivo de splats exportado."),
-    PT("Guardar também tudo o que é preciso para retomar o treinamento depois, "
-       "não só os splats prontos. Os checkpoints ficam bem maiores porque carregam "
-       "cada posição de splat e o estado do otimizador. Deixe desmarcado se quiser "
-       "apenas o arquivo de splats exportado."),
-    IT("Salvare anche tutto ciò che serve per riprendere l'addestramento più "
-       "tardi, non solo gli splat finiti. I checkpoint diventano molto più grandi "
-       "perché portano ogni posto splat e lo stato dell'ottimizzatore. Lasciare "
-       "deselezionato se serve solo il file di splat esportato."),
-    NL("Ook alles opslaan wat nodig is om later verder te trainen, niet alleen "
-       "de afgeronde splats. Checkpoints worden veel groter omdat ze elke splatplek "
-       "en de optimizerstatus meedragen. Laat uit als je alleen het geëxporteerde "
-       "splatbestand wilt."),
-    RU("Сохранять не только готовые сплаты, но и всё, что нужно, чтобы позже "
-       "продолжить обучение. Контрольные точки становятся заметно больше, поскольку "
-       "несут каждую ячейку сплата и состояние оптимизатора. Оставьте выключенным, "
-       "если нужен только выгруженный файл сплатов."),
-    TR("Yalnızca bitmiş splat'ları değil, sonradan eğitimi sürdürmek için gereken "
-       "her şeyi de kaydeder. Denetim noktaları çok daha büyür, çünkü her splat "
-       "yuvasını ve iyileştirici durumunu taşırlar. Yalnızca dışa aktarılmış "
-       "splat dosyasını istiyorsanız kapalı bırakın."));
-SS_MSG(export_keep_low_opacity,
-    EN("Export faint splats"),
-    JA("薄いスプラットを書き出す"),
-    ZH_HANS("导出保留半透明点"), ZH_HANT("匯出保留半透明點"),
-    KO("흐린 스플랫 내보내기"),
-    DE("Schwach sichtbare Splats exportieren"),
-    FR("Exporter les splats peu opaques"),
-    ES("Exportar splats tenues"),
-    PT("Exportar splats pouco opacos"),
-    IT("Esporta splat poco opachi"),
-    NL("Zwak zichtbare splats exporteren"),
-    RU("Выгружать полупрозрачные сплаты"),
-    TR("Soluk splat'ları dışa aktar"));
+    EN("Store what training needs to continue in every checkpoint, the final one "
+       "and any older ones kept included. Without it, the newest checkpoint still "
+       "continues an interrupted run while only the newest is kept. Resumable "
+       "checkpoints are much larger because they carry every splat slot and the "
+       "optimizer state."),
+    JA("学習を続けるのに必要なものを、最後のものや残しておく古いものも含め、すべ"
+       "てのチェックポイントに保存します。オフでも、最新のチェックポイントだけを"
+       "残す設定なら、中断した学習はその最新のものから続けられます。再開できるチ"
+       "ェックポイントは、すべてのスプラット枠とオプティマイザの状態を持つので、"
+       "かなり大きくなります。"),
+    ZH_HANS("在每个检查点中都保存继续训练所需的一切，包括最后一个以及保留下来的旧"
+            "检查点。关闭时，只要设为只保留最新的检查点，中断的训练仍可从这个最新"
+            "检查点继续。可继续训练的检查点包含每个泼溅槽位和优化器状态，因此会大"
+            "得多。"),
+    ZH_HANT("在每個檢查點中都儲存繼續訓練所需的一切，包括最後一個以及保留下來的舊"
+            "檢查點。關閉時，只要設為只保留最新的檢查點，中斷的訓練仍可從這個最新"
+            "檢查點繼續。可繼續訓練的檢查點包含每個潑濺槽位和最佳化器狀態，因此會"
+            "大得多。"),
+    KO("학습을 이어가는 데 필요한 것을 마지막 체크포인트와 보관하는 이전 체크포"
+       "인트까지 모든 체크포인트에 저장합니다. 꺼 두어도 가장 최근 체크포인트만 "
+       "보관하는 동안에는 중단된 학습을 그 체크포인트에서 이어갈 수 있습니다. "
+       "이어할 수 있는 체크포인트는 모든 스플랫 자리와 옵티마이저 상태를 담기 "
+       "때문에 훨씬 커집니다."),
+    DE("Speichert in jedem Checkpoint, was zum Weitertrainieren nötig ist, auch im "
+       "letzten und in jedem aufbewahrten älteren. Ohne diese Option setzt der "
+       "neueste Checkpoint einen abgebrochenen Lauf trotzdem fort, solange nur der "
+       "neueste aufbewahrt wird. Fortsetzbare Checkpoints sind viel größer, weil "
+       "sie jeden Splat-Platz und den Optimiererzustand mitführen."),
+    FR("Enregistre dans chaque sauvegarde ce qu'il faut pour poursuivre "
+       "l'entraînement, y compris la dernière et les plus anciennes conservées. "
+       "Sans cette option, la sauvegarde la plus récente permet quand même de "
+       "reprendre une exécution interrompue tant que seule la plus récente est "
+       "conservée. Les sauvegardes reprenables sont bien plus grosses car elles "
+       "portent chaque emplacement de splat et l'état de l'optimiseur."),
+    ES("Guarda en cada punto de control lo necesario para seguir entrenando, "
+       "incluidos el último y los anteriores que se conserven. Sin esta opción, el "
+       "punto de control más reciente igualmente permite continuar una ejecución "
+       "interrumpida mientras solo se conserve el más reciente. Los puntos de "
+       "control reanudables son mucho mayores porque llevan cada hueco de splat y "
+       "el estado del optimizador."),
+    PT("Guarda em cada checkpoint o que é preciso para continuar o treinamento, "
+       "incluindo o último e os anteriores que forem mantidos. Sem esta opção, o "
+       "checkpoint mais recente ainda permite retomar uma execução interrompida "
+       "enquanto apenas o mais recente for mantido. Checkpoints retomáveis ficam "
+       "bem maiores porque carregam cada posição de splat e o estado do otimizador."),
+    IT("Salva in ogni checkpoint ciò che serve per continuare l'addestramento, "
+       "compresi l'ultimo e quelli precedenti conservati. Senza questa opzione, il "
+       "checkpoint più recente permette comunque di riprendere un'esecuzione "
+       "interrotta finché si conserva solo il più recente. I checkpoint "
+       "riprendibili sono molto più grandi perché portano ogni posto splat e lo "
+       "stato dell'ottimizzatore."),
+    NL("Slaat in elk checkpoint op wat nodig is om verder te trainen, ook in het "
+       "laatste en in elk bewaard ouder checkpoint. Zonder deze optie hervat het "
+       "nieuwste checkpoint een onderbroken run toch, zolang alleen het nieuwste "
+       "wordt bewaard. Hervatbare checkpoints zijn veel groter omdat ze elke "
+       "splatplek en de optimizerstatus meedragen."),
+    RU("Сохранять во всех контрольных точках всё, что нужно для продолжения "
+       "обучения, включая последнюю и сохраняемые более ранние. Без этого "
+       "прерванный запуск всё равно можно продолжить с последней точки, пока "
+       "хранится только последняя. Такие точки заметно больше, поскольку несут "
+       "каждую ячейку сплата и состояние оптимизатора."),
+    TR("Eğitime devam etmek için gerekenleri, son denetim noktası ve saklanan "
+       "eskiler de dahil olmak üzere her denetim noktasına kaydeder. Kapalıyken de "
+       "yalnızca en yeni denetim noktası saklandığı sürece yarıda kalan bir "
+       "çalışma o noktadan sürdürülebilir. Sürdürülebilir denetim noktaları her "
+       "splat yuvasını ve iyileştirici durumunu taşıdığı için çok daha büyüktür."));
+
 SS_MSG(export_keep_low_opacity_help,
     EN("Keep splats whose opacity is very low in the exported splat.ply, like the "
        "original LFS does (it only removes deleted splats). Turn off to drop splats "
@@ -478,6 +482,19 @@ SS_MSG(export_keep_low_opacity_help,
        "orijinal LFS gibi (yalnızca silinmiş splat'ları atar). Kapatılırsa dışa "
        "aktarımda ~%0,4 opaklık altı splat'lar atılır; metin gibi ince ayrıntıların "
        "kaybolmaması için varsayılan olarak açıktır."));
+SS_MSG(export_keep_low_opacity,
+    EN("Export faint splats"),
+    JA("薄いスプラットを書き出す"),
+    ZH_HANS("导出保留半透明点"), ZH_HANT("匯出保留半透明點"),
+    KO("흐린 스플랫 내보내기"),
+    DE("Schwach sichtbare Splats exportieren"),
+    FR("Exporter les splats peu opaques"),
+    ES("Exportar splats tenues"),
+    PT("Exportar splats pouco opacos"),
+    IT("Esporta splat poco opachi"),
+    NL("Zwak zichtbare splats exporteren"),
+    RU("Выгружать полупрозрачные сплаты"),
+    TR("Soluk splat'ları dışa aktar"));
 
 SS_MSG(save_eval_images,
     EN("Save evaluation images"), JA("評価用画像を保存"),
@@ -523,6 +540,185 @@ SS_MSG(save_eval_images_help,
     TR("Eğitim bitince, ayrılmış görünümler için çizilen ve kaynak görüntüleri "
        "yazar. Kaliteyi değerlendirmek için işe yarar, karşılığında biraz disk "
        "yeri harcar."));
+
+SS_MSG(eval_lpips,
+    EN("Score eval views with LPIPS"),
+    JA("評価用の視点を LPIPS で採点"),
+    ZH_HANS("用 LPIPS 为评估视角评分"),
+    ZH_HANT("用 LPIPS 為評估視角評分"),
+    KO("평가 시점을 LPIPS로 채점"),
+    DE("Auswertungsansichten mit LPIPS bewerten"),
+    FR("Noter les vues d'évaluation avec LPIPS"),
+    ES("Puntuar las vistas de evaluación con LPIPS"),
+    PT("Pontuar as vistas de avaliação com LPIPS"),
+    IT("Valutare le viste con LPIPS"),
+    NL("Evaluatieaanzichten scoren met LPIPS"),
+    RU("Оценивать виды по LPIPS"),
+    TR("Değerlendirme görünümlerini LPIPS ile puanla"));
+SS_MSG(eval_lpips_help,
+    EN("When views are held out, also score them with LPIPS (AlexNet and VGG) in "
+       "metrics.json. Its four checkpoints, about 800 MB, are downloaded once when a "
+       "run starts, and a run whose download fails stops before it trains. A build "
+       "without the inference layer (SS_BUILD_SAM) leaves LPIPS to "
+       "reference/python/eval_lpips.py."),
+    JA("評価用に視点を取り分けたとき、LPIPS（AlexNet と VGG）でも採点して "
+       "metrics.json に書きます。4 つのチェックポイント（約 800 MB）は実行の開始時に"
+       "一度だけダウンロードされ、ダウンロードに失敗した実行は学習の前に止まります。"
+       "推論レイヤー（SS_BUILD_SAM）を含まないビルドでは、LPIPS は "
+       "reference/python/eval_lpips.py に任せます。"),
+    ZH_HANS("留出评估视角时，同时用 LPIPS（AlexNet 和 VGG）评分并写入 metrics.json。"
+            "它的四个检查点（约 800 MB）在运行开始时下载一次；下载失败的运行会在训练前"
+            "停止。不含推理层（SS_BUILD_SAM）的构建把 LPIPS 留给 "
+            "reference/python/eval_lpips.py。"),
+    ZH_HANT("留出評估視角時，同時用 LPIPS（AlexNet 與 VGG）評分並寫入 metrics.json。"
+            "它的四個檢查點（約 800 MB）在執行開始時下載一次；下載失敗的執行會在訓練前"
+            "停止。不含推論層（SS_BUILD_SAM）的建置把 LPIPS 交給 "
+            "reference/python/eval_lpips.py。"),
+    KO("평가용으로 시점을 떼어 두면 LPIPS(AlexNet과 VGG)로도 채점해 metrics.json에 "
+       "씁니다. 체크포인트 4개(약 800 MB)는 실행이 시작될 때 한 번 내려받으며, "
+       "내려받기에 실패한 실행은 학습 전에 멈춥니다. 추론 계층(SS_BUILD_SAM)이 없는 "
+       "빌드에서는 LPIPS를 reference/python/eval_lpips.py에 맡깁니다."),
+    DE("Werden Ansichten zurückgehalten, sie zusätzlich mit LPIPS (AlexNet und VGG) "
+       "bewerten und in metrics.json schreiben. Die vier Checkpoints, etwa 800 MB, "
+       "werden beim Start eines Laufs einmal heruntergeladen; schlägt das fehl, stoppt "
+       "der Lauf, bevor er trainiert. Ein Build ohne Inferenzschicht (SS_BUILD_SAM) "
+       "überlässt LPIPS reference/python/eval_lpips.py."),
+    FR("Quand des vues sont mises de côté, les noter aussi avec LPIPS (AlexNet et "
+       "VGG) dans metrics.json. Ses quatre points de contrôle, environ 800 Mo, sont "
+       "téléchargés une fois au début d'une exécution ; si le téléchargement échoue, "
+       "l'exécution s'arrête avant d'entraîner. Un build sans couche d'inférence "
+       "(SS_BUILD_SAM) laisse LPIPS à reference/python/eval_lpips.py."),
+    ES("Cuando se apartan vistas, puntuarlas también con LPIPS (AlexNet y VGG) en "
+       "metrics.json. Sus cuatro puntos de control, unos 800 MB, se descargan una vez "
+       "al empezar una ejecución; si la descarga falla, la ejecución se detiene antes "
+       "de entrenar. Una compilación sin la capa de inferencia (SS_BUILD_SAM) deja "
+       "LPIPS a reference/python/eval_lpips.py."),
+    PT("Quando há vistas reservadas, pontuá-las também com LPIPS (AlexNet e VGG) em "
+       "metrics.json. Seus quatro checkpoints, cerca de 800 MB, são baixados uma vez "
+       "ao iniciar uma execução; se o download falhar, a execução para antes de "
+       "treinar. Uma compilação sem a camada de inferência (SS_BUILD_SAM) deixa o "
+       "LPIPS para reference/python/eval_lpips.py."),
+    IT("Quando delle viste sono messe da parte, valutarle anche con LPIPS (AlexNet e "
+       "VGG) in metrics.json. I suoi quattro checkpoint, circa 800 MB, vengono "
+       "scaricati una volta all'avvio di un'esecuzione; se il download non riesce, "
+       "l'esecuzione si ferma prima di addestrare. Una build senza il livello di "
+       "inferenza (SS_BUILD_SAM) lascia LPIPS a reference/python/eval_lpips.py."),
+    NL("Als er aanzichten opzij worden gezet, die ook met LPIPS (AlexNet en VGG) "
+       "scoren in metrics.json. De vier checkpoints, ongeveer 800 MB, worden eenmaal "
+       "gedownload wanneer een run start; mislukt dat, dan stopt de run voordat hij "
+       "traint. Een build zonder inferentielaag (SS_BUILD_SAM) laat LPIPS over aan "
+       "reference/python/eval_lpips.py."),
+    RU("Если виды отложены для оценки, оценивать их также по LPIPS (AlexNet и VGG) и "
+       "записывать в metrics.json. Четыре контрольные точки, около 800 МБ, скачиваются "
+       "один раз при запуске; если загрузка не удалась, запуск останавливается до "
+       "обучения. Сборка без слоя вывода (SS_BUILD_SAM) оставляет LPIPS скрипту "
+       "reference/python/eval_lpips.py."),
+    TR("Görünümler ayrıldığında onları LPIPS (AlexNet ve VGG) ile de puanlayıp "
+       "metrics.json'a yazar. Dört denetim noktası, yaklaşık 800 MB, bir çalıştırma "
+       "başlarken bir kez indirilir; indirme başarısız olursa çalıştırma eğitmeden "
+       "durur. Çıkarım katmanı (SS_BUILD_SAM) olmayan bir derleme LPIPS'i "
+       "reference/python/eval_lpips.py'ye bırakır."));
+
+SS_MSG(lpips_checkpoints,
+    EN("LPIPS checkpoints folder"),
+    JA("LPIPS チェックポイントのフォルダー"),
+    ZH_HANS("LPIPS 检查点文件夹"),
+    ZH_HANT("LPIPS 檢查點資料夾"),
+    KO("LPIPS 체크포인트 폴더"),
+    DE("Ordner der LPIPS-Checkpoints"),
+    FR("Dossier des points de contrôle LPIPS"),
+    ES("Carpeta de puntos de control de LPIPS"),
+    PT("Pasta dos checkpoints do LPIPS"),
+    IT("Cartella dei checkpoint LPIPS"),
+    NL("Map met LPIPS-checkpoints"),
+    RU("Папка контрольных точек LPIPS"),
+    TR("LPIPS denetim noktası klasörü"));
+SS_MSG(lpips_checkpoints_help,
+    EN("A folder that already holds the four LPIPS checkpoints, used instead of "
+       "downloading them: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, and LPIPS "
+       "v0.1's alex.pth and vgg.pth. Torch's hub cache (~/.cache/torch/hub/checkpoints) "
+       "is such a folder. Empty: the model cache, downloading what is missing."),
+    JA("4 つの LPIPS チェックポイントがすでに入っているフォルダーで、ダウンロードの"
+       "代わりに使います：alexnet-owt-7be5be79.pth、vgg16-397923af.pth、LPIPS v0.1 の "
+       "alex.pth と vgg.pth。torch のハブキャッシュ（~/.cache/torch/hub/checkpoints）"
+       "がそうしたフォルダーです。空のときはモデルキャッシュを使い、足りないものを"
+       "ダウンロードします。"),
+    ZH_HANS("已经存有四个 LPIPS 检查点的文件夹，用它代替下载：alexnet-owt-7be5be79.pth、"
+            "vgg16-397923af.pth，以及 LPIPS v0.1 的 alex.pth 和 vgg.pth。torch 的 hub "
+            "缓存（~/.cache/torch/hub/checkpoints）就是这样的文件夹。留空则使用模型缓存，"
+            "并下载缺少的文件。"),
+    ZH_HANT("已經存有四個 LPIPS 檢查點的資料夾，用它代替下載：alexnet-owt-7be5be79.pth、"
+            "vgg16-397923af.pth，以及 LPIPS v0.1 的 alex.pth 與 vgg.pth。torch 的 hub "
+            "快取（~/.cache/torch/hub/checkpoints）就是這樣的資料夾。留空則使用模型快取，"
+            "並下載缺少的檔案。"),
+    KO("LPIPS 체크포인트 4개가 이미 들어 있는 폴더로, 내려받는 대신 씁니다: "
+       "alexnet-owt-7be5be79.pth, vgg16-397923af.pth, 그리고 LPIPS v0.1의 alex.pth와 "
+       "vgg.pth. torch의 허브 캐시(~/.cache/torch/hub/checkpoints)가 그런 폴더입니다. "
+       "비워 두면 모델 캐시를 쓰고 없는 파일을 내려받습니다."),
+    DE("Ein Ordner, der die vier LPIPS-Checkpoints schon enthält, statt sie "
+       "herunterzuladen: alexnet-owt-7be5be79.pth, vgg16-397923af.pth sowie alex.pth "
+       "und vgg.pth von LPIPS v0.1. Der Hub-Cache von torch "
+       "(~/.cache/torch/hub/checkpoints) ist so ein Ordner. Leer: der Modell-Cache, "
+       "Fehlendes wird heruntergeladen."),
+    FR("Un dossier qui contient déjà les quatre points de contrôle LPIPS, utilisé au "
+       "lieu de les télécharger : alexnet-owt-7be5be79.pth, vgg16-397923af.pth, et "
+       "alex.pth et vgg.pth de LPIPS v0.1. Le cache hub de torch "
+       "(~/.cache/torch/hub/checkpoints) en est un. Vide : le cache des modèles, en "
+       "téléchargeant ce qui manque."),
+    ES("Una carpeta que ya contiene los cuatro puntos de control de LPIPS, usada en "
+       "lugar de descargarlos: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, y "
+       "alex.pth y vgg.pth de LPIPS v0.1. La caché hub de torch "
+       "(~/.cache/torch/hub/checkpoints) es una de ellas. Vacía: la caché de modelos, "
+       "descargando lo que falte."),
+    PT("Uma pasta que já contém os quatro checkpoints do LPIPS, usada em vez de "
+       "baixá-los: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, e alex.pth e vgg.pth "
+       "do LPIPS v0.1. O cache hub do torch (~/.cache/torch/hub/checkpoints) é uma "
+       "delas. Vazia: o cache de modelos, baixando o que faltar."),
+    IT("Una cartella che contiene già i quattro checkpoint LPIPS, usata al posto del "
+       "download: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, e alex.pth e vgg.pth "
+       "di LPIPS v0.1. La cache hub di torch (~/.cache/torch/hub/checkpoints) è una di "
+       "queste. Vuota: la cache dei modelli, scaricando ciò che manca."),
+    NL("Een map die de vier LPIPS-checkpoints al bevat, gebruikt in plaats van "
+       "downloaden: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, en alex.pth en "
+       "vgg.pth van LPIPS v0.1. De hub-cache van torch (~/.cache/torch/hub/checkpoints) "
+       "is zo'n map. Leeg: de modelcache, met een download van wat ontbreekt."),
+    RU("Папка, где уже лежат четыре контрольные точки LPIPS; используется вместо "
+       "загрузки: alexnet-owt-7be5be79.pth, vgg16-397923af.pth, а также alex.pth и "
+       "vgg.pth из LPIPS v0.1. Кэш hub у torch (~/.cache/torch/hub/checkpoints) — "
+       "такая папка. Пусто: кэш моделей, недостающее скачивается."),
+    TR("Dört LPIPS denetim noktasını zaten içeren, indirmek yerine kullanılan bir "
+       "klasör: alexnet-owt-7be5be79.pth, vgg16-397923af.pth ve LPIPS v0.1'in alex.pth "
+       "ile vgg.pth dosyaları. torch'un hub önbelleği (~/.cache/torch/hub/checkpoints) "
+       "böyle bir klasördür. Boş: model önbelleği; eksik olanlar indirilir."));
+
+SS_MSG(log_performance,
+    EN("Log performance stats"),
+    JA("性能の統計を記録"),
+    ZH_HANS("记录性能统计"),
+    ZH_HANT("記錄效能統計"),
+    KO("성능 통계 기록"),
+    DE("Leistungsdaten protokollieren"),
+    FR("Journaliser les statistiques de performance"),
+    ES("Registrar estadísticas de rendimiento"),
+    PT("Registrar estatísticas de desempenho"),
+    IT("Registra le statistiche delle prestazioni"),
+    NL("Prestatiestatistieken vastleggen"),
+    RU("Записывать статистику производительности"),
+    TR("Performans istatistiklerini kaydet"));
+SS_MSG(log_performance_help,
+    EN("Records the computer and the run once a second while it trains: CPU use per core, memory, disk, GPU use, clocks and temperature, and how long each step waited for images versus ran on the GPU. The files go to the run's perf folder; python tools/perf/perf_report.py with that folder turns them into a report of what limited each stage. Costs a small fraction of one CPU core."),
+    JA("学習中、1 秒ごとにコンピューターと実行の状態を記録します。コアごとの CPU 使用率、メモリ、ディスク、GPU 使用率、クロック、温度、そして各ステップが画像を待った時間と GPU で動いた時間です。ファイルは実行フォルダーの perf に保存されます。そのフォルダーを指定して python tools/perf/perf_report.py を実行すると、各段階の制約要因をまとめたレポートになります。CPU コア 1 つのごく一部しか使いません。"),
+    ZH_HANS("训练时每秒记录一次计算机和本次运行的状态：每个核心的 CPU 占用、内存、磁盘、GPU 占用、频率和温度，以及每一步等待图像与在 GPU 上运行各花了多长时间。文件保存在运行文件夹的 perf 中；用该文件夹运行 python tools/perf/perf_report.py，可生成说明每个阶段受什么限制的报告。只占用一个 CPU 核心的很小一部分。"),
+    ZH_HANT("訓練時每秒記錄一次電腦與本次執行的狀態：每個核心的 CPU 使用率、記憶體、磁碟、GPU 使用率、時脈與溫度，以及每一步等待影像與在 GPU 上執行各花了多久。檔案存放在執行資料夾的 perf 中；以該資料夾執行 python tools/perf/perf_report.py，可產生說明每個階段受什麼限制的報告。只佔用一個 CPU 核心的很小一部分。"),
+    KO("학습하는 동안 1초마다 컴퓨터와 실행 상태를 기록합니다. 코어별 CPU 사용률, 메모리, 디스크, GPU 사용률, 클럭과 온도, 그리고 각 스텝이 이미지를 기다린 시간과 GPU에서 실행된 시간입니다. 파일은 실행 폴더의 perf에 저장됩니다. 그 폴더로 python tools/perf/perf_report.py를 실행하면 각 단계를 무엇이 제한했는지 보여 주는 보고서가 됩니다. CPU 코어 하나의 아주 작은 일부만 씁니다."),
+    DE("Zeichnet während des Trainings einmal pro Sekunde Rechner und Lauf auf: CPU-Last je Kern, Arbeitsspeicher, Datenträger, GPU-Last, Takt und Temperatur sowie, wie lange jeder Schritt auf Bilder gewartet und wie lange er auf der GPU gerechnet hat. Die Dateien landen im Ordner perf des Laufs; python tools/perf/perf_report.py mit diesem Ordner macht daraus einen Bericht, was jede Stufe gebremst hat. Kostet einen kleinen Bruchteil eines CPU-Kerns."),
+    FR("Enregistre l'ordinateur et l'exécution une fois par seconde pendant l'entraînement : charge CPU par cœur, mémoire, disque, charge GPU, fréquences et température, et le temps que chaque étape a passé à attendre les images ou à calculer sur le GPU. Les fichiers vont dans le dossier perf de l'exécution ; python tools/perf/perf_report.py avec ce dossier en fait un rapport sur ce qui a limité chaque étape. Coûte une petite fraction d'un cœur CPU."),
+    ES("Registra el equipo y la ejecución una vez por segundo mientras entrena: uso de CPU por núcleo, memoria, disco, uso de GPU, frecuencias y temperatura, y cuánto tiempo cada paso esperó imágenes frente a cuánto se ejecutó en la GPU. Los archivos van a la carpeta perf de la ejecución; python tools/perf/perf_report.py con esa carpeta los convierte en un informe de qué limitó cada etapa. Cuesta una pequeña fracción de un núcleo de CPU."),
+    PT("Registra o computador e a execução uma vez por segundo durante o treinamento: uso de CPU por núcleo, memória, disco, uso de GPU, frequências e temperatura, e quanto tempo cada passo esperou por imagens e quanto rodou na GPU. Os arquivos vão para a pasta perf da execução; python tools/perf/perf_report.py com essa pasta gera um relatório do que limitou cada etapa. Custa uma pequena fração de um núcleo de CPU."),
+    IT("Registra il computer e l'esecuzione una volta al secondo durante l'addestramento: uso della CPU per core, memoria, disco, uso della GPU, frequenze e temperatura, e quanto tempo ogni passo ha atteso le immagini rispetto a quanto ha lavorato sulla GPU. I file vanno nella cartella perf dell'esecuzione; python tools/perf/perf_report.py con quella cartella li trasforma in un rapporto su cosa ha limitato ogni fase. Costa una piccola frazione di un core della CPU."),
+    NL("Legt tijdens de training elke seconde de computer en de run vast: CPU-gebruik per kern, geheugen, schijf, GPU-gebruik, kloksnelheden en temperatuur, en hoe lang elke stap op beelden wachtte tegenover hoe lang hij op de GPU rekende. De bestanden komen in de map perf van de run; python tools/perf/perf_report.py met die map maakt er een rapport van over wat elke fase beperkte. Kost een klein deel van één CPU-kern."),
+    RU("Во время обучения раз в секунду записывает состояние компьютера и запуска: загрузку CPU по ядрам, память, диск, загрузку GPU, частоты и температуру, а также сколько времени каждый шаг ждал изображений и сколько работал на GPU. Файлы сохраняются в папку perf запуска; python tools/perf/perf_report.py с этой папкой превращает их в отчёт о том, что ограничивало каждый этап. Занимает малую долю одного ядра CPU."),
+    TR("Eğitim sürerken bilgisayarı ve çalıştırmayı saniyede bir kaydeder: çekirdek başına CPU kullanımı, bellek, disk, GPU kullanımı, saat hızları ve sıcaklık, ayrıca her adımın görüntü beklediği süre ile GPU'da çalıştığı süre. Dosyalar çalıştırmanın perf klasörüne yazılır; o klasörle python tools/perf/perf_report.py çalıştırıldığında her aşamayı neyin sınırladığını gösteren bir rapor çıkar. Tek bir CPU çekirdeğinin küçük bir kısmını harcar."));
 
 SS_MSG(viewer_port,
     EN("Web viewer port"), JA("Web ビューアのポート"),
@@ -757,35 +953,47 @@ SS_MSG(load_masks,
     RU("Использовать маски набора"),
     TR("Veri kümesinin maskelerini kullan"));
 SS_MSG(load_masks_help,
-    EN("Use the dataset's masks when they exist. What they then mean is set by "
+    EN("Use the dataset's masks when they exist, and the alpha channel of "
+       "images that have one. What they then mean is set by "
        "apply_loss_for_mask; turn off to train as if the dataset had none."),
-    JA("データセットにマスクがあれば使います。その意味は apply_loss_for_mask で"
-       "決まります。オフにするとマスクがないものとして学習します。"),
-    ZH_HANS("数据集里有蒙版时就使用它们。它们的含义由 apply_loss_for_mask 决定；"
-            "关掉就当作数据集没有蒙版来训练。"),
-    ZH_HANT("資料集裡有遮罩時就使用它們。它們的含意由 apply_loss_for_mask 決定；"
-            "關掉就當作資料集沒有遮罩來訓練。"),
-    KO("데이터셋에 마스크가 있으면 사용합니다. 그 의미는 apply_loss_for_mask가 "
-       "정하며, 끄면 마스크가 없는 데이터셋처럼 학습합니다."),
-    DE("Die Masken des Datensatzes verwenden, sofern vorhanden. Was sie bedeuten, "
-       "legt apply_loss_for_mask fest; abschalten trainiert wie ohne Masken."),
-    FR("Utiliser les masques du jeu de données lorsqu'ils existent. Ce qu'ils "
-       "signifient est fixé par apply_loss_for_mask ; décocher entraîne comme "
-       "si le jeu n'en avait pas."),
-    ES("Usar las máscaras del conjunto de datos cuando existan. Lo que significan "
-       "lo fija apply_loss_for_mask; desactive para entrenar como si no hubiera."),
-    PT("Usar as máscaras do conjunto de dados quando existirem. O que elas "
-       "significam é definido por apply_loss_for_mask; desligue para treinar "
-       "como se não houvesse nenhuma."),
-    IT("Usare le maschere del set di dati quando ci sono. Che cosa significhino "
-       "lo stabilisce apply_loss_for_mask; disattivare addestra come se non ce "
-       "ne fossero."),
-    NL("De maskers van de dataset gebruiken als die er zijn. Wat ze betekenen, "
-       "bepaalt apply_loss_for_mask; zet uit om te trainen alsof er geen zijn."),
-    RU("Использовать маски набора, если они есть. Что они означают, задаёт "
+    JA("データセットにマスクがあれば使います。アルファチャンネルのある画像は"
+       "それもマスクとして使います。その意味は apply_loss_for_mask で決まりま"
+       "す。オフにするとマスクがないものとして学習します。"),
+    ZH_HANS("数据集里有蒙版时就使用它们，带 Alpha 通道的图像也用该通道作蒙版。"
+            "它们的含义由 apply_loss_for_mask 决定；关掉就当作数据集没有蒙版"
+            "来训练。"),
+    ZH_HANT("資料集裡有遮罩時就使用它們，帶 Alpha 通道的影像也用該通道作遮罩。"
+            "它們的含意由 apply_loss_for_mask 決定；關掉就當作資料集沒有遮罩"
+            "來訓練。"),
+    KO("데이터셋에 마스크가 있으면 사용하며, 알파 채널이 있는 이미지는 그 채"
+       "널도 마스크로 씁니다. 그 의미는 apply_loss_for_mask가 정하며, 끄면 마"
+       "스크가 없는 데이터셋처럼 학습합니다."),
+    DE("Die Masken des Datensatzes verwenden, sofern vorhanden, dazu den "
+       "Alphakanal von Bildern, die einen haben. Was sie bedeuten, legt "
+       "apply_loss_for_mask fest; abschalten trainiert wie ohne Masken."),
+    FR("Utiliser les masques du jeu de données lorsqu'ils existent, ainsi que "
+       "le canal alpha des images qui en ont un. Ce qu'ils signifient est fixé "
+       "par apply_loss_for_mask ; décocher entraîne comme si le jeu n'en avait "
+       "pas."),
+    ES("Usar las máscaras del conjunto de datos cuando existan, y el canal "
+       "alfa de las imágenes que lo tengan. Lo que significan lo fija "
+       "apply_loss_for_mask; desactive para entrenar como si no hubiera."),
+    PT("Usar as máscaras do conjunto de dados quando existirem, e o canal alfa "
+       "das imagens que tiverem um. O que elas significam é definido por "
+       "apply_loss_for_mask; desligue para treinar como se não houvesse "
+       "nenhuma."),
+    IT("Usare le maschere del set di dati quando ci sono, e il canale alfa "
+       "delle immagini che ne hanno uno. Che cosa significhino lo stabilisce "
+       "apply_loss_for_mask; disattivare addestra come se non ce ne fossero."),
+    NL("De maskers van de dataset gebruiken als die er zijn, en het alfakanaal "
+       "van beelden die er een hebben. Wat ze betekenen, bepaalt "
+       "apply_loss_for_mask; zet uit om te trainen alsof er geen zijn."),
+    RU("Использовать маски набора, если они есть, а также альфа-канал "
+       "изображений, у которых он есть. Что они означают, задаёт "
        "apply_loss_for_mask; выключите, чтобы обучать как без масок."),
-    TR("Veri kümesinde maskeler varsa onları kullanır. Ne anlama geldiklerini "
-       "apply_loss_for_mask belirler; maskesiz eğitmek için kapatın."));
+    TR("Veri kümesinde maskeler varsa onları, alfa kanalı olan görüntülerde de "
+       "bu kanalı kullanır. Ne anlama geldiklerini apply_loss_for_mask "
+       "belirler; maskesiz eğitmek için kapatın."));
 
 SS_MSG(apply_loss_for_mask,
     EN("Train masked pixels as empty"), JA("マスク部分を空として学習"),
@@ -804,51 +1012,89 @@ SS_MSG(apply_loss_for_mask_help,
     EN("Whether masked-out pixels are ignored or trained as empty space. Off "
        "ignores them, which is how you hide distractions such as people, cars, "
        "or the black area outside a fisheye circle. On trains them as empty, "
-       "which removes the background and leaves just the subject."),
-    JA("マスクされた画素を無視するか、空として学習するかを決めます。オフなら無"
-       "視され、通行人や車、魚眼の円外の黒い部分といった邪魔物を隠すのに使えま"
-       "す。オンなら空として学習され、背景が取り除かれて被写体だけが残ります。"),
+       "which removes the background and leaves just the subject. Left unset, "
+       "it is on when the only masks are the images' own alpha channel, and "
+       "off otherwise. "
+       "Dense point-cloud seeds also default to cut out."),
+    JA("マスクされた画素を無視するか、空として学習するかを決めます。オフなら"
+       "無視され、通行人や車、魚眼の円外の黒い部分といった邪魔物を隠すのに使"
+       "えます。オンなら空として学習され、背景が取り除かれて被写体だけが残り"
+       "ます。未設定なら、マスクが画像自身のアルファチャンネルだけのときにオ"
+       "ン、それ以外はオフになります。 "
+       "密な点群を初期値に使う場合も、既定は切り抜きです。"),
     ZH_HANS("被遮住的像素是忽略还是按空白训练。关闭时忽略它们，可用来隐藏行人、"
             "汽车、鱼眼圆外的黑边等干扰物。开启时按空白训练，会去掉背景，只留"
-            "下主体。"),
+            "下主体。未设置时，若蒙版只有图像自身的 Alpha 通道则开启，否则关"
+            "闭。 "
+       "使用稠密点云初始化时也默认裁掉背景。"),
     ZH_HANT("被遮住的像素是忽略還是按空白訓練。關閉時忽略它們，可用來隱藏行人、"
             "汽車、魚眼圓外的黑邊等干擾物。開啟時按空白訓練，會去掉背景，只留"
-            "下主體。"),
-    KO("가려진 픽셀을 무시할지, 빈 공간으로 학습할지 정합니다. 끄면 무시하므로"
-       " 사람, 자동차, 어안 원 바깥의 검은 영역 같은 방해물을 가리는 데 쓸 수"
-       " 있습니다. 켜면 빈 곳으로 학습해 배경이 사라지고 피사체만 남습니다."),
-    DE("Ob maskierte Pixel ignoriert oder als leerer Raum trainiert werden. Aus "
-       "ignoriert sie, womit sich Störendes wie Passanten, Autos oder der schwarze "
-       "Bereich außerhalb des Fischaugenkreises ausblenden lässt. An trainiert "
-       "sie als leer, was den Hintergrund entfernt und nur das Motiv übrig lässt."),
-    FR("Les pixels masqués sont-ils ignorés ou entraînés comme du vide. Décoché, "
-       "ils sont ignorés, ce qui permet de cacher les gêneurs : passants, voitures, "
-       "ou la zone noire hors du cercle fisheye. Coché, ils sont entraînés comme "
-       "vides, ce qui supprime l'arrière-plan et ne laisse que le sujet."),
-    ES("Si los píxeles enmascarados se ignoran o se entrenan como espacio vacío. "
-       "Desactivado los ignora, que es como se ocultan elementos molestos: transeúntes, "
-       "coches o la zona negra fuera del círculo de ojo de pez. Activado los "
-       "entrena como vacíos, lo que elimina el fondo y deja solo el sujeto."),
+            "下主體。未設定時，若遮罩只有影像自身的 Alpha 通道則開啟，否則關"
+            "閉。 "
+       "使用稠密點雲初始化時也預設裁掉背景。"),
+    KO("가려진 픽셀을 무시할지, 빈 공간으로 학습할지 정합니다. 끄면 무시하므"
+       "로 사람, 자동차, 어안 원 바깥의 검은 영역 같은 방해물을 가리는 데 쓸 "
+       "수 있습니다. 켜면 빈 곳으로 학습해 배경이 사라지고 피사체만 남습니다."
+       " 설정하지 않으면 마스크가 이미지 자체의 알파 채널뿐일 때 켜지고, 그 "
+       "밖에는 꺼집니다. "
+       "밀집 포인트 클라우드로 초기화할 때도 기본값은 배경 잘라내기입니다."),
+    DE("Ob maskierte Pixel ignoriert oder als leerer Raum trainiert werden. "
+       "Aus ignoriert sie, womit sich Störendes wie Passanten, Autos oder der "
+       "schwarze Bereich außerhalb des Fischaugenkreises ausblenden lässt. An "
+       "trainiert sie als leer, was den Hintergrund entfernt und nur das Motiv "
+       "übrig lässt. Ungesetzt ist es an, wenn die einzigen Masken der "
+       "Alphakanal der Bilder selbst sind, sonst aus. "
+       "Bei einer dichten Startpunktwolke ist Ausschneiden ebenfalls die Vorgabe."),
+    FR("Les pixels masqués sont-ils ignorés ou entraînés comme du vide. "
+       "Décoché, ils sont ignorés, ce qui permet de cacher les gêneurs : "
+       "passants, voitures, ou la zone noire hors du cercle fisheye. Coché, "
+       "ils sont entraînés comme vides, ce qui supprime l'arrière-plan et ne "
+       "laisse que le sujet. Non défini, il est coché quand les seuls masques "
+       "sont le canal alpha des images elles-mêmes, décoché sinon. "
+       "Les nuages denses utilisés pour initialiser choisissent aussi le détourage par défaut."),
+    ES("Si los píxeles enmascarados se ignoran o se entrenan como espacio "
+       "vacío. Desactivado los ignora, que es como se ocultan elementos "
+       "molestos: transeúntes, coches o la zona negra fuera del círculo de ojo "
+       "de pez. Activado los entrena como vacíos, lo que elimina el fondo y "
+       "deja solo el sujeto. Sin definir, se activa cuando las únicas máscaras "
+       "son el canal alfa de las propias imágenes, y se desactiva en otro caso. "
+       "La inicialización con nube densa también recorta por defecto."),
     PT("Se os pixels mascarados são ignorados ou treinados como espaço vazio. "
-       "Desligado os ignora, que é como se escondem elementos indesejados: pessoas, "
-       "carros ou a área preta fora do círculo olho de peixe. Ligado os treina "
-       "como vazios, o que remove o fundo e deixa só o sujeito."),
+       "Desligado os ignora, que é como se escondem elementos indesejados: "
+       "pessoas, carros ou a área preta fora do círculo olho de peixe. Ligado "
+       "os treina como vazios, o que remove o fundo e deixa só o sujeito. Sem "
+       "valor definido, fica ligado quando as únicas máscaras são o canal alfa "
+       "das próprias imagens, e desligado caso contrário. "
+       "A inicialização com nuvem densa também recorta por padrão."),
     IT("Se i pixel mascherati vengono ignorati o addestrati come spazio vuoto. "
-       "Disattivato li ignora, ed è così che si nascondono gli elementi di disturbo: "
-       "passanti, automobili o l'area nera fuori dal cerchio fisheye. Attivato "
-       "li addestra come vuoti, il che rimuove lo sfondo e lascia solo il soggetto."),
-    NL("Of gemaskeerde pixels worden genegeerd of als lege ruimte getraind. Uit "
-       "negeert ze, waarmee je stoorelementen verbergt: voorbijgangers, auto's "
-       "of het zwarte gebied buiten de fisheye-cirkel. Aan traint ze als leeg, "
-       "waardoor de achtergrond verdwijnt en alleen het onderwerp overblijft."),
-    RU("Игнорировать закрытые маской пиксели или обучать их как пустоту. Выключено "
-       "— игнорирует; так скрывают помехи: прохожих, машины, чёрную область вне "
-       "круга фишая. Включено — обучает как пустоту, что убирает фон и оставляет "
-       "только объект."),
-    TR("Maskelenen piksellerin yok sayılması mı yoksa boş alan olarak eğitilmesi "
-       "mi. Kapalıyken yok sayılır; geçen insanlar, arabalar ya da balıkgözü "
-       "dairesinin dışındaki siyah alan gibi istenmeyenler böyle gizlenir. Açıkken "
-       "boş olarak eğitilir; arka plan kalkar ve yalnızca özne kalır."));
+       "Disattivato li ignora, ed è così che si nascondono gli elementi di "
+       "disturbo: passanti, automobili o l'area nera fuori dal cerchio "
+       "fisheye. Attivato li addestra come vuoti, il che rimuove lo sfondo e "
+       "lascia solo il soggetto. Se non impostato, è attivo quando le uniche "
+       "maschere sono il canale alfa delle immagini stesse, altrimenti è "
+       "disattivato. "
+       "Anche l’inizializzazione con nuvola densa usa il ritaglio come predefinito."),
+    NL("Of gemaskeerde pixels worden genegeerd of als lege ruimte getraind. "
+       "Uit negeert ze, waarmee je stoorelementen verbergt: voorbijgangers, "
+       "auto's of het zwarte gebied buiten de fisheye-cirkel. Aan traint ze "
+       "als leeg, waardoor de achtergrond verdwijnt en alleen het onderwerp "
+       "overblijft. Niet ingesteld staat het aan als de enige maskers het "
+       "alfakanaal van de beelden zelf zijn, en anders uit. "
+       "Initialisatie met een dichte puntenwolk kiest standaard ook uitsnijden."),
+    RU("Игнорировать закрытые маской пиксели или обучать их как пустоту. "
+       "Выключено — игнорирует; так скрывают помехи: прохожих, машины, чёрную "
+       "область вне круга фишая. Включено — обучает как пустоту, что убирает "
+       "фон и оставляет только объект. Если не задано, включено, когда "
+       "единственные маски — альфа-канал самих изображений, и выключено в "
+       "остальных случаях. "
+       "При инициализации плотным облаком по умолчанию также вырезается фон."),
+    TR("Maskelenen piksellerin yok sayılması mı yoksa boş alan olarak "
+       "eğitilmesi mi. Kapalıyken yok sayılır; geçen insanlar, arabalar ya da "
+       "balıkgözü dairesinin dışındaki siyah alan gibi istenmeyenler böyle "
+       "gizlenir. Açıkken boş olarak eğitilir; arka plan kalkar ve yalnızca "
+       "özne kalır. Ayarlanmazsa, tek maske görüntülerin kendi alfa kanalı "
+       "olduğunda açık, aksi hâlde kapalıdır. "
+       "Yoğun nokta bulutuyla başlatmada da varsayılan arka planı kesmektir."));
 
 SS_MSG(flip_mask,
     EN("Flip masks"), JA("マスクを反転"),
@@ -860,48 +1106,64 @@ SS_MSG(flip_mask,
     NL("Maskers omkeren"), RU("Инвертировать маски"),
     TR("Maskeleri ters çevir"));
 SS_MSG(flip_mask_help,
-    EN("Swap what a mask keeps for what it hides. Masks here are white where the "
-       "image is kept; turn this on for masks that instead paint the region to "
-       "remove. Applied before the mask edge adjustment."),
-    JA("マスクが残す領域と隠す領域を入れ替えます。ここでのマスクは残す部分が白"
-       "です。取り除く領域を塗ったマスクではこれを有効にしてください。マスク境"
-       "界の調整より前に適用されます。"),
-    ZH_HANS("交换蒙版保留与隐藏的区域。这里的蒙版以白色表示保留的部分；若蒙版画"
-            "的是要去掉的区域，请打开此项。它在蒙版边缘调整之前生效。"),
-    ZH_HANT("交換遮罩保留與隱藏的區域。這裡的遮罩以白色表示保留的部分；若遮罩畫"
-            "的是要去掉的區域，請開啟此項。它在遮罩邊緣調整之前生效。"),
-    KO("마스크가 남기는 영역과 가리는 영역을 맞바꿉니다. 여기서 마스크는 남길 "
-       "부분이 흰색입니다. 지울 영역을 칠한 마스크라면 이 항목을 켜십시오. 마스크 "
-       "가장자리 조정보다 먼저 적용됩니다."),
-    DE("Vertauscht, was eine Maske behält, mit dem, was sie verbirgt. Masken sind "
-       "hier weiß, wo das Bild behalten wird; für Masken, die stattdessen den zu "
-       "entfernenden Bereich zeichnen, einschalten. Wirkt vor der "
-       "Maskenrand-Anpassung."),
+    EN("Swap what a mask keeps for what it hides. Masks here are white where "
+       "the image is kept; turn this on for masks that instead paint the "
+       "region to remove. Applied before the mask edge adjustment. Only mask "
+       "files are flipped, never an image's alpha channel."),
+    JA("マスクが残す領域と隠す領域を入れ替えます。ここでのマスクは残す部分が"
+       "白です。取り除く領域を塗ったマスクではこれを有効にしてください。マス"
+       "ク境界の調整より前に適用されます。反転するのはマスクファイルだけで、"
+       "画像のアルファチャンネルは反転しません。"),
+    ZH_HANS("交换蒙版保留与隐藏的区域。这里的蒙版以白色表示保留的部分；若蒙版"
+            "画的是要去掉的区域，请打开此项。它在蒙版边缘调整之前生效。只反转"
+            "蒙版文件，从不反转图像的 Alpha 通道。"),
+    ZH_HANT("交換遮罩保留與隱藏的區域。這裡的遮罩以白色表示保留的部分；若遮罩"
+            "畫的是要去掉的區域，請開啟此項。它在遮罩邊緣調整之前生效。只反轉"
+            "遮罩檔案，從不反轉影像的 Alpha 通道。"),
+    KO("마스크가 남기는 영역과 가리는 영역을 맞바꿉니다. 여기서 마스크는 남길"
+       " 부분이 흰색입니다. 지울 영역을 칠한 마스크라면 이 항목을 켜십시오. "
+       "마스크 가장자리 조정보다 먼저 적용됩니다. 반전하는 것은 마스크 파일뿐"
+       "이며, 이미지의 알파 채널은 반전하지 않습니다."),
+    DE("Vertauscht, was eine Maske behält, mit dem, was sie verbirgt. Masken "
+       "sind hier weiß, wo das Bild behalten wird; für Masken, die stattdessen "
+       "den zu entfernenden Bereich zeichnen, einschalten. Wirkt vor der "
+       "Maskenrand-Anpassung. Umgekehrt werden nur Maskendateien, nie der "
+       "Alphakanal eines Bildes."),
     FR("Échange ce qu'un masque garde et ce qu'il cache. Ici les masques sont "
        "blancs là où l'image est gardée ; activez ceci pour des masques qui "
-       "peignent au contraire la zone à retirer. Appliqué avant l'ajustement du "
-       "bord du masque."),
+       "peignent au contraire la zone à retirer. Appliqué avant l'ajustement "
+       "du bord du masque. Seuls les fichiers de masque sont inversés, jamais "
+       "le canal alpha d'une image."),
     ES("Intercambia lo que una máscara conserva con lo que oculta. Aquí las "
-       "máscaras son blancas donde se conserva la imagen; actívalo para máscaras "
-       "que en cambio pintan la zona a quitar. Se aplica antes del ajuste del "
-       "borde de la máscara."),
-    PT("Troca o que uma máscara mantém pelo que ela esconde. Aqui as máscaras são "
-       "brancas onde a imagem é mantida; ative isto para máscaras que pintam antes "
-       "a área a remover. Aplicado antes do ajuste da borda da máscara."),
+       "máscaras son blancas donde se conserva la imagen; actívalo para "
+       "máscaras que en cambio pintan la zona a quitar. Se aplica antes del "
+       "ajuste del borde de la máscara. Solo se invierten los archivos de "
+       "máscara, nunca el canal alfa de una imagen."),
+    PT("Troca o que uma máscara mantém pelo que ela esconde. Aqui as máscaras "
+       "são brancas onde a imagem é mantida; ative isto para máscaras que "
+       "pintam antes a área a remover. Aplicado antes do ajuste da borda da "
+       "máscara. Só os arquivos de máscara são invertidos, nunca o canal alfa "
+       "de uma imagem."),
     IT("Scambia ciò che una maschera conserva con ciò che nasconde. Qui le "
        "maschere sono bianche dove l'immagine viene conservata; attivalo per "
-       "maschere che dipingono invece l'area da togliere. Si applica prima della "
-       "regolazione del bordo della maschera."),
-    NL("Verwisselt wat een masker behoudt met wat het verbergt. Maskers zijn hier "
-       "wit waar het beeld behouden blijft; zet dit aan voor maskers die juist het "
-       "te verwijderen gebied inkleuren. Werkt vóór de aanpassing van de maskerrand."),
+       "maschere che dipingono invece l'area da togliere. Si applica prima "
+       "della regolazione del bordo della maschera. Si invertono solo i file "
+       "di maschera, mai il canale alfa di un'immagine."),
+    NL("Verwisselt wat een masker behoudt met wat het verbergt. Maskers zijn "
+       "hier wit waar het beeld behouden blijft; zet dit aan voor maskers die "
+       "juist het te verwijderen gebied inkleuren. Werkt vóór de aanpassing "
+       "van de maskerrand. Alleen maskerbestanden worden omgekeerd, nooit het "
+       "alfakanaal van een beeld."),
     RU("Меняет местами то, что маска сохраняет, и то, что она скрывает. Здесь "
        "маски белые там, где изображение сохраняется; включите это для масок, "
-       "которые вместо этого закрашивают удаляемую область. Действует до правки "
-       "края маски."),
-    TR("Bir maskenin koruduğu ile gizlediğini yer değiştirir. Buradaki maskeler "
-       "görüntünün korunduğu yerde beyazdır; bunun yerine kaldırılacak alanı "
-       "boyayan maskeler için açın. Maske kenarı ayarından önce uygulanır."));
+       "которые вместо этого закрашивают удаляемую область. Действует до "
+       "правки края маски. Инвертируются только файлы масок, но не альфа-канал "
+       "изображения."),
+    TR("Bir maskenin koruduğu ile gizlediğini yer değiştirir. Buradaki "
+       "maskeler görüntünün korunduğu yerde beyazdır; bunun yerine "
+       "kaldırılacak alanı boyayan maskeler için açın. Maske kenarı ayarından "
+       "önce uygulanır. Yalnızca maske dosyaları ters çevrilir, bir görüntünün "
+       "alfa kanalı asla."));
 
 SS_MSG(mask_boundary_offset,
     EN("Mask edge adjustment"), JA("マスク境界の調整"),
@@ -1358,6 +1620,300 @@ SS_MSG(train_resolution_divisor_help,
        "eğitir. Kameralar her zaman görüntü dosyalarını izler, bu yüzden "
        "önceden küçültülmüş bir görüntü klasörü burada çarpan istemez."));
 
+SS_MSG(progressive_resolution,
+    EN("Progressive resolution"),
+    JA("段階的な解像度"),
+    ZH_HANS("渐进分辨率"),
+    ZH_HANT("漸進解析度"),
+    KO("점진적 해상도"),
+    DE("Schrittweise Auflösung"),
+    FR("Résolution progressive"),
+    ES("Resolución progresiva"),
+    PT("Resolução progressiva"),
+    IT("Risoluzione progressiva"),
+    NL("Oplopende resolutie"),
+    RU("Постепенное разрешение"),
+    TR("Kademeli çözünürlük"));
+SS_MSG(progressive_resolution_help,
+    EN("Start training on smaller images and step up to full resolution as the run goes on, which settles the coarse shape sooner and with cheaper steps. Resolution only changes between full passes over the dataset, so every image is trained the same number of times at each size. Off trains at full resolution throughout."),
+    JA("小さい画像で学習を始め、進むにつれて元の解像度まで上げます。安いステップで大まかな形を早く固められます。解像度はデータセットを一巡するごとの区切りでのみ変わるため、どの画像も各解像度で同じ回数だけ学習されます。オフなら最初から最後まで元の解像度で学習します。"),
+    ZH_HANS("先用较小的图像开始训练，随着进行逐步提高到完整分辨率，以更低的单步成本更早确定大致形状。分辨率只在完整遍历一次数据集后才改变，因此每张图像在每种尺寸下训练的次数相同。关闭时全程以完整分辨率训练。"),
+    ZH_HANT("先用較小的影像開始訓練，隨著進行逐步提高到完整解析度，以更低的單步成本更早確定大致形狀。解析度只在完整走過一次資料集後才改變，因此每張影像在每種尺寸下訓練的次數相同。關閉時全程以完整解析度訓練。"),
+    KO("작은 이미지로 학습을 시작해 진행에 따라 원래 해상도까지 올립니다. 저렴한 스텝으로 대략적인 형태를 더 빨리 잡습니다. 해상도는 데이터셋을 한 바퀴 다 돈 뒤에만 바뀌므로 모든 이미지가 각 크기에서 같은 횟수만큼 학습됩니다. 끄면 처음부터 끝까지 원래 해상도로 학습합니다."),
+    DE("Das Training mit kleineren Bildern beginnen und im Verlauf bis zur vollen Auflösung steigern; so steht die grobe Form früher und mit günstigeren Schritten. Die Auflösung wechselt nur zwischen vollständigen Durchläufen des Datensatzes, daher wird jedes Bild in jeder Größe gleich oft trainiert. Aus trainiert durchgehend in voller Auflösung."),
+    FR("Commencer l'entraînement sur des images plus petites et monter jusqu'à la pleine résolution au fil du run, ce qui fixe plus tôt la forme générale avec des étapes moins coûteuses. La résolution ne change qu'entre deux passages complets sur le jeu de données, donc chaque image est entraînée autant de fois à chaque taille. Désactivé, tout se fait en pleine résolution."),
+    ES("Empezar el entrenamiento con imágenes más pequeñas y subir a la resolución completa a medida que avanza, lo que fija antes la forma general con pasos más baratos. La resolución solo cambia entre pasadas completas por el conjunto de datos, así que cada imagen se entrena las mismas veces en cada tamaño. Desactivado, se entrena siempre a resolución completa."),
+    PT("Começar o treinamento com imagens menores e subir até a resolução completa ao longo do processo, o que define antes a forma geral com passos mais baratos. A resolução só muda entre passagens completas pelo conjunto de dados, então cada imagem é treinada o mesmo número de vezes em cada tamanho. Desligado, treina sempre em resolução completa."),
+    IT("Iniziare l'addestramento su immagini più piccole e salire fino alla risoluzione piena man mano che procede, così la forma generale si assesta prima e con passi più economici. La risoluzione cambia solo tra un passaggio completo e l'altro sul set di dati, quindi ogni immagine viene addestrata lo stesso numero di volte a ogni dimensione. Disattivato, si addestra sempre a risoluzione piena."),
+    NL("De training met kleinere beelden beginnen en gaandeweg opschalen naar volle resolutie, zodat de grove vorm eerder en met goedkopere stappen vastligt. De resolutie verandert alleen tussen volledige rondes door de dataset, dus elk beeld wordt op elke grootte even vaak getraind. Uit traint de hele tijd op volle resolutie."),
+    RU("Начинать обучение на уменьшенных изображениях и по ходу повышать разрешение до полного: грубая форма устанавливается раньше и более дешёвыми шагами. Разрешение меняется только между полными проходами по набору данных, поэтому каждое изображение обучается одинаковое число раз на каждом размере. Если выключено, всё обучение идёт в полном разрешении."),
+    TR("Eğitime daha küçük görüntülerle başlar ve ilerledikçe tam çözünürlüğe çıkar; kaba biçim daha ucuz adımlarla daha erken oturur. Çözünürlük yalnızca veri kümesi üzerinden tam bir geçiş bittiğinde değişir, böylece her görüntü her boyutta aynı sayıda eğitilir. Kapalıyken baştan sona tam çözünürlükte eğitir."));
+SS_MSG(progressive_resolution_start,
+    EN("Starting resolution divisor"),
+    JA("開始時の解像度の分母"),
+    ZH_HANS("起始分辨率缩小倍数"),
+    ZH_HANT("起始解析度縮小倍數"),
+    KO("시작 해상도 축소 배수"),
+    DE("Anfänglicher Auflösungsteiler"),
+    FR("Diviseur de résolution de départ"),
+    ES("Divisor de resolución inicial"),
+    PT("Divisor de resolução inicial"),
+    IT("Divisore di risoluzione iniziale"),
+    NL("Begindeler van de resolutie"),
+    RU("Начальный делитель разрешения"),
+    TR("Başlangıç çözünürlük böleni"));
+SS_MSG(progressive_resolution_start_help,
+    EN("How much smaller the first stage trains: 4 starts at a quarter of each side, then the divisor halves stage by stage (4, 2, full). A power of two, at least 2. It applies on top of the training resolution divisor."),
+    JA("最初の段階をどれだけ小さくするかです。4 なら各辺 4 分の 1 から始め、段階ごとに分母が半分になります（4、2、元の解像度）。2 以上の 2 のべき乗です。学習解像度の分母に重ねて掛かります。"),
+    ZH_HANS("第一阶段缩小多少：4 表示每边从四分之一开始，之后每个阶段倍数减半（4、2、完整）。须为不小于 2 的 2 的幂。在训练分辨率缩小倍数之上再叠加。"),
+    ZH_HANT("第一階段縮小多少：4 表示每邊從四分之一開始，之後每個階段倍數減半（4、2、完整）。須為不小於 2 的 2 的冪。在訓練解析度縮小倍數之上再疊加。"),
+    KO("첫 단계를 얼마나 작게 학습할지입니다. 4면 각 변의 4분의 1에서 시작하고 단계마다 배수가 절반이 됩니다(4, 2, 원래 크기). 2 이상인 2의 거듭제곱입니다. 학습 해상도 축소 배수에 겹쳐 적용됩니다."),
+    DE("Wie viel kleiner die erste Stufe trainiert: 4 beginnt mit einem Viertel jeder Seite, danach halbiert sich der Teiler von Stufe zu Stufe (4, 2, voll). Eine Zweierpotenz ab 2. Wirkt zusätzlich zum Teiler der Trainingsauflösung."),
+    FR("De combien la première étape est réduite : 4 commence au quart de chaque côté, puis le diviseur est divisé par deux à chaque étape (4, 2, pleine). Une puissance de deux, au moins 2. S'ajoute au diviseur de la résolution d'entraînement."),
+    ES("Cuánto más pequeña entrena la primera etapa: 4 empieza en un cuarto de cada lado y el divisor se reduce a la mitad en cada etapa (4, 2, completa). Una potencia de dos, al menos 2. Se aplica además del divisor de la resolución de entrenamiento."),
+    PT("Quanto menor é a primeira etapa: 4 começa com um quarto de cada lado e o divisor cai pela metade a cada etapa (4, 2, completa). Uma potência de dois, no mínimo 2. Aplica-se além do divisor da resolução de treino."),
+    IT("Quanto più piccola addestra la prima fase: 4 parte da un quarto di ogni lato, poi il divisore si dimezza a ogni fase (4, 2, piena). Una potenza di due, almeno 2. Si somma al divisore della risoluzione di addestramento."),
+    NL("Hoeveel kleiner de eerste fase traint: 4 begint op een kwart van elke zijde, daarna halveert de deler per fase (4, 2, vol). Een macht van twee, minstens 2. Komt bovenop de deler van de trainingsresolutie."),
+    RU("Насколько меньше первый этап: 4 начинает с четверти каждой стороны, затем делитель уменьшается вдвое на каждом этапе (4, 2, полное). Степень двойки, не меньше 2. Применяется поверх делителя разрешения обучения."),
+    TR("İlk aşamanın ne kadar küçük eğitileceği: 4 her kenarın dörtte birinden başlar, sonra bölen her aşamada yarıya iner (4, 2, tam). En az 2 olan bir ikinin kuvveti. Eğitim çözünürlüğü böleninin üstüne uygulanır."));
+SS_MSG(progressive_resolution_full_at,
+    EN("Full resolution from"),
+    JA("元の解像度に達する時点"),
+    ZH_HANS("达到完整分辨率的时机"),
+    ZH_HANT("達到完整解析度的時機"),
+    KO("원래 해상도 도달 시점"),
+    DE("Volle Auflösung ab"),
+    FR("Pleine résolution à partir de"),
+    ES("Resolución completa desde"),
+    PT("Resolução completa a partir de"),
+    IT("Risoluzione piena da"),
+    NL("Volle resolutie vanaf"),
+    RU("Полное разрешение с"),
+    TR("Tam çözünürlük başlangıcı"));
+SS_MSG(progressive_resolution_full_at_help,
+    EN("The fraction of the run by which training reaches full resolution: 0.3 is after 30% of the steps. Each earlier stage is half as long as the one after it, since a finer step costs about four times as much. Switches snap to the nearest full pass over the dataset."),
+    JA("学習が元の解像度に達するまでの割合です。0.3 ならステップの 30% の後です。細かいステップは約 4 倍のコストがかかるため、前の段階ほど後の段階の半分の長さになります。切り替えはデータセットの一巡の区切りに最も近い位置に合わせます。"),
+    ZH_HANS("训练达到完整分辨率时所占的进度比例：0.3 表示 30% 的步数之后。由于更精细的一步成本约为四倍，每个较早阶段的长度是其后一阶段的一半。切换会对齐到最近的一次完整遍历数据集。"),
+    ZH_HANT("訓練達到完整解析度時所占的進度比例：0.3 表示 30% 的步數之後。由於更精細的一步成本約為四倍，每個較早階段的長度是其後一階段的一半。切換會對齊到最近的一次完整走過資料集。"),
+    KO("학습이 원래 해상도에 도달하는 진행 비율입니다. 0.3이면 스텝의 30% 이후입니다. 더 세밀한 스텝은 약 4배 비싸므로 앞 단계는 다음 단계의 절반 길이입니다. 전환은 데이터셋 한 바퀴의 가장 가까운 경계에 맞춥니다."),
+    DE("Der Anteil des Laufs, nach dem das Training die volle Auflösung erreicht: 0.3 heißt nach 30 % der Schritte. Jede frühere Stufe ist halb so lang wie die folgende, da ein feinerer Schritt etwa viermal so viel kostet. Wechsel rasten am nächsten vollständigen Durchlauf des Datensatzes ein."),
+    FR("La part du run après laquelle l'entraînement atteint la pleine résolution : 0.3 signifie après 30 % des étapes. Chaque étape précédente dure la moitié de la suivante, car une étape plus fine coûte environ quatre fois plus. Les changements s'alignent sur le passage complet le plus proche du jeu de données."),
+    ES("La fracción de la ejecución en la que el entrenamiento alcanza la resolución completa: 0.3 es tras el 30 % de los pasos. Cada etapa anterior dura la mitad que la siguiente, porque un paso más fino cuesta unas cuatro veces más. Los cambios se ajustan a la pasada completa por el conjunto de datos más cercana."),
+    PT("A fração do treino em que se chega à resolução completa: 0.3 é após 30% dos passos. Cada etapa anterior dura metade da seguinte, porque um passo mais fino custa cerca de quatro vezes mais. As mudanças se alinham à passagem completa pelo conjunto de dados mais próxima."),
+    IT("La frazione del run entro cui l'addestramento raggiunge la risoluzione piena: 0.3 significa dopo il 30% dei passi. Ogni fase precedente dura la metà della successiva, perché un passo più fine costa circa quattro volte tanto. I cambi si allineano al passaggio completo sul set di dati più vicino."),
+    NL("Het deel van de run waarna de training volle resolutie bereikt: 0.3 is na 30% van de stappen. Elke eerdere fase duurt half zo lang als de volgende, omdat een fijnere stap ongeveer vier keer zoveel kost. Wisselingen vallen samen met de dichtstbijzijnde volledige ronde door de dataset."),
+    RU("Доля запуска, к которой обучение выходит на полное разрешение: 0.3 — после 30% шагов. Каждый предыдущий этап вдвое короче следующего, поскольку более мелкий шаг стоит примерно вчетверо дороже. Переключения привязываются к ближайшему полному проходу по набору данных."),
+    TR("Eğitimin tam çözünürlüğe ulaştığı çalıştırma oranı: 0.3, adımların %30'undan sonra demektir. Daha ince bir adım yaklaşık dört kat pahalı olduğundan her önceki aşama sonrakinin yarısı kadar sürer. Geçişler veri kümesi üzerindeki en yakın tam geçişe hizalanır."));
+SS_MSG(progressive_resolution_schedule,
+    EN("Manual resolution schedule"),
+    JA("手動の解像度スケジュール"),
+    ZH_HANS("手动分辨率计划"),
+    ZH_HANT("手動解析度計畫"),
+    KO("수동 해상도 일정"),
+    DE("Manueller Auflösungsplan"),
+    FR("Calendrier de résolution manuel"),
+    ES("Calendario de resolución manual"),
+    PT("Cronograma de resolução manual"),
+    IT("Calendario di risoluzione manuale"),
+    NL("Handmatig resolutieschema"),
+    RU("Ручное расписание разрешения"),
+    TR("Elle çözünürlük planı"));
+SS_MSG(progressive_resolution_schedule_help,
+    EN("Replaces the automatic stages with your own: step:divisor pairs, for example 0:4, 3000:2, 9000:1. Divisors may only shrink. Each switch moves to the nearest full pass over the dataset. Empty uses the automatic schedule."),
+    JA("自動の段階を自分の設定に置き換えます。ステップ:分母 の組で、例えば 0:4, 3000:2, 9000:1 です。分母は小さくなる方向にしか変えられません。各切り替えはデータセットの一巡の最も近い区切りに移ります。空なら自動のスケジュールを使います。"),
+    ZH_HANS("用自定义阶段替换自动阶段：步数:倍数 组成的对，例如 0:4, 3000:2, 9000:1。倍数只能逐渐减小。每次切换会移到最近的一次完整遍历数据集。留空则使用自动计划。"),
+    ZH_HANT("用自訂階段取代自動階段：步數:倍數 組成的對，例如 0:4, 3000:2, 9000:1。倍數只能逐漸減小。每次切換會移到最近的一次完整走過資料集。留空則使用自動計畫。"),
+    KO("자동 단계를 직접 정한 단계로 바꿉니다. 스텝:배수 쌍으로, 예: 0:4, 3000:2, 9000:1. 배수는 줄어드는 방향으로만 바꿀 수 있습니다. 각 전환은 데이터셋 한 바퀴의 가장 가까운 경계로 옮겨집니다. 비워 두면 자동 일정을 씁니다."),
+    DE("Ersetzt die automatischen Stufen durch eigene: Paare aus Schritt:Teiler, etwa 0:4, 3000:2, 9000:1. Teiler dürfen nur kleiner werden. Jeder Wechsel rückt auf den nächsten vollständigen Durchlauf des Datensatzes. Leer verwendet den automatischen Plan."),
+    FR("Remplace les étapes automatiques par les vôtres : des paires étape:diviseur, par exemple 0:4, 3000:2, 9000:1. Les diviseurs ne peuvent que diminuer. Chaque changement se place sur le passage complet du jeu de données le plus proche. Vide utilise le calendrier automatique."),
+    ES("Sustituye las etapas automáticas por las suyas: pares paso:divisor, por ejemplo 0:4, 3000:2, 9000:1. Los divisores solo pueden disminuir. Cada cambio se mueve a la pasada completa por el conjunto de datos más cercana. Vacío usa el calendario automático."),
+    PT("Substitui as etapas automáticas pelas suas: pares passo:divisor, por exemplo 0:4, 3000:2, 9000:1. Os divisores só podem diminuir. Cada mudança vai para a passagem completa pelo conjunto de dados mais próxima. Vazio usa o cronograma automático."),
+    IT("Sostituisce le fasi automatiche con le proprie: coppie passo:divisore, per esempio 0:4, 3000:2, 9000:1. I divisori possono solo diminuire. Ogni cambio si sposta al passaggio completo sul set di dati più vicino. Vuoto usa il calendario automatico."),
+    NL("Vervangt de automatische fasen door eigen fasen: paren stap:deler, bijvoorbeeld 0:4, 3000:2, 9000:1. Delers mogen alleen kleiner worden. Elke wissel schuift naar de dichtstbijzijnde volledige ronde door de dataset. Leeg gebruikt het automatische schema."),
+    RU("Заменяет автоматические этапы своими: пары шаг:делитель, например 0:4, 3000:2, 9000:1. Делители могут только уменьшаться. Каждое переключение переносится на ближайший полный проход по набору данных. Пусто — используется автоматическое расписание."),
+    TR("Otomatik aşamaları kendi aşamalarınızla değiştirir: adım:bölen çiftleri, örneğin 0:4, 3000:2, 9000:1. Bölenler yalnızca küçülebilir. Her geçiş veri kümesi üzerindeki en yakın tam geçişe kayar. Boş bırakılırsa otomatik plan kullanılır."));
+SS_MSG(progressive_splat_budget,
+    EN("Grow splats with resolution"),
+    JA("解像度に合わせてスプラットを増やす"),
+    ZH_HANS("随分辨率增加泼溅"),
+    ZH_HANT("隨解析度增加潑濺"),
+    KO("해상도에 맞춰 스플랫 늘리기"),
+    DE("Splats mit der Auflösung wachsen lassen"),
+    FR("Faire croître les splats avec la résolution"),
+    ES("Aumentar los splats con la resolución"),
+    PT("Aumentar os splats com a resolução"),
+    IT("Far crescere gli splat con la risoluzione"),
+    NL("Splats laten groeien met de resolutie"),
+    RU("Наращивать сплаты вместе с разрешением"),
+    TR("Splat sayısını çözünürlükle birlikte artır"));
+SS_MSG(progressive_splat_budget_help,
+    EN("Holds the number of splats below the maximum until the images are sharp enough to show where more are needed, so the last splats are placed from full-resolution detail rather than blurry images. Automatic raises the limit from the starting point count to the maximum by the same factor at each resolution stage; Manual sets each stage's limit yourself. Off grows to the maximum as fast as usual."),
+    JA("画像が十分に鮮明になって、どこにスプラットが必要か分かるまで、スプラット数を最大値より低く抑えます。最後のスプラットはぼやけた画像ではなく元の解像度の細部から配置されます。自動では、開始時の点数から最大値まで、解像度の段階ごとに同じ倍率で上限を上げます。手動では各段階の上限を自分で設定します。オフなら通常どおりの速さで最大値まで増えます。"),
+    ZH_HANS("在图像清晰到能看出哪里需要更多泼溅之前，把泼溅数量压在最大值以下，使最后的泼溅依据完整分辨率的细节而不是模糊图像放置。自动：从初始点数到最大值，每个分辨率阶段按相同倍数提高上限；手动：自行设定每个阶段的上限。关闭时按通常速度增长到最大值。"),
+    ZH_HANT("在影像清晰到能看出哪裡需要更多潑濺之前，把潑濺數量壓在最大值以下，使最後的潑濺依據完整解析度的細節而不是模糊影像放置。自動：從初始點數到最大值，每個解析度階段按相同倍數提高上限；手動：自行設定每個階段的上限。關閉時按平常速度增長到最大值。"),
+    KO("이미지가 어디에 스플랫이 더 필요한지 보일 만큼 선명해질 때까지 스플랫 수를 최대치 아래로 묶어 두어, 마지막 스플랫이 흐린 이미지가 아니라 원래 해상도의 세부에서 배치되게 합니다. 자동은 시작 점 수에서 최대치까지 해상도 단계마다 같은 배수로 한도를 올립니다. 수동은 각 단계의 한도를 직접 정합니다. 끄면 평소 속도로 최대치까지 늘어납니다."),
+    DE("Hält die Zahl der Splats unter dem Maximum, bis die Bilder scharf genug sind, um zu zeigen, wo mehr gebraucht werden, damit die letzten Splats aus Details in voller Auflösung statt aus unscharfen Bildern entstehen. Automatisch hebt die Grenze von der Startpunktzahl bis zum Maximum in jeder Auflösungsstufe um denselben Faktor; Manuell legt die Grenze jeder Stufe selbst fest. Aus wächst wie gewohnt bis zum Maximum."),
+    FR("Maintient le nombre de splats sous le maximum jusqu'à ce que les images soient assez nettes pour montrer où il en faut davantage, afin que les derniers splats soient placés d'après les détails en pleine résolution et non d'images floues. Automatique relève la limite du nombre de points de départ jusqu'au maximum du même facteur à chaque étape de résolution ; Manuel fixe vous-même la limite de chaque étape. Désactivé, la croissance atteint le maximum aussi vite que d'habitude."),
+    ES("Mantiene el número de splats por debajo del máximo hasta que las imágenes son lo bastante nítidas para mostrar dónde hacen falta más, de modo que los últimos splats se colocan según el detalle a resolución completa y no según imágenes borrosas. Automático sube el límite desde el número de puntos inicial hasta el máximo con el mismo factor en cada etapa de resolución; Manual fija usted el límite de cada etapa. Desactivado, crece hasta el máximo tan rápido como siempre."),
+    PT("Mantém o número de splats abaixo do máximo até que as imagens estejam nítidas o bastante para mostrar onde são necessários mais, para que os últimos splats sejam colocados a partir dos detalhes em resolução completa e não de imagens borradas. Automático eleva o limite do número de pontos inicial até o máximo pelo mesmo fator em cada etapa de resolução; Manual define você mesmo o limite de cada etapa. Desligado, cresce até o máximo tão rápido quanto de costume."),
+    IT("Tiene il numero di splat sotto il massimo finché le immagini non sono abbastanza nitide da mostrare dove ne servono altri, così gli ultimi splat vengono posizionati dai dettagli a piena risoluzione e non da immagini sfocate. Automatico alza il limite dal numero di punti iniziale fino al massimo con lo stesso fattore a ogni fase di risoluzione; Manuale imposta tu il limite di ogni fase. Disattivato, cresce fino al massimo con la velocità di sempre."),
+    NL("Houdt het aantal splats onder het maximum totdat de beelden scherp genoeg zijn om te tonen waar er meer nodig zijn, zodat de laatste splats uit details op volledige resolutie worden geplaatst in plaats van uit wazige beelden. Automatisch verhoogt de grens van het aantal startpunten tot het maximum met dezelfde factor per resolutiefase; Handmatig stelt u de grens van elke fase zelf in. Uit groeit zo snel als gewoonlijk tot het maximum."),
+    RU("Держит число сплатов ниже максимума, пока изображения не станут достаточно чёткими, чтобы показать, где нужно больше, — так последние сплаты размещаются по деталям полного разрешения, а не по размытым изображениям. Автоматически: предел растёт от начального числа точек до максимума в одно и то же число раз на каждом этапе разрешения; вручную: предел каждого этапа задаёте вы. Выключено — рост до максимума с обычной скоростью."),
+    TR("Görüntüler nerede daha fazla splat gerektiğini gösterecek kadar netleşene dek splat sayısını en yüksek değerin altında tutar; böylece son splat'ler bulanık görüntülerden değil tam çözünürlükteki ayrıntılardan yerleştirilir. Otomatik, sınırı başlangıç nokta sayısından en yüksek değere her çözünürlük aşamasında aynı katla yükseltir; Elle, her aşamanın sınırını sizin belirlemenizi sağlar. Kapalıyken her zamanki hızla en yüksek değere büyür."));
+SS_MSG(progressive_splat_budget_schedule,
+    EN("Manual splat budget"),
+    JA("手動のスプラット予算"),
+    ZH_HANS("手动泼溅预算"),
+    ZH_HANT("手動潑濺預算"),
+    KO("수동 스플랫 예산"),
+    DE("Manuelles Splat-Budget"),
+    FR("Budget de splats manuel"),
+    ES("Presupuesto de splats manual"),
+    PT("Orçamento de splats manual"),
+    IT("Budget di splat manuale"),
+    NL("Handmatig splatbudget"),
+    RU("Ручной бюджет сплатов"),
+    TR("Elle splat bütçesi"));
+SS_MSG(progressive_splat_budget_schedule_help,
+    EN("The most splats each resolution stage may grow to: a count such as 500000, a fraction of the maximum such as 0.25, or a percentage such as 25%. A blank box uses the automatic value. Limits may only grow from stage to stage. On the command line: one value per stage, separated by commas."),
+    JA("各解像度の段階で増やせるスプラット数の上限です。500000 のような個数、0.25 のような最大値に対する割合、25% のような百分率で指定します。空欄なら自動の値を使います。上限は段階を追うごとに大きくなる方向にしか変えられません。コマンドラインでは段階ごとの値をカンマで区切ります。"),
+    ZH_HANS("每个分辨率阶段最多可增长到的泼溅数：可以是 500000 这样的数量、0.25 这样的最大值比例，或 25% 这样的百分比。留空则使用自动值。上限只能逐阶段增加。命令行中每个阶段一个值，用逗号分隔。"),
+    ZH_HANT("每個解析度階段最多可增長到的潑濺數：可以是 500000 這樣的數量、0.25 這樣的最大值比例，或 25% 這樣的百分比。留空則使用自動值。上限只能逐階段增加。命令列中每個階段一個值，以逗號分隔。"),
+    KO("각 해상도 단계에서 늘릴 수 있는 스플랫 수의 한도입니다. 500000 같은 개수, 0.25 같은 최대치에 대한 비율, 25% 같은 백분율로 입력합니다. 비워 두면 자동 값을 씁니다. 한도는 단계마다 커지는 방향으로만 정할 수 있습니다. 명령줄에서는 단계별 값을 쉼표로 구분합니다."),
+    DE("Höchstzahl an Splats, bis zu der jede Auflösungsstufe wachsen darf: eine Anzahl wie 500000, ein Anteil am Maximum wie 0.25 oder ein Prozentsatz wie 25%. Ein leeres Feld nimmt den automatischen Wert. Die Grenzen dürfen von Stufe zu Stufe nur wachsen. In der Befehlszeile: ein Wert pro Stufe, durch Kommas getrennt."),
+    FR("Le nombre maximal de splats jusqu'auquel chaque étape de résolution peut croître : un nombre comme 500000, une fraction du maximum comme 0.25 ou un pourcentage comme 25%. Une case vide prend la valeur automatique. Les limites ne peuvent qu'augmenter d'une étape à l'autre. En ligne de commande : une valeur par étape, séparées par des virgules."),
+    ES("El máximo de splats hasta el que puede crecer cada etapa de resolución: una cantidad como 500000, una fracción del máximo como 0.25 o un porcentaje como 25%. Una casilla vacía usa el valor automático. Los límites solo pueden crecer de una etapa a la siguiente. En la línea de comandos: un valor por etapa, separados por comas."),
+    PT("O máximo de splats até o qual cada etapa de resolução pode crescer: uma quantidade como 500000, uma fração do máximo como 0.25 ou uma porcentagem como 25%. Uma caixa vazia usa o valor automático. Os limites só podem crescer de uma etapa para a seguinte. Na linha de comando: um valor por etapa, separados por vírgulas."),
+    IT("Il numero massimo di splat fino a cui può crescere ogni fase di risoluzione: un numero come 500000, una frazione del massimo come 0.25 o una percentuale come 25%. Una casella vuota usa il valore automatico. I limiti possono solo crescere da una fase alla successiva. Da riga di comando: un valore per fase, separati da virgole."),
+    NL("Het hoogste aantal splats waartoe elke resolutiefase mag groeien: een aantal zoals 500000, een deel van het maximum zoals 0.25 of een percentage zoals 25%. Een leeg vak gebruikt de automatische waarde. Grenzen mogen van fase tot fase alleen groeien. Op de opdrachtregel: één waarde per fase, gescheiden door komma's."),
+    RU("Наибольшее число сплатов, до которого может вырасти каждый этап разрешения: количество, например 500000, доля максимума, например 0.25, или процент, например 25%. Пустое поле берёт автоматическое значение. Пределы могут только расти от этапа к этапу. В командной строке: по одному значению на этап через запятую."),
+    TR("Her çözünürlük aşamasının büyüyebileceği en çok splat sayısı: 500000 gibi bir sayı, 0.25 gibi en yüksek değerin bir kesri ya da %25 gibi bir yüzde. Boş kutu otomatik değeri kullanır. Sınırlar aşamadan aşamaya yalnızca büyüyebilir. Komut satırında: aşama başına bir değer, virgülle ayrılmış."));
+SS_MSG(progressive_splat_budget_mode,
+    EN("Splat budget"),
+    JA("スプラット予算"),
+    ZH_HANS("泼溅预算"),
+    ZH_HANT("潑濺預算"),
+    KO("스플랫 예산"),
+    DE("Splat-Budget"),
+    FR("Budget de splats"),
+    ES("Presupuesto de splats"),
+    PT("Orçamento de splats"),
+    IT("Budget di splat"),
+    NL("Splatbudget"),
+    RU("Бюджет сплатов"),
+    TR("Splat bütçesi"));
+SS_MSG(progressive_splat_budget_auto,
+    EN("Automatic"),
+    JA("自動"),
+    ZH_HANS("自动"),
+    ZH_HANT("自動"),
+    KO("자동"),
+    DE("Automatisch"),
+    FR("Automatique"),
+    ES("Automático"),
+    PT("Automático"),
+    IT("Automatico"),
+    NL("Automatisch"),
+    RU("Автоматически"),
+    TR("Otomatik"));
+SS_MSG(progressive_splat_budget_manual,
+    EN("Manual, per stage"),
+    JA("手動（段階ごと）"),
+    ZH_HANS("手动（按阶段）"),
+    ZH_HANT("手動（按階段）"),
+    KO("수동 (단계별)"),
+    DE("Manuell, je Stufe"),
+    FR("Manuel, par étape"),
+    ES("Manual, por etapa"),
+    PT("Manual, por etapa"),
+    IT("Manuale, per fase"),
+    NL("Handmatig, per fase"),
+    RU("Вручную, по этапам"),
+    TR("Elle, aşama başına"));
+SS_MSG(progressive_splat_budget_stage,
+    EN("Up to, at 1/{0} resolution"),
+    JA("1/{0} 解像度での上限"),
+    ZH_HANS("1/{0} 分辨率时的上限"),
+    ZH_HANT("1/{0} 解析度時的上限"),
+    KO("1/{0} 해상도에서의 한도"),
+    DE("Höchstens, bei 1/{0} Auflösung"),
+    FR("Au plus, à la résolution 1/{0}"),
+    ES("Hasta, a resolución 1/{0}"),
+    PT("Até, na resolução 1/{0}"),
+    IT("Fino a, a risoluzione 1/{0}"),
+    NL("Tot, bij resolutie 1/{0}"),
+    RU("Не больше, при разрешении 1/{0}"),
+    TR("En çok, 1/{0} çözünürlükte"));
+SS_MSG(progressive_splat_budget_stage_full,
+    EN("Up to, at full resolution"),
+    JA("元の解像度での上限"),
+    ZH_HANS("完整分辨率时的上限"),
+    ZH_HANT("完整解析度時的上限"),
+    KO("원래 해상도에서의 한도"),
+    DE("Höchstens, bei voller Auflösung"),
+    FR("Au plus, en pleine résolution"),
+    ES("Hasta, a resolución completa"),
+    PT("Até, na resolução completa"),
+    IT("Fino a, a piena risoluzione"),
+    NL("Tot, bij volledige resolutie"),
+    RU("Не больше, при полном разрешении"),
+    TR("En çok, tam çözünürlükte"));
+SS_MSG(progressive_splat_budget_hint,
+    EN("automatic"),
+    JA("自動"),
+    ZH_HANS("自动"),
+    ZH_HANT("自動"),
+    KO("자동"),
+    DE("automatisch"),
+    FR("automatique"),
+    ES("automático"),
+    PT("automático"),
+    IT("automatico"),
+    NL("automatisch"),
+    RU("автоматически"),
+    TR("otomatik"));
+SS_MSG(progressive_splat_budget_plan,
+    EN("Limits: {0}"),
+    JA("上限: {0}"),
+    ZH_HANS("上限：{0}"),
+    ZH_HANT("上限：{0}"),
+    KO("한도: {0}"),
+    DE("Grenzen: {0}"),
+    FR("Limites : {0}"),
+    ES("Límites: {0}"),
+    PT("Limites: {0}"),
+    IT("Limiti: {0}"),
+    NL("Grenzen: {0}"),
+    RU("Пределы: {0}"),
+    TR("Sınırlar: {0}"));
+SS_MSG(progressive_splat_budget_seed,
+    EN("From {0} starting points to the maximum of {1}."),
+    JA("開始時の {0} 点から最大の {1} まで。"),
+    ZH_HANS("从 {0} 个初始点到最大值 {1}。"),
+    ZH_HANT("從 {0} 個初始點到最大值 {1}。"),
+    KO("시작 점 {0}개에서 최대치 {1}까지."),
+    DE("Von {0} Startpunkten bis zum Maximum von {1}."),
+    FR("De {0} points de départ jusqu'au maximum de {1}."),
+    ES("De {0} puntos iniciales al máximo de {1}."),
+    PT("De {0} pontos iniciais até o máximo de {1}."),
+    IT("Da {0} punti iniziali al massimo di {1}."),
+    NL("Van {0} startpunten tot het maximum van {1}."),
+    RU("От {0} начальных точек до максимума {1}."),
+    TR("{0} başlangıç noktasından en yüksek değer olan {1} değerine."));
+SS_MSG(progressive_splat_budget_seed_unknown,
+    EN("Open the dataset to see the starting point count; until then this assumes none, and training uses the real count."),
+    JA("開始時の点数はデータセットを開くと表示されます。それまではゼロとして計算し、学習では実際の点数を使います。"),
+    ZH_HANS("打开数据集后会显示初始点数；在此之前按零计算，训练时使用实际点数。"),
+    ZH_HANT("開啟資料集後會顯示初始點數；在此之前按零計算，訓練時使用實際點數。"),
+    KO("데이터셋을 열면 시작 점 수가 표시됩니다. 그 전에는 0으로 계산하며 학습에는 실제 점 수를 씁니다."),
+    DE("Die Startpunktzahl erscheint, wenn der Datensatz geöffnet ist; bis dahin wird mit null gerechnet, das Training nimmt die echte Zahl."),
+    FR("Le nombre de points de départ s'affiche une fois le jeu de données ouvert ; d'ici là le calcul suppose zéro, et l'entraînement utilise le vrai nombre."),
+    ES("El número de puntos iniciales aparece al abrir el conjunto de datos; hasta entonces se supone cero, y el entrenamiento usa el número real."),
+    PT("O número de pontos iniciais aparece ao abrir o conjunto de dados; até lá supõe-se zero, e o treinamento usa o número real."),
+    IT("Il numero di punti iniziali compare aprendo il set di dati; fino ad allora si assume zero, e l'addestramento usa il numero reale."),
+    NL("Het aantal startpunten verschijnt zodra de dataset geopend is; tot dan wordt nul aangenomen, en de training gebruikt het echte aantal."),
+    RU("Число начальных точек появится после открытия набора данных; до этого считается ноль, а обучение использует настоящее число."),
+    TR("Başlangıç nokta sayısı veri kümesi açılınca görünür; o zamana dek sıfır varsayılır, eğitim gerçek sayıyı kullanır."));
 SS_MSG(downscale_rounding_mode,
     EN("Downscale rounding"), JA("縮小時の丸め方"),
     ZH_HANS("缩小时的取整方式"), ZH_HANT("縮小時的取整方式"),
@@ -1930,6 +2486,90 @@ SS_MSG(deblur_training_images_help,
 // Scene Placement
 // ===========================================================================
 
+SS_MSG(exif_orientation,
+    EN("EXIF orientation"), JA("EXIF の回転情報"), ZH_HANS("EXIF 方向"),
+    ZH_HANT("EXIF 方向"), KO("EXIF 방향"), DE("EXIF-Ausrichtung"),
+    FR("Orientation EXIF"), ES("Orientación EXIF"),
+    PT("Orientação EXIF"), IT("Orientamento EXIF"),
+    NL("EXIF-oriëntatie"), RU("Ориентация EXIF"),
+    TR("EXIF yönlendirmesi"));
+SS_MSG(exif_orientation_help,
+    EN("What a photo's EXIF orientation is worth. A phone held upright writes a "
+       "sideways file and a tag saying so. `orient` reads only the tag, to stand "
+       "the scene up, and leaves the pixels alone -- which keeps the images and "
+       "the reconstruction matched for every other tool. `apply` also turns the "
+       "images as they are loaded, and expects a reconstruction that was made "
+       "the same way. `none` ignores the tag."),
+    JA("写真の EXIF 回転情報をどう扱うかです。縦に構えた端末は横向きのファイルと"
+       "その旨のタグを書きます。`orient` はタグだけを読んでシーンを立たせ、画素は"
+       "そのままにします。これなら画像と復元結果の対応が他のツールでも保たれます。"
+       "`apply` は読み込み時に画像も回転させ、同じ設定で作られた復元結果を前提と"
+       "します。`none` はタグを無視します。"),
+    ZH_HANS("如何对待照片的 EXIF 方向。竖持的手机写出的是横向文件加一个说明方向的"
+            "标签。`orient` 只读标签来把场景摆正，不动像素——这样图像与重建结果在"
+            "其他工具里也依然对应。`apply` 还会在加载时旋转图像，并要求重建结果是"
+            "用同样方式做出来的。`none` 忽略该标签。"),
+    ZH_HANT("如何對待照片的 EXIF 方向。直握的手機寫出的是橫向檔案加一個說明方向的"
+            "標籤。`orient` 只讀標籤來把場景擺正，不動像素——這樣影像與重建結果在"
+            "其他工具裡也依然對應。`apply` 還會在載入時旋轉影像，並要求重建結果是"
+            "用同樣方式做出來的。`none` 忽略該標籤。"),
+    KO("사진의 EXIF 방향을 어떻게 쓸지입니다. 세로로 든 휴대폰은 가로 파일과 그것을 "
+       "알리는 태그를 씁니다. `orient` 는 태그만 읽어 장면을 바로 세우고 화소는 "
+       "그대로 둡니다. 그래야 이미지와 복원 결과가 다른 도구에서도 맞습니다. "
+       "`apply` 는 불러올 때 이미지도 돌리며, 같은 방식으로 만든 복원 결과를 "
+       "전제합니다. `none` 은 태그를 무시합니다."),
+    DE("Was die EXIF-Ausrichtung eines Fotos wert ist. Ein hochkant gehaltenes "
+       "Telefon schreibt eine querformatige Datei und ein Etikett, das das sagt. "
+       "`orient` liest nur das Etikett, um die Szene aufzurichten, und lässt die "
+       "Pixel unberührt -- so bleiben Bilder und Rekonstruktion auch für jedes "
+       "andere Werkzeug zueinander passend. `apply` dreht zusätzlich die Bilder "
+       "beim Laden und erwartet eine ebenso erstellte Rekonstruktion. `none` "
+       "ignoriert das Etikett."),
+    FR("Ce que vaut l'orientation EXIF d'une photo. Un téléphone tenu debout "
+       "écrit un fichier couché et une étiquette qui le dit. `orient` ne lit que "
+       "l'étiquette, pour redresser la scène, et laisse les pixels tels quels : "
+       "images et reconstruction restent ainsi accordées pour tout autre outil. "
+       "`apply` tourne en plus les images au chargement et attend une "
+       "reconstruction faite de même. `none` ignore l'étiquette."),
+    ES("Qué valor tiene la orientación EXIF de una foto. Un teléfono en vertical "
+       "escribe un archivo apaisado y una etiqueta que lo indica. `orient` lee "
+       "solo la etiqueta, para enderezar la escena, y deja los píxeles como "
+       "están: así las imágenes y la reconstrucción siguen encajando en "
+       "cualquier otra herramienta. `apply` además gira las imágenes al "
+       "cargarlas y espera una reconstrucción hecha igual. `none` ignora la "
+       "etiqueta."),
+    PT("Quanto vale a orientação EXIF de uma foto. Um telemóvel na vertical grava "
+       "um ficheiro deitado e uma etiqueta que o diz. `orient` lê apenas a "
+       "etiqueta, para endireitar a cena, e deixa os píxeis como estão: assim as "
+       "imagens e a reconstrução continuam a condizer em qualquer outra "
+       "ferramenta. `apply` gira também as imagens ao carregá-las e espera uma "
+       "reconstrução feita do mesmo modo. `none` ignora a etiqueta."),
+    IT("Quanto vale l'orientamento EXIF di una foto. Un telefono tenuto in piedi "
+       "scrive un file coricato e un'etichetta che lo dice. `orient` legge solo "
+       "l'etichetta, per raddrizzare la scena, e lascia stare i pixel: così "
+       "immagini e ricostruzione restano coerenti anche per ogni altro "
+       "strumento. `apply` ruota anche le immagini al caricamento e si aspetta "
+       "una ricostruzione fatta allo stesso modo. `none` ignora l'etichetta."),
+    NL("Wat de EXIF-oriëntatie van een foto waard is. Een rechtop gehouden "
+       "telefoon schrijft een liggend bestand en een label dat dat zegt. "
+       "`orient` leest alleen het label, om de scène recht te zetten, en laat de "
+       "pixels met rust: zo blijven beelden en reconstructie ook voor elk ander "
+       "programma bij elkaar passen. `apply` draait bovendien de beelden bij het "
+       "laden en verwacht een even zo gemaakte reconstructie. `none` negeert het "
+       "label."),
+    RU("Как учитывать ориентацию EXIF у снимка. Телефон в вертикальном положении "
+       "записывает горизонтальный файл и метку об этом. `orient` читает только "
+       "метку, чтобы выпрямить сцену, и не трогает пиксели — так изображения и "
+       "реконструкция остаются согласованными и для любой другой программы. "
+       "`apply` вдобавок поворачивает изображения при загрузке и ожидает "
+       "реконструкцию, сделанную так же. `none` игнорирует метку."),
+    TR("Bir fotoğrafın EXIF yönlendirmesi ne işe yarar. Dik tutulan bir telefon "
+       "yatay bir dosya ve bunu söyleyen bir etiket yazar. `orient` yalnızca "
+       "etiketi okuyup sahneyi dikleştirir ve pikselleri olduğu gibi bırakır; "
+       "böylece görüntülerle yeniden oluşturma başka her araçta da birbirine "
+       "uyar. `apply` ayrıca görüntüleri yüklerken döndürür ve aynı şekilde "
+       "yapılmış bir yeniden oluşturma bekler. `none` etiketi yok sayar."));
+
 SS_MSG(orientation_method,
     EN("Upright method"), JA("上向きの決め方"), ZH_HANS("摆正方式"),
     ZH_HANT("擺正方式"), KO("수직 정렬 방식"), DE("Aufrichtungsverfahren"),
@@ -2142,75 +2782,159 @@ SS_MSG(scene_center,
 SS_MSG(scene_center_help,
     EN("Move the dataset so this point becomes the origin before training, and "
        "record the shift in scene_transform.json in the output folder. Splats "
-       "are then trained in the shifted frame. Useful for geo-referenced "
+       "are then trained in the shifted frame. Needed for geo-referenced "
        "reconstructions whose coordinates are millions of units from the "
-       "origin, where single precision would lose detail. `none` keeps the "
-       "dataset's own frame."),
+       "origin, where single precision would lose detail. `auto` centers on the "
+       "point cloud median when the scene lies far from the origin for its size, "
+       "and keeps the frame otherwise; `none` always keeps the dataset's own "
+       "frame."),
     JA("学習前にデータセットを移動し、この点を原点にします。移動量は出力フォルダの "
        "scene_transform.json に記録され、スプラットは移動後の座標系で学習されます。"
        "座標が原点から数百万単位も離れた地理参照付きの再構成では、単精度では細部が"
-       "失われるため有効です。`none` はデータセット自身の座標系をそのまま使います。"),
+       "失われるため必要です。`auto` はシーンが自身の大きさに比べて原点から遠いとき"
+       "だけ点群の中央値に合わせ、それ以外は座標系を変えません。`none` は常に"
+       "データセット自身の座標系を使います。"),
     ZH_HANS("训练前平移数据集，使该点成为原点，并把平移量记录到输出文件夹的 "
-            "scene_transform.json 中；泼溅在平移后的坐标系中训练。适用于坐标距原点"
-            "数百万单位的地理参考重建，否则单精度会丢失细节。`none` 保留数据集自身"
-            "的坐标系。"),
+            "scene_transform.json 中；泼溅在平移后的坐标系中训练。坐标距原点"
+            "数百万单位的地理参考重建需要这样做，否则单精度会丢失细节。`auto` "
+            "仅在场景相对自身大小离原点很远时以点云中位数居中，否则不改变坐标系；"
+            "`none` 始终保留数据集自身的坐标系。"),
     ZH_HANT("訓練前平移資料集，使該點成為原點，並把平移量記錄到輸出資料夾的 "
-            "scene_transform.json 中；潑濺在平移後的座標系中訓練。適用於座標距原點"
-            "數百萬單位的地理參考重建，否則單精度會遺失細節。`none` 保留資料集自身"
-            "的座標系。"),
+            "scene_transform.json 中；潑濺在平移後的座標系中訓練。座標距原點"
+            "數百萬單位的地理參考重建需要這樣做，否則單精度會遺失細節。`auto` "
+            "僅在場景相對自身大小離原點很遠時以點雲中位數置中，否則不改變座標系；"
+            "`none` 始終保留資料集自身的座標系。"),
     KO("학습 전에 데이터셋을 옮겨 이 점을 원점으로 삼고, 그 이동량을 출력 폴더의 "
        "scene_transform.json에 기록합니다. 스플랫은 옮겨진 좌표계에서 학습됩니다. "
        "좌표가 원점에서 수백만 단위 떨어진 지리 참조 복원에서는 단정밀도로 세부가 "
-       "사라지므로 유용합니다. `none`은 데이터셋 자체의 좌표계를 그대로 둡니다."),
+       "사라지므로 필요합니다. `auto`는 장면이 자체 크기에 비해 원점에서 멀리 있을 "
+       "때만 점군 중앙값으로 맞추고, 그렇지 않으면 좌표계를 그대로 둡니다. `none`은 "
+       "항상 데이터셋 자체의 좌표계를 유지합니다."),
     DE("Verschiebt den Datensatz vor dem Training so, dass dieser Punkt zum "
        "Ursprung wird, und hält die Verschiebung in scene_transform.json im "
        "Ausgabeordner fest. Die Splats werden im verschobenen Bezugssystem "
-       "trainiert. Nützlich für georeferenzierte Rekonstruktionen, deren "
+       "trainiert. Nötig für georeferenzierte Rekonstruktionen, deren "
        "Koordinaten Millionen Einheiten vom Ursprung entfernt liegen, wo einfache "
-       "Genauigkeit Details verliert. `none` behält das Bezugssystem des "
-       "Datensatzes."),
+       "Genauigkeit Details verliert. `auto` zentriert nur dann auf den Median "
+       "der Punktwolke, wenn die Szene gemessen an ihrer Größe weit vom Ursprung "
+       "entfernt liegt, und lässt das Bezugssystem sonst unverändert; `none` "
+       "behält immer das Bezugssystem des Datensatzes."),
     FR("Déplace le jeu de données avant l'entraînement pour que ce point devienne "
        "l'origine, et note le décalage dans scene_transform.json dans le dossier "
-       "de sortie. Les splats sont alors entraînés dans le repère décalé. Utile "
-       "pour les reconstructions géoréférencées dont les coordonnées sont à des "
-       "millions d'unités de l'origine, où la simple précision perd des détails. "
-       "`none` garde le repère du jeu de données."),
+       "de sortie. Les splats sont alors entraînés dans le repère décalé. "
+       "Nécessaire pour les reconstructions géoréférencées dont les coordonnées "
+       "sont à des millions d'unités de l'origine, où la simple précision perd "
+       "des détails. `auto` centre sur la médiane du nuage de points seulement "
+       "quand la scène est loin de l'origine au regard de sa taille, et garde le "
+       "repère sinon ; `none` garde toujours le repère du jeu de données."),
     ES("Desplaza el conjunto de datos antes de entrenar para que este punto sea "
        "el origen, y anota el desplazamiento en scene_transform.json en la carpeta "
-       "de salida. Los splats se entrenan entonces en el sistema desplazado. Útil "
-       "para reconstrucciones georreferenciadas cuyas coordenadas están a millones "
-       "de unidades del origen, donde la precisión simple pierde detalle. `none` "
-       "conserva el sistema propio del conjunto de datos."),
+       "de salida. Los splats se entrenan entonces en el sistema desplazado. "
+       "Necesario para reconstrucciones georreferenciadas cuyas coordenadas están "
+       "a millones de unidades del origen, donde la precisión simple pierde "
+       "detalle. `auto` centra en la mediana de la nube de puntos solo cuando la "
+       "escena está lejos del origen en relación con su tamaño, y si no conserva "
+       "el sistema; `none` conserva siempre el sistema propio del conjunto de "
+       "datos."),
     PT("Desloca o conjunto de dados antes do treino para que este ponto vire a "
        "origem, e registra o deslocamento em scene_transform.json na pasta de "
-       "saída. Os splats são então treinados no referencial deslocado. Útil para "
-       "reconstruções georreferenciadas cujas coordenadas ficam a milhões de "
-       "unidades da origem, onde a precisão simples perde detalhe. `none` mantém "
-       "o referencial do próprio conjunto de dados."),
+       "saída. Os splats são então treinados no referencial deslocado. Necessário "
+       "para reconstruções georreferenciadas cujas coordenadas ficam a milhões de "
+       "unidades da origem, onde a precisão simples perde detalhe. `auto` "
+       "centraliza na mediana da nuvem de pontos só quando a cena está longe da "
+       "origem em relação ao próprio tamanho, e caso contrário mantém o "
+       "referencial; `none` mantém sempre o referencial do próprio conjunto de "
+       "dados."),
     IT("Sposta il dataset prima dell'addestramento in modo che questo punto "
        "diventi l'origine, e annota lo spostamento in scene_transform.json nella "
        "cartella di output. Gli splat vengono quindi addestrati nel sistema "
-       "spostato. Utile per ricostruzioni georeferenziate le cui coordinate "
+       "spostato. Necessario per ricostruzioni georeferenziate le cui coordinate "
        "distano milioni di unità dall'origine, dove la precisione singola perde "
-       "dettaglio. `none` mantiene il sistema proprio del dataset."),
+       "dettaglio. `auto` centra sulla mediana della nuvola di punti solo quando "
+       "la scena è lontana dall'origine rispetto alle sue dimensioni, altrimenti "
+       "mantiene il sistema; `none` mantiene sempre il sistema proprio del "
+       "dataset."),
     NL("Verschuift de dataset vóór het trainen zodat dit punt de oorsprong wordt, "
        "en legt de verschuiving vast in scene_transform.json in de uitvoermap. De "
-       "splats worden dan in het verschoven stelsel getraind. Handig voor "
+       "splats worden dan in het verschoven stelsel getraind. Nodig voor "
        "gegeorefereerde reconstructies waarvan de coördinaten miljoenen eenheden "
-       "van de oorsprong liggen, waar enkele precisie detail verliest. `none` "
-       "behoudt het eigen stelsel van de dataset."),
+       "van de oorsprong liggen, waar enkele precisie detail verliest. `auto` "
+       "centreert alleen op de mediaan van de puntenwolk als de scène ver van de "
+       "oorsprong ligt in verhouding tot haar grootte, en behoudt het stelsel "
+       "anders; `none` behoudt altijd het eigen stelsel van de dataset."),
     RU("Сдвигает набор данных перед обучением так, чтобы эта точка стала началом "
        "координат, и записывает сдвиг в scene_transform.json в папке вывода. "
-       "Сплаты обучаются в сдвинутой системе координат. Полезно для "
+       "Сплаты обучаются в сдвинутой системе координат. Необходимо для "
        "геопривязанных реконструкций, координаты которых отстоят от начала на "
-       "миллионы единиц, где одинарная точность теряет детали. `none` сохраняет "
-       "собственную систему набора данных."),
+       "миллионы единиц, где одинарная точность теряет детали. `auto` центрирует "
+       "по медиане облака точек, только если сцена далеко от начала координат по "
+       "сравнению со своим размером, а иначе сохраняет систему; `none` всегда "
+       "сохраняет собственную систему набора данных."),
     TR("Eğitimden önce veri kümesini bu nokta başlangıç olacak şekilde kaydırır "
        "ve kaydırmayı çıktı klasöründeki scene_transform.json dosyasına yazar. "
        "Splatlar kaydırılmış çerçevede eğitilir. Koordinatları başlangıçtan "
        "milyonlarca birim uzakta olan coğrafi referanslı yeniden kurmalar için "
-       "yararlıdır; tek duyarlık orada ayrıntı kaybeder. `none` veri kümesinin "
-       "kendi çerçevesini korur."));
+       "gereklidir; tek duyarlık orada ayrıntı kaybeder. `auto` yalnızca sahne "
+       "kendi boyutuna göre başlangıçtan uzaktaysa nokta bulutu ortancasına "
+       "ortalar, değilse çerçeveyi korur; `none` her zaman veri kümesinin kendi "
+       "çerçevesini korur."));
+
+SS_MSG(scene_center_threshold,
+    EN("Auto-centering distance"), JA("自動中心合わせの距離"),
+    ZH_HANS("自动居中距离"), ZH_HANT("自動置中距離"), KO("자동 중심 맞추기 거리"),
+    DE("Abstand für automatisches Zentrieren"),
+    FR("Distance du centrage automatique"), ES("Distancia del centrado automático"),
+    PT("Distância da centralização automática"),
+    IT("Distanza della centratura automatica"),
+    NL("Afstand voor automatisch centreren"), RU("Расстояние автоцентрирования"),
+    TR("Otomatik ortalama mesafesi"));
+SS_MSG(scene_center_threshold_help,
+    EN("How far from the origin a scene must lie before `auto` scene centering "
+       "moves it, in multiples of its own radius (the median distance to its "
+       "median). The point cloud and the camera positions must both be that far "
+       "out."),
+    JA("`auto` のシーン中心合わせが働くには、シーンが原点からどれだけ離れている"
+       "必要があるか。シーン自身の半径（中央値までの距離の中央値）の倍数で指定"
+       "します。点群とカメラ位置の両方がそれだけ離れている必要があります。"),
+    ZH_HANS("场景离原点多远时 `auto` 场景居中才会平移它，以场景自身半径（到中位数"
+            "距离的中位数）的倍数表示。点云和相机位置都必须离得这么远。"),
+    ZH_HANT("場景離原點多遠時 `auto` 場景置中才會平移它，以場景自身半徑（到中位數"
+            "距離的中位數）的倍數表示。點雲和相機位置都必須離得這麼遠。"),
+    KO("`auto` 장면 중심 맞추기가 장면을 옮기려면 원점에서 얼마나 떨어져 있어야 "
+       "하는지를 장면 자체 반지름(중앙값까지 거리의 중앙값)의 배수로 정합니다. "
+       "점군과 카메라 위치가 모두 그만큼 떨어져 있어야 합니다."),
+    DE("Wie weit eine Szene vom Ursprung entfernt liegen muss, damit das "
+       "Zentrieren mit `auto` sie verschiebt, in Vielfachen ihres eigenen Radius "
+       "(des Medians der Abstände zu ihrem Median). Punktwolke und "
+       "Kamerapositionen müssen beide so weit entfernt liegen."),
+    FR("Distance à l'origine à partir de laquelle le centrage `auto` déplace la "
+       "scène, en multiples de son propre rayon (la médiane des distances à sa "
+       "médiane). Le nuage de points et les positions de caméra doivent tous deux "
+       "être aussi loin."),
+    ES("A qué distancia del origen debe estar una escena para que el centrado "
+       "`auto` la desplace, en múltiplos de su propio radio (la mediana de las "
+       "distancias a su mediana). La nube de puntos y las posiciones de cámara "
+       "deben estar ambas así de lejos."),
+    PT("A que distância da origem uma cena precisa estar para que a "
+       "centralização `auto` a desloque, em múltiplos do seu próprio raio (a "
+       "mediana das distâncias até a sua mediana). A nuvem de pontos e as "
+       "posições das câmeras precisam estar ambas tão longe."),
+    IT("Quanto lontano dall'origine deve trovarsi una scena perché la centratura "
+       "`auto` la sposti, in multipli del suo stesso raggio (la mediana delle "
+       "distanze dalla sua mediana). La nuvola di punti e le posizioni delle "
+       "camere devono essere entrambe così lontane."),
+    NL("Hoe ver een scène van de oorsprong moet liggen voordat centreren met "
+       "`auto` haar verschuift, in veelvouden van haar eigen straal (de mediaan "
+       "van de afstanden tot haar mediaan). De puntenwolk en de cameraposities "
+       "moeten allebei zo ver liggen."),
+    RU("Насколько далеко от начала координат должна быть сцена, чтобы "
+       "центрирование `auto` её сдвинуло, в единицах её собственного радиуса "
+       "(медианы расстояний до её медианы). Так далеко должны быть и облако "
+       "точек, и положения камер."),
+    TR("`auto` sahne ortalamasının sahneyi kaydırması için sahnenin başlangıçtan "
+       "ne kadar uzakta olması gerektiği, kendi yarıçapının (ortancasına olan "
+       "uzaklıkların ortancası) katı olarak. Nokta bulutu ve kamera konumlarının "
+       "ikisi de bu kadar uzakta olmalıdır."));
 
 SS_MSG(relative_scale,
     EN("Scene scale multiplier"), JA("シーンの倍率"),
@@ -2432,6 +3156,82 @@ SS_MSG(sh_degree_help,
        "karşılığında bellek ve dosya boyutu artar; 0 bakıştan bağımsız düz renk "
        "verir. 4 ve üstü yaygın görüntüleyicilerde sınırlı desteklenir."));
 
+SS_MSG(sb_lobes,
+    EN("Highlight lobes (SB)"), JA("ハイライトのローブ（SB）"),
+    ZH_HANS("高光波瓣（SB）"), ZH_HANT("高光波瓣（SB）"),
+    KO("하이라이트 로브(SB)"), DE("Glanzlicht-Keulen (SB)"),
+    FR("Lobes de reflets (SB)"), ES("Lóbulos de brillo (SB)"),
+    PT("Lóbulos de brilho (SB)"), IT("Lobi di riflesso (SB)"),
+    NL("Glanslobben (SB)"), RU("Лепестки бликов (SB)"),
+    TR("Parlama lobları (SB)"));
+SS_MSG(sb_lobes_help,
+    EN("Spherical-beta lobes per splat, from Deformable Beta Splatting: each "
+       "adds a sharp highlight that follows the camera, for six numbers. 2 is "
+       "the published setting. Unless the SH degree is set as well it drops to "
+       "0, so the lobes replace the SH bands. Vulkan builds only; viewers that "
+       "do not know the lobes show the base color."),
+    JA("Deformable Beta Splatting の球面ベータのローブを、スプラットごとにいく"
+       "つ持たせるかです。ローブ1つは6つの数値で、カメラに合わせて動く鋭いハ"
+       "イライトを加えます。論文の設定は 2 です。SH の次数も指定しない限り次数"
+       "は 0 になり、ローブが SH の帯を置き換えます。Vulkan 版のみ。ローブに対"
+       "応しないビューアでは基本色だけが表示されます。"),
+    ZH_HANS("每个泼溅带多少个球面 Beta 波瓣（来自 Deformable Beta Splatting）："
+            "每个波瓣用六个数，加上一处随相机移动的锐利高光。论文的设置是 2。"
+            "除非同时设置了 SH 阶数，否则它会降为 0，由波瓣取代 SH 频带。仅限 "
+            "Vulkan 版本；不认识波瓣的查看器只显示基础颜色。"),
+    ZH_HANT("每個潑濺帶多少個球面 Beta 波瓣（來自 Deformable Beta Splatting）："
+            "每個波瓣用六個數，加上一處隨相機移動的銳利高光。論文的設定是 2。"
+            "除非同時設定了 SH 階數，否則它會降為 0，由波瓣取代 SH 頻帶。僅限 "
+            "Vulkan 版本；不認得波瓣的檢視器只顯示基礎顏色。"),
+    KO("스플랫마다 둘 구면 베타 로브의 수입니다(Deformable Beta Splatting). 로브"
+       " 하나는 숫자 여섯 개로 카메라를 따라 움직이는 날카로운 하이라이트를 "
+       "더합니다. 논문의 설정은 2입니다. SH 차수도 지정하지 않으면 차수는 0이 "
+       "되어 로브가 SH 대역을 대신합니다. Vulkan 빌드 전용이며, 로브를 모르는 "
+       "뷰어는 기본 색만 보여 줍니다."),
+    DE("Sphärische Beta-Keulen je Splat, aus Deformable Beta Splatting: jede "
+       "fügt für sechs Zahlen ein scharfes Glanzlicht hinzu, das der Kamera "
+       "folgt. 2 ist die veröffentlichte Einstellung. Sofern der SH-Grad nicht "
+       "ebenfalls gesetzt ist, sinkt er auf 0, und die Keulen ersetzen die "
+       "SH-Bänder. Nur Vulkan-Builds; Betrachter, die die Keulen nicht kennen, "
+       "zeigen die Grundfarbe."),
+    FR("Lobes bêta sphériques par splat, issus de Deformable Beta Splatting : "
+       "chacun ajoute, pour six nombres, un reflet net qui suit la caméra. 2 est "
+       "le réglage publié. Sauf si le degré SH est aussi fixé, il passe à 0 et "
+       "les lobes remplacent les bandes SH. Builds Vulkan uniquement ; les "
+       "visionneuses qui ignorent les lobes montrent la couleur de base."),
+    ES("Lóbulos beta esféricos por splat, de Deformable Beta Splatting: cada "
+       "uno añade, por seis números, un brillo nítido que sigue a la cámara. 2 "
+       "es el ajuste publicado. Salvo que también se fije el grado SH, este "
+       "baja a 0 y los lóbulos sustituyen a las bandas SH. Solo en las "
+       "compilaciones Vulkan; los visores que no conocen los lóbulos muestran "
+       "el color base."),
+    PT("Lóbulos beta esféricos por splat, de Deformable Beta Splatting: cada um"
+       " acrescenta, por seis números, um brilho nítido que acompanha a câmera. "
+       "2 é a configuração publicada. A menos que o grau SH também seja "
+       "definido, ele cai para 0 e os lóbulos substituem as bandas SH. Apenas "
+       "nas compilações Vulkan; visualizadores que não conhecem os lóbulos "
+       "mostram a cor base."),
+    IT("Lobi beta sferici per splat, da Deformable Beta Splatting: ognuno "
+       "aggiunge, per sei numeri, un riflesso netto che segue la fotocamera. 2 "
+       "è l'impostazione pubblicata. Se non si imposta anche il grado SH, "
+       "questo scende a 0 e i lobi sostituiscono le bande SH. Solo nelle build "
+       "Vulkan; i visualizzatori che non conoscono i lobi mostrano il colore "
+       "base."),
+    NL("Sferische bètalobben per splat, uit Deformable Beta Splatting: elke "
+       "lob voegt voor zes getallen een scherpe glans toe die de camera volgt. "
+       "2 is de gepubliceerde instelling. Tenzij de SH-graad ook is ingesteld, "
+       "zakt die naar 0 en vervangen de lobben de SH-banden. Alleen in "
+       "Vulkan-builds; viewers die de lobben niet kennen tonen de basiskleur."),
+    RU("Сферические бета-лепестки на сплат из Deformable Beta Splatting: "
+       "каждый за шесть чисел добавляет резкий блик, следующий за камерой. В "
+       "статье используется 2. Если порядок SH не задан явно, он падает до 0, "
+       "и лепестки заменяют полосы SH. Только в сборках Vulkan; просмотрщики, "
+       "не знающие лепестков, показывают базовый цвет."),
+    TR("Deformable Beta Splatting'ten splat başına küresel beta lobları: her "
+       "biri altı sayı karşılığında kamerayı izleyen keskin bir parlama ekler. "
+       "Yayımlanan ayar 2'dir. SH derecesi de ayarlanmadıkça 0'a düşer ve loblar"
+       " SH bantlarının yerini alır. Yalnızca Vulkan derlemeleri; lobları "
+       "tanımayan görüntüleyiciler temel rengi gösterir."));
 SS_MSG(sh_degree_warmup_every,
     EN("Color detail warm-up interval"), JA("色の細かさを上げる間隔"),
     ZH_HANS("颜色细节提升间隔"), ZH_HANT("顏色細節提升間隔"),
@@ -2495,99 +3295,161 @@ SS_MSG(background_mode,
     KO("배경"), DE("Hintergrund"), FR("Arrière-plan"), ES("Fondo"),
     PT("Fundo"), IT("Sfondo"), NL("Achtergrond"), RU("Фон"), TR("Arka plan"));
 SS_MSG(background_mode_help,
-    EN("What fills pixels no splat covers. `black` is the usual choice. "
-       "`noise` and `pseudorandom` both discourage half-transparent "
+    EN("What fills pixels no splat covers. `color` is the usual choice: one "
+       "colour you pick, and black costs nothing at all. `noise`, "
+       "`pseudorandom` and `random` all discourage half-transparent "
        "surfaces by making a pixel left uncovered land on a colour that "
-       "changes every step; pseudorandom draws vivid tiles rather than "
-       "per-pixel speckle, which the loss cannot average away, so it "
-       "presses harder. `sh` learns a skybox so distant background is "
-       "represented instead of ignored."),
-    JA("スプラットが覆わない画素を何で埋めるかです。`black"
-       "` が通常の選択です。`noise` と `"
-       "pseudorandom` はどちらも、覆われていない画"
+       "changes every step; they differ in how big the patches are, from "
+       "one pixel to vivid tiles to the whole frame, and the bigger ones "
+       "the loss cannot average away press harder. `sh` learns a skybox so "
+       "distant background is represented instead of ignored."),
+    JA("スプラットが覆わない画素を何で埋めるかです。`color"
+       "` が通常の選択で、選んだ一つの色を使います。黒なら何"
+       "の処理もしません。`noise` と `pseudorandom` と "
+       "`random` はどれも、覆われていない画"
        "素の色が毎ステップ変わるようにして半透明な面を抑えます。"
-       "`pseudorandom` は画素ごとの細かいノイズで"
-       "はなく鮮やかなタイルを使うため、損失に平均化されず効き目"
-       "が強くなります。`sh` は空を学習し、遠くの背景を無視"
+       "色のまとまりの大きさが違い、画素ごと、鮮やかなタイル、画"
+       "面全体と大きくなります。大きいほど損失に平均化されず効き"
+       "目が強くなります。`sh` は空を学習し、遠くの背景を無視"
        "せず表現します。"),
-    ZH_HANS("用什么填充没有泼溅覆盖的像素。`black` 是通常的选"
-            "择。`noise` 和 `pseudorandom` 都"
-            "通过让未覆盖像素的颜色每步都变来抑制半透明表面；`"
-            "pseudorandom` 用的是鲜艳的色块而不是逐像素"
-            "的细噪点，损失无法把它平均掉，所以压得更狠。`sh` 会"
+    ZH_HANS("用什么填充没有泼溅覆盖的像素。`color` 是通常的选"
+            "择，用你指定的一种颜色；黑色则完全不做处理。`noise`、"
+            "`pseudorandom` 和 `random` "
+            "都通过让未覆盖像素的颜色每步都变来抑制半透明表面；区别"
+            "在于色块的大小，从逐像素到鲜艳的色块再到整帧一色，越大"
+            "损失越难把它平均掉，压得也越狠。`sh` 会"
             "学习一个天空盒，让远处背景被表示而不是被忽略。"),
-    ZH_HANT("用什麼填充沒有潑濺覆蓋的像素。`black` 是通常的選"
-            "擇。`noise` 和 `pseudorandom` 都"
-            "透過讓未覆蓋像素的顏色每步都變來抑制半透明表面；`"
-            "pseudorandom` 用的是鮮豔的色塊而不是逐像素"
-            "的細雜訊，損失無法把它平均掉，所以壓得更狠。`sh` 會"
+    ZH_HANT("用什麼填充沒有潑濺覆蓋的像素。`color` 是通常的選"
+            "擇，用你指定的一種顏色；黑色則完全不做處理。`noise`、"
+            "`pseudorandom` 和 `random` "
+            "都透過讓未覆蓋像素的顏色每步都變來抑制半透明表面；區別"
+            "在於色塊的大小，從逐像素到鮮豔的色塊再到整幀一色，越大"
+            "損失越難把它平均掉，壓得也越狠。`sh` 會"
             "學習一個天空盒，讓遠處背景被表示而不是被忽略。"),
     KO("스플랫이 덮지 않은 픽셀을 무엇으로 채울지입니다. "
-       "`black`이 보통의 선택입니다. `noise`와"
-       " `pseudorandom`은 덮이지 않은 픽셀의 "
-       "색이 매 스텝 바뀌게 해서 반투명한 표면을 억제합니"
-       "다. `pseudorandom`은 픽셀 단위의 잔 "
-       "노이즈 대신 선명한 타일을 쓰므로 손실이 평균으로 "
-       "지워 버리지 못해 더 세게 누릅니다. `sh`는 스"
+       "`color`가 보통의 선택으로, 직접 고른 한 가지 "
+       "색을 씁니다. 검정이면 아무 처리도 하지 않습니다. "
+       "`noise`와 `pseudorandom`과 `random`은 "
+       "모두 덮이지 않은 픽셀의 색이 매 스텝 바뀌게 해서 "
+       "반투명한 표면을 억제합니다. 색 덩어리의 크기가 다"
+       "른데, 픽셀 단위에서 선명한 타일, 화면 전체 한 색"
+       "으로 커집니다. 클수록 손실이 평균으로 지워 버리지 "
+       "못해 더 세게 누릅니다. `sh`는 스"
        "카이박스를 학습해 먼 배경을 무시하지 않고 표현합니"
        "다."),
-    DE("Was Pixel füllt, die kein Splat bedeckt. `black` ist die übliche "
-       "Wahl. `noise` und `pseudorandom` entmutigen beide "
+    DE("Was Pixel füllt, die kein Splat bedeckt. `color` ist die übliche "
+       "Wahl: eine Farbe nach Wahl, und Schwarz kostet gar nichts. `noise`, "
+       "`pseudorandom` und `random` entmutigen alle "
        "halbdurchsichtige Flächen, indem ein unbedecktes Pixel auf einer "
-       "Farbe landet, die sich jeden Schritt ändert; pseudorandom zeichnet "
-       "kräftige Kacheln statt Sprenkel pro Pixel, die der Verlust nicht "
-       "wegmitteln kann, und drückt deshalb stärker. `sh` lernt eine "
+       "Farbe landet, die sich jeden Schritt ändert; sie unterscheiden sich "
+       "in der Fleckengröße -- pro Pixel, kräftige Kacheln oder eine Farbe "
+       "für das ganze Bild -- und je größer, desto weniger kann der Verlust "
+       "sie wegmitteln. `sh` lernt eine "
        "Skybox, damit ferner Hintergrund dargestellt statt ignoriert wird."),
-    FR("Ce qui remplit les pixels qu'aucun splat ne couvre. `black` est le "
-       "choix habituel. `noise` et `pseudorandom` découragent tous deux "
+    FR("Ce qui remplit les pixels qu'aucun splat ne couvre. `color` est le "
+       "choix habituel : une couleur de votre choix, et le noir ne coûte "
+       "rien. `noise`, `pseudorandom` et `random` découragent tous "
        "les surfaces à demi transparentes en faisant tomber un pixel non "
-       "couvert sur une couleur qui change à chaque étape ; pseudorandom "
-       "dessine des tuiles vives plutôt qu'un grain par pixel, que la "
-       "perte ne peut pas moyenner, et appuie donc plus fort. `sh` apprend "
+       "couvert sur une couleur qui change à chaque étape ; ils diffèrent "
+       "par la taille des taches -- par pixel, tuiles vives, ou une seule "
+       "couleur pour toute l'image -- et plus elles sont grandes, moins la "
+       "perte peut les moyenner. `sh` apprend "
        "une skybox pour que l'arrière-plan lointain soit représenté au "
        "lieu d'être ignoré."),
-    ES("Qué rellena los píxeles que ningún splat cubre. `black` es la "
-       "elección habitual. `noise` y `pseudorandom` desincentivan las "
+    ES("Qué rellena los píxeles que ningún splat cubre. `color` es la "
+       "elección habitual: un color que eliges, y el negro no cuesta nada. "
+       "`noise`, `pseudorandom` y `random` desincentivan las "
        "superficies semitransparentes haciendo que un píxel sin cubrir "
-       "caiga sobre un color que cambia en cada paso; pseudorandom dibuja "
-       "baldosas vivas en vez de grano por píxel, que la pérdida no puede "
-       "promediar, así que aprieta más. `sh` aprende un cielo para que el "
+       "caiga sobre un color que cambia en cada paso; se diferencian en el "
+       "tamaño de las manchas -- por píxel, baldosas vivas o un solo color "
+       "para todo el fotograma -- y cuanto mayores, menos puede "
+       "promediarlas la pérdida. `sh` aprende un cielo para que el "
        "fondo lejano quede representado en vez de ignorado."),
-    PT("O que preenche os pixels que nenhum splat cobre. `black` é a "
-       "escolha habitual. `noise` e `pseudorandom` desencorajam "
+    PT("O que preenche os pixels que nenhum splat cobre. `color` é a "
+       "escolha habitual: uma cor à sua escolha, e o preto não custa nada. "
+       "`noise`, `pseudorandom` e `random` desencorajam "
        "superfícies semitransparentes fazendo um pixel descoberto cair "
-       "sobre uma cor que muda a cada passo; pseudorandom desenha "
-       "ladrilhos vivos em vez de grão por pixel, que a perda não consegue "
-       "mediar, então aperta mais. `sh` aprende um céu para que o fundo "
+       "sobre uma cor que muda a cada passo; diferem no tamanho das manchas "
+       "-- por pixel, ladrilhos vivos ou uma só cor para o quadro inteiro "
+       "-- e quanto maiores, menos a perda consegue "
+       "mediá-las. `sh` aprende um céu para que o fundo "
        "distante seja representado em vez de ignorado."),
-    IT("Che cosa riempie i pixel che nessuno splat copre. `black` è la "
-       "scelta abituale. `noise` e `pseudorandom` scoraggiano entrambi le "
+    IT("Che cosa riempie i pixel che nessuno splat copre. `color` è la "
+       "scelta abituale: un colore a tua scelta, e il nero non costa nulla. "
+       "`noise`, `pseudorandom` e `random` scoraggiano le "
        "superfici semitrasparenti facendo cadere un pixel scoperto su un "
-       "colore che cambia a ogni passo; pseudorandom disegna piastrelle "
-       "vivaci invece di grana per pixel, che la perdita non può mediare, "
-       "e quindi preme di più. `sh` impara un cielo perché lo sfondo "
+       "colore che cambia a ogni passo; differiscono per la dimensione "
+       "delle chiazze -- per pixel, piastrelle vivaci o un solo colore per "
+       "l'intero fotogramma -- e più sono grandi, meno la perdita può "
+       "mediarle. `sh` impara un cielo perché lo sfondo "
        "lontano sia rappresentato invece che ignorato."),
-    NL("Wat pixels vult die geen splat bedekt. `black` is de gebruikelijke "
-       "keuze. `noise` en `pseudorandom` ontmoedigen allebei "
+    NL("Wat pixels vult die geen splat bedekt. `color` is de gebruikelijke "
+       "keuze: een kleur naar keuze, en zwart kost helemaal niets. `noise`, "
+       "`pseudorandom` en `random` ontmoedigen allemaal "
        "halfdoorzichtige oppervlakken doordat een onbedekte pixel op een "
-       "kleur valt die elke stap verandert; pseudorandom tekent felle "
-       "tegels in plaats van korrel per pixel, die het verlies niet kan "
-       "wegmiddelen, en drukt dus harder. `sh` leert een skybox zodat "
+       "kleur valt die elke stap verandert; ze verschillen in de grootte "
+       "van de vlekken -- per pixel, felle tegels of één kleur voor het "
+       "hele beeld -- en hoe groter, hoe minder het verlies ze kan "
+       "wegmiddelen. `sh` leert een skybox zodat "
        "verre achtergrond wordt weergegeven in plaats van genegeerd."),
-    RU("Чем заполняются пиксели, которые не покрыл ни один сплат. `black` "
-       "— обычный выбор. `noise` и `pseudorandom` оба мешают "
+    RU("Чем заполняются пиксели, которые не покрыл ни один сплат. `color` "
+       "— обычный выбор: любой заданный вами цвет, а чёрный не стоит "
+       "ничего. `noise`, `pseudorandom` и `random` мешают "
        "полупрозрачным поверхностям: непокрытый пиксель попадает на цвет, "
-       "меняющийся каждый шаг; pseudorandom рисует яркие плитки, а не "
-       "зерно на каждый пиксель, и функция потерь не может их усреднить, "
-       "поэтому давит сильнее. `sh` обучает скайбокс, чтобы дальний фон "
+       "меняющийся каждый шаг; они отличаются размером пятен — на пиксель, "
+       "яркие плитки или один цвет на весь кадр — и чем крупнее, тем хуже "
+       "функция потерь их усредняет. `sh` обучает скайбокс, чтобы дальний фон "
        "был представлен, а не проигнорирован."),
-    TR("Hiçbir splat'ın kaplamadığı pikselleri neyin dolduracağı. `black` "
-       "alışılmış seçimdir. `noise` ve `pseudorandom` yarı saydam "
+    TR("Hiçbir splat'ın kaplamadığı pikselleri neyin dolduracağı. `color` "
+       "alışılmış seçimdir: seçtiğiniz bir renk, siyah ise hiçbir şeye mal "
+       "olmaz. `noise`, `pseudorandom` ve `random` yarı saydam "
        "yüzeyleri caydırır: kaplanmamış bir piksel her adımda değişen bir "
-       "renge düşer; pseudorandom piksel başına tanecik yerine canlı "
-       "karolar çizer, kayıp bunları ortalamayla silemez, bu yüzden daha "
-       "çok bastırır. `sh` bir gökyüzü öğrenir, böylece uzak arka plan yok "
+       "renge düşer; benek boyutlarıyla ayrılırlar -- piksel başına, canlı "
+       "karolar ya da tüm kare için tek renk -- ve büyüdükçe kayıp bunları "
+       "ortalamayla silemez. `sh` bir gökyüzü öğrenir, böylece uzak arka plan yok "
        "sayılmak yerine temsil edilir."));
+
+SS_MSG(background_color,
+    EN("Background color"), JA("背景色"), ZH_HANS("背景颜色"),
+    ZH_HANT("背景顏色"), KO("배경색"), DE("Hintergrundfarbe"),
+    FR("Couleur de l'arrière-plan"), ES("Color del fondo"),
+    PT("Cor do fundo"), IT("Colore dello sfondo"), NL("Achtergrondkleur"),
+    RU("Цвет фона"), TR("Arka plan rengi"));
+SS_MSG(background_color_help,
+    EN("The color that fills pixels no splat covers. Black is free -- it skips "
+       "the blend entirely. Only used with the `color` background."),
+    JA("スプラットが覆わない画素を埋める色です。黒なら合成そのものを省くので費"
+       "用はかかりません。背景が `color` のときだけ使われます。"),
+    ZH_HANS("用来填充没有泼溅覆盖的像素的颜色。黑色是免费的，会整个跳过混合。"
+            "仅在背景为 `color` 时使用。"),
+    ZH_HANT("用來填充沒有潑濺覆蓋的像素的顏色。黑色是免費的，會整個跳過混合。"
+            "僅在背景為 `color` 時使用。"),
+    KO("스플랫이 덮지 않은 픽셀을 채우는 색입니다. 검정은 합성 자체를 건너뛰므"
+       "로 비용이 없습니다. 배경이 `color`일 때만 쓰입니다."),
+    DE("Die Farbe, die Pixel füllt, die kein Splat bedeckt. Schwarz ist "
+       "kostenlos -- es überspringt die Überblendung ganz. Wird nur mit dem "
+       "Hintergrund `color` verwendet."),
+    FR("La couleur qui remplit les pixels qu'aucun splat ne couvre. Le noir "
+       "est gratuit : il saute entièrement le mélange. Utilisée "
+       "uniquement avec l'arrière-plan `color`."),
+    ES("El color que rellena los píxeles que ningún splat cubre. El negro es "
+       "gratis: se salta la mezcla por completo. Solo se usa "
+       "con el fondo `color`."),
+    PT("A cor que preenche os pixels que nenhum splat cobre. O preto é de "
+       "graça: ignora a mistura por completo. Só é usada com o "
+       "fundo `color`."),
+    IT("Il colore che riempie i pixel che nessuno splat copre. Il nero è "
+       "gratis: salta del tutto la fusione. Usato solo con "
+       "lo sfondo `color`."),
+    NL("De kleur die pixels vult die geen splat bedekt. Zwart is gratis: het "
+       "slaat het mengen helemaal over. Wordt alleen bij "
+       "achtergrond `color` gebruikt."),
+    RU("Цвет, которым заполняются пиксели, не покрытые ни одним сплатом. "
+       "Чёрный бесплатен: смешивание пропускается целиком. "
+       "Используется только с фоном `color`."),
+    TR("Hiçbir splat'ın kaplamadığı pikselleri dolduran renk. Siyah "
+       "bedavadır: harmanlamayı tümüyle atlar. Yalnızca "
+       "`color` arka planıyla kullanılır."));
 
 SS_MSG(background_sh_degree,
     EN("Skybox detail"), JA("スカイボックスの細かさ"), ZH_HANS("天空盒细节"),
@@ -2635,30 +3497,220 @@ SS_MSG(background_noise_warmup,
     TR("Arka plan gürültüsü ısınması"));
 SS_MSG(background_noise_warmup_help,
     EN("How many steps the background noise takes to reach full strength. Only "
-       "used with the `noise` background."),
-    JA("背景ノイズが最大の強さになるまでのステップ数です。背景が `noise` のと"
-       "きだけ使われます。"),
-    ZH_HANS("背景噪声达到最大强度所需的步数。仅在背景为 `noise` 时使用。"),
-    ZH_HANT("背景雜訊達到最大強度所需的步數。僅在背景為 `noise` 時使用。"),
-    KO("배경 노이즈가 최대 세기에 이르기까지의 스텝 수입니다. 배경이 `noise`일"
-       " 때만 쓰입니다."),
+       "used with the `noise` / `pseudorandom` / `random` backgrounds."),
+    JA("背景ノイズが最大の強さになるまでのステップ数です。背景が `noise` / "
+       "`pseudorandom` / `random` のときだけ使われます。"),
+    ZH_HANS("背景噪声达到最大强度所需的步数。仅在背景为 `noise` / "
+            "`pseudorandom` / `random` 时使用。"),
+    ZH_HANT("背景雜訊達到最大強度所需的步數。僅在背景為 `noise` / "
+            "`pseudorandom` / `random` 時使用。"),
+    KO("배경 노이즈가 최대 세기에 이르기까지의 스텝 수입니다. 배경이 `noise` /"
+       " `pseudorandom` / `random`일 때만 쓰입니다."),
     DE("Wie viele Schritte das Hintergrundrauschen braucht, um volle Stärke zu "
-       "erreichen. Wird nur mit dem Hintergrund `noise` verwendet."),
+       "erreichen. Wird nur mit den Hintergründen `noise` / `pseudorandom` / "
+       "`random` verwendet."),
     FR("Combien d'étapes le bruit de fond met à atteindre sa pleine force. Utilisé "
-       "uniquement avec l'arrière-plan `noise`."),
+       "uniquement avec les arrière-plans `noise` / `pseudorandom` / `random`."),
     ES("Cuántos pasos tarda el ruido de fondo en alcanzar toda su fuerza. Solo "
-       "se usa con el fondo `noise`."),
+       "se usa con los fondos `noise` / `pseudorandom` / `random`."),
     PT("Quantos passos o ruído de fundo leva para atingir força total. Só é usado "
-       "com o fundo `noise`."),
+       "com os fundos `noise` / `pseudorandom` / `random`."),
     IT("Quanti passi impiega il rumore di fondo a raggiungere la piena forza. "
-       "Usato solo con lo sfondo `noise`."),
+       "Usato solo con gli sfondi `noise` / `pseudorandom` / `random`."),
     NL("Hoeveel stappen de achtergrondruis nodig heeft om op volle sterkte te "
-       "komen. Wordt alleen bij achtergrond `noise` gebruikt."),
+       "komen. Wordt alleen bij de achtergronden `noise` / `pseudorandom` / "
+       "`random` gebruikt."),
     RU("За сколько шагов фоновый шум набирает полную силу. Используется только "
-       "с фоном `noise`."),
+       "с фонами `noise` / `pseudorandom` / `random`."),
     TR("Arka plan gürültüsünün tam güce ulaşması için gereken adım sayısı. Yalnızca "
-       "`noise` arka planıyla kullanılır."));
+       "`noise` / `pseudorandom` / `random` arka planlarıyla kullanılır."));
 
+SS_MSG(background_match_luminance,
+    EN("Match background to image brightness"), JA("背景を画像の明るさに合わせる"),
+    ZH_HANS("背景亮度匹配图像"), ZH_HANT("背景亮度匹配圖像"),
+    KO("배경을 이미지 밝기에 맞춤"), DE("Hintergrund an Bildhelligkeit anpassen"),
+    FR("Adapter le fond à la luminosité de l'image"),
+    ES("Ajustar el fondo al brillo de la imagen"),
+    PT("Ajustar o fundo ao brilho da imagem"),
+    IT("Adatta lo sfondo alla luminosità dell'immagine"),
+    NL("Achtergrond aan beeldhelderheid aanpassen"),
+    RU("Подогнать фон под яркость снимка"),
+    TR("Arka planı görüntü parlaklığına uydur"));
+SS_MSG(background_match_luminance_help,
+    EN("Raises the randomized background to a power so its typical brightness lands "
+       "on each photo's mean brightness, corrected for that photo's exposure. Keeps "
+       "dark scenes from being plugged with haze to hide a bright background. Only "
+       "used with the `noise` / `pseudorandom` / `random` backgrounds."),
+    JA("ランダム背景をべき乗して、その典型的な明るさが各写真の平均の明るさ（露出補正済み）"
+       "になるようにします。暗いシーンで明るい背景を隠すためにもやが詰め込まれるのを防ぎ"
+       "ます。背景が `noise` / `pseudorandom` / `random` のときだけ使われます。"),
+    ZH_HANS("对随机背景做幂运算，使其典型亮度落在每张照片的平均亮度上（已按该照片的曝光"
+            "校正）。避免暗场景为了遮住明亮背景而被雾状泼溅填满。仅在背景为 `noise` / "
+            "`pseudorandom` / `random` 时使用。"),
+    ZH_HANT("對隨機背景做冪運算，使其典型亮度落在每張照片的平均亮度上（已按該照片的曝光"
+            "校正）。避免暗場景為了遮住明亮背景而被霧狀潑濺填滿。僅在背景為 `noise` / "
+            "`pseudorandom` / `random` 時使用。"),
+    KO("무작위 배경을 거듭제곱하여 그 전형적인 밝기가 각 사진의 평균 밝기(노출 보정 후)에 "
+       "오도록 합니다. 어두운 장면이 밝은 배경을 가리려고 안개로 채워지는 것을 막습니다. "
+       "배경이 `noise` / `pseudorandom` / `random`일 때만 쓰입니다."),
+    DE("Potenziert den zufälligen Hintergrund, sodass seine typische Helligkeit auf "
+       "der mittleren Helligkeit jedes Fotos landet, um dessen Belichtung korrigiert. "
+       "Verhindert, dass dunkle Szenen mit Dunst zugesetzt werden, um einen hellen "
+       "Hintergrund zu verbergen. Wird nur mit den Hintergründen `noise` / "
+       "`pseudorandom` / `random` verwendet."),
+    FR("Élève le fond aléatoire à une puissance pour que sa luminosité typique tombe "
+       "sur la luminosité moyenne de chaque photo, corrigée de son exposition. Évite "
+       "que les scènes sombres se remplissent de brume pour cacher un fond clair. "
+       "Utilisé uniquement avec les arrière-plans `noise` / `pseudorandom` / `random`."),
+    ES("Eleva el fondo aleatorio a una potencia para que su brillo típico coincida con "
+       "el brillo medio de cada foto, corregido por su exposición. Evita que las "
+       "escenas oscuras se rellenen de neblina para ocultar un fondo claro. Solo se "
+       "usa con los fondos `noise` / `pseudorandom` / `random`."),
+    PT("Eleva o fundo aleatório a uma potência para que o seu brilho típico caia no "
+       "brilho médio de cada foto, corrigido pela exposição dela. Evita que cenas "
+       "escuras sejam preenchidas com névoa para esconder um fundo claro. Só é usado "
+       "com os fundos `noise` / `pseudorandom` / `random`."),
+    IT("Eleva lo sfondo casuale a una potenza così che la sua luminosità tipica "
+       "coincida con la luminosità media di ogni foto, corretta per la sua "
+       "esposizione. Evita che le scene scure si riempiano di foschia per nascondere "
+       "uno sfondo chiaro. Usato solo con gli sfondi `noise` / `pseudorandom` / "
+       "`random`."),
+    NL("Verheft de willekeurige achtergrond tot een macht zodat zijn typische "
+       "helderheid op de gemiddelde helderheid van elke foto valt, gecorrigeerd voor "
+       "de belichting ervan. Voorkomt dat donkere scènes met waas worden dichtgezet om "
+       "een lichte achtergrond te verbergen. Wordt alleen bij de achtergronden "
+       "`noise` / `pseudorandom` / `random` gebruikt."),
+    RU("Возводит случайный фон в степень, чтобы его типичная яркость совпала со "
+       "средней яркостью каждого снимка с поправкой на его экспозицию. Не даёт тёмным "
+       "сценам забиваться дымкой, скрывающей яркий фон. Используется только с фонами "
+       "`noise` / `pseudorandom` / `random`."),
+    TR("Rastgele arka planı bir kuvvete yükselterek tipik parlaklığının her "
+       "fotoğrafın pozlamasına göre düzeltilmiş ortalama parlaklığına denk gelmesini "
+       "sağlar. Karanlık sahnelerin parlak bir arka planı gizlemek için pusla "
+       "dolmasını önler. Yalnızca `noise` / `pseudorandom` / `random` arka "
+       "planlarıyla kullanılır."));
+SS_MSG(noise_gate_peak_weight,
+    EN("Hidden splats explore"), JA("隠れたスプラットも探索"),
+    ZH_HANS("被遮挡的泼溅也探索"), ZH_HANT("被遮擋的潑濺也探索"),
+    KO("가려진 스플랫도 탐색"), DE("Verdeckte Splats suchen weiter"),
+    FR("Les splats cachés explorent"), ES("Los splats ocultos exploran"),
+    PT("Splats ocultos exploram"), IT("Gli splat nascosti esplorano"),
+    NL("Verborgen splats zoeken verder"), RU("Скрытые сплаты тоже ищут место"),
+    TR("Gizli splat'lar da yer arar"));
+SS_MSG(noise_gate_peak_weight_help,
+    EN("Decide which splats get exploration noise by what they show at most "
+       "(their peak opacity times transmittance) rather than by their opacity "
+       "alone, so an opaque splat that stays hidden behind others moves like a "
+       "faint one."),
+    JA("探索ノイズを与えるスプラットを、不透明度だけでなく実際に見えている最大の"
+       "量（不透明度と透過率の積の最大値）で決めます。他のスプラットの後ろに隠れ"
+       "続ける不透明なスプラットも、薄いスプラットと同じように動きます。"),
+    ZH_HANS("按泼溅实际显示的最大程度（不透明度与透射率乘积的峰值），而不仅按不"
+            "透明度，决定哪些泼溅获得探索噪声。这样一直被遮挡的不透明泼溅也会像"
+            "淡的泼溅一样移动。"),
+    ZH_HANT("按潑濺實際顯示的最大程度（不透明度與穿透率乘積的峰值），而不僅按不"
+            "透明度，決定哪些潑濺獲得探索噪聲。這樣一直被遮擋的不透明潑濺也會像"
+            "淡的潑濺一樣移動。"),
+    KO("탐색 노이즈를 줄 스플랫을 불투명도만이 아니라 실제로 보이는 최대 정도"
+       "(불투명도와 투과율 곱의 최댓값)로 정합니다. 다른 스플랫 뒤에 계속 가려진 "
+       "불투명한 스플랫도 옅은 스플랫처럼 움직입니다."),
+    DE("Entscheidet nach dem, was ein Splat höchstens zeigt (seiner höchsten "
+       "Deckkraft mal Transmission), statt nur nach der Deckkraft, welche Splats "
+       "Suchrauschen bekommen. Ein deckender Splat, der hinter anderen verborgen "
+       "bleibt, bewegt sich dann wie ein schwacher."),
+    FR("Choisit les splats qui reçoivent le bruit d'exploration selon ce qu'ils "
+       "montrent au plus (leur opacité maximale fois la transmittance) plutôt que "
+       "selon leur seule opacité : un splat opaque qui reste caché derrière "
+       "d'autres bouge alors comme un splat pâle."),
+    ES("Decide qué splats reciben ruido de exploración por lo que muestran como "
+       "máximo (su opacidad máxima por la transmitancia) y no solo por su "
+       "opacidad, de modo que un splat opaco que queda oculto tras otros se mueve "
+       "como uno tenue."),
+    PT("Decide quais splats recebem ruído de exploração pelo que mostram no "
+       "máximo (sua opacidade máxima vezes a transmitância), e não só pela "
+       "opacidade, de modo que um splat opaco que fica escondido atrás de outros "
+       "se move como um fraco."),
+    IT("Sceglie gli splat che ricevono il rumore di esplorazione in base a quanto "
+       "mostrano al massimo (la loro opacità massima per la trasmittanza) e non "
+       "solo in base all'opacità: uno splat opaco che resta nascosto dietro altri "
+       "si muove così come uno tenue."),
+    NL("Bepaalt welke splats verkenningsruis krijgen op grond van wat ze "
+       "hoogstens laten zien (hun hoogste dekking maal transmissie) in plaats van "
+       "alleen hun dekking, zodat een dekkende splat die achter andere verborgen "
+       "blijft beweegt als een vage."),
+    RU("Решает, каким сплатам давать шум для поиска места, по тому, сколько они "
+       "максимально видны (пик произведения непрозрачности на пропускание), а не "
+       "только по непрозрачности: непрозрачный сплат, который остаётся скрытым за "
+       "другими, движется как бледный."),
+    TR("Hangi splat'ların arama gürültüsü alacağına yalnızca opaklıklarına göre "
+       "değil, en fazla ne kadar göründüklerine (opaklık ile geçirgenlik "
+       "çarpımının en yüksek değeri) göre karar verir; böylece başkalarının "
+       "arkasında gizli kalan opak bir splat soluk biri gibi hareket eder."));
+SS_MSG(viewer_kernel_fraction,
+    EN("Web viewer kernel share"), JA("Webビューアのカーネルの割合"),
+    ZH_HANS("网页查看器核函数比例"), ZH_HANT("網頁檢視器核函數比例"),
+    KO("웹 뷰어 커널 비율"), DE("Anteil des Web-Viewer-Kernels"),
+    FR("Part du noyau des visionneuses web"),
+    ES("Proporción del núcleo de visores web"),
+    PT("Proporção do núcleo de visualizadores web"),
+    IT("Quota del kernel dei visualizzatori web"),
+    NL("Aandeel van de webviewer-kernel"), RU("Доля ядра веб-просмотрщиков"),
+    TR("Web görüntüleyici çekirdeğinin payı"));
+SS_MSG(viewer_kernel_fraction_help,
+    EN("Share of training steps that draw splats the way web viewers such as "
+       "PlayCanvas and SuperSplat do: cut off at about 2.8 sigma, with the falloff "
+       "rescaled to reach zero there. The model then looks in those viewers the way "
+       "it looks while training. 0 trains with the full Gaussian only."),
+    JA("学習ステップのうち、PlayCanvas や SuperSplat などの Web ビューアと同じ方法で"
+       "スプラットを描く割合です。約 2.8 sigma で打ち切り、そこでゼロになるよう減衰を"
+       "調整します。これらのビューアでも学習時と同じ見た目になります。0 なら完全な"
+       "ガウス分布だけで学習します。"),
+    ZH_HANS("训练步骤中按 PlayCanvas、SuperSplat 等网页查看器的方式绘制泼溅的比例："
+            "在约 2.8 sigma 处截断，并调整衰减使其在该处降为零。这样模型在这些查看器"
+            "中与训练时看起来一致。0 表示只用完整的高斯分布训练。"),
+    ZH_HANT("訓練步驟中按 PlayCanvas、SuperSplat 等網頁檢視器的方式繪製潑濺的比例："
+            "在約 2.8 sigma 處截斷，並調整衰減使其在該處降為零。這樣模型在這些檢視器"
+            "中與訓練時看起來一致。0 表示只用完整的高斯分布訓練。"),
+    KO("학습 단계 중 PlayCanvas, SuperSplat 같은 웹 뷰어와 같은 방식으로 스플랫을 "
+       "그리는 비율입니다. 약 2.8 sigma에서 자르고 그 지점에서 0이 되도록 감쇠를 "
+       "조정합니다. 그러면 이런 뷰어에서도 학습 때와 같게 보입니다. 0이면 완전한 "
+       "가우시안으로만 학습합니다."),
+    DE("Anteil der Trainingsschritte, die Splats so zeichnen wie Web-Viewer wie "
+       "PlayCanvas und SuperSplat: bei etwa 2,8 Sigma abgeschnitten, mit einem Abfall, "
+       "der dort auf null skaliert ist. Das Modell sieht dann in diesen Viewern so aus "
+       "wie beim Training. 0 trainiert nur mit der vollen Gaußfunktion."),
+    FR("Part des étapes d'entraînement qui dessinent les splats comme les "
+       "visionneuses web telles que PlayCanvas et SuperSplat : coupés vers 2,8 sigma, "
+       "avec une décroissance remise à l'échelle pour s'annuler à cet endroit. Le "
+       "modèle garde alors dans ces visionneuses l'aspect qu'il a à l'entraînement. "
+       "0 n'entraîne qu'avec la gaussienne complète."),
+    ES("Proporción de pasos de entrenamiento que dibujan los splats como los visores "
+       "web, por ejemplo PlayCanvas y SuperSplat: recortados hacia 2,8 sigma, con la "
+       "caída reescalada para llegar a cero allí. Así el modelo se ve en esos visores "
+       "como durante el entrenamiento. 0 entrena solo con la gaussiana completa."),
+    PT("Proporção dos passos de treinamento que desenham os splats como os "
+       "visualizadores web, como PlayCanvas e SuperSplat: cortados por volta de 2,8 "
+       "sigma, com o decaimento reescalado para chegar a zero ali. Assim o modelo fica "
+       "nesses visualizadores como no treinamento. 0 treina apenas com a gaussiana "
+       "completa."),
+    IT("Quota dei passi di addestramento che disegnano gli splat come i "
+       "visualizzatori web, ad esempio PlayCanvas e SuperSplat: tagliati a circa 2,8 "
+       "sigma, con il decadimento riscalato perché lì arrivi a zero. Il modello appare "
+       "così in quei visualizzatori come durante l'addestramento. 0 addestra solo con "
+       "la gaussiana completa."),
+    NL("Aandeel van de trainingsstappen dat splats tekent zoals webviewers als "
+       "PlayCanvas en SuperSplat dat doen: afgekapt rond 2,8 sigma, met het verloop zo "
+       "geschaald dat het daar nul bereikt. Het model ziet er dan in die viewers uit "
+       "zoals tijdens de training. 0 traint alleen met de volledige gaussiaan."),
+    RU("Доля шагов обучения, в которых сплаты рисуются так же, как в "
+       "веб-просмотрщиках вроде PlayCanvas и SuperSplat: обрезаются около 2,8 сигмы, "
+       "а спад масштабируется так, чтобы там стать нулём. Тогда модель выглядит в этих "
+       "просмотрщиках так же, как при обучении. 0 — обучение только с полной "
+       "гауссианой."),
+    TR("Eğitim adımlarından, splat'ları PlayCanvas ve SuperSplat gibi web "
+       "görüntüleyicilerin yaptığı gibi çizenlerin payı: yaklaşık 2,8 sigmada kesilir "
+       "ve azalma orada sıfıra inecek şekilde ölçeklenir. Böylece model bu "
+       "görüntüleyicilerde eğitimdeki gibi görünür. 0 yalnızca tam Gauss ile eğitir."));
 SS_MSG(background_noise_pre_warmup,
     EN("Initial background noise"), JA("最初の背景ノイズの強さ"),
     ZH_HANS("初始背景噪声强度"), ZH_HANT("初始背景雜訊強度"),
@@ -2695,6 +3747,588 @@ SS_MSG(background_noise_pre_warmup_help,
        "значения не дают сплатам смыться на первых шагах."),
     TR("Arka plan gürültüsünün en başta ne kadar güçlü olduğu; 0 ile 1 arası. "
        "Yüksek değerler splat'ların ilk adımlarda silinip gitmesini önler."));
+
+SS_MSG(seed_pointcloud,
+    EN("Seed point cloud PLY"), JA("初期点群 PLY"),
+    ZH_HANS("初始化点云 PLY"), ZH_HANT("初始化點雲 PLY"), KO("초기 점 구름 PLY"),
+    DE("Startpunktwolke PLY"), FR("Nuage de points initial PLY"),
+    ES("Nube de puntos inicial PLY"), PT("Nuvem de pontos inicial PLY"),
+    IT("Nuvola di punti iniziale PLY"), NL("Startpuntenwolk PLY"),
+    RU("Начальное облако точек PLY"), TR("Başlangıç nokta bulutu PLY"));
+SS_MSG(seed_pointcloud_help,
+    EN("Empty uses the dataset's finished dense cloud (dense/roma.ply) when it has one, else its own points; `sparse` always uses its own points. A path: Replace the dataset's seed cloud with an XYZ + RGB PLY in the same source coordinate frame as the cameras. Relative paths start at the dataset directory. Scene centering and scaling apply to both. This is a point cloud, not an already-trained splat PLY. random_init=always overrides it; init_ply uses it only with init_ply_add_points. Resume restores checkpoint splats."),
+    JA("空欄では、データセットに完成した高密度点群（dense/roma.ply）があればそれを、なければ自身の点群を使います。`sparse` は常に自身の点群です。パスを指定した場合：カメラと同じ元の座標系の XYZ + RGB PLY で初期点群を置き換えます。相対パスはデータセット基準です。中心移動とスケールは両方に適用されます。学習済みスプラットではなく点群です。random_init=always はこれを上書きし、init_ply は init_ply_add_points の場合のみ使用します。再開時はチェックポイントを復元します。"),
+    ZH_HANS("留空时，若数据集有已完成的稠密点云（dense/roma.ply）则使用它，否则使用自带点云；`sparse` 始终使用自带点云。指定路径时：用与相机处于同一原始坐标系的 XYZ + RGB PLY 替换数据集的初始化点云。相对路径以数据集目录为基准，居中和缩放同时作用于点云与相机。这是普通点云，不是训练好的高斯 PLY。random_init=always 会覆盖它；init_ply 仅在 init_ply_add_points 开启时使用它。恢复训练使用检查点中的高斯。"),
+    ZH_HANT("留空時，若資料集有已完成的稠密點雲（dense/roma.ply）則使用它，否則使用自帶點雲；`sparse` 始終使用自帶點雲。指定路徑時：用與相機處於同一原始座標系的 XYZ + RGB PLY 取代資料集的初始化點雲。相對路徑以資料集目錄為基準，置中和縮放同時作用於點雲與相機。這是普通點雲，不是訓練好的高斯 PLY。random_init=always 會覆蓋它；init_ply 僅在 init_ply_add_points 開啟時使用它。恢復訓練使用檢查點中的高斯。"),
+    KO("비워 두면 데이터셋에 완성된 고밀도 점 구름(dense/roma.ply)이 있을 때 그것을, 없으면 자체 점 구름을 씁니다. `sparse`는 항상 자체 점 구름입니다. 경로를 주면: 카메라와 같은 원본 좌표계의 XYZ + RGB PLY로 초기 점 구름을 교체합니다. 상대 경로는 데이터셋 기준이며 중심 이동과 배율은 둘 다에 적용됩니다. 학습된 스플랫이 아닌 점 구름입니다. random_init=always가 덮어쓰며 init_ply는 init_ply_add_points일 때만 사용합니다. 재개 시 체크포인트를 복원합니다."),
+    DE("Leer nimmt die fertige dichte Punktwolke des Datensatzes (dense/roma.ply), sonst dessen eigene Punkte; `sparse` nimmt immer die eigenen Punkte. Ein Pfad: Ersetzt die Startpunktwolke durch ein XYZ + RGB PLY im Quellkoordinatensystem der Kameras. Relative Pfade beginnen im Datensatzordner. Zentrierung und Skalierung gelten für beide. Kein trainiertes Splat-PLY. random_init=always überschreibt es; init_ply nutzt es nur mit init_ply_add_points. Fortsetzen stellt Checkpoint-Splats wieder her."),
+    FR("Vide : le nuage dense terminé du jeu de données (dense/roma.ply) s'il existe, sinon ses propres points ; `sparse` prend toujours ses propres points. Un chemin : Remplace le nuage initial par un PLY XYZ + RGB dans le repère source des caméras. Les chemins relatifs partent du dossier du jeu de données. Centrage et échelle s'appliquent aux deux. Ce n'est pas un PLY de splats entraîné. random_init=always le remplace ; init_ply l'utilise uniquement avec init_ply_add_points. La reprise restaure les splats du checkpoint."),
+    ES("Vacío usa la nube densa terminada del conjunto de datos (dense/roma.ply) si existe, si no sus propios puntos; `sparse` usa siempre sus propios puntos. Una ruta: Sustituye la nube inicial por un PLY XYZ + RGB en el sistema de origen de las cámaras. Las rutas relativas parten del conjunto de datos. Centrado y escala se aplican a ambos. No es un PLY de splats entrenado. random_init=always lo sustituye; init_ply solo lo usa con init_ply_add_points. Reanudar restaura los splats del checkpoint."),
+    PT("Vazio usa a nuvem densa concluída do conjunto de dados (dense/roma.ply) quando existe, senão os próprios pontos; `sparse` usa sempre os próprios pontos. Um caminho: Substitui a nuvem inicial por um PLY XYZ + RGB no sistema de origem das câmeras. Caminhos relativos partem da pasta do conjunto de dados. Centralização e escala se aplicam a ambos. Não é um PLY de splats treinado. random_init=always o substitui; init_ply só o usa com init_ply_add_points. Retomar restaura os splats do checkpoint."),
+    IT("Vuoto usa la nuvola densa completata del set di dati (dense/roma.ply) se c'è, altrimenti i suoi punti; `sparse` usa sempre i suoi punti. Un percorso: Sostituisce la nuvola iniziale con un PLY XYZ + RGB nel sistema originale delle camere. I percorsi relativi partono dalla cartella del set di dati. Centratura e scala si applicano a entrambi. Non è un PLY di splat addestrati. random_init=always lo sostituisce; init_ply lo usa solo con init_ply_add_points. La ripresa ripristina gli splat del checkpoint."),
+    NL("Leeg gebruikt de voltooide dichte puntenwolk van de dataset (dense/roma.ply) als die er is, anders de eigen punten; `sparse` gebruikt altijd de eigen punten. Een pad: Vervangt de startpuntenwolk door een XYZ + RGB PLY in het bronstelsel van de camera's. Relatieve paden beginnen bij de datasetmap. Centrering en schaal gelden voor beide. Geen getraind splat-PLY. random_init=always vervangt het; init_ply gebruikt het alleen met init_ply_add_points. Hervatten herstelt de checkpoint-splats."),
+    RU("Пусто — готовое плотное облако набора данных (dense/roma.ply), если оно есть, иначе его собственные точки; `sparse` — всегда собственные точки. Путь: Заменяет начальное облако файлом XYZ + RGB PLY в исходной системе координат камер. Относительные пути идут от каталога данных. Центрирование и масштаб применяются к обоим. Это не обученный PLY сплатов. random_init=always заменяет его; init_ply использует его только с init_ply_add_points. Возобновление восстанавливает сплаты контрольной точки."),
+    TR("Boş bırakılırsa veri kümesinin tamamlanmış yoğun bulutu (dense/roma.ply) varsa o, yoksa kendi noktaları kullanılır; `sparse` her zaman kendi noktalarını kullanır. Bir yol: Başlangıç bulutunu kameralarla aynı kaynak koordinat sistemindeki XYZ + RGB PLY ile değiştirir. Göreli yollar veri kümesi klasöründen başlar. Merkezleme ve ölçek ikisine de uygulanır. Eğitilmiş splat PLY değildir. random_init=always bunun yerine geçer; init_ply yalnızca init_ply_add_points ile kullanır. Devam etme kontrol noktası splatlarını geri yükler."));
+
+SS_MSG(init_ply,
+    EN("Initial splat PLY"), JA("初期スプラットの PLY"),
+    ZH_HANS("初始泼溅 PLY"), ZH_HANT("初始潑濺 PLY"), KO("초기 스플랫 PLY"),
+    DE("Start-PLY der Splats"), FR("PLY de splats initial"),
+    ES("PLY de splats inicial"), PT("PLY de splats inicial"),
+    IT("PLY di splat iniziale"), NL("Start-PLY met splats"),
+    RU("Начальный PLY сплатов"), TR("Başlangıç splat PLY'si"));
+SS_MSG(init_ply_help,
+    EN("Start from an already-trained 3D Gaussian Splatting PLY instead of the "
+       "dataset's point cloud: positions, sizes, rotations, opacities and colors "
+       "all come from the file. Training still begins at step 0 with a fresh "
+       "optimizer, and the file has to come from the same photos with the same "
+       "scene settings, or it will not line up."),
+    JA("データセットの点群の代わりに、すでに学習済みの 3D ガウシアンスプラッ"
+       "ティングの PLY から始めます。位置、大きさ、回転、不透明度、色はファイル"
+       "から読み込みます。学習はステップ 0 から、最適化器も新しい状態で始まりま"
+       "す。ファイルは同じ写真を同じシーン設定で学習したものである必要があり、"
+       "そうでないと位置が合いません。"),
+    ZH_HANS("从一个已经训练好的 3D 高斯泼溅 PLY 开始，而不是数据集的点云：位置、"
+            "大小、旋转、不透明度和颜色都来自该文件。训练仍然从第 0 步开始，优化"
+            "器也是全新的；文件必须用同样的照片、同样的场景设置训练出来，否则对"
+            "不上。"),
+    ZH_HANT("從一個已經訓練好的 3D 高斯潑濺 PLY 開始，而不是資料集的點雲：位置、"
+            "大小、旋轉、不透明度和顏色都來自該檔案。訓練仍然從第 0 步開始，最佳"
+            "化器也是全新的；檔案必須用同樣的照片、同樣的場景設定訓練出來，否則"
+            "對不上。"),
+    KO("데이터셋의 점 구름 대신, 이미 학습된 3D 가우시안 스플래팅 PLY에서 시작"
+       "합니다. 위치, 크기, 회전, 불투명도, 색은 파일에서 가져옵니다. 학습은 그"
+       "래도 0단계에서 최적화기도 새로 시작하며, 파일은 같은 사진을 같은 장면 설"
+       "정으로 학습한 것이어야 맞습니다."),
+    DE("Startet von einem bereits trainierten 3D-Gaussian-Splatting-PLY statt "
+       "von der Punktwolke des Datensatzes: Positionen, Größen, Drehungen, "
+       "Deckkraft und Farben kommen aus der Datei. Das Training beginnt trotzdem "
+       "bei Schritt 0 mit frischem Optimierer, und die Datei muss aus denselben "
+       "Fotos mit denselben Szeneneinstellungen stammen, sonst passt sie nicht."),
+    FR("Démarre depuis un PLY de 3D Gaussian Splatting déjà entraîné plutôt que "
+       "depuis le nuage de points du jeu de données : positions, tailles, "
+       "rotations, opacités et couleurs viennent du fichier. L'entraînement "
+       "commence quand même à l'étape 0 avec un optimiseur neuf, et le fichier "
+       "doit venir des mêmes photos avec les mêmes réglages de scène, sinon il "
+       "ne s'alignera pas."),
+    ES("Empieza desde un PLY de 3D Gaussian Splatting ya entrenado en vez de la "
+       "nube de puntos del conjunto de datos: posiciones, tamaños, rotaciones, "
+       "opacidades y colores salen del archivo. El entrenamiento sigue empezando "
+       "en el paso 0 con el optimizador en blanco, y el archivo tiene que venir "
+       "de las mismas fotos con los mismos ajustes de escena, o no encajará."),
+    PT("Começa a partir de um PLY de 3D Gaussian Splatting já treinado em vez "
+       "da nuvem de pontos do conjunto de dados: posições, tamanhos, rotações, "
+       "opacidades e cores vêm do arquivo. O treinamento ainda começa no passo 0 "
+       "com o otimizador zerado, e o arquivo tem que vir das mesmas fotos com os "
+       "mesmos ajustes de cena, senão não encaixa."),
+    IT("Parte da un PLY di 3D Gaussian Splatting già addestrato invece che "
+       "dalla nuvola di punti del set di dati: posizioni, dimensioni, rotazioni, "
+       "opacità e colori arrivano dal file. L'addestramento comincia comunque "
+       "dal passo 0 con l'ottimizzatore azzerato, e il file deve venire dalle "
+       "stesse foto con le stesse impostazioni di scena, altrimenti non "
+       "combacia."),
+    NL("Begint vanuit een al getraind 3D Gaussian Splatting-PLY in plaats van "
+       "vanuit de puntenwolk van de dataset: posities, formaten, rotaties, "
+       "dekking en kleuren komen uit het bestand. De training start nog steeds "
+       "bij stap 0 met een schone optimalisator, en het bestand moet van "
+       "dezelfde foto's met dezelfde scène-instellingen komen, anders sluit het "
+       "niet aan."),
+    RU("Начинает с уже обученного PLY 3D Gaussian Splatting, а не с облака "
+       "точек набора данных: положения, размеры, повороты, непрозрачность и "
+       "цвета берутся из файла. Обучение всё равно начинается с шага 0 и с "
+       "чистого оптимизатора, а файл должен быть получен из тех же фотографий "
+       "с теми же настройками сцены, иначе он не совпадёт."),
+    TR("Veri kümesinin nokta bulutu yerine, önceden eğitilmiş bir 3D Gaussian "
+       "Splatting PLY dosyasından başlar: konumlar, boyutlar, dönüşler, "
+       "opaklıklar ve renkler dosyadan gelir. Eğitim yine 0. adımdan ve "
+       "sıfırdan bir eniyileyiciyle başlar; dosyanın aynı fotoğraflardan aynı "
+       "sahne ayarlarıyla eğitilmiş olması gerekir, yoksa oturmaz."));
+
+SS_MSG(init_ply_add_points,
+    EN("Add the dataset's points"), JA("データセットの点も足す"),
+    ZH_HANS("同时加上数据集的点"), ZH_HANT("同時加上資料集的點"),
+    KO("데이터셋의 점도 더하기"),
+    DE("Punkte des Datensatzes ergänzen"),
+    FR("Ajouter les points du jeu de données"),
+    ES("Añadir los puntos del conjunto de datos"),
+    PT("Somar os pontos do conjunto de dados"),
+    IT("Aggiungere i punti del set di dati"),
+    NL("Punten van de dataset erbij"),
+    RU("Добавить точки набора данных"),
+    TR("Veri kümesinin noktalarını da ekle"));
+SS_MSG(init_ply_add_points_help,
+    EN("Seed from the dataset's point cloud as well, on top of the PLY rather "
+       "than instead of it: the PLY goes in first and the points fill what is "
+       "left up to the splat cap. For a dataset that has grown since that model "
+       "was trained; without a PLY it does nothing."),
+    JA("PLY を置き換えるのではなく、その上にデータセットの点群からも初期点を置"
+       "きます。先に PLY が入り、残りをスプラット数の上限まで点群が埋めます。そ"
+       "のモデルを学習したあとでデータセットが増えたときに使います。PLY がなけ"
+       "れば何もしません。"),
+    ZH_HANS("不是用 PLY 顶掉数据集的点云，而是两边都用：先放 PLY，再让点云把剩"
+            "下的名额填到泼溅数上限。适合那个模型训练完之后数据集又扩充了的情"
+            "况；没有 PLY 时不起作用。"),
+    ZH_HANT("不是用 PLY 頂掉資料集的點雲，而是兩邊都用：先放 PLY，再讓點雲把剩"
+            "下的名額填到潑濺數上限。適合那個模型訓練完之後資料集又擴充了的情"
+            "況；沒有 PLY 時不起作用。"),
+    KO("PLY로 데이터셋의 점 구름을 대체하지 않고 둘 다 씁니다. PLY가 먼저 들어"
+       "가고 남은 자리를 스플랫 상한까지 점 구름이 채웁니다. 그 모델을 학습한 "
+       "뒤 데이터셋이 늘어났을 때 쓰며, PLY가 없으면 아무 일도 하지 않습니다."),
+    DE("Nimmt zusätzlich die Punktwolke des Datensatzes als Startpunkte, statt "
+       "sie durch das PLY zu ersetzen: das PLY kommt zuerst, die Punkte füllen "
+       "auf, was bis zur Splat-Obergrenze übrig ist. Für einen Datensatz, der "
+       "seit dem Training jenes Modells gewachsen ist; ohne PLY ohne Wirkung."),
+    FR("Amorce aussi depuis le nuage de points du jeu de données, en plus du "
+       "PLY plutôt qu'à sa place : le PLY passe en premier et les points "
+       "remplissent ce qui reste jusqu'à la limite de splats. Pour un jeu de "
+       "données qui s'est étoffé depuis l'entraînement de ce modèle ; sans PLY, "
+       "sans effet."),
+    ES("Siembra también desde la nube de puntos del conjunto de datos, sumandola "
+       "al PLY en vez de sustituirla: el PLY entra primero y los puntos rellenan "
+       "lo que quede hasta el límite de splats. Para un conjunto de datos que ha "
+       "crecido desde que se entrenó ese modelo; sin PLY no hace nada."),
+    PT("Semeia também a partir da nuvem de pontos do conjunto de dados, somando "
+       "ao PLY em vez de substituí-la: o PLY entra primeiro e os pontos "
+       "preenchem o que sobrar até o limite de splats. Para um conjunto de dados "
+       "que cresceu depois que aquele modelo foi treinado; sem PLY não faz "
+       "nada."),
+    IT("Semina anche dalla nuvola di punti del set di dati, sommandola al PLY "
+       "invece di sostituirla: il PLY entra per primo e i punti riempiono quel "
+       "che resta fino al limite di splat. Per un set di dati cresciuto da "
+       "quando quel modello è stato addestrato; senza PLY non fa nulla."),
+    NL("Zaait ook vanuit de puntenwolk van de dataset, bovenop het PLY in plaats "
+       "van in de plaats daarvan: het PLY gaat er eerst in en de punten vullen "
+       "aan tot de bovengrens. Voor een dataset die gegroeid is sinds dat model "
+       "getraind werd; zonder PLY doet dit niets."),
+    RU("Берёт начальные точки ещё и из облака точек набора данных, добавляя их к "
+       "PLY, а не заменяя им: сначала идёт PLY, а точки заполняют то, что "
+       "осталось до предела числа сплатов. Для набора данных, выросшего с тех "
+       "пор, как ту модель обучали; без PLY ничего не делает."),
+    TR("Veri kümesinin nokta bulutunu PLY'nin yerine koymak yerine onun üstüne "
+       "ekler: önce PLY girer, kalan yeri splat sınırına kadar noktalar "
+       "doldurur. O model eğitildikten sonra büyümüş bir veri kümesi için; PLY "
+       "yoksa hiçbir şey yapmaz."));
+
+SS_MSG(partition,
+    EN("Partition file"), JA("分割ファイル"), ZH_HANS("分区文件"), ZH_HANT("分區檔案"),
+    KO("분할 파일"), DE("Partitionsdatei"), FR("Fichier de partition"),
+    ES("Archivo de partición"), PT("Ficheiro de partição"), IT("File di partizione"),
+    NL("Partitiebestand"), RU("Файл разбиения"), TR("Bölümleme dosyası"));
+SS_MSG(partition_help,
+    EN("A partition.json written by `spirula partition` or the Partition panel. "
+       "The run then trains one part of it: the part's cameras, the ring of "
+       "outside cameras that also see its region, and the seed points they see. "
+       "The models of all parts are merged afterwards."),
+    JA("`spirula partition` または分割パネルが書き出した partition.json です。学習"
+       "はその中の 1 パートだけを使います。パートのカメラ、その領域を見ている外側"
+       "のカメラの輪、そしてそれらが見ている初期点です。全パートのモデルはあとで"
+       "結合します。"),
+    ZH_HANS("由 `spirula partition` 或分区面板写出的 partition.json。本次训练只用"
+            "其中一个分区：该分区的相机、也看到其区域的外围相机环，以及它们看到的"
+            "种子点。所有分区的模型随后合并。"),
+    ZH_HANT("由 `spirula partition` 或分區面板寫出的 partition.json。本次訓練只用"
+            "其中一個分區：該分區的相機、也看到其區域的外圍相機環，以及它們看到的"
+            "種子點。所有分區的模型隨後合併。"),
+    KO("`spirula partition` 또는 분할 패널이 기록한 partition.json입니다. 이 실행"
+       "은 그중 한 파트만 학습합니다. 파트의 카메라, 그 영역을 함께 보는 바깥 카"
+       "메라의 고리, 그리고 그것들이 보는 시드 점입니다. 모든 파트의 모델은 나중에 "
+       "병합됩니다."),
+    DE("Eine von `spirula partition` oder dem Partitionsfenster geschriebene "
+       "partition.json. Der Lauf trainiert dann einen Teil davon: dessen Kameras, "
+       "den Ring äußerer Kameras, die seinen Bereich mitsehen, und die Startpunkte, "
+       "die sie sehen. Die Modelle aller Teile werden danach zusammengeführt."),
+    FR("Un partition.json écrit par `spirula partition` ou le panneau Partition. "
+       "L'entraînement ne porte alors que sur une partie : ses caméras, l'anneau de "
+       "caméras extérieures qui voient aussi sa région, et les points d'amorce "
+       "qu'elles voient. Les modèles de toutes les parties sont fusionnés ensuite."),
+    ES("Un partition.json escrito por `spirula partition` o por el panel Partición. "
+       "El entrenamiento usa entonces una sola parte: sus cámaras, el anillo de "
+       "cámaras externas que también ven su región y los puntos semilla que ven. "
+       "Los modelos de todas las partes se fusionan después."),
+    PT("Um partition.json escrito por `spirula partition` ou pelo painel Partição. "
+       "O treino usa então uma só parte: as suas câmaras, o anel de câmaras "
+       "exteriores que também veem a sua região e os pontos semente que elas veem. "
+       "Os modelos de todas as partes são fundidos depois."),
+    IT("Un partition.json scritto da `spirula partition` o dal pannello Partizione. "
+       "L'addestramento usa allora una sola parte: le sue fotocamere, l'anello di "
+       "fotocamere esterne che vedono anche la sua regione e i punti seme che "
+       "vedono. I modelli di tutte le parti vengono uniti dopo."),
+    NL("Een partition.json geschreven door `spirula partition` of het "
+       "partitiepaneel. De run traint dan één deel ervan: de camera's van het "
+       "deel, de ring van buitencamera's die zijn gebied ook zien, en de zaadpunten "
+       "die zij zien. De modellen van alle delen worden daarna samengevoegd."),
+    RU("Файл partition.json, записанный `spirula partition` или панелью разбиения. "
+       "Обучение берёт из него одну часть: её камеры, кольцо внешних камер, "
+       "которые тоже видят её область, и видимые ими начальные точки. Модели всех "
+       "частей затем объединяются."),
+    TR("`spirula partition` ya da Bölümleme panelinin yazdığı bir partition.json. "
+       "Eğitim bunun tek bir parçasını kullanır: parçanın kameraları, bölgesini de "
+       "gören dış kameraların halkası ve bunların gördüğü tohum noktaları. Tüm "
+       "parçaların modelleri sonra birleştirilir."));
+SS_MSG(partition_part,
+    EN("Part to train"), JA("学習するパート"), ZH_HANS("要训练的分区"),
+    ZH_HANT("要訓練的分區"), KO("학습할 파트"), DE("Zu trainierender Teil"),
+    FR("Partie à entraîner"), ES("Parte a entrenar"), PT("Parte a treinar"),
+    IT("Parte da addestrare"), NL("Te trainen deel"), RU("Обучаемая часть"),
+    TR("Eğitilecek parça"));
+SS_MSG(partition_part_help,
+    EN("Which part of the partition file this run trains, counting from 0. "
+       "Required with --partition."),
+    JA("分割ファイルのどのパートを学習するかを 0 から数えて指定します。"
+       "--partition と一緒に必須です。"),
+    ZH_HANS("本次训练分区文件中的第几个分区，从 0 起算。与 --partition 一起时必填。"),
+    ZH_HANT("本次訓練分區檔案中的第幾個分區，從 0 起算。與 --partition 一起時必填。"),
+    KO("이 실행이 분할 파일의 어느 파트를 학습할지, 0부터 셉니다. --partition과 "
+       "함께 필수입니다."),
+    DE("Welchen Teil der Partitionsdatei dieser Lauf trainiert, ab 0 gezählt. "
+       "Mit --partition erforderlich."),
+    FR("Quelle partie du fichier de partition cet entraînement traite, à partir "
+       "de 0. Obligatoire avec --partition."),
+    ES("Qué parte del archivo de partición entrena esta ejecución, contando desde "
+       "0. Obligatorio con --partition."),
+    PT("Qual parte do ficheiro de partição este treino usa, a contar de 0. "
+       "Obrigatório com --partition."),
+    IT("Quale parte del file di partizione addestra questa esecuzione, contando "
+       "da 0. Obbligatorio con --partition."),
+    NL("Welk deel van het partitiebestand deze run traint, geteld vanaf 0. "
+       "Verplicht met --partition."),
+    RU("Какую часть файла разбиения обучает этот запуск, считая с 0. Обязательно "
+       "вместе с --partition."),
+    TR("Bu çalıştırmanın bölümleme dosyasının hangi parçasını eğittiği, 0'dan "
+       "sayılır. --partition ile zorunludur."));
+
+SS_MSG(roi_region,
+    EN("Region of interest file"), JA("関心領域ファイル"), ZH_HANS("感兴趣区域文件"),
+    ZH_HANT("感興趣區域檔案"), KO("관심 영역 파일"), DE("Datei des Interessenbereichs"),
+    FR("Fichier de région d'intérêt"), ES("Archivo de región de interés"),
+    PT("Ficheiro da região de interesse"), IT("File della regione di interesse"),
+    NL("Bestand met interessegebied"), RU("Файл области интереса"),
+    TR("İlgi bölgesi dosyası"));
+SS_MSG(roi_region_help,
+    EN("A region JSON: what the ROI editor saves in the dataset's roi folder, or any "
+       "region (boxes, ellipsoids, cylinders, outlines, half-spaces, a partition's "
+       "label field, combined with union, intersection and difference). Unset, the "
+       "first file in <dataset>/roi is used; `off` trains the whole scene; a bare "
+       "name picks that file there. Splats outside it (see --roi-splat-samples) are "
+       "drawn for relocation and growth with --roi-outside-weight instead of 1, so the "
+       "model stops growing there. A partitioned run keeps to where its part and "
+       "the region overlap."),
+    JA("領域 JSON。ROI エディタがデータセットの roi フォルダに保存するもの、または任"
+       "意の領域（ボックス、楕円体、円柱、輪郭、半空間、分割のラベルフィールドを和・"
+       "積・差で組み合わせたもの）。未設定なら <dataset>/roi の先頭のファイルを使い、"
+       "`off` ならシーン全体を学習し、名前だけならそこにあるそのファイルを選びます。"
+       "領域外のスプラット（判定は --roi-splat-samples）は、再配置と成長の抽選で 1 の代わりに "
+       "--roi-outside-weight の重みになり、そこではモデルが成長しなくなります。分割"
+       "学習ではパートと領域の重なりだけが使われます。"),
+    ZH_HANS("区域 JSON：ROI 编辑器保存在数据集 roi 文件夹中的文件，或任意区域（盒、椭"
+            "球、圆柱、轮廓、半空间、分区的标签场，用并、交、差组合）。未设置时使用 "
+            "<dataset>/roi 中的第一个文件；`off` 训练整个场景；只写名称则选取该文件"
+            "夹中的同名文件。区域外的泼溅（判定见 --roi-splat-samples）在重定位与增长抽样中以 "
+            "--roi-outside-weight 而非 1 为权重，模型因此不再在那里增长。分区训练只使"
+            "用其分区与该区域的交集。"),
+    ZH_HANT("區域 JSON：ROI 編輯器儲存在資料集 roi 資料夾中的檔案，或任意區域（盒、橢"
+            "球、圓柱、輪廓、半空間、分區的標籤場，用聯集、交集、差集組合）。未設定時"
+            "使用 <dataset>/roi 中的第一個檔案；`off` 訓練整個場景；只寫名稱則選取該"
+            "資料夾中的同名檔案。區域外的潑濺（判定見 --roi-splat-samples）在重定位與增長抽樣中以 "
+            "--roi-outside-weight 而非 1 為權重，模型因此不再在那裡增長。分區訓練只使"
+            "用其分區與該區域的交集。"),
+    KO("영역 JSON: ROI 편집기가 데이터셋의 roi 폴더에 저장한 파일, 또는 임의의 영역"
+       "(상자, 타원체, 원기둥, 윤곽, 반공간, 분할의 라벨 필드를 합집합·교집합·차집합"
+       "으로 결합). 비워 두면 <dataset>/roi의 첫 번째 파일을 쓰고, `off`이면 장면 "
+       "전체를 학습하며, 이름만 쓰면 그 폴더의 해당 파일을 고릅니다. 영역 밖의 스플랫"
+       "(판정은 --roi-splat-samples)은 재배치와 성장 추첨에서 1 대신 --roi-outside-weight 가중치를 받아 "
+       "그곳에서 모델이 더 자라지 않습니다. 분할 학습은 파트와 이 영역이 겹치는 부분"
+       "만 씁니다."),
+    DE("Eine Regions-JSON: was der ROI-Editor im roi-Ordner des Datensatzes "
+       "speichert, oder jede andere Region (Quader, Ellipsoide, Zylinder, Umrisse, "
+       "Halbräume, das Labelfeld einer Partition, verknüpft mit Vereinigung, Schnitt "
+       "und Differenz). Leer wird die erste Datei in <dataset>/roi verwendet; `off` "
+       "trainiert die ganze Szene; ein bloßer Name wählt die gleichnamige Datei dort. "
+       "Splats außerhalb (siehe --roi-splat-samples) ziehen bei Verlagerung und Wachstum mit "
+       "--roi-outside-weight statt 1, das Modell wächst dort also nicht weiter. Ein "
+       "partitionierter Lauf nutzt nur die Schnittmenge seines Teils mit der Region."),
+    FR("Un JSON de région : ce que l'éditeur de ROI enregistre dans le dossier roi du "
+       "jeu de données, ou toute autre région (boîtes, ellipsoïdes, cylindres, "
+       "contours, demi-espaces, le champ d'étiquettes d'une partition, combinés par "
+       "union, intersection et différence). Vide, le premier fichier de "
+       "<dataset>/roi est utilisé ; `off` entraîne toute la scène ; un simple nom y "
+       "choisit ce fichier. Les splats en dehors (voir --roi-splat-samples) tirent, pour la "
+       "relocalisation et la croissance, avec --roi-outside-weight au lieu de 1 : le "
+       "modèle cesse d'y croître. Un entraînement partitionné n'en garde que "
+       "l'intersection avec sa partie."),
+    ES("Un JSON de región: lo que el editor de ROI guarda en la carpeta roi del "
+       "conjunto de datos, o cualquier región (cajas, elipsoides, cilindros, "
+       "contornos, semiespacios, el campo de etiquetas de una partición, combinados "
+       "con unión, intersección y diferencia). Vacío, se usa el primer archivo de "
+       "<dataset>/roi; `off` entrena toda la escena; un nombre solo elige ese "
+       "archivo allí. Los splats fuera (ver --roi-splat-samples) sortean, para reubicación y "
+       "crecimiento, con --roi-outside-weight en vez de 1, así que el modelo deja de "
+       "crecer ahí. Una ejecución particionada usa solo su intersección con su parte."),
+    PT("Um JSON de região: o que o editor de ROI guarda na pasta roi do conjunto de "
+       "dados, ou qualquer região (caixas, elipsoides, cilindros, contornos, "
+       "semiespaços, o campo de rótulos de uma partição, combinados por união, "
+       "interseção e diferença). Vazio, usa-se o primeiro ficheiro de <dataset>/roi; "
+       "`off` treina a cena inteira; um nome simples escolhe esse ficheiro lá. Os "
+       "splats fora (ver --roi-splat-samples) sorteiam, para realocação e crescimento, com "
+       "--roi-outside-weight em vez de 1, pelo que o modelo deixa de crescer aí. Um "
+       "treino particionado usa apenas a interseção com a sua parte."),
+    IT("Un JSON di regione: ciò che l'editor di ROI salva nella cartella roi del "
+       "dataset, o qualsiasi regione (scatole, ellissoidi, cilindri, contorni, "
+       "semispazi, il campo di etichette di una partizione, combinati con unione, "
+       "intersezione e differenza). Se vuoto si usa il primo file in <dataset>/roi; "
+       "`off` addestra l'intera scena; un nome semplice sceglie quel file lì. Gli "
+       "splat fuori (vedi --roi-splat-samples) estraggono, per ricollocazione e crescita, con "
+       "--roi-outside-weight invece di 1, così il modello smette di crescere lì. Un "
+       "addestramento partizionato usa solo l'intersezione con la sua parte."),
+    NL("Een regio-JSON: wat de ROI-editor in de roi-map van de dataset opslaat, of "
+       "elk ander gebied (dozen, ellipsoïden, cilinders, omtrekken, halfruimten, het "
+       "labelveld van een partitie, gecombineerd met vereniging, doorsnede en "
+       "verschil). Leeg wordt het eerste bestand in <dataset>/roi gebruikt; `off` "
+       "traint de hele scène; een losse naam kiest dat bestand daar. Splats erbuiten "
+       "(zie --roi-splat-samples) loten bij verplaatsing en groei met --roi-outside-weight "
+       "in plaats van 1, zodat het model daar niet verder groeit. Een "
+       "gepartitioneerde run gebruikt alleen de doorsnede met zijn deel."),
+    RU("JSON области: то, что редактор ROI сохраняет в папку roi набора данных, или "
+       "любая область (коробки, эллипсоиды, цилиндры, контуры, полупространства, "
+       "поле меток разбиения, объединённые операциями объединения, пересечения и "
+       "разности). Если пусто, берётся первый файл из <dataset>/roi; `off` обучает "
+       "всю сцену; одно имя выбирает этот файл там. Сплаты снаружи (см. "
+       "--roi-splat-samples) "
+       "участвуют в выборке для перемещения и роста с весом --roi-outside-weight "
+       "вместо 1, так что модель там не растёт. Разбитый запуск использует только "
+       "пересечение своей части с областью."),
+    TR("Bir bölge JSON'u: ROI düzenleyicisinin veri kümesinin roi klasörüne "
+       "kaydettiği dosya ya da herhangi bir bölge (kutular, elipsoitler, silindirler, "
+       "ana hatlar, yarı uzaylar, bir bölümlemenin etiket alanı; birleşim, kesişim ve "
+       "farkla birleştirilmiş). Boş bırakılırsa <dataset>/roi içindeki ilk dosya "
+       "kullanılır; `off` tüm sahneyi eğitir; yalnızca bir ad oradaki o dosyayı "
+       "seçer. Dışarıda kalan splatlar (bkz. --roi-splat-samples) yer değiştirme ve büyüme çekilişine 1 "
+       "yerine --roi-outside-weight ile girer; model orada büyümeyi bırakır. "
+       "Bölümlenmiş bir eğitim yalnızca parçasıyla kesişimini kullanır."));
+SS_MSG(roi_outside_weight,
+    EN("Draw weight outside the region"), JA("領域外の抽選重み"),
+    ZH_HANS("区域外的抽样权重"), ZH_HANT("區域外的抽樣權重"), KO("영역 밖 추첨 가중치"),
+    DE("Ziehgewicht außerhalb des Bereichs"), FR("Poids de tirage hors région"),
+    ES("Peso de sorteo fuera de la región"), PT("Peso de sorteio fora da região"),
+    IT("Peso di estrazione fuori dalla regione"), NL("Lotgewicht buiten het gebied"),
+    RU("Вес выборки вне области"), TR("Bölge dışı çekiliş ağırlığı"));
+SS_MSG(roi_mask_pixels,
+    EN("Train only on what shows the region"), JA("領域が写る部分だけで学習"),
+    ZH_HANS("只用拍到区域的像素训练"), ZH_HANT("只用拍到區域的像素訓練"),
+    KO("영역이 보이는 픽셀로만 학습"), DE("Nur auf Pixeln des Bereichs trainieren"),
+    FR("N'entraîner que sur ce qui montre la région"), ES("Entrenar solo con lo que muestra la región"),
+    PT("Treinar só com o que mostra a região"), IT("Addestrare solo su ciò che mostra la regione"),
+    NL("Alleen trainen op wat het gebied toont"), RU("Обучать только на пикселях области"),
+    TR("Yalnızca bölgeyi gösteren piksellerle eğit"));
+SS_MSG(roi_mask_pixels_help,
+    EN("With a region of interest, each image is masked to the pixels whose "
+       "nearest seed point is inside it, plus a margin, before training. Pixels "
+       "showing only the outside would otherwise be explained by splats grown "
+       "in front of the camera, which the merge keeps."),
+    JA("関心領域があるとき、学習前に各画像を、最も近い初期点が領域内にある画素と"
+       "その周りだけに絞ります。外側しか写らない画素は、そうしないとカメラの手前に"
+       "育つスプラットで説明され、マージで残ってしまいます。"),
+    ZH_HANS("有感兴趣区域时，训练前把每张图像限制为最近种子点在区域内的像素及其边缘。"
+            "否则只拍到外部的像素会被相机前方长出的泼溅来解释，而合并时会保留它们。"),
+    ZH_HANT("有感興趣區域時，訓練前把每張影像限制為最近種子點在區域內的像素及其邊緣。"
+            "否則只拍到外部的像素會被相機前方長出的潑濺來解釋，而合併時會保留它們。"),
+    KO("관심 영역이 있으면 학습 전에 각 이미지를 가장 가까운 시드 점이 영역 안에 있는 "
+       "픽셀과 그 주변으로 제한합니다. 그러지 않으면 바깥만 보이는 픽셀을 카메라 앞에 "
+       "자란 스플랫이 설명하게 되고, 병합이 그것을 남깁니다."),
+    DE("Mit einem Interessenbereich wird jedes Bild vor dem Training auf die "
+       "Pixel maskiert, deren nächster Startpunkt darin liegt, plus einen Rand. "
+       "Sonst erklären vor der Kamera gewachsene Splats die Pixel, die nur das "
+       "Außen zeigen, und das Zusammenführen behält sie."),
+    FR("Avec une région d'intérêt, chaque image est masquée avant l'entraînement "
+       "aux pixels dont le point d'amorce le plus proche est dedans, plus une "
+       "marge. Sinon, des splats poussés devant la caméra expliquent les pixels "
+       "qui ne montrent que l'extérieur, et la fusion les garde."),
+    ES("Con una región de interés, cada imagen se enmascara antes de entrenar a "
+       "los píxeles cuyo punto semilla más cercano está dentro, más un margen. Si "
+       "no, splats crecidos delante de la cámara explican los píxeles que solo "
+       "muestran el exterior, y la fusión los conserva."),
+    PT("Com uma região de interesse, cada imagem é mascarada antes do treino aos "
+       "píxeis cujo ponto semente mais próximo está dentro, mais uma margem. Caso "
+       "contrário, splats crescidos à frente da câmara explicam os píxeis que só "
+       "mostram o exterior, e a fusão mantém-nos."),
+    IT("Con una regione di interesse, prima dell'addestramento ogni immagine è "
+       "mascherata ai pixel il cui punto seme più vicino è dentro, più un "
+       "margine. Altrimenti splat cresciuti davanti alla fotocamera spiegano i "
+       "pixel che mostrano solo l'esterno, e l'unione li tiene."),
+    NL("Met een interessegebied wordt elk beeld vóór het trainen gemaskeerd tot "
+       "de pixels waarvan het dichtstbijzijnde zaadpunt erbinnen ligt, plus een "
+       "marge. Anders verklaren splats vóór de camera de pixels die alleen de "
+       "buitenkant tonen, en het samenvoegen houdt ze."),
+    RU("При области интереса каждое изображение перед обучением ограничивается "
+       "пикселями, ближайшая начальная точка которых внутри, плюс поле. Иначе "
+       "пиксели, показывающие только внешнее, объясняются сплатами перед камерой, "
+       "и слияние их сохраняет."),
+    TR("İlgi bölgesi varken her görüntü eğitimden önce en yakın tohum noktası "
+       "içeride olan piksellere ve bir kenar payına maskelenir. Yoksa yalnızca "
+       "dışarıyı gösteren pikselleri kameranın önünde büyüyen splat'ler açıklar "
+       "ve birleştirme onları tutar."));
+SS_MSG(roi_outside_opacity_decay,
+    EN("Opacity kept outside the region"), JA("領域外で残す不透明度"),
+    ZH_HANS("区域外保留的不透明度"), ZH_HANT("區域外保留的不透明度"), KO("영역 밖에 남기는 불투명도"),
+    DE("Deckkraft, die außerhalb bleibt"), FR("Opacité conservée hors région"),
+    ES("Opacidad conservada fuera de la región"), PT("Opacidade mantida fora da região"),
+    IT("Opacità mantenuta fuori dalla regione"), NL("Dekking die buiten het gebied blijft"),
+    RU("Сохраняемая непрозрачность вне области"), TR("Bölge dışında kalan opaklık"));
+SS_MSG(roi_outside_opacity_decay_help,
+    EN("At every densification step, splats outside the region of interest keep "
+       "this share of their opacity. The ones the images still need win it back; "
+       "the rest fade until they are relocated inside. 1 turns it off."),
+    JA("密度化のたびに、関心領域の外のスプラットは不透明度のこの割合だけを残します。"
+       "画像がまだ必要とするものは取り戻し、残りは薄れて領域内へ再配置されます。"
+       "1 で無効。"),
+    ZH_HANS("每次致密化时，感兴趣区域外的泼溅只保留这一比例的不透明度。图像仍需要的会"
+            "恢复，其余逐渐变淡，直到被重定位到区域内。取 1 关闭。"),
+    ZH_HANT("每次緻密化時，感興趣區域外的潑濺只保留這一比例的不透明度。影像仍需要的會"
+            "恢復，其餘逐漸變淡，直到被重定位到區域內。取 1 關閉。"),
+    KO("밀집화할 때마다 관심 영역 밖의 스플랫은 불투명도의 이 비율만 남깁니다. 이미지가 "
+       "여전히 필요로 하는 것은 되찾고, 나머지는 흐려져 영역 안으로 재배치됩니다. "
+       "1이면 끕니다."),
+    DE("Bei jedem Verdichtungsschritt behalten Splats außerhalb des "
+       "Interessenbereichs diesen Anteil ihrer Deckkraft. Was die Bilder noch "
+       "brauchen, holt ihn zurück; der Rest verblasst, bis er nach innen verlagert "
+       "wird. 1 schaltet es ab."),
+    FR("À chaque densification, les splats hors de la région d'intérêt gardent "
+       "cette part de leur opacité. Ceux dont les images ont encore besoin la "
+       "regagnent ; les autres s'effacent jusqu'à être relocalisés à l'intérieur. "
+       "1 désactive."),
+    ES("En cada densificación, los splats fuera de la región de interés conservan "
+       "esta parte de su opacidad. Los que las imágenes aún necesitan la "
+       "recuperan; el resto se desvanece hasta reubicarse dentro. 1 lo desactiva."),
+    PT("Em cada densificação, os splats fora da região de interesse mantêm esta "
+       "parte da sua opacidade. Os que as imagens ainda precisam recuperam-na; os "
+       "restantes desvanecem até serem realocados para dentro. 1 desliga."),
+    IT("A ogni densificazione, gli splat fuori dalla regione di interesse "
+       "mantengono questa quota della loro opacità. Quelli che servono ancora alle "
+       "immagini la recuperano; gli altri svaniscono finché non vengono "
+       "ricollocati dentro. 1 la disattiva."),
+    NL("Bij elke verdichting houden splats buiten het interessegebied dit deel van "
+       "hun dekking. Wat de beelden nog nodig hebben, wint het terug; de rest "
+       "vervaagt tot het naar binnen verplaatst wordt. 1 zet het uit."),
+    RU("На каждом шаге уплотнения сплаты вне области интереса сохраняют эту долю "
+       "непрозрачности. Нужные изображениям восстанавливают её, остальные тускнеют, "
+       "пока их не переместят внутрь. 1 отключает."),
+    TR("Her yoğunlaştırma adımında ilgi bölgesi dışındaki splat'ler opaklıklarının "
+       "bu payını korur. Görüntülerin hâlâ ihtiyaç duyduğu geri kazanır; kalanlar "
+       "içeri taşınana dek solar. 1 kapatır."));
+SS_MSG(roi_outside_weight_help,
+    EN("What a splat outside the region of interest counts for when "
+       "densification picks where to relocate or add splats, relative to 1 "
+       "inside. 1 turns the region off."),
+    JA("密度化が再配置や追加先を選ぶとき、関心領域の外のスプラットを内側の 1 に対"
+       "してどれだけに数えるか。1 で領域を無効にします。"),
+    ZH_HANS("致密化选择重定位或新增位置时，感兴趣区域外的泼溅相对区域内的 1 算多"
+            "少。取 1 即关闭区域。"),
+    ZH_HANT("緻密化選擇重定位或新增位置時，感興趣區域外的潑濺相對區域內的 1 算多"
+            "少。取 1 即關閉區域。"),
+    KO("밀집화가 재배치나 추가 위치를 고를 때 관심 영역 밖의 스플랫을 안쪽의 1에 "
+       "비해 얼마로 칠지. 1이면 영역을 끕니다."),
+    DE("Wie viel ein Splat außerhalb des Interessenbereichs zählt, wenn die "
+       "Verdichtung wählt, wohin sie verlagert oder ergänzt, gegenüber 1 innen. "
+       "1 schaltet den Bereich ab."),
+    FR("Ce que vaut un splat hors de la région d'intérêt quand la densification "
+       "choisit où relocaliser ou ajouter, par rapport à 1 à l'intérieur. 1 "
+       "désactive la région."),
+    ES("Cuánto cuenta un splat fuera de la región de interés cuando la "
+       "densificación elige dónde reubicar o añadir, frente a 1 dentro. 1 "
+       "desactiva la región."),
+    PT("Quanto vale um splat fora da região de interesse quando a densificação "
+       "escolhe onde realocar ou acrescentar, face a 1 dentro. 1 desliga a "
+       "região."),
+    IT("Quanto conta uno splat fuori dalla regione di interesse quando la "
+       "densificazione sceglie dove ricollocare o aggiungere, rispetto a 1 "
+       "dentro. 1 disattiva la regione."),
+    NL("Hoeveel een splat buiten het interessegebied telt als de verdichting "
+       "kiest waar ze verplaatst of toevoegt, tegenover 1 erbinnen. 1 zet het "
+       "gebied uit."),
+    RU("Сколько весит сплат вне области интереса, когда уплотнение выбирает, "
+       "куда перемещать или добавлять, при 1 внутри. 1 отключает область."),
+    TR("Yoğunlaştırma nereye taşıyacağını ya da ekleyeceğini seçerken ilgi "
+       "bölgesi dışındaki bir splatın içerideki 1'e göre kaça sayıldığı. 1 "
+       "bölgeyi kapatır."));
+SS_MSG(roi_splat_samples,
+    EN("Points per splat tested against the region"), JA("スプラットごとの領域判定点数"),
+    ZH_HANS("每个泼溅的区域判定点数"), ZH_HANT("每個潑濺的區域判定點數"),
+    KO("스플랫당 영역 판정 점 수"), DE("Geprüfte Punkte je Splat"),
+    FR("Points testés par splat"), ES("Puntos probados por splat"),
+    PT("Pontos testados por splat"), IT("Punti verificati per splat"),
+    NL("Geteste punten per splat"), RU("Проверяемых точек на сплат"),
+    TR("Splat başına denenen nokta"));
+SS_MSG(roi_splat_samples_help,
+    EN("How many points of each splat are tested against the region of interest "
+       "at every densification step: its centre, then points spread over its "
+       "Gaussian, turned at random each time. It counts as inside when any of them "
+       "is, so a splat straddling the boundary keeps growing; at 8, nearly every "
+       "splat with a fifth of its mass inside does. 1 tests the centre alone."),
+    JA("密度化のたびに各スプラットのうち関心領域と照合する点の数。中心と、その"
+       "ガウス分布に広がる点（毎回ランダムに回転）を調べます。どれか 1 点でも内側"
+       "なら内側とみなすので、境界をまたぐスプラットも成長し続けます。8 なら質量"
+       "の 5 分の 1 が内側にあるスプラットはほぼすべて内側です。1 なら中心だけを"
+       "調べます。"),
+    ZH_HANS("每次致密化时，每个泼溅拿来与感兴趣区域比对的点数：它的中心，以及分布"
+            "在其高斯上的点（每次随机旋转）。只要有一点在内即算在内，因此跨越边界"
+            "的泼溅仍会继续增长；取 8 时，质量有五分之一在内的泼溅几乎都算在内。"
+            "取 1 只检查中心。"),
+    ZH_HANT("每次緻密化時，每個潑濺拿來與感興趣區域比對的點數：它的中心，以及分布"
+            "在其高斯上的點（每次隨機旋轉）。只要有一點在內即算在內，因此跨越邊界"
+            "的潑濺仍會繼續增長；取 8 時，質量有五分之一在內的潑濺幾乎都算在內。"
+            "取 1 只檢查中心。"),
+    KO("밀집화할 때마다 각 스플랫에서 관심 영역과 대조하는 점의 수: 중심과, 그 "
+       "가우시안에 퍼진 점들(매번 무작위로 회전). 한 점이라도 안에 있으면 안으로 "
+       "치므로 경계에 걸친 스플랫도 계속 자랍니다. 8이면 질량의 5분의 1이 안에 "
+       "있는 스플랫은 거의 모두 안으로 칩니다. 1이면 중심만 검사합니다."),
+    DE("Wie viele Punkte jedes Splats bei jedem Verdichtungsschritt gegen den "
+       "Interessenbereich geprüft werden: sein Zentrum, dann über seine "
+       "Gauß-Verteilung gestreute Punkte, jedes Mal zufällig gedreht. Er zählt als "
+       "innen, sobald einer davon innen liegt, sodass ein Splat auf der Grenze "
+       "weiterwächst; bei 8 gilt das für fast jeden Splat mit einem Fünftel seiner "
+       "Masse innen. 1 prüft nur das Zentrum."),
+    FR("Le nombre de points de chaque splat testés contre la région d'intérêt à "
+       "chaque densification : son centre, puis des points répartis sur sa "
+       "gaussienne, tournés au hasard à chaque fois. Il compte comme intérieur dès "
+       "que l'un d'eux l'est, si bien qu'un splat à cheval sur le bord continue de "
+       "croître ; à 8, c'est le cas de presque tout splat ayant un cinquième de sa "
+       "masse dedans. 1 ne teste que le centre."),
+    ES("Cuántos puntos de cada splat se prueban contra la región de interés en "
+       "cada densificación: su centro y luego puntos repartidos por su gaussiana, "
+       "girados al azar cada vez. Cuenta como dentro en cuanto uno de ellos lo "
+       "está, así que un splat a caballo del borde sigue creciendo; con 8 ocurre "
+       "con casi todo splat que tenga una quinta parte de su masa dentro. 1 prueba "
+       "solo el centro."),
+    PT("Quantos pontos de cada splat são testados contra a região de interesse "
+       "em cada densificação: o seu centro e depois pontos espalhados pela sua "
+       "gaussiana, rodados ao acaso de cada vez. Conta como dentro logo que um "
+       "deles esteja, pelo que um splat sobre a fronteira continua a crescer; com "
+       "8 isso acontece a quase todo o splat com um quinto da massa dentro. 1 "
+       "testa só o centro."),
+    IT("Quanti punti di ogni splat vengono confrontati con la regione di "
+       "interesse a ogni densificazione: il suo centro, poi punti sparsi sulla sua "
+       "gaussiana, ruotati a caso ogni volta. Conta come dentro appena uno di essi "
+       "lo è, così uno splat a cavallo del bordo continua a crescere; con 8 vale "
+       "per quasi ogni splat con un quinto della massa dentro. 1 controlla solo il "
+       "centro."),
+    NL("Hoeveel punten van elke splat bij elke verdichting tegen het "
+       "interessegebied worden getest: het middelpunt, dan punten verspreid over "
+       "de gaussiaan, elke keer willekeurig gedraaid. De splat telt als binnen "
+       "zodra één punt dat is, dus een splat op de rand blijft groeien; bij 8 geldt "
+       "dat voor bijna elke splat met een vijfde van zijn massa binnen. 1 test "
+       "alleen het middelpunt."),
+    RU("Сколько точек каждого сплата проверяется по области интереса на каждом "
+       "шаге уплотнения: его центр, затем точки, распределённые по его гауссиане и "
+       "каждый раз случайно повёрнутые. Сплат считается внутри, если внутри хоть "
+       "одна из них, поэтому сплат на границе продолжает расти; при 8 так почти с "
+       "каждым сплатом, у которого внутри пятая часть массы. 1 проверяет только "
+       "центр."),
+    TR("Her yoğunlaştırma adımında her splat'in ilgi bölgesine karşı denenen "
+       "nokta sayısı: merkezi, ardından Gauss dağılımına yayılmış ve her seferinde "
+       "rastgele döndürülmüş noktalar. Bunlardan biri içerideyse splat içeride "
+       "sayılır; böylece sınırı aşan bir splat büyümeye devam eder. 8 ile "
+       "kütlesinin beşte biri içeride olan hemen her splat içeride sayılır. 1 "
+       "yalnızca merkezi dener."));
 
 SS_MSG(scale_init,
     EN("Initial splat size"), JA("スプラットの初期サイズ"),
@@ -2816,6 +4450,406 @@ SS_MSG(suppress_initial_scales_help,
        "им раздуваться в крупные «летающие» артефакты над пустотой."),
     TR("Nokta bulutunun seyrek olduğu yerlerde splat'ları küçük başlatır. Boşluğun "
        "üstünde büyük uçuşan artıklara şişmelerini önler."));
+
+SS_MSG(random_init,
+    EN("Random seed points"),
+    JA("ランダムな初期点"),
+    ZH_HANS("随机初始点"),
+    ZH_HANT("隨機初始點"),
+    KO("무작위 초기 점"),
+    DE("Zufällige Startpunkte"),
+    FR("Points de départ aléatoires"),
+    ES("Puntos iniciales aleatorios"),
+    PT("Pontos iniciais aleatórios"),
+    IT("Punti iniziali casuali"),
+    NL("Willekeurige beginpunten"),
+    RU("Случайные начальные точки"),
+    TR("Rastgele başlangıç noktaları"));
+
+SS_MSG(random_init_help,
+    EN("Whether the splats start from points drawn at random around the "
+       "cameras instead of the dataset's point cloud. `auto` draws them only "
+       "when the dataset has no point cloud, or an empty one; `always` draws "
+       "them even when it has one; `never` stops with an error instead."),
+    JA("スプラットの初期位置を、データセットの点群ではなくカメラの周りにラン"
+       "ダムに置いた点にするかどうかです。`auto` はデータセットに点群がないか"
+       "空のときだけ置き、`always` は点群があっても置き、`never` は置かずにエ"
+       "ラーで止まります。"),
+    ZH_HANS("泼溅是否从相机周围随机抽取的点开始，而不是从数据集的点云开始。`a"
+            "uto` 只在数据集没有点云或点云为空时抽取；`always` 即使有点云也抽"
+            "取；`never` 则报错停止。"),
+    ZH_HANT("潑濺是否從相機周圍隨機抽取的點開始，而不是從資料集的點雲開始。`a"
+            "uto` 只在資料集沒有點雲或點雲為空時抽取；`always` 即使有點雲也抽"
+            "取；`never` 則報錯停止。"),
+    KO("스플랫을 데이터셋의 점군 대신 카메라 주변에 무작위로 뽑은 점에서 시작"
+       "할지 정합니다. `auto`는 데이터셋에 점군이 없거나 비어 있을 때만 뽑고,"
+       " `always`는 점군이 있어도 뽑으며, `never`는 뽑지 않고 오류로 멈춥니다"
+       "."),
+    DE("Ob die Splats statt von der Punktwolke des Datensatzes von zufällig um "
+       "die Kameras gezogenen Punkten ausgehen. `auto` zieht sie nur, wenn der "
+       "Datensatz keine oder eine leere Punktwolke hat; `always` auch dann, "
+       "wenn er eine hat; `never` bricht stattdessen mit einem Fehler ab."),
+    FR("Les splats partent-ils de points tirés au hasard autour des caméras "
+       "plutôt que du nuage de points du jeu de données. `auto` ne les tire "
+       "que si le jeu n'a pas de nuage de points, ou un nuage vide ; `always` "
+       "les tire même s'il en a un ; `never` s'arrête sur une erreur à la "
+       "place."),
+    ES("Si los splats parten de puntos sorteados al azar alrededor de las "
+       "cámaras en lugar de la nube de puntos del conjunto. `auto` solo los "
+       "sortea cuando el conjunto no tiene nube de puntos o la tiene vacía; "
+       "`always` los sortea aunque la tenga; `never` se detiene con un error."),
+    PT("Se os splats partem de pontos sorteados ao redor das câmeras em vez da "
+       "nuvem de pontos do conjunto. `auto` só os sorteia quando o conjunto "
+       "não tem nuvem de pontos ou a tem vazia; `always` sorteia mesmo quando "
+       "tem; `never` para com um erro."),
+    IT("Se gli splat partono da punti estratti a caso attorno alle camere "
+       "invece che dalla nuvola di punti del set di dati. `auto` li estrae "
+       "solo quando il set non ha una nuvola di punti o ce l'ha vuota; "
+       "`always` li estrae anche quando ce l'ha; `never` si ferma con un "
+       "errore."),
+    NL("Of de splats beginnen bij punten die willekeurig rond de camera's "
+       "worden getrokken in plaats van bij de puntenwolk van de dataset. "
+       "`auto` trekt ze alleen als de dataset geen of een lege puntenwolk "
+       "heeft; `always` ook als hij er een heeft; `never` stopt in plaats "
+       "daarvan met een fout."),
+    RU("Начинать ли сплаты со случайных точек вокруг камер вместо облака точек "
+       "набора. `auto` создаёт их, только если облака точек нет или оно "
+       "пустое; `always` — даже если оно есть; `never` вместо этого "
+       "останавливается с ошибкой."),
+    TR("Splatların veri kümesinin nokta bulutu yerine kameraların çevresinde "
+       "rastgele çekilen noktalardan başlayıp başlamayacağı. `auto` yalnızca "
+       "veri kümesinde nokta bulutu yoksa ya da boşsa çeker; `always` olsa "
+       "bile çeker; `never` bunun yerine hatayla durur."));
+
+SS_MSG(random_init_fraction,
+    EN("Random seed count"),
+    JA("ランダム初期点の数"),
+    ZH_HANS("随机初始点数量"),
+    ZH_HANT("隨機初始點數量"),
+    KO("무작위 초기 점 수"),
+    DE("Anzahl zufälliger Startpunkte"),
+    FR("Nombre de points de départ aléatoires"),
+    ES("Número de puntos iniciales aleatorios"),
+    PT("Número de pontos iniciais aleatórios"),
+    IT("Numero di punti iniziali casuali"),
+    NL("Aantal willekeurige beginpunten"),
+    RU("Число случайных начальных точек"),
+    TR("Rastgele başlangıç noktası sayısı"));
+
+SS_MSG(random_init_fraction_help,
+    EN("How many points random_init draws, as a share of cap_max: 0.1 of a "
+       "million is a hundred thousand."),
+    JA("random_init が置く点の数を cap_max に対する割合で指定します。100 万の"
+       " 0.1 なら 10 万点です。"),
+    ZH_HANS("random_init 抽取的点数，按 cap_max 的比例计：一百万的 0.1 就是十"
+            "万个。"),
+    ZH_HANT("random_init 抽取的點數，按 cap_max 的比例計：一百萬的 0.1 就是十"
+            "萬個。"),
+    KO("random_init이 뽑는 점의 수를 cap_max에 대한 비율로 정합니다. 100만의 "
+       "0.1이면 10만 개입니다."),
+    DE("Wie viele Punkte random_init zieht, als Anteil von cap_max: 0.1 von "
+       "einer Million sind hunderttausend."),
+    FR("Nombre de points que tire random_init, en part de cap_max : 0.1 d'un "
+       "million font cent mille."),
+    ES("Cuántos puntos sortea random_init, como fracción de cap_max: 0.1 de un "
+       "millón son cien mil."),
+    PT("Quantos pontos random_init sorteia, como fração de cap_max: 0.1 de um "
+       "milhão são cem mil."),
+    IT("Quanti punti estrae random_init, come quota di cap_max: 0.1 di un "
+       "milione fa centomila."),
+    NL("Hoeveel punten random_init trekt, als aandeel van cap_max: 0.1 van een "
+       "miljoen is honderdduizend."),
+    RU("Сколько точек создаёт random_init, в долях cap_max: 0.1 от миллиона — "
+       "сто тысяч."),
+    TR("random_init'in çektiği nokta sayısı, cap_max'in payı olarak: bir "
+       "milyonun 0.1'i yüz bindir."));
+
+SS_MSG(random_init_distribution,
+    EN("Random seed distribution"),
+    JA("ランダム初期点の分布"),
+    ZH_HANS("随机初始点分布"),
+    ZH_HANT("隨機初始點分布"),
+    KO("무작위 초기 점 분포"),
+    DE("Verteilung der zufälligen Startpunkte"),
+    FR("Répartition des points de départ aléatoires"),
+    ES("Distribución de los puntos iniciales aleatorios"),
+    PT("Distribuição dos pontos iniciais aleatórios"),
+    IT("Distribuzione dei punti iniziali casuali"),
+    NL("Verdeling van de willekeurige beginpunten"),
+    RU("Распределение случайных начальных точек"),
+    TR("Rastgele başlangıç noktalarının dağılımı"));
+
+SS_MSG(random_init_distribution_help,
+    EN("What the random seed points are drawn from. isotropic-gaussian is "
+       "round; anisotropic-gaussian follows the cameras' spread along each of "
+       "its principal axes; ellipsoid and box fill a solid ellipsoid or an "
+       "oriented box evenly, sized to the same spread. Cameras all at one "
+       "height have no vertical spread, which flattens every shape but the "
+       "isotropic one."),
+    JA("ランダム初期点をどの分布から取るかです。isotropic-gaussian は等方的な"
+       "球状、anisotropic-gaussian はカメラの広がりの主軸ごとの大きさに従いま"
+       "す。ellipsoid と box は同じ広がりに合わせた楕円体または向き付きの箱の"
+       "中に一様に置きます。カメラがすべて同じ高さにあると上下の広がりがなく、"
+       "等方的なもの以外は平たくなります。"),
+    ZH_HANS("随机初始点从什么分布中抽取。isotropic-gaussian 是各向同性的圆形"
+            "分布；anisotropic-gaussian 沿相机分布的各个主轴跟随其范围；ellip"
+            "soid 和 box 在按同样范围确定大小的实心椭球或定向长方体内均匀填充。"
+            "相机都在同一高度时没有竖直方向的范围，除各向同性以外的形状都会被"
+            "压扁。"),
+    ZH_HANT("隨機初始點從什麼分布中抽取。isotropic-gaussian 是各向同性的圓形"
+            "分布；anisotropic-gaussian 沿相機分布的各個主軸跟隨其範圍；ellip"
+            "soid 和 box 在按同樣範圍決定大小的實心橢球或定向長方體內均勻填充。"
+            "相機都在同一高度時沒有垂直方向的範圍，除各向同性以外的形狀都會被"
+            "壓扁。"),
+    KO("무작위 초기 점을 어떤 분포에서 뽑을지 정합니다. isotropic-gaussian은 "
+       "둥근 분포이고, anisotropic-gaussian은 카메라 분포의 주축마다 그 퍼짐"
+       "을 따릅니다. ellipsoid와 box는 같은 퍼짐에 맞춘 속이 찬 타원체나 방향"
+       "이 있는 상자를 고르게 채웁니다. 카메라가 모두 같은 높이에 있으면 수직"
+       " 퍼짐이 없어 등방성 분포 말고는 모두 납작해집니다."),
+    DE("Woraus die zufälligen Startpunkte gezogen werden. isotropic-gaussian "
+       "ist rund; anisotropic-gaussian folgt der Streuung der Kameras entlang "
+       "jeder ihrer Hauptachsen; ellipsoid und box füllen gleichmäßig ein "
+       "volles Ellipsoid oder einen ausgerichteten Quader, auf dieselbe "
+       "Streuung bemessen. Stehen alle Kameras auf einer Höhe, fehlt die "
+       "senkrechte Streuung, und jede Form außer der isotropen wird flach."),
+    FR("La loi d'où sont tirés les points de départ aléatoires. "
+       "isotropic-gaussian est ronde ; anisotropic-gaussian suit l'étalement "
+       "des caméras le long de chacun de ses axes principaux ; ellipsoid et "
+       "box remplissent uniformément un ellipsoïde plein ou une boîte "
+       "orientée, dimensionnés sur le même étalement. Des caméras toutes à la "
+       "même hauteur n'ont aucun étalement vertical, ce qui aplatit toutes les "
+       "formes sauf l'isotrope."),
+    ES("De qué se sortean los puntos iniciales aleatorios. isotropic-gaussian "
+       "es redonda; anisotropic-gaussian sigue la dispersión de las cámaras a "
+       "lo largo de cada uno de sus ejes principales; ellipsoid y box llenan "
+       "de manera uniforme un elipsoide macizo o una caja orientada, "
+       "dimensionados con esa misma dispersión. Unas cámaras todas a la misma "
+       "altura no tienen dispersión vertical, lo que aplana toda forma salvo "
+       "la isótropa."),
+    PT("De onde os pontos iniciais aleatórios são sorteados. "
+       "isotropic-gaussian é redonda; anisotropic-gaussian segue a dispersão "
+       "das câmeras ao longo de cada um dos seus eixos principais; ellipsoid e "
+       "box preenchem por igual um elipsoide sólido ou uma caixa orientada, "
+       "dimensionados com a mesma dispersão. Câmeras todas na mesma altura não "
+       "têm dispersão vertical, o que achata toda forma exceto a isotrópica."),
+    IT("Da che cosa si estraggono i punti iniziali casuali. isotropic-gaussian "
+       "è rotonda; anisotropic-gaussian segue la dispersione delle camere "
+       "lungo ciascuno dei suoi assi principali; ellipsoid e box riempiono in "
+       "modo uniforme un ellissoide pieno o una scatola orientata, "
+       "dimensionati sulla stessa dispersione. Camere tutte alla stessa "
+       "altezza non hanno dispersione verticale, il che appiattisce ogni forma "
+       "tranne quella isotropa."),
+    NL("Waaruit de willekeurige beginpunten worden getrokken. "
+       "isotropic-gaussian is rond; anisotropic-gaussian volgt de spreiding "
+       "van de camera's langs elk van haar hoofdassen; ellipsoid en box vullen "
+       "gelijkmatig een massieve ellipsoïde of een gerichte doos, op dezelfde "
+       "spreiding afgemeten. Camera's die allemaal op één hoogte staan hebben "
+       "geen verticale spreiding, en dan wordt elke vorm behalve de isotrope "
+       "plat."),
+    RU("Из какого распределения берутся случайные начальные точки. "
+       "isotropic-gaussian — круглое; anisotropic-gaussian следует разбросу "
+       "камер вдоль каждой из его главных осей; ellipsoid и box равномерно "
+       "заполняют сплошной эллипсоид или ориентированный параллелепипед того "
+       "же разброса. Если все камеры на одной высоте, вертикального разброса "
+       "нет, и все формы, кроме изотропной, становятся плоскими."),
+    TR("Rastgele başlangıç noktalarının hangi dağılımdan çekileceği. "
+       "isotropic-gaussian yuvarlaktır; anisotropic-gaussian kameraların "
+       "yayılımını her bir ana ekseni boyunca izler; ellipsoid ve box aynı "
+       "yayılıma göre boyutlanan dolu bir elipsoidi ya da yönlü bir kutuyu "
+       "eşit biçimde doldurur. Kameraların hepsi aynı yükseklikteyse dikey "
+       "yayılım olmaz ve izotropik olan dışında her şekil yassılaşır."));
+
+SS_MSG(random_init_center,
+    EN("Random seed center"),
+    JA("ランダム初期点の中心"),
+    ZH_HANS("随机初始点中心"),
+    ZH_HANT("隨機初始點中心"),
+    KO("무작위 초기 점 중심"),
+    DE("Mitte der zufälligen Startpunkte"),
+    FR("Centre des points de départ aléatoires"),
+    ES("Centro de los puntos iniciales aleatorios"),
+    PT("Centro dos pontos iniciais aleatórios"),
+    IT("Centro dei punti iniziali casuali"),
+    NL("Midden van de willekeurige beginpunten"),
+    RU("Центр случайных начальных точек"),
+    TR("Rastgele başlangıç noktalarının merkezi"));
+
+SS_MSG(random_init_center_help,
+    EN("Where the random seed points are centred: the median, the mean or the "
+       "focus of the camera positions (the point their optical axes converge "
+       "on), or the origin of the dataset's own frame. camera-focus suits a "
+       "capture that circles an object."),
+    JA("ランダム初期点の中心です。カメラ位置の中央値・平均・注視点（光軸が集"
+       "まる点）、またはデータセット自身の座標の原点から選びます。物体の周り"
+       "を回る撮影には camera-focus が向きます。"),
+    ZH_HANS("随机初始点的中心：相机位置的中位数、平均或注视点（各光轴汇聚的点），"
+            "或数据集自身坐标系的原点。绕物体一周的拍摄适合 camera-focus。"),
+    ZH_HANT("隨機初始點的中心：相機位置的中位數、平均或注視點（各光軸匯聚的點），"
+            "或資料集自身座標系的原點。繞物體一周的拍攝適合 camera-focus。"),
+    KO("무작위 초기 점의 중심입니다. 카메라 위치의 중앙값, 평균, 주시점(광축"
+       "이 모이는 점) 또는 데이터셋 자체 좌표계의 원점 중에서 고릅니다. 물체 "
+       "주위를 도는 촬영에는 camera-focus가 맞습니다."),
+    DE("Wo die zufälligen Startpunkte zentriert werden: Median, Mittelwert "
+       "oder Fokus der Kamerapositionen (der Punkt, auf den ihre optischen "
+       "Achsen zulaufen), oder der Ursprung des eigenen Koordinatensystems des "
+       "Datensatzes. camera-focus passt zu einer Aufnahme, die ein Objekt "
+       "umkreist."),
+    FR("Où sont centrés les points de départ aléatoires : médiane, moyenne ou "
+       "point de convergence des positions de caméra (là où leurs axes "
+       "optiques se rejoignent), ou origine du repère propre au jeu de "
+       "données. camera-focus convient à une prise qui tourne autour d'un "
+       "objet."),
+    ES("Dónde se centran los puntos iniciales aleatorios: la mediana, la media "
+       "o el foco de las posiciones de cámara (el punto al que convergen sus "
+       "ejes ópticos), o el origen del sistema propio del conjunto. "
+       "camera-focus conviene a una captura que rodea un objeto."),
+    PT("Onde os pontos iniciais aleatórios são centrados: a mediana, a média "
+       "ou o foco das posições das câmeras (o ponto para onde convergem os "
+       "seus eixos ópticos), ou a origem do sistema próprio do conjunto. "
+       "camera-focus serve a uma captura que circunda um objeto."),
+    IT("Dove sono centrati i punti iniziali casuali: mediana, media o fuoco "
+       "delle posizioni delle camere (il punto verso cui convergono i loro "
+       "assi ottici), oppure l'origine del sistema proprio del set di dati. "
+       "camera-focus si addice a una ripresa che gira attorno a un oggetto."),
+    NL("Waar de willekeurige beginpunten gecentreerd worden: de mediaan, het "
+       "gemiddelde of het focuspunt van de cameraposities (waar hun optische "
+       "assen samenkomen), of de oorsprong van het eigen assenstelsel van de "
+       "dataset. camera-focus past bij een opname die rond een object draait."),
+    RU("Где центрируются случайные начальные точки: медиана, среднее или фокус "
+       "положений камер (точка, где сходятся их оптические оси), либо начало "
+       "собственной системы координат набора. Для съёмки по кругу вокруг "
+       "объекта подходит camera-focus."),
+    TR("Rastgele başlangıç noktalarının nereye ortalanacağı: kamera "
+       "konumlarının ortancası, ortalaması ya da odağı (optik eksenlerinin "
+       "buluştuğu nokta) veya veri kümesinin kendi koordinat sisteminin "
+       "başlangıcı. Bir nesnenin çevresinde dönen çekime camera-focus uyar."));
+
+SS_MSG(random_init_spread,
+    EN("Random seed spread measure"),
+    JA("ランダム初期点の広がりの測り方"),
+    ZH_HANS("随机初始点范围的度量"),
+    ZH_HANT("隨機初始點範圍的度量"),
+    KO("무작위 초기 점 퍼짐 측정"),
+    DE("Maß der Streuung der Startpunkte"),
+    FR("Mesure de l'étalement des points de départ"),
+    ES("Medida de la dispersión de los puntos iniciales"),
+    PT("Medida da dispersão dos pontos iniciais"),
+    IT("Misura della dispersione dei punti iniziali"),
+    NL("Maat voor de spreiding van de beginpunten"),
+    RU("Мера разброса начальных точек"),
+    TR("Başlangıç noktası yayılımının ölçüsü"));
+
+SS_MSG(random_init_spread_help,
+    EN("How the cameras' spread about the centre is measured: the median or "
+       "the mean of their squared distances along each axis. The median "
+       "ignores a few cameras far from the rest."),
+    JA("中心からのカメラの広がりの測り方です。各軸に沿った距離の 2 乗の中央値"
+       "か平均を使います。中央値は他から離れた少数のカメラを無視します。"),
+    ZH_HANS("如何度量相机相对于中心的范围：取沿各轴距离平方的中位数或平均值。"
+            "中位数会忽略少数远离其他相机的相机。"),
+    ZH_HANT("如何度量相機相對於中心的範圍：取沿各軸距離平方的中位數或平均值。"
+            "中位數會忽略少數遠離其他相機的相機。"),
+    KO("중심에 대한 카메라의 퍼짐을 재는 방법입니다. 각 축을 따른 거리 제곱의"
+       " 중앙값이나 평균을 씁니다. 중앙값은 나머지와 멀리 떨어진 몇몇 카메라"
+       "를 무시합니다."),
+    DE("Wie die Streuung der Kameras um die Mitte gemessen wird: Median oder "
+       "Mittelwert ihrer quadrierten Abstände entlang jeder Achse. Der Median "
+       "übergeht ein paar Kameras, die weit von den übrigen entfernt sind."),
+    FR("Comment se mesure l'étalement des caméras autour du centre : médiane "
+       "ou moyenne de leurs distances au carré le long de chaque axe. La "
+       "médiane ignore quelques caméras éloignées des autres."),
+    ES("Cómo se mide la dispersión de las cámaras respecto al centro: la "
+       "mediana o la media de sus distancias al cuadrado a lo largo de cada "
+       "eje. La mediana ignora unas pocas cámaras alejadas del resto."),
+    PT("Como se mede a dispersão das câmeras em torno do centro: a mediana ou "
+       "a média das suas distâncias ao quadrado ao longo de cada eixo. A "
+       "mediana ignora umas poucas câmeras longe das demais."),
+    IT("Come si misura la dispersione delle camere attorno al centro: mediana "
+       "o media delle loro distanze al quadrato lungo ciascun asse. La mediana "
+       "ignora poche camere lontane dalle altre."),
+    NL("Hoe de spreiding van de camera's rond het midden wordt gemeten: de "
+       "mediaan of het gemiddelde van hun gekwadrateerde afstanden langs elke "
+       "as. De mediaan negeert een paar camera's die ver van de rest staan."),
+    RU("Как измеряется разброс камер вокруг центра: медиана или среднее "
+       "квадратов их расстояний вдоль каждой оси. Медиана не замечает "
+       "нескольких камер, далёких от остальных."),
+    TR("Kameraların merkez çevresindeki yayılımının nasıl ölçüleceği: her "
+       "eksen boyunca uzaklıklarının karelerinin ortancası ya da ortalaması. "
+       "Ortanca, diğerlerinden uzakta kalan birkaç kamerayı yok sayar."));
+
+SS_MSG(random_init_std,
+    EN("Random seed standard deviation"),
+    JA("ランダム初期点の標準偏差"),
+    ZH_HANS("随机初始点标准差"),
+    ZH_HANT("隨機初始點標準差"),
+    KO("무작위 초기 점 표준편차"),
+    DE("Standardabweichung der Startpunkte"),
+    FR("Écart type des points de départ aléatoires"),
+    ES("Desviación típica de los puntos iniciales aleatorios"),
+    PT("Desvio padrão dos pontos iniciais aleatórios"),
+    IT("Deviazione standard dei punti iniziali casuali"),
+    NL("Standaardafwijking van de willekeurige beginpunten"),
+    RU("Стандартное отклонение начальных точек"),
+    TR("Rastgele başlangıç noktalarının standart sapması"));
+
+SS_MSG(random_init_std_help,
+    EN("The standard deviation of the random seed points, in units of the "
+       "cameras' measured spread. Below 1 packs them inside the camera "
+       "positions, which suits an object the cameras circle; above 1 spreads "
+       "them past the cameras, which suits a scene the cameras stand inside."),
+    JA("ランダム初期点の標準偏差を、測ったカメラの広がりを単位として指定しま"
+       "す。1 未満ならカメラ位置の内側に集まり、カメラが周りを回る物体に向き"
+       "ます。1 を超えるとカメラより外まで広がり、カメラがその中に立つシーン"
+       "に向きます。"),
+    ZH_HANS("随机初始点的标准差，以测得的相机范围为单位。小于 1 时点集中在相"
+            "机位置以内，适合相机环绕的物体；大于 1 时点散到相机之外，适合相"
+            "机身处其中的场景。"),
+    ZH_HANT("隨機初始點的標準差，以測得的相機範圍為單位。小於 1 時點集中在相"
+            "機位置以內，適合相機環繞的物體；大於 1 時點散到相機之外，適合相"
+            "機身處其中的場景。"),
+    KO("무작위 초기 점의 표준편차를 측정한 카메라 퍼짐을 단위로 정합니다. 1보"
+       "다 작으면 카메라 위치 안쪽에 모여 카메라가 둘러싼 물체에 맞고, 1보다 "
+       "크면 카메라 너머까지 퍼져 카메라가 그 안에 서 있는 장면에 맞습니다."),
+    DE("Die Standardabweichung der zufälligen Startpunkte, in Einheiten der "
+       "gemessenen Streuung der Kameras. Unter 1 liegen sie innerhalb der "
+       "Kamerapositionen, passend für ein Objekt, das die Kameras umkreisen; "
+       "über 1 reichen sie über die Kameras hinaus, passend für eine Szene, in "
+       "der die Kameras stehen."),
+    FR("L'écart type des points de départ aléatoires, en unités de l'étalement "
+       "mesuré des caméras. En dessous de 1, ils se serrent à l'intérieur des "
+       "positions de caméra, ce qui convient à un objet autour duquel tournent "
+       "les caméras ; au-dessus de 1, ils s'étendent au-delà des caméras, ce "
+       "qui convient à une scène au milieu de laquelle elles se tiennent."),
+    ES("La desviación típica de los puntos iniciales aleatorios, en unidades "
+       "de la dispersión medida de las cámaras. Por debajo de 1 se concentran "
+       "dentro de las posiciones de cámara, lo que conviene a un objeto que "
+       "las cámaras rodean; por encima de 1 se extienden más allá de las "
+       "cámaras, lo que conviene a una escena dentro de la cual están."),
+    PT("O desvio padrão dos pontos iniciais aleatórios, em unidades da "
+       "dispersão medida das câmeras. Abaixo de 1 eles se concentram dentro "
+       "das posições das câmeras, o que serve a um objeto que as câmeras "
+       "circundam; acima de 1 se espalham além das câmeras, o que serve a uma "
+       "cena dentro da qual elas estão."),
+    IT("La deviazione standard dei punti iniziali casuali, in unità della "
+       "dispersione misurata delle camere. Sotto 1 si raccolgono dentro le "
+       "posizioni delle camere, adatto a un oggetto attorno a cui girano le "
+       "camere; sopra 1 si allargano oltre le camere, adatto a una scena in "
+       "cui le camere stanno dentro."),
+    NL("De standaardafwijking van de willekeurige beginpunten, in eenheden van "
+       "de gemeten spreiding van de camera's. Onder 1 liggen ze binnen de "
+       "cameraposities, wat past bij een object waar de camera's omheen "
+       "draaien; boven 1 reiken ze voorbij de camera's, wat past bij een scène "
+       "waar de camera's middenin staan."),
+    RU("Стандартное отклонение случайных начальных точек в единицах "
+       "измеренного разброса камер. Меньше 1 — точки собираются внутри "
+       "положений камер, что подходит для объекта, вокруг которого ходят "
+       "камеры; больше 1 — выходят за камеры, что подходит для сцены, внутри "
+       "которой они стоят."),
+    TR("Rastgele başlangıç noktalarının standart sapması, kameraların ölçülen "
+       "yayılımı biriminde. 1'in altında noktalar kamera konumlarının içinde "
+       "toplanır; bu, kameraların çevresinde döndüğü bir nesneye uyar. 1'in "
+       "üstünde kameraların ötesine yayılır; bu, kameraların içinde durduğu "
+       "bir sahneye uyar."));
 
 SS_MSG(use_camera_optimizer,
     EN("Refine camera poses"), JA("カメラ位置を微調整"),
@@ -3362,6 +5396,106 @@ SS_MSG(min_opacity_help,
     TR("Bundan daha soluk splat'lar gereken yerlere geri dönüştürülür. Yükseltmek "
        "daha sert budar ve splat bütçesini görünen yüzeylerde tutar."));
 
+SS_MSG(dead_criterion,
+    EN("Dead-splat test"), JA("不要なスプラットの判定"),
+    ZH_HANS("失效泼溅的判定方式"), ZH_HANT("失效潑濺的判定方式"),
+    KO("죽은 스플랫 판정 기준"),
+    DE("Test für tote Splats"),
+    FR("Critère de splat mort"),
+    ES("Criterio de splat muerto"),
+    PT("Critério de splat morto"),
+    IT("Criterio di splat morto"),
+    NL("Criterium voor dode splats"),
+    RU("Признак мёртвого сплата"),
+    TR("Ölü splat ölçütü"));
+SS_MSG(dead_criterion_help,
+    EN("What marks a splat as dead, to be recycled into a place that needs it. "
+       "`opacity` recycles splats fainter than the recycle opacity. `max_weight` "
+       "asks how much the splat really shows in the photos -- the most it added to "
+       "any one pixel, forgotten with a half-life of `max_batch_per_epoch` steps -- "
+       "so splats hidden behind others or out of every view go too. `either` "
+       "recycles a splat that fails either test."),
+    JA("スプラットを不要とみなして、必要な場所へ回す条件です。`opacity` は再利"
+       "用の不透明度より薄いスプラットを回します。`max_weight` はスプラットが写"
+       "真に実際どれだけ写ったか（1 つの画素に加えた最大の重み。"
+       "`max_batch_per_epoch` ステップの半減期で忘れていきます）を見るので、ほ"
+       "かの陰に隠れたものや、どの視点からも見えないものも回されます。`either` "
+       "はどちらかの条件に当てはまれば回します。"),
+    ZH_HANS("判定泼溅失效、把它回收到需要位置的条件。`opacity` 回收比回收不透明"
+            "度更淡的泼溅。`max_weight` 看泼溅在照片中实际显现了多少——它对单个"
+            "像素贡献过的最大权重，以 `max_batch_per_epoch` 步为半衰期逐渐遗忘——"
+            "因此被其他泼溅遮挡或不在任何视角内的泼溅也会被回收。`either` 只要"
+            "满足任一条件就回收。"),
+    ZH_HANT("判定潑濺失效、把它回收到需要位置的條件。`opacity` 回收比回收不透明"
+            "度更淡的潑濺。`max_weight` 看潑濺在照片中實際顯現了多少——它對單個"
+            "像素貢獻過的最大權重，以 `max_batch_per_epoch` 步為半衰期逐漸遺忘——"
+            "因此被其他潑濺遮擋或不在任何視角內的潑濺也會被回收。`either` 只要"
+            "滿足任一條件就回收。"),
+    KO("스플랫을 죽은 것으로 보고 필요한 곳으로 재배치하는 조건입니다. "
+       "`opacity` 는 재활용 불투명도보다 옅은 스플랫을 재배치합니다. "
+       "`max_weight` 는 스플랫이 사진에 실제로 얼마나 드러났는지(한 화소에 더한 "
+       "가장 큰 가중치를 `max_batch_per_epoch` 스텝의 반감기로 잊어 감)를 보므로, "
+       "다른 것에 가려졌거나 어느 시점에서도 보이지 않는 스플랫도 재배치됩니다. "
+       "`either` 는 둘 중 하나라도 해당하면 재배치합니다."),
+    DE("Was einen Splat als tot markiert, sodass er dorthin recycelt wird, wo er "
+       "gebraucht wird. `opacity` recycelt Splats, die blasser als die "
+       "Recycling-Deckkraft sind. `max_weight` fragt, wie viel der Splat in den "
+       "Fotos wirklich zu sehen ist -- das größte Gewicht, das er einem Pixel "
+       "beigetragen hat, vergessen mit einer Halbwertszeit von "
+       "`max_batch_per_epoch` Schritten --, sodass auch verdeckte oder in keiner "
+       "Ansicht sichtbare Splats recycelt werden. `either` recycelt einen Splat, "
+       "der einen der beiden Tests nicht besteht."),
+    FR("Ce qui fait qu'un splat est jugé mort et recyclé là où il manque. "
+       "`opacity` recycle les splats plus pâles que l'opacité de recyclage. "
+       "`max_weight` regarde ce que le splat montre réellement sur les photos -- le "
+       "plus grand poids qu'il ait apporté à un pixel, oublié avec une demi-vie de "
+       "`max_batch_per_epoch` pas --, si bien que les splats cachés derrière "
+       "d'autres ou hors de toute vue sont recyclés aussi. `either` recycle un "
+       "splat qui échoue à l'un ou l'autre test."),
+    ES("Qué marca un splat como muerto para reciclarlo donde haga falta. "
+       "`opacity` recicla los splats más tenues que la opacidad de reciclaje. "
+       "`max_weight` mira cuánto se ve realmente el splat en las fotos -- el mayor "
+       "peso que aportó a un píxel, olvidado con una vida media de "
+       "`max_batch_per_epoch` pasos --, así que también se reciclan los splats "
+       "tapados por otros o fuera de toda vista. `either` recicla un splat que "
+       "falle cualquiera de las dos pruebas."),
+    PT("O que marca um splat como morto para ser reciclado onde faz falta. "
+       "`opacity` recicla os splats mais fracos que a opacidade de reciclagem. "
+       "`max_weight` vê quanto o splat aparece de fato nas fotos -- o maior peso "
+       "que deu a um pixel, esquecido com uma meia-vida de `max_batch_per_epoch` "
+       "passos --, por isso também são reciclados os splats tapados por outros ou "
+       "fora de todas as vistas. `either` recicla um splat que falhe qualquer um "
+       "dos testes."),
+    IT("Che cosa rende morto uno splat, da riciclare dove serve. `opacity` "
+       "ricicla gli splat più deboli dell'opacità di riciclo. `max_weight` guarda "
+       "quanto lo splat si vede davvero nelle foto -- il peso massimo che ha dato a "
+       "un pixel, dimenticato con un tempo di dimezzamento di "
+       "`max_batch_per_epoch` passi --, così vengono riciclati anche gli splat "
+       "nascosti da altri o fuori da ogni vista. `either` ricicla uno splat che "
+       "non supera l'uno o l'altro test."),
+    NL("Wat een splat als dood markeert, zodat hij wordt hergebruikt waar hij "
+       "nodig is. `opacity` hergebruikt splats die vager zijn dan de "
+       "hergebruikdekking. `max_weight` kijkt hoeveel de splat echt in de foto's "
+       "te zien is -- het grootste gewicht dat hij aan één pixel bijdroeg, vergeten "
+       "met een halveringstijd van `max_batch_per_epoch` stappen --, zodat ook "
+       "splats die achter andere verborgen zijn of in geen enkel beeld voorkomen "
+       "worden hergebruikt. `either` hergebruikt een splat die voor een van beide "
+       "tests zakt."),
+    RU("Что делает сплат мёртвым, чтобы переработать его туда, где он нужен. "
+       "`opacity` перерабатывает сплаты бледнее порога переработки. "
+       "`max_weight` смотрит, насколько сплат действительно виден на фотографиях, "
+       "-- наибольший вес, который он внёс в один пиксель, забываемый с периодом "
+       "полураспада `max_batch_per_epoch` шагов, -- поэтому перерабатываются и "
+       "сплаты, закрытые другими или не попадающие ни в один ракурс. `either` "
+       "перерабатывает сплат, не прошедший любую из двух проверок."),
+    TR("Bir splat'ı ölü sayıp gereken yere geri dönüştüren koşul. `opacity` "
+       "geri dönüşüm saydamsızlığından daha soluk splat'ları geri dönüştürür. "
+       "`max_weight` splat'ın fotoğraflarda gerçekten ne kadar göründüğüne bakar "
+       "-- tek bir piksele kattığı en büyük ağırlık, `max_batch_per_epoch` "
+       "adımlık yarı ömürle unutulur --, böylece başkalarının arkasında kalan ya "
+       "da hiçbir görüntüde yer almayan splat'lar da geri dönüştürülür. `either` "
+       "iki testten birini geçemeyen splat'ı geri dönüştürür."));
+
 SS_MSG(refine_every,
     EN("Refinement interval"), JA("スプラット追加の間隔"),
     ZH_HANS("细化间隔"), ZH_HANT("細化間隔"), KO("정제 간격"),
@@ -3820,7 +5954,8 @@ SS_MSG(densify_loss_map_mode_help,
        "whether or not they are already reconstructed well. `robust_edge_aware` "
        "does the same but ignores the worst-matching pixels, so moving people "
        "and cars do not attract splats. `none` spreads new splats evenly. Any mode with `_nms` first thins the "
-       "error down to its ridge lines, so splats land on the sharpest edge rather than spreading across the blur around it."),
+       "error down to its ridge lines, so splats land on the sharpest edge rather than spreading across the blur around it."
+       " `s_cielab` scores the S-CIELAB color difference, as the eye sees it. `flip` scores FLIP, the difference a viewer notices flipping between the two images, and `flip_feature` only its edge and point part. `auto` takes `s_cielab` or `flip_feature` when `--perceptual-loss` is `s_cielab` or `flip`, and `ssim_cs` otherwise."),
     JA("新しいスプラットをどこに足すかを、どの種類の誤差で決めるかです。`ssim_structure` "
        "は明るさの違いを無視して、模様やエッジの食い違いを狙います。`ssim_full`、"
        "`ssim_cs`、`loss_full` の順に、生の色の誤差をより多く取り込みます。`edge_aware` "
@@ -3828,21 +5963,24 @@ SS_MSG(densify_loss_map_mode_help,
        "ます。`robust_edge_aware` は同じですが、いちばん合っていない画素を無視"
        "するので、動く人や車にスプラットが集まりません。`none` は新しいスプラ"
        "ットを均等に散らします。`_nms` の付いたモードは、まず誤差を稜線だけに"
-       "細らせるので、ぼやけた広がりではなく、いちばん鋭いところにスプラットが乗ります。"),
+       "細らせるので、ぼやけた広がりではなく、いちばん鋭いところにスプラットが乗ります。"
+       "`s_cielab` は目に見えるとおりの S-CIELAB 色差で評価します。`flip` は FLIP（二つの画像を切り替えたときに気づく違い）で、`flip_feature` はそのうちエッジと点の部分だけで評価します。`auto` は `--perceptual-loss` が `s_cielab` なら `s_cielab`、`flip` なら `flip_feature`、それ以外なら `ssim_cs` を使います。"),
     ZH_HANS("用哪种误差决定在哪里新增泼溅。`ssim_structure` 忽略明暗差异，专门"
             "盯住图案和边缘的不一致。`ssim_full`、`ssim_cs`、`loss_full` 依次"
             "纳入更多原始颜色误差。`edge_aware` 追踪参考照片中的边缘，无论那里"
             "是否已经重建得很好。`robust_edge_aware` 与之相同，但忽略最不匹配"
             "的像素，因此移动的行人和车辆不会吸引泼溅。`none` 则把新泼溅均匀铺"
             "开。带 `_nms` 的模式会先把误差收细成一条线，因此泼溅落在最清晰的边缘上，"
-            "而不是散布在它周围的模糊里。"),
+            "而不是散布在它周围的模糊里。"
+            "`s_cielab` 按人眼所见的 S-CIELAB 色差打分。`flip` 按 FLIP（在两张图像之间来回切换时能察觉到的差异）打分，`flip_feature` 只取其中边缘和点的部分。`auto` 在 `--perceptual-loss` 为 `s_cielab` 时用 `s_cielab`，为 `flip` 时用 `flip_feature`，否则用 `ssim_cs`。"),
     ZH_HANT("用哪種誤差決定在哪裡新增潑濺。`ssim_structure` 忽略明暗差異，專門"
             "盯住圖案和邊緣的不一致。`ssim_full`、`ssim_cs`、`loss_full` 依次"
             "納入更多原始顏色誤差。`edge_aware` 追蹤參考照片中的邊緣，無論那裡"
             "是否已經重建得很好。`robust_edge_aware` 與之相同，但忽略最不吻合"
             "的像素，因此移動的行人和車輛不會吸引潑濺。`none` 則把新潑濺均勻鋪"
             "開。帶 `_nms` 的模式會先把誤差收細成一條線，因此潑濺落在最清晰的邊緣上，"
-            "而不是散布在它周圍的模糊裡。"),
+            "而不是散布在它周圍的模糊裡。"
+            "`s_cielab` 按人眼所見的 S-CIELAB 色差打分。`flip` 按 FLIP（在兩張圖像之間來回切換時能察覺到的差異）打分，`flip_feature` 只取其中邊緣和點的部分。`auto` 在 `--perceptual-loss` 為 `s_cielab` 時用 `s_cielab`，為 `flip` 時用 `flip_feature`，否則用 `ssim_cs`。"),
     KO("새 스플랫을 어디에 추가할지 어떤 종류의 오차로 정할지입니다. `ssim_structure`는"
        " 밝기 차이를 무시하고 무늬와 가장자리의 불일치를 노립니다. `ssim_full`, "
        "`ssim_cs`, `loss_full` 순으로 원본 색 오차를 점점 더 많이 반영합니다. "
@@ -3850,7 +5988,8 @@ SS_MSG(densify_loss_map_mode_help,
        "습니다. `robust_edge_aware`는 같지만 가장 안 맞는 픽셀을 무시하므로 움"
        "직이는 사람과 차에 스플랫이 몰리지 않습니다. `none`은 새 스플랫을 고르"
        "게 흩뿌립니다. `_nms`가 붙은 방식은 오차를 먼저 능선만 남기고 얇게 깎아"
-       "내므로, 흐릿하게 번진 곳이 아니라 가장 날카로운 가장자리에 스플랫이 놓입니다."),
+       "내므로, 흐릿하게 번진 곳이 아니라 가장 날카로운 가장자리에 스플랫이 놓입니다."
+       " `s_cielab`은 눈에 보이는 대로의 S-CIELAB 색차로 평가합니다. `flip`은 FLIP(두 이미지를 번갈아 볼 때 눈에 띄는 차이)으로, `flip_feature`는 그중 가장자리와 점 부분만으로 평가합니다. `auto`는 `--perceptual-loss`가 `s_cielab`이면 `s_cielab`을, `flip`이면 `flip_feature`를, 아니면 `ssim_cs`를 씁니다."),
     DE("Welche Art von Fehler entscheidet, wo neue Splats hinzukommen. `ssim_structure` "
        "zielt auf abweichende Muster und Kanten und ignoriert Helligkeitsunterschiede. "
        "`ssim_full`, `ssim_cs` und `loss_full` nehmen zunehmend mehr vom reinen "
@@ -3858,7 +5997,8 @@ SS_MSG(densify_loss_map_mode_help,
        "ob sie schon gut rekonstruiert sind. `robust_edge_aware` tut dasselbe, "
        "ignoriert aber die am schlechtesten passenden Pixel, sodass bewegte Personen "
        "und Autos keine Splats anziehen. `none` verteilt neue Splats gleichmäßig. Jeder Modus mit `_nms` dünnt den "
-       "Fehler zuerst auf seine Gratlinien aus, sodass Splats auf der schärfsten Kante landen statt in der Unschärfe darum herum."),
+       "Fehler zuerst auf seine Gratlinien aus, sodass Splats auf der schärfsten Kante landen statt in der Unschärfe darum herum."
+       " `s_cielab` bewertet den S-CIELAB-Farbabstand, so wie das Auge ihn sieht. `flip` bewertet FLIP, den Unterschied, der beim Hin- und Herschalten zwischen beiden Bildern auffällt, und `flip_feature` nur dessen Kanten- und Punktanteil. `auto` nimmt `s_cielab` bzw. `flip_feature`, wenn `--perceptual-loss` auf `s_cielab` bzw. `flip` steht, sonst `ssim_cs`."),
     FR("Quel type d'erreur décide où ajouter de nouveaux splats. `ssim_structure` "
        "vise les motifs et les contours qui ne correspondent pas, en ignorant "
        "les écarts de luminosité. `ssim_full`, `ssim_cs` et `loss_full` intègrent "
@@ -3867,7 +6007,8 @@ SS_MSG(densify_loss_map_mode_help,
        "ou non. `robust_edge_aware` fait de même mais ignore les pixels qui correspondent "
        "le moins, de sorte que passants et voitures n'attirent pas de splats. "
        "`none` répartit les nouveaux splats uniformément. Tout mode avec `_nms` "
-       "amincit d'abord l'erreur jusqu'à ses lignes de crête, de sorte que les splats se posent sur le contour le plus net plutôt que dans le flou autour."),
+       "amincit d'abord l'erreur jusqu'à ses lignes de crête, de sorte que les splats se posent sur le contour le plus net plutôt que dans le flou autour."
+       " `s_cielab` évalue l'écart de couleur S-CIELAB, tel que l'œil le perçoit. `flip` évalue FLIP, l'écart qu'on remarque en alternant entre les deux images, et `flip_feature` seulement sa part de contours et de points. `auto` prend `s_cielab` ou `flip_feature` quand `--perceptual-loss` vaut `s_cielab` ou `flip`, et `ssim_cs` sinon."),
     ES("Qué tipo de error decide dónde se añaden splats nuevos. `ssim_structure` "
        "apunta a los patrones y bordes que no coinciden e ignora las diferencias "
        "de brillo. `ssim_full`, `ssim_cs` y `loss_full` incorporan progresivamente "
@@ -3876,7 +6017,8 @@ SS_MSG(densify_loss_map_mode_help,
        "hace lo mismo pero ignora los píxeles que peor coinciden, de modo que "
        "personas y coches en movimiento no atraen splats. `none` reparte los "
        "splats nuevos de manera uniforme. Cualquier modo con `_nms` adelgaza primero "
-       "el error hasta sus líneas de cresta, de modo que los splats caen en el borde más nítido y no en el desenfoque que lo rodea."),
+       "el error hasta sus líneas de cresta, de modo que los splats caen en el borde más nítido y no en el desenfoque que lo rodea."
+       " `s_cielab` puntúa la diferencia de color S-CIELAB, tal como la ve el ojo. `flip` puntúa FLIP, la diferencia que se nota al alternar entre las dos imágenes, y `flip_feature` solo su parte de bordes y puntos. `auto` usa `s_cielab` o `flip_feature` cuando `--perceptual-loss` es `s_cielab` o `flip`, y `ssim_cs` en otro caso."),
     PT("Que tipo de erro decide onde novos splats são acrescentados. `ssim_structure` "
        "mira os padrões e bordas que não coincidem e ignora diferenças de brilho. "
        "`ssim_full`, `ssim_cs` e `loss_full` incorporam progressivamente mais "
@@ -3885,7 +6027,8 @@ SS_MSG(densify_loss_map_mode_help,
        "mas ignora os pixels que pior coincidem, de modo que pessoas e carros "
        "em movimento não atraem splats. `none` espalha os novos splats de forma "
        "uniforme. Qualquer modo com `_nms` afina primeiro o erro até às suas linhas "
-       "de crista, de modo que os splats assentam na borda mais nítida e não no desfoque à volta dela."),
+       "de crista, de modo que os splats assentam na borda mais nítida e não no desfoque à volta dela."
+       " `s_cielab` pontua a diferença de cor S-CIELAB, tal como o olho a vê. `flip` pontua o FLIP, a diferença que se nota ao alternar entre as duas imagens, e `flip_feature` só a sua parte de bordas e pontos. `auto` usa `s_cielab` ou `flip_feature` quando `--perceptual-loss` é `s_cielab` ou `flip`, e `ssim_cs` caso contrário."),
     IT("Che tipo di errore decide dove aggiungere nuovi splat. `ssim_structure` "
        "punta a motivi e bordi che non corrispondono e ignora le differenze di "
        "luminosità. `ssim_full`, `ssim_cs` e `loss_full` includono via via più "
@@ -3894,7 +6037,8 @@ SS_MSG(densify_loss_map_mode_help,
        "ma ignora i pixel che corrispondono peggio, così persone e automobili "
        "in movimento non attirano splat. `none` distribuisce i nuovi splat in "
        "modo uniforme. Ogni modalità con `_nms` assottiglia prima l'errore fino alle "
-       "sue linee di cresta, così gli splat si posano sul bordo più nitido e non nella sfocatura attorno."),
+       "sue linee di cresta, così gli splat si posano sul bordo più nitido e non nella sfocatura attorno."
+       " `s_cielab` valuta la differenza di colore S-CIELAB, come la vede l'occhio. `flip` valuta FLIP, la differenza che si nota alternando le due immagini, e `flip_feature` solo la sua parte di bordi e punti. `auto` usa `s_cielab` o `flip_feature` quando `--perceptual-loss` è `s_cielab` o `flip`, altrimenti `ssim_cs`."),
     NL("Welk soort fout bepaalt waar nieuwe splats bij komen. `ssim_structure` "
        "mikt op patronen en randen die niet kloppen en negeert helderheidsverschillen. "
        "`ssim_full`, `ssim_cs` en `loss_full` nemen stapsgewijs meer van de ruwe "
@@ -3902,7 +6046,8 @@ SS_MSG(densify_loss_map_mode_help,
        "nu al goed gereconstrueerd zijn of niet. `robust_edge_aware` doet hetzelfde "
        "maar negeert de slechtst passende pixels, zodat bewegende mensen en auto's "
        "geen splats aantrekken. `none` verdeelt nieuwe splats gelijkmatig. Elke modus met `_nms` dunt de fout "
-       "eerst uit tot haar ribbellijnen, zodat splats op de scherpste rand landen en niet in de onscherpte eromheen."),
+       "eerst uit tot haar ribbellijnen, zodat splats op de scherpste rand landen en niet in de onscherpte eromheen."
+       " `s_cielab` beoordeelt het S-CIELAB-kleurverschil, zoals het oog het ziet. `flip` beoordeelt FLIP, het verschil dat opvalt als je tussen beide beelden wisselt, en `flip_feature` alleen het rand- en puntdeel daarvan. `auto` neemt `s_cielab` of `flip_feature` als `--perceptual-loss` op `s_cielab` of `flip` staat, anders `ssim_cs`."),
     RU("Какая именно ошибка решает, куда добавлять новые сплаты. `ssim_structure` "
        "целится в несовпадающие узоры и края и не смотрит на разницу яркости. "
        "`ssim_full`, `ssim_cs` и `loss_full` последовательно добавляют всё больше "
@@ -3911,7 +6056,8 @@ SS_MSG(densify_loss_map_mode_help,
        "делает то же, но пропускает хуже всего совпадающие пиксели, поэтому идущие "
        "люди и машины не притягивают сплаты. `none` распределяет новые сплаты "
        "равномерно. Любой режим с `_nms` сначала утончает ошибку до её гребней, "
-       "поэтому сплаты ложатся на самый резкий край, а не расплываются вокруг него."),
+       "поэтому сплаты ложатся на самый резкий край, а не расплываются вокруг него."
+       " `s_cielab` оценивает цветовое различие S-CIELAB так, как его видит глаз. `flip` оценивает FLIP — разницу, заметную при переключении между двумя изображениями, а `flip_feature` — только её часть по краям и точкам. `auto` берёт `s_cielab` или `flip_feature`, если `--perceptual-loss` равен `s_cielab` или `flip`, иначе `ssim_cs`."),
     TR("Yeni splat'ların nereye ekleneceğine hangi tür hatanın karar vereceği. "
        "`ssim_structure` parlaklık farklarını yok sayar ve uyuşmayan desenlerle "
        "kenarları hedefler. `ssim_full`, `ssim_cs` ve `loss_full` sırayla ham "
@@ -3920,7 +6066,8 @@ SS_MSG(densify_loss_map_mode_help,
        "aynısını yapar ama en kötü uyuşan pikselleri yok sayar; böylece hareket "
        "eden insanlar ve arabalar splat çekmez. `none` ise yeni splat'ları eşit "
        "dağıtır. `_nms` içeren her kip, hatayı önce sırt çizgilerine kadar inceltir; "
-       "böylece splat'lar çevredeki bulanıklığa yayılmak yerine en keskin kenara oturur."));
+       "böylece splat'lar çevredeki bulanıklığa yayılmak yerine en keskin kenara oturur."
+       " `s_cielab`, S-CIELAB renk farkını gözün gördüğü gibi puanlar. `flip`, iki görüntü arasında gidip gelirken fark edilen farkı, yani FLIP'i puanlar; `flip_feature` ise yalnızca onun kenar ve nokta kısmını. `auto`, `--perceptual-loss` `s_cielab` ise `s_cielab`, `flip` ise `flip_feature`, değilse `ssim_cs` kullanır."));
 
 SS_MSG(densify_robust_edge_aware_quantile,
     EN("Ignored worst-error share"), JA("無視する誤差上位の割合"),
@@ -4528,6 +6675,100 @@ SS_MSG(densify_final_score_power_help,
        "başına biten puanı bu kuvvete yükseltir. 1'in üstünde yeni ayrıntı en "
        "yüksek puanlı splat'larda toplanır; 1'in altında sahneye daha eşit "
        "dağılır. 1 doğrudan puana göre çeker."));
+SS_MSG(densify_learned_score,
+    EN("Learned splat scores"), JA("学習したスプラット点数"),
+    ZH_HANS("学习得到的泼溅分数"), ZH_HANT("學習得到的潑濺分數"),
+    KO("학습된 스플랫 점수"),
+    DE("Gelernte Splat-Bewertung"),
+    FR("Notes de splat apprises"),
+    ES("Puntuación de splats aprendida"),
+    PT("Pontuação dos splats aprendida"),
+    IT("Punteggio degli splat appreso"),
+    NL("Geleerde splatscore"),
+    RU("Обучаемые оценки сплатов"),
+    TR("Öğrenilen splat puanları"));
+SS_MSG(densify_learned_score_help,
+    EN("Instead of averaging the error under each splat, fit one score per splat "
+       "so that the scores, blended like colours, reproduce the error map. A "
+       "pixel's error then goes to the splats that can explain it: a large splat "
+       "that only borders a badly reconstructed edge stops taking that edge's "
+       "blame. The scores keep the scale of the averaged ones. Needs the revised "
+       "densification rule and a detail error measure."),
+    JA("各スプラットが覆う誤差を平均する代わりに、点数を色と同じように重ねたもの"
+       "が誤差マップを再現するように、スプラットごとの点数を学習します。画素の誤"
+       "差はそれを説明できるスプラットに割り当てられるので、再現の悪い境目に接し"
+       "ているだけの大きなスプラットは、その境目の誤差を負わなくなります。点数の"
+       "大きさは平均したものと同じです。改良版の増やし方と誤差の測り方が必要で"
+       "す。"),
+    ZH_HANS("不再对每个泼溅覆盖范围内的误差取平均，而是为每个泼溅学习一个分数，"
+            "使这些分数像颜色一样混合后能重现误差图。像素的误差因此会分给能够"
+            "解释它的泼溅：只是挨着一处重建很差的边缘的大泼溅，不再为那条边缘的"
+            "误差负责。分数的大小与取平均时相同。需要开启改进的加密规则和误差度"
+            "量方式。"),
+    ZH_HANT("不再對每個潑濺覆蓋範圍內的誤差取平均，而是為每個潑濺學習一個分數，"
+            "使這些分數像顏色一樣混合後能重現誤差圖。像素的誤差因此會分給能夠"
+            "解釋它的潑濺：只是挨著一處重建很差的邊緣的大潑濺，不再為那條邊緣的"
+            "誤差負責。分數的大小與取平均時相同。需要開啟改良的加密規則和誤差度"
+            "量方式。"),
+    KO("각 스플랫이 덮은 오차를 평균하는 대신, 점수를 색처럼 섞었을 때 오차 맵이 "
+       "재현되도록 스플랫마다 점수를 학습합니다. 화소의 오차는 그것을 설명할 수 "
+       "있는 스플랫에 돌아가므로, 잘못 재구성된 경계에 맞닿아 있을 뿐인 큰 "
+       "스플랫은 그 경계의 오차를 떠안지 않게 됩니다. 점수의 크기는 평균할 때와 "
+       "같습니다. 개선된 밀집화 규칙과 오차 측정 방식이 필요합니다."),
+    DE("Statt den Fehler unter jedem Splat zu mitteln, je Splat eine Punktzahl "
+       "lernen, sodass die wie Farben überblendeten Punktzahlen die Fehlerkarte "
+       "nachbilden. Der Fehler eines Pixels geht dann an die Splats, die ihn "
+       "erklären können: Ein großer Splat, der nur an eine schlecht rekonstruierte "
+       "Kante grenzt, trägt deren Fehler nicht mehr. Die Punktzahlen behalten den "
+       "Maßstab der gemittelten. Setzt die überarbeitete Verdichtungsregel und ein "
+       "Fehlermaß voraus."),
+    FR("Au lieu de moyenner l'erreur sous chaque splat, apprendre une note par "
+       "splat de sorte que les notes, mélangées comme les couleurs, reproduisent la "
+       "carte d'erreur. L'erreur d'un pixel revient alors aux splats capables de "
+       "l'expliquer : un gros splat qui ne fait que border une arête mal "
+       "reconstruite n'en porte plus l'erreur. Les notes gardent l'échelle des "
+       "notes moyennées. Requiert la règle de densification révisée et une mesure "
+       "d'erreur."),
+    ES("En lugar de promediar el error bajo cada splat, aprender una puntuación "
+       "por splat de modo que las puntuaciones, mezcladas como los colores, "
+       "reproduzcan el mapa de error. El error de un píxel va entonces a los "
+       "splats que pueden explicarlo: un splat grande que solo bordea una arista "
+       "mal reconstruida deja de cargar con su error. Las puntuaciones conservan "
+       "la escala de las promediadas. Requiere la regla de densificación revisada "
+       "y una medida de error."),
+    PT("Em vez de calcular a média do erro sob cada splat, aprender uma pontuação "
+       "por splat de modo que as pontuações, misturadas como as cores, reproduzam "
+       "o mapa de erro. O erro de um pixel vai então para os splats que o podem "
+       "explicar: um splat grande que apenas faz fronteira com uma aresta mal "
+       "reconstruída deixa de carregar o seu erro. As pontuações mantêm a escala "
+       "das calculadas pela média. Exige a regra de densificação revisada e uma "
+       "medida de erro."),
+    IT("Invece di fare la media dell'errore sotto ogni splat, apprendere un "
+       "punteggio per splat in modo che i punteggi, miscelati come i colori, "
+       "riproducano la mappa d'errore. L'errore di un pixel va allora agli splat "
+       "che possono spiegarlo: uno splat grande che confina soltanto con un bordo "
+       "ricostruito male smette di prenderne l'errore. I punteggi mantengono la "
+       "scala di quelli mediati. Richiede la regola di densificazione rivista e "
+       "una misura dell'errore."),
+    NL("In plaats van de fout onder elke splat te middelen, per splat een score "
+       "leren zodat de scores, gemengd zoals kleuren, de foutkaart nabootsen. De "
+       "fout van een pixel gaat dan naar de splats die hem kunnen verklaren: een "
+       "grote splat die alleen grenst aan een slecht gereconstrueerde rand krijgt "
+       "die fout niet meer. De scores houden de schaal van de gemiddelde. Vereist "
+       "de herziene verdichtingsregel en een foutmaat."),
+    RU("Вместо усреднения ошибки под каждым сплатом обучать для каждого сплата "
+       "оценку так, чтобы оценки, смешанные как цвета, воспроизводили карту "
+       "ошибки. Ошибка пикселя тогда достаётся сплатам, которые могут её "
+       "объяснить: крупный сплат, лишь граничащий с плохо восстановленным краем, "
+       "перестаёт брать на себя его ошибку. Оценки сохраняют масштаб усреднённых. "
+       "Требует уточнённого правила уплотнения и меры ошибки."),
+    TR("Her splat'ın altındaki hatanın ortalamasını almak yerine, puanlar renkler "
+       "gibi karıştırıldığında hata haritasını yeniden üretecek şekilde splat "
+       "başına bir puan öğrenir. Bir pikselin hatası böylece onu açıklayabilen "
+       "splat'lara gider: kötü yeniden kurulmuş bir kenara yalnızca komşu olan "
+       "büyük bir splat artık o kenarın hatasını üstlenmez. Puanlar, ortalaması "
+       "alınanlarla aynı ölçeği korur. Gözden geçirilmiş yoğunlaştırma kuralını ve "
+       "bir hata ölçüsünü gerektirir."));
 SS_MSG(densify_oversize_split_fraction,
     EN("Split share for oversized splats"),
     JA("大きすぎるスプラットに回す分割の割合"),
@@ -4771,6 +7012,216 @@ SS_MSG(long_axis_split_opacity_k_help,
        "Başlangıç değeri, son değer ve ikisi arasında geçilecek adım sayısı olarak "
        "verilir. Yüksek değerler yarıları daha yoğun ve keskin tutar; düşük değerler "
        "uçuşan artıkların solup ayrıntı gereken yere taşınmasını sağlar."));
+
+SS_MSG(max_split_fraction,
+    EN("Split budget per round"),
+    JA("1 ラウンドあたりの分割上限"),
+    ZH_HANS("每轮分裂上限"),
+    ZH_HANT("每輪分裂上限"),
+    KO("회차당 분할 한도"),
+    DE("Teilungsbudget pro Runde"),
+    FR("Budget de division par cycle"),
+    ES("Presupuesto de división por ronda"),
+    PT("Orçamento de divisão por rodada"),
+    IT("Budget di divisione per ciclo"),
+    NL("Splitsbudget per ronde"),
+    RU("Лимит делений за раунд"),
+    TR("Tur başına bölme bütçesi"));
+SS_MSG(max_split_fraction_help,
+    EN("Largest share of the live splats that may be split in one round, "
+       "counting revived dead splats first and growth second. Dead splats "
+       "past the budget wait for a later round, which keeps a burst of deaths "
+       "from halving the opacity of a matching number of live splats at once. "
+       "1 or more leaves both uncapped."),
+    JA("1 ラウンドで分割してよい、生きているスプラットの割合の上限です。死んだ"
+       "スプラットの復活を先に、成長を後に数えます。上限を超えた死んだスプラッ"
+       "トは後のラウンドまで待つので、一度に大量に死んでも、同じ数の生きたスプ"
+       "ラットの不透明度が一斉に半減することはありません。1 以上にすると、どち"
+       "らも無制限になります。"),
+    ZH_HANS("一轮中可分裂的存活泼溅所占比例的上限，先计入复活的死亡泼溅，再计"
+            "入增长。超出上限的死亡泼溅会等到之后的轮次，以免一批泼溅同时死亡"
+            "时，同样数量的存活泼溅的不透明度一下子减半。设为 1 或更大则两者都"
+            "不设上限。"),
+    ZH_HANT("一輪中可分裂的存活潑濺所佔比例的上限，先計入復活的死亡潑濺，再計"
+            "入增長。超出上限的死亡潑濺會等到之後的輪次，以免一批潑濺同時死亡"
+            "時，同樣數量的存活潑濺的不透明度一下子減半。設為 1 或更大則兩者都"
+            "不設上限。"),
+    KO("한 회차에 분할할 수 있는, 살아 있는 스플랫의 최대 비율입니다. 죽은 스"
+       "플랫의 부활을 먼저, 성장을 나중에 셉니다. 한도를 넘은 죽은 스플랫은 이"
+       "후 회차까지 기다리므로, 한꺼번에 많이 죽어도 같은 수의 살아 있는 스플"
+       "랫의 불투명도가 한 번에 절반으로 줄지 않습니다. 1 이상이면 둘 다 제한"
+       "이 없습니다."),
+    DE("Größter Anteil der lebenden Splats, der in einer Runde geteilt werden "
+       "darf; wiederbelebte tote Splats zählen zuerst, Wachstum danach. Tote "
+       "Splats jenseits des Budgets warten auf eine spätere Runde, damit ein "
+       "Schwall von Toden nicht die Deckkraft ebenso vieler lebender Splats "
+       "auf einmal halbiert. 1 oder mehr hebt beide Grenzen auf."),
+    FR("Part maximale des splats vivants pouvant être divisés en un cycle, en "
+       "comptant d'abord les splats morts ranimés, puis la croissance. Les "
+       "splats morts au-delà du budget attendent un cycle ultérieur, ce qui "
+       "évite qu'une vague de morts ne divise d'un coup par deux l'opacité "
+       "d'autant de splats vivants. 1 ou plus lève les deux limites."),
+    ES("Mayor proporción de los splats vivos que se puede dividir en una "
+       "ronda, contando primero los splats muertos reanimados y después el "
+       "crecimiento. Los splats muertos que exceden el presupuesto esperan a "
+       "una ronda posterior, lo que evita que una oleada de muertes reduzca a "
+       "la mitad de golpe la opacidad de otros tantos splats vivos. 1 o más "
+       "deja ambos sin límite."),
+    PT("Maior parcela dos splats vivos que pode ser dividida numa rodada, "
+       "contando primeiro os splats mortos reativados e depois o crescimento. "
+       "Os splats mortos além do orçamento esperam uma rodada posterior, o "
+       "que evita que uma leva de mortes reduza à metade, de uma só vez, a "
+       "opacidade de igual número de splats vivos. 1 ou mais deixa ambos sem "
+       "limite."),
+    IT("Quota massima degli splat vivi che si può dividere in un ciclo, "
+       "contando prima gli splat morti rianimati e poi la crescita. Gli splat "
+       "morti oltre il budget aspettano un ciclo successivo, così un'ondata "
+       "di morti non dimezza tutta insieme l'opacità di altrettanti splat "
+       "vivi. 1 o più lascia entrambi senza limite."),
+    NL("Grootste deel van de levende splats dat in één ronde mag worden "
+       "gesplitst; eerst tellen herstelde dode splats, daarna groei. Dode "
+       "splats boven het budget wachten op een latere ronde, zodat een golf "
+       "sterfgevallen niet in één keer de dekking van evenveel levende splats "
+       "halveert. 1 of meer laat beide onbegrensd."),
+    RU("Наибольшая доля живых сплатов, которую можно разделить за один раунд; "
+       "сначала учитываются возрождённые мёртвые сплаты, затем рост. Мёртвые "
+       "сплаты сверх лимита ждут следующего раунда, чтобы волна гибели не "
+       "уменьшила разом вдвое непрозрачность такого же числа живых сплатов. 1 "
+       "и больше снимает оба ограничения."),
+    TR("Bir turda bölünebilecek canlı splat'ların en büyük payı; önce yeniden "
+       "canlandırılan ölü splat'lar, sonra büyüme sayılır. Bütçeyi aşan ölü "
+       "splat'lar sonraki bir turu bekler, böylece bir anda çok sayıda splat "
+       "öldüğünde aynı sayıda canlı splat'ın saydamsızlığı birden yarıya "
+       "inmez. 1 veya daha fazlası ikisini de sınırsız bırakır."));
+
+SS_MSG(split_weight_by_renders,
+    EN("Weight splits by renders"),
+    JA("描画回数で分割を重み付け"),
+    ZH_HANS("按渲染次数加权分裂"),
+    ZH_HANT("按算圖次數加權分裂"),
+    KO("렌더 횟수로 분할 가중"),
+    DE("Teilungen nach Renderzahl gewichten"),
+    FR("Pondérer les divisions par les rendus"),
+    ES("Ponderar divisiones por renderizados"),
+    PT("Ponderar divisões pelas renderizações"),
+    IT("Pesare le divisioni per i rendering"),
+    NL("Splitsingen wegen naar renders"),
+    RU("Взвешивать деления по числу отрисовок"),
+    TR("Bölmeleri işlenme sayısına göre ağırlıklandır"));
+SS_MSG(split_weight_by_renders_help,
+    EN("Multiply each splat's refinement score by how many times it has been "
+       "rendered since it was created or last split, so a splat is split "
+       "again only after the optimizer has had a chance to settle it. The "
+       "refinement-score view shows the weighted score."),
+    JA("各スプラットの細分化スコアに、作られてから、または前回分割されてから描"
+       "画された回数を掛けます。これでスプラットは、最適化が落ち着かせる機会を"
+       "得てからでないと再び分割されません。細分化スコアの表示には、重み付け後"
+       "のスコアが出ます。"),
+    ZH_HANS("把每个泼溅的细化分数乘以它自创建或上次分裂以来被渲染的次数，使泼"
+            "溅要等优化器有机会把它调稳之后才会再次分裂。细化分数视图显示的是"
+            "加权后的分数。"),
+    ZH_HANT("把每個潑濺的細化分數乘以它自建立或上次分裂以來被算圖的次數，使潑"
+            "濺要等最佳化器有機會把它調穩之後才會再次分裂。細化分數檢視顯示的"
+            "是加權後的分數。"),
+    KO("각 스플랫의 정제 점수에, 생성되거나 마지막으로 분할된 뒤 렌더된 횟수를"
+       " 곱합니다. 그래서 옵티마이저가 스플랫을 안정시킬 기회를 가진 뒤에야 다"
+       "시 분할됩니다. 정제 점수 보기에는 가중된 점수가 표시됩니다."),
+    DE("Den Verfeinerungswert jedes Splats damit multiplizieren, wie oft er "
+       "seit seiner Entstehung oder letzten Teilung gerendert wurde, sodass "
+       "ein Splat erst wieder geteilt wird, nachdem der Optimierer ihn "
+       "einpendeln lassen konnte. Die Ansicht des Verfeinerungswerts zeigt "
+       "den gewichteten Wert."),
+    FR("Multiplier le score de raffinement de chaque splat par le nombre de "
+       "fois qu'il a été rendu depuis sa création ou sa dernière division, "
+       "afin qu'un splat ne soit redivisé qu'après que l'optimiseur a pu le "
+       "stabiliser. La vue du score de raffinement affiche le score pondéré."),
+    ES("Multiplicar la puntuación de refinamiento de cada splat por las veces "
+       "que se ha renderizado desde que se creó o se dividió por última vez, "
+       "de modo que un splat solo vuelva a dividirse cuando el optimizador "
+       "haya tenido ocasión de asentarlo. La vista de puntuación de "
+       "refinamiento muestra la puntuación ponderada."),
+    PT("Multiplicar a pontuação de refinamento de cada splat pelo número de "
+       "vezes que foi renderizado desde que foi criado ou dividido pela "
+       "última vez, para que um splat só volte a ser dividido depois de o "
+       "otimizador ter tido a chance de estabilizá-lo. A vista da pontuação "
+       "de refinamento mostra a pontuação ponderada."),
+    IT("Moltiplicare il punteggio di raffinamento di ogni splat per il numero "
+       "di volte in cui è stato renderizzato da quando è nato o è stato "
+       "diviso l'ultima volta, così uno splat viene ridiviso solo dopo che "
+       "l'ottimizzatore ha avuto modo di assestarlo. La vista del punteggio "
+       "di raffinamento mostra il punteggio pesato."),
+    NL("De verfijningsscore van elke splat vermenigvuldigen met het aantal "
+       "keren dat hij is gerenderd sinds hij ontstond of voor het laatst werd "
+       "gesplitst, zodat een splat pas opnieuw wordt gesplitst nadat de "
+       "optimizer hem tot rust heeft kunnen brengen. De weergave van de "
+       "verfijningsscore toont de gewogen score."),
+    RU("Умножать оценку уточнения каждого сплата на число его отрисовок с "
+       "момента создания или последнего деления, чтобы сплат делился снова "
+       "лишь после того, как оптимизатор успел его стабилизировать. Вид "
+       "оценки уточнения показывает взвешенную оценку."),
+    TR("Her splat'ın iyileştirme puanını, oluşturulduğundan ya da son "
+       "bölünmesinden beri kaç kez işlendiğiyle çarpar; böylece bir splat "
+       "ancak optimize edici onu oturtma fırsatı bulduktan sonra yeniden "
+       "bölünür. İyileştirme puanı görünümü ağırlıklı puanı gösterir."));
+
+SS_MSG(dead_after_epochs,
+    EN("Dead after unrendered passes"),
+    JA("未描画で死とみなす巡数"),
+    ZH_HANS("未渲染多少遍后判为死亡"),
+    ZH_HANT("未算圖多少遍後判為死亡"),
+    KO("렌더되지 않은 바퀴 수 후 죽음 처리"),
+    DE("Tot nach Durchläufen ohne Rendern"),
+    FR("Mort après passages sans rendu"),
+    ES("Muerto tras pasadas sin renderizar"),
+    PT("Morto após passagens sem renderização"),
+    IT("Morto dopo passaggi senza rendering"),
+    NL("Dood na doorlopen zonder render"),
+    RU("Мёртв после проходов без отрисовки"),
+    TR("İşlenmeden geçen geçişlerden sonra ölü"));
+SS_MSG(dead_after_epochs_help,
+    EN("A splat that no camera has rendered for this many passes over the "
+       "dataset (fractional) is treated as dead and relocated at the next "
+       "round, whatever its opacity. 0 turns the rule off."),
+    JA("データセットをこの巡数（小数可）のあいだ、どのカメラにも描画されなかっ"
+       "たスプラットは、不透明度にかかわらず死んだものとみなし、次のラウンドで"
+       "移します。0 でこの規則を無効にします。"),
+    ZH_HANS("在这么多遍数据集（可为小数）内都没有被任何相机渲染的泼溅，无论不"
+            "透明度如何都视为死亡，并在下一轮迁移。0 关闭此规则。"),
+    ZH_HANT("在這麼多遍資料集（可為小數）內都沒有被任何相機算圖的潑濺，無論不"
+            "透明度如何都視為死亡，並在下一輪遷移。0 關閉此規則。"),
+    KO("데이터셋을 이만큼(소수 가능) 도는 동안 어떤 카메라에도 렌더되지 않은 "
+       "스플랫은 불투명도와 관계없이 죽은 것으로 보고 다음 회차에 옮깁니다. 0"
+       "이면 이 규칙을 끕니다."),
+    DE("Ein Splat, den so viele Durchläufe durch den Datensatz lang (auch "
+       "gebrochen) keine Kamera gerendert hat, gilt unabhängig von seiner "
+       "Deckkraft als tot und zieht in der nächsten Runde um. 0 schaltet die "
+       "Regel ab."),
+    FR("Un splat qu'aucune caméra n'a rendu pendant ce nombre de passages sur "
+       "le jeu de données (fractionnaire) est considéré comme mort et déplacé "
+       "au cycle suivant, quelle que soit son opacité. 0 désactive la règle."),
+    ES("Un splat que ninguna cámara ha renderizado durante este número de "
+       "pasadas sobre el conjunto de datos (admite decimales) se considera "
+       "muerto y se reubica en la siguiente ronda, sea cual sea su opacidad. "
+       "0 desactiva la regla."),
+    PT("Um splat que nenhuma câmera renderizou durante este número de "
+       "passagens pelo conjunto de dados (aceita frações) é tratado como "
+       "morto e realocado na rodada seguinte, qualquer que seja sua "
+       "opacidade. 0 desativa a regra."),
+    IT("Uno splat che nessuna fotocamera ha renderizzato per questo numero di "
+       "passaggi sul set di dati (anche frazionario) è considerato morto e "
+       "spostato al ciclo successivo, qualunque sia la sua opacità. 0 "
+       "disattiva la regola."),
+    NL("Een splat die geen enkele camera heeft gerenderd gedurende dit aantal "
+       "doorlopen van de dataset (mag een breuk zijn) geldt als dood en wordt "
+       "bij de volgende ronde verplaatst, ongeacht zijn dekking. 0 schakelt "
+       "de regel uit."),
+    RU("Сплат, который ни одна камера не отрисовала за столько проходов по "
+       "набору данных (можно дробное), считается мёртвым и перемещается в "
+       "следующем раунде, какой бы ни была его непрозрачность. 0 отключает "
+       "правило."),
+    TR("Veri kümesi üzerinde bu kadar geçiş (kesirli olabilir) boyunca hiçbir "
+       "kameranın işlemediği bir splat, saydamsızlığı ne olursa olsun ölü "
+       "sayılır ve sonraki turda taşınır. 0 kuralı kapatır."));
 
 SS_MSG(max_screen_size,
     EN("Maximum on-screen size"), JA("画面上の最大サイズ"),
@@ -5123,51 +7574,177 @@ SS_MSG(ssim_lambda_help,
     EN("How much the loss cares about local structure instead of exact pixel "
        "color. Higher brings out fine texture and high-frequency detail; lower "
        "gives a smoother, less noisy background, which sometimes looks better "
-       "in outdoor scenes."),
+       "in outdoor scenes."
+       " With `--perceptual-loss s_cielab` or `flip` it weights the S-CIELAB color difference or FLIP instead."),
     JA("損失が、画素ごとの正確な色よりも局所の構造をどれだけ重視するかです。高"
        "いほど細かな質感や高周波の細部が出ます。低いほど背景がなめらかでノイズ"
-       "が少なくなり、屋外のシーンではそのほうがよく見えることがあります。"),
+       "が少なくなり、屋外のシーンではそのほうがよく見えることがあります。"
+       "`--perceptual-loss` が `s_cielab` や `flip` のときは、代わりに S-CIELAB 色差や FLIP の重みになります。"),
     ZH_HANS("损失在多大程度上关注局部结构而非逐像素的精确颜色。数值越高，细腻"
             "纹理和高频细节越突出；越低则背景更平滑、噪点更少，在户外场景中有"
-            "时更好看。"),
+            "时更好看。"
+            "当 `--perceptual-loss` 为 `s_cielab` 或 `flip` 时，它改为 S-CIELAB 色差或 FLIP 的权重。"),
     ZH_HANT("損失在多大程度上關注局部結構而非逐像素的精確顏色。數值越高，細緻"
             "紋理和高頻細節越突出；越低則背景更平滑、雜訊更少，在戶外場景中有"
-            "時更好看。"),
+            "時更好看。"
+            "當 `--perceptual-loss` 為 `s_cielab` 或 `flip` 時，它改為 S-CIELAB 色差或 FLIP 的權重。"),
     KO("손실이 픽셀별 정확한 색보다 국소 구조를 얼마나 중시할지입니다. 값이 크"
        "면 미세한 질감과 고주파 디테일이 살아나고, 작으면 배경이 더 매끄럽고 "
-       "노이즈가 적어져 실외 장면에서는 그편이 더 나아 보이기도 합니다."),
+       "노이즈가 적어져 실외 장면에서는 그편이 더 나아 보이기도 합니다."
+       " `--perceptual-loss`가 `s_cielab`이나 `flip`일 때는 대신 S-CIELAB 색차나 FLIP의 가중치가 됩니다."),
     DE("Wie stark der Verlust auf lokale Struktur statt auf die exakte Pixelfarbe "
        "achtet. Höher holt feine Textur und hochfrequentes Detail heraus; niedriger "
        "ergibt einen glatteren, rauschärmeren Hintergrund, was in Außenszenen "
-       "manchmal besser aussieht."),
+       "manchmal besser aussieht."
+       " Mit `--perceptual-loss s_cielab` oder `flip` gewichtet es stattdessen den S-CIELAB-Farbabstand bzw. FLIP."),
     FR("Dans quelle mesure la fonction de coût s'attache à la structure locale "
        "plutôt qu'à la couleur exacte des pixels. Plus haut fait ressortir la "
        "texture fine et les détails à haute fréquence ; plus bas donne un arrière-plan "
-       "plus lisse et moins bruité, ce qui rend parfois mieux en extérieur."),
+       "plus lisse et moins bruité, ce qui rend parfois mieux en extérieur."
+       " Avec `--perceptual-loss s_cielab` ou `flip`, il pondère à la place l'écart de couleur S-CIELAB ou FLIP."),
     ES("Cuánto atiende la función de pérdida a la estructura local en vez de "
        "al color exacto de cada píxel. Más alto realza la textura fina y el detalle "
        "de alta frecuencia; más bajo da un fondo más suave y menos ruidoso, que "
-       "a veces queda mejor en exteriores."),
+       "a veces queda mejor en exteriores."
+       " Con `--perceptual-loss s_cielab` o `flip` pondera en su lugar la diferencia de color S-CIELAB o FLIP."),
     PT("O quanto a função de perda se importa com a estrutura local em vez da "
        "cor exata de cada pixel. Mais alto realça a textura fina e o detalhe "
        "de alta frequência; mais baixo dá um fundo mais suave e menos ruidoso, "
-       "que às vezes fica melhor em cenas ao ar livre."),
+       "que às vezes fica melhor em cenas ao ar livre."
+       " Com `--perceptual-loss s_cielab` ou `flip` pondera, em vez disso, a diferença de cor S-CIELAB ou o FLIP."),
     IT("Quanto la funzione di perdita si interessa alla struttura locale invece "
        "che al colore esatto dei pixel. Più alto fa emergere la texture fine "
        "e il dettaglio ad alta frequenza; più basso dà uno sfondo più liscio "
-       "e meno rumoroso, che a volte rende meglio negli esterni."),
+       "e meno rumoroso, che a volte rende meglio negli esterni."
+       " Con `--perceptual-loss s_cielab` o `flip` pesa invece la differenza di colore S-CIELAB o FLIP."),
     NL("Hoeveel de verliesfunctie let op lokale structuur in plaats van op de "
        "exacte pixelkleur. Hoger haalt fijne textuur en hoogfrequent detail naar "
        "voren; lager geeft een gladdere, minder ruizige achtergrond, wat in buitenscènes "
-       "soms beter oogt."),
+       "soms beter oogt."
+       " Met `--perceptual-loss s_cielab` of `flip` weegt het in plaats daarvan het S-CIELAB-kleurverschil of FLIP."),
     RU("Насколько функция потерь смотрит на локальную структуру, а не на точный "
        "цвет пикселя. Больше — сильнее проявляется мелкая фактура и высокочастотные "
        "детали; меньше — фон глаже и менее шумный, что на улице иногда выглядит "
-       "лучше."),
+       "лучше."
+       " При `--perceptual-loss s_cielab` или `flip` это вес цветового различия S-CIELAB или FLIP."),
     TR("Kaybın piksel rengindeki kesinlik yerine yerel yapıya ne kadar önem verdiği. "
        "Yüksek değerler ince dokuyu ve yüksek frekanslı ayrıntıyı öne çıkarır; "
        "düşük değerler daha pürüzsüz, daha az gürültülü bir arka plan verir ve "
-       "bu dış mekân sahnelerinde bazen daha iyi görünür."));
+       "bu dış mekân sahnelerinde bazen daha iyi görünür."
+       " `--perceptual-loss s_cielab` veya `flip` ile bunun yerine S-CIELAB renk farkını ya da FLIP'i ağırlıklandırır."));
+
+SS_MSG(perceptual_loss,
+    EN("Perceptual loss"), JA("知覚損失"), ZH_HANS("感知损失"),
+    ZH_HANT("感知損失"), KO("지각 손실"), DE("Wahrnehmungsverlust"),
+    FR("Perte perceptuelle"), ES("Pérdida perceptual"),
+    PT("Perda perceptual"), IT("Perdita percettiva"),
+    NL("Perceptueel verlies"), RU("Перцептивная потеря"),
+    TR("Algısal kayıp"));
+SS_MSG(perceptual_loss_help,
+    EN("Whether the structure weight trains SSIM, the S-CIELAB color "
+       "difference or FLIP. `ssim` compares local structure. `s_cielab` (S-CIELAB) measures color difference as the eye "
+       "sees it: color is blurred more than brightness before comparing, so fine "
+       "color noise counts for little and broad color shifts for a lot."
+       " `flip` (FLIP) scores the difference a viewer notices flipping between "
+       "the render and the photo: color error as the eye sees it, made larger "
+       "where edges and points do not match."
+       " `ssim_blur_tolerant` compares each patch of the photo with the better of the render and a slightly blurred render: photos blurrier than the scene (motion or focus blur) stop pulling it blurry, while a render blurrier than the photo is still penalized as with `ssim`."),
+    JA("構造の重みで SSIM、S-CIELAB 色差、FLIP のどれを学習するかです。`ssim` は局所的な構造を比べます。"
+       "`s_cielab`（S-CIELAB）は目に見えるとおりの色の差を測ります。比べる前に"
+       "色を明るさより強くぼかすので、細かな色のノイズはあまり効かず、広い範囲"
+       "の色のずれは強く効きます。"
+       "`flip`（FLIP）は、レンダリングと写真を切り替えたときに気づく違いを測ります。"
+       "目に見えるとおりの色の差を、エッジや点が合わないところで大きくします。"
+       "`ssim_blur_tolerant` は、写真の各部分を、レンダリングと少しぼかしたレンダリングのうち合うほうと比べます。シーンよりぼやけた写真（手ぶれやピンぼけ）がシーンをぼやけさせなくなり、写真よりぼやけたレンダリングは `ssim` と同じく罰せられます。"),
+    ZH_HANS("结构权重训练的是 SSIM、S-CIELAB 色差还是 FLIP。`ssim` 比较局部结构。`s_cielab`"
+            "（S-CIELAB）按人眼所见衡量颜色差异：比较前对颜色的模糊强于亮度，"
+            "因此细小的颜色噪点影响很小，大面积的色偏影响很大。"
+            "`flip`（FLIP）衡量在渲染和照片之间来回切换时能察觉到的差异：按人眼所见"
+            "的颜色误差，在边缘和点不匹配处加重。"
+            "`ssim_blur_tolerant` 将照片的每一小块与渲染图和略微模糊的渲染图中更接近的那个比较：比场景更模糊的照片（运动模糊或失焦）不再把场景拉模糊，而比照片更模糊的渲染仍像 `ssim` 一样受罚。"),
+    ZH_HANT("結構權重訓練的是 SSIM、S-CIELAB 色差還是 FLIP。`ssim` 比較局部結構。`s_cielab`"
+            "（S-CIELAB）按人眼所見衡量顏色差異：比較前對顏色的模糊強於亮度，"
+            "因此細小的顏色雜訊影響很小，大面積的色偏影響很大。"
+            "`flip`（FLIP）衡量在渲染和照片之間來回切換時能察覺到的差異：按人眼所見"
+            "的顏色誤差，在邊緣和點不吻合處加重。"
+            "`ssim_blur_tolerant` 將照片的每一小塊與渲染圖和略微模糊的渲染圖中更接近的那個比較：比場景更模糊的照片（動態模糊或失焦）不再把場景拉模糊，而比照片更模糊的渲染仍像 `ssim` 一樣受罰。"),
+    KO("구조 가중치로 SSIM, S-CIELAB 색차, FLIP 중 무엇을 학습할지입니다. `ssim`은 국소 구조를 비교합니다. "
+       "`s_cielab`(S-CIELAB)은 눈에 보이는 대로 색 차이를 잽니다. 비교하기 전에 "
+       "색을 밝기보다 더 흐리게 하므로 미세한 색 노이즈는 거의 반영되지 않고 "
+       "넓은 색 틀어짐은 크게 반영됩니다."
+       " `flip`(FLIP)은 렌더링과 사진을 번갈아 볼 때 눈에 띄는 차이를 잽니다. "
+       "눈에 보이는 대로의 색 차이를, 가장자리와 점이 맞지 않는 곳에서 더 크게 셉니다."
+       " `ssim_blur_tolerant`는 사진의 각 부분을 렌더링과 살짝 흐리게 한 렌더링 중 더 잘 맞는 쪽과 비교합니다. 장면보다 흐린 사진(흔들림이나 초점 빗나감)이 더 이상 장면을 흐리게 만들지 않고, 사진보다 흐린 렌더링은 `ssim`처럼 계속 불이익을 받습니다."),
+    DE("Ob das Strukturgewicht SSIM, den S-CIELAB-Farbabstand oder FLIP trainiert. `ssim` vergleicht "
+       "lokale Struktur. `s_cielab` (S-CIELAB) misst den Farbabstand so, wie das "
+       "Auge ihn sieht: Farbe wird vor dem Vergleich stärker weichgezeichnet als "
+       "Helligkeit, sodass feines Farbrauschen wenig zählt und großflächige "
+       "Farbstiche viel."
+       " `flip` (FLIP) misst den Unterschied, der beim Hin- und Herschalten "
+       "zwischen Rendering und Foto auffällt: den Farbabstand, wie das Auge ihn "
+       "sieht, verstärkt dort, wo Kanten und Punkte nicht übereinstimmen."
+       " `ssim_blur_tolerant` vergleicht jeden Ausschnitt des Fotos mit dem besser passenden von Rendering und leicht weichgezeichnetem Rendering: Fotos, die unschärfer sind als die Szene (Bewegungs- oder Fokusunschärfe), ziehen sie nicht mehr unscharf, während ein Rendering, das unschärfer ist als das Foto, weiter wie bei `ssim` bestraft wird."),
+    FR("Si le poids de la structure entraîne le SSIM, l'écart de couleur S-CIELAB ou FLIP. `ssim` compare "
+       "la structure locale. `s_cielab` (S-CIELAB) mesure l'écart de couleur tel "
+       "que l'œil le perçoit : la couleur est plus floutée que la luminosité avant "
+       "la comparaison, si bien que le bruit de couleur fin compte peu et les "
+       "dominantes de couleur étendues beaucoup."
+       " `flip` (FLIP) mesure l'écart qu'on remarque en alternant entre le rendu "
+       "et la photo : l'écart de couleur tel que l'œil le perçoit, renforcé là où "
+       "contours et points ne correspondent pas."
+       " `ssim_blur_tolerant` compare chaque zone de la photo au meilleur du rendu et d'un rendu légèrement flouté : les photos plus floues que la scène (flou de bougé ou de mise au point) ne la rendent plus floue, tandis qu'un rendu plus flou que la photo reste pénalisé comme avec `ssim`."),
+    ES("Si el peso de la estructura entrena el SSIM, la diferencia de color S-CIELAB o FLIP. `ssim` compara "
+       "la estructura local. `s_cielab` (S-CIELAB) mide la diferencia de color tal "
+       "como la ve el ojo: el color se desenfoca más que el brillo antes de "
+       "comparar, de modo que el ruido de color fino cuenta poco y las dominantes "
+       "de color amplias cuentan mucho."
+       " `flip` (FLIP) mide la diferencia que se nota al alternar entre el render "
+       "y la foto: la diferencia de color tal como la ve el ojo, aumentada donde "
+       "los bordes y los puntos no coinciden."
+       " `ssim_blur_tolerant` compara cada zona de la foto con lo que mejor encaje entre el render y el render ligeramente desenfocado: las fotos más borrosas que la escena (movimiento o desenfoque) dejan de volverla borrosa, mientras que un render más borroso que la foto se sigue penalizando como con `ssim`."),
+    PT("Se o peso da estrutura treina o SSIM, a diferença de cor S-CIELAB ou o FLIP. `ssim` compara a estrutura "
+       "local. `s_cielab` (S-CIELAB) mede a diferença de cor tal como o olho a vê: "
+       "a cor é desfocada mais do que o brilho antes da comparação, de modo que o "
+       "ruído de cor fino conta pouco e as dominantes de cor amplas contam muito."
+       " `flip` (FLIP) mede a diferença que se nota ao alternar entre a "
+       "renderização e a foto: a diferença de cor tal como o olho a vê, aumentada "
+       "onde bordas e pontos não coincidem."
+       " `ssim_blur_tolerant` compara cada região da foto com o que melhor corresponder entre a renderização e a renderização levemente desfocada: fotos mais desfocadas que a cena (tremido ou foco errado) deixam de deixá-la desfocada, enquanto uma renderização mais desfocada que a foto continua penalizada como com `ssim`."),
+    IT("Se il peso della struttura allena l'SSIM, la differenza di colore S-CIELAB o FLIP. `ssim` "
+       "confronta la struttura locale. `s_cielab` (S-CIELAB) misura la differenza "
+       "di colore come la vede l'occhio: prima del confronto il colore viene "
+       "sfocato più della luminosità, così il rumore di colore fine conta poco e "
+       "le dominanti di colore estese contano molto."
+       " `flip` (FLIP) misura la differenza che si nota alternando il render e "
+       "la foto: la differenza di colore come la vede l'occhio, accresciuta dove "
+       "bordi e punti non corrispondono."
+       " `ssim_blur_tolerant` confronta ogni zona della foto con il migliore tra il render e il render leggermente sfocato: le foto più sfocate della scena (mosso o fuori fuoco) non la rendono più sfocata, mentre un render più sfocato della foto resta penalizzato come con `ssim`."),
+    NL("Of het structuurgewicht SSIM, het S-CIELAB-kleurverschil of FLIP traint. `ssim` vergelijkt "
+       "lokale structuur. `s_cielab` (S-CIELAB) meet kleurverschil zoals het oog "
+       "het ziet: kleur wordt vóór het vergelijken sterker vervaagd dan "
+       "helderheid, zodat fijne kleurruis weinig telt en een brede kleurzweem veel."
+       " `flip` (FLIP) meet het verschil dat opvalt als je tussen render en foto "
+       "wisselt: kleurverschil zoals het oog het ziet, versterkt waar randen en "
+       "punten niet kloppen."
+       " `ssim_blur_tolerant` vergelijkt elk stuk van de foto met de best passende van de render en een licht vervaagde render: foto's die waziger zijn dan de scène (bewegings- of focusonscherpte) maken haar niet meer onscherp, terwijl een render die waziger is dan de foto net als bij `ssim` bestraft blijft."),
+    RU("Что обучает вес структуры: SSIM, цветовое различие S-CIELAB или FLIP. `ssim` "
+       "сравнивает локальную структуру. `s_cielab` (S-CIELAB) измеряет разницу "
+       "цвета так, как её видит глаз: перед сравнением цвет размывается сильнее "
+       "яркости, поэтому мелкий цветовой шум почти не учитывается, а обширные "
+       "цветовые сдвиги — сильно."
+       " `flip` (FLIP) измеряет разницу, заметную при переключении между рендером "
+       "и снимком: цветовое различие так, как его видит глаз, усиленное там, где "
+       "не совпадают края и точки."
+       " `ssim_blur_tolerant` сравнивает каждый участок снимка с тем, что лучше совпадает: с рендером или со слегка размытым рендером. Снимки, размытые сильнее сцены (смаз или промах фокуса), больше не размывают её, а рендер, размытый сильнее снимка, по-прежнему штрафуется, как при `ssim`."),
+    TR("Yapı ağırlığının SSIM'i mi, S-CIELAB renk farkını mı yoksa FLIP'i mi eğittiği. `ssim` yerel yapıyı "
+       "karşılaştırır. `s_cielab` (S-CIELAB) renk farkını gözün gördüğü gibi "
+       "ölçer: karşılaştırmadan önce renk parlaklıktan daha çok bulanıklaştırılır; "
+       "böylece ince renk gürültüsü az, geniş renk kaymaları çok sayılır."
+       " `flip` (FLIP), görüntü ile fotoğraf arasında gidip gelirken fark edilen "
+       "farkı ölçer: gözün gördüğü gibi renk farkını, kenarların ve noktaların "
+       "uyuşmadığı yerlerde büyütür."
+       " `ssim_blur_tolerant`, fotoğrafın her parçasını görüntü ile hafifçe bulanıklaştırılmış görüntüden hangisi daha iyi uyuyorsa onunla karşılaştırır: sahneden daha bulanık fotoğraflar (hareket ya da odak bulanıklığı) artık sahneyi bulanıklaştırmaz, fotoğraftan daha bulanık bir görüntü ise `ssim`'deki gibi cezalandırılmaya devam eder."));
+
 
 SS_MSG(l1_weight,
     EN("Color error weight (L1)"), JA("色の誤差の重み（L1）"),
@@ -5664,73 +8241,86 @@ SS_MSG(loss_saturation_threshold_help,
        "ikisi de kırpılmıştır, oradaki hata gerçek değildir. Negatif (varsayılan) "
        "her pikseli tutar."));
 
-SS_MSG(normalize_loss_by_luminance,
-    EN("Scale color error by brightness"), JA("明るさで色の誤差を調整"),
-    ZH_HANS("按亮度缩放颜色误差"), ZH_HANT("依亮度縮放顏色誤差"),
-    KO("밝기로 색 오차 조정"),
-    DE("Farbfehler nach Helligkeit skalieren"),
-    FR("Mettre l'erreur de couleur à l'échelle de la luminosité"),
-    ES("Escalar el error de color según el brillo"),
-    PT("Escalar o erro de cor pelo brilho"),
-    IT("Scalare l'errore di colore con la luminosità"),
-    NL("Kleurfout schalen met de helderheid"),
-    RU("Масштабировать ошибку цвета по яркости"),
-    TR("Renk hatasını parlaklığa göre ölçekle"));
-SS_MSG(normalize_loss_by_luminance_help,
-    EN("Scales the color-error weights (L1, L2 and SSIM) by twice the mean "
-       "brightness of the photo, measured in sRGB, so a dark capture counts for "
-       "as much as a bright one. It is meant for training in linear light, where "
+SS_MSG(loss_luminance_normalization,
+    EN("Brightness normalization of color error"), JA("色の誤差の明るさ正規化"),
+    ZH_HANS("颜色误差的亮度归一化"), ZH_HANT("顏色誤差的亮度正規化"),
+    KO("색 오차의 밝기 정규화"),
+    DE("Helligkeitsnormierung des Farbfehlers"),
+    FR("Normalisation de l'erreur de couleur par la luminosité"),
+    ES("Normalización del error de color por el brillo"),
+    PT("Normalização do erro de cor pelo brilho"),
+    IT("Normalizzazione dell'errore di colore per luminosità"),
+    NL("Helderheidsnormalisatie van de kleurfout"),
+    RU("Нормировка ошибки цвета по яркости"),
+    TR("Renk hatasının parlaklık normalizasyonu"));
+SS_MSG(loss_luminance_normalization_help,
+    EN("Divides the color-error weights (L1, L2 and SSIM) by twice the photo's "
+       "mean brightness, measured in sRGB, raised to this power: 0 leaves them "
+       "alone, 1 makes a dark capture count for as much as a bright one, and "
+       "values in between soften that. Meant for training in linear light, where "
        "the display curve already makes a dark pixel push harder."),
     JA("色の誤差の重み（L1, L2, SSIM）を, sRGB で測った写真の平均的な明るさの二"
-       "倍で調整します。暗い写真も明るい写真と同じだけ効くようになります。線形"
-       "の光での学習を想定しています。そこでは表示曲線のせいで暗い画素のほうが"
-       "強く効いてしまいます。"),
-    ZH_HANS("把颜色误差的权重（L1、L2 和 SSIM）乘以照片在 sRGB 下平均亮度的两"
-            "倍，让偏暗的照片和明亮的照片起同样的作用。它是为线性光下的训练准备"
-            "的：在那里显示曲线本来就让暗像素推得更用力。"),
-    ZH_HANT("把顏色誤差的權重（L1、L2 和 SSIM）乘以照片在 sRGB 下平均亮度的兩"
-            "倍，讓偏暗的照片和明亮的照片起同樣的作用。它是為線性光下的訓練準備"
-            "的：在那裡顯示曲線本來就讓暗像素推得更用力。"),
-    KO("색 오차 가중치(L1, L2, SSIM)에 sRGB로 잰 사진의 평균 밝기의 두 배를 곱"
-       "합니다. 어두운 사진도 밝은 사진만큼 힘을 냅니다. 선형 광에서 학습할 때"
-       "를 위한 것으로, 거기서는 표시 곡선 때문에 어두운 픽셀이 더 세게 밀어붙"
-       "입니다."),
-    DE("Skaliert die Gewichte des Farbfehlers (L1, L2 und SSIM) mit der "
-       "doppelten mittleren Helligkeit des Fotos, gemessen in sRGB, sodass eine "
-       "dunkle Aufnahme so viel zählt wie eine helle. Gedacht für das Training "
-       "in linearem Licht, wo die Anzeigekurve ein dunkles Pixel ohnehin stärker "
-       "drücken lässt."),
-    FR("Met les poids de l'erreur de couleur (L1, L2 et SSIM) à l'échelle du "
-       "double de la luminosité moyenne de la photo, mesurée en sRGB, pour qu'une "
-       "prise sombre compte autant qu'une prise claire. Prévu pour "
-       "l'entraînement en lumière linéaire, où la courbe d'affichage fait déjà "
-       "pousser un pixel sombre plus fort."),
-    ES("Escala los pesos del error de color (L1, L2 y SSIM) por el doble del "
-       "brillo medio de la foto, medido en sRGB, para que una toma oscura cuente "
-       "tanto como una clara. Está pensado para el entrenamiento en luz lineal, "
-       "donde la curva de pantalla ya hace que un píxel oscuro empuje más fuerte."),
-    PT("Escala os pesos do erro de cor (L1, L2 e SSIM) pelo dobro do brilho "
-       "médio da foto, medido em sRGB, para que uma captura escura conte tanto "
-       "quanto uma clara. Destina-se ao treino em luz linear, onde a curva de "
-       "exibição já faz um pixel escuro empurrar com mais força."),
-    IT("Scala i pesi dell'errore di colore (L1, L2 e SSIM) per il doppio della "
-       "luminosità media della foto, misurata in sRGB, così uno scatto scuro "
-       "conta quanto uno chiaro. È pensato per l'addestramento in luce lineare, "
-       "dove la curva di visualizzazione fa già spingere di più un pixel scuro."),
-    NL("Schaalt de gewichten van de kleurfout (L1, L2 en SSIM) met tweemaal de "
-       "gemiddelde helderheid van de foto, gemeten in sRGB, zodat een donkere "
-       "opname net zo zwaar telt als een lichte. Bedoeld voor training in "
-       "lineair licht, waar de weergavecurve een donkere pixel toch al harder "
+       "倍のこの値乗で割ります。0 では何もせず, 1 では暗い写真も明るい写真と同"
+       "じだけ効き, その間の値ではそれを弱めます。線形の光での学習を想定してい"
+       "ます。そこでは表示曲線のせいで暗い画素のほうが強く効いてしまいます。"),
+    ZH_HANS("把颜色误差的权重（L1、L2 和 SSIM）除以照片在 sRGB 下平均亮度两倍的"
+            "此值次幂：0 不做处理，1 让偏暗的照片和明亮的照片起同样的作用，中间"
+            "的值则减弱这种效果。它是为线性光下的训练准备的：在那里显示曲线本来"
+            "就让暗像素推得更用力。"),
+    ZH_HANT("把顏色誤差的權重（L1、L2 和 SSIM）除以照片在 sRGB 下平均亮度兩倍的"
+            "此值次冪：0 不做處理，1 讓偏暗的照片和明亮的照片起同樣的作用，中間"
+            "的值則減弱這種效果。它是為線性光下的訓練準備的：在那裡顯示曲線本來"
+            "就讓暗像素推得更用力。"),
+    KO("색 오차 가중치(L1, L2, SSIM)를 sRGB로 잰 사진의 평균 밝기의 두 배를 이 "
+       "값으로 거듭제곱한 수로 나눕니다. 0은 아무것도 하지 않고, 1은 어두운 사진"
+       "도 밝은 사진만큼 힘을 내게 하며, 그 사이 값은 이를 완화합니다. 선형 광에"
+       "서 학습할 때를 위한 것으로, 거기서는 표시 곡선 때문에 어두운 픽셀이 더 "
+       "세게 밀어붙입니다."),
+    DE("Teilt die Gewichte des Farbfehlers (L1, L2 und SSIM) durch die doppelte "
+       "mittlere Helligkeit des Fotos, gemessen in sRGB, hoch diesen Wert: 0 lässt "
+       "sie unverändert, 1 lässt eine dunkle Aufnahme so viel zählen wie eine "
+       "helle, Werte dazwischen mildern das. Gedacht für das Training in linearem "
+       "Licht, wo die Anzeigekurve ein dunkles Pixel ohnehin stärker drücken "
+       "lässt."),
+    FR("Divise les poids de l'erreur de couleur (L1, L2 et SSIM) par le double de "
+       "la luminosité moyenne de la photo, mesurée en sRGB, élevé à cette "
+       "puissance : 0 ne change rien, 1 fait compter une prise sombre autant "
+       "qu'une prise claire, et les valeurs intermédiaires adoucissent cela. Prévu "
+       "pour l'entraînement en lumière linéaire, où la courbe d'affichage fait "
+       "déjà pousser un pixel sombre plus fort."),
+    ES("Divide los pesos del error de color (L1, L2 y SSIM) por el doble del "
+       "brillo medio de la foto, medido en sRGB, elevado a esta potencia: 0 no "
+       "cambia nada, 1 hace que una toma oscura cuente tanto como una clara, y los "
+       "valores intermedios lo suavizan. Está pensado para el entrenamiento en luz "
+       "lineal, donde la curva de pantalla ya hace que un píxel oscuro empuje más "
+       "fuerte."),
+    PT("Divide os pesos do erro de cor (L1, L2 e SSIM) pelo dobro do brilho médio "
+       "da foto, medido em sRGB, elevado a esta potência: 0 não muda nada, 1 faz "
+       "uma captura escura contar tanto quanto uma clara, e valores intermédios "
+       "suavizam isso. Destina-se ao treino em luz linear, onde a curva de exibição "
+       "já faz um pixel escuro empurrar com mais força."),
+    IT("Divide i pesi dell'errore di colore (L1, L2 e SSIM) per il doppio della "
+       "luminosità media della foto, misurata in sRGB, elevato a questa potenza: 0 "
+       "non cambia nulla, 1 fa contare uno scatto scuro quanto uno chiaro, e i "
+       "valori intermedi lo attenuano. È pensato per l'addestramento in luce "
+       "lineare, dove la curva di visualizzazione fa già spingere di più un pixel "
+       "scuro."),
+    NL("Deelt de gewichten van de kleurfout (L1, L2 en SSIM) door tweemaal de "
+       "gemiddelde helderheid van de foto, gemeten in sRGB, tot deze macht "
+       "verheven: 0 verandert niets, 1 laat een donkere opname net zo zwaar tellen "
+       "als een lichte, en waarden ertussen verzachten dat. Bedoeld voor training "
+       "in lineair licht, waar de weergavecurve een donkere pixel toch al harder "
        "laat duwen."),
-    RU("Масштабирует веса ошибки цвета (L1, L2 и SSIM) на удвоенную среднюю "
-       "яркость снимка, измеренную в sRGB, чтобы тёмный кадр значил столько же, "
-       "сколько светлый. Предназначено для обучения в линейном свете, где кривая "
+    RU("Делит веса ошибки цвета (L1, L2 и SSIM) на удвоенную среднюю яркость "
+       "снимка, измеренную в sRGB, в этой степени: 0 ничего не меняет, 1 делает "
+       "тёмный кадр столь же весомым, как светлый, промежуточные значения "
+       "смягчают это. Предназначено для обучения в линейном свете, где кривая "
        "отображения и так заставляет тёмный пиксель давить сильнее."),
-    TR("Renk hatası ağırlıklarını, fotoğrafın sRGB'de ölçülen ortalama "
-       "parlaklığının iki katıyla ölçekler (L1, L2 ve SSIM); böylece karanlık bir "
-       "çekim aydınlık olan kadar sayılır. Doğrusal ışıkta eğitim için "
-       "düşünülmüştür; orada görüntüleme eğrisi karanlık pikseli zaten daha sert "
-       "ittirir."));
+    TR("Renk hatası ağırlıklarını (L1, L2 ve SSIM), fotoğrafın sRGB'de ölçülen "
+       "ortalama parlaklığının iki katının bu kuvvetine böler: 0 hiçbir şey "
+       "değiştirmez, 1 karanlık bir çekimi aydınlık olan kadar saydırır, aradaki "
+       "değerler bunu yumuşatır. Doğrusal ışıkta eğitim için düşünülmüştür; orada "
+       "görüntüleme eğrisi karanlık pikseli zaten daha sert ittirir."));
 
 
 // ===========================================================================
@@ -6600,6 +9190,90 @@ SS_MSG(opacity_reg_help,
     TR("Splat'ların saydamsızlığını yumuşakça düşürerek zayıf olanların daha "
        "çok gerekli olduğu yere geri dönüştürülmesini sağlar. Yüksek değerler "
        "daha atak geri dönüştürür."));
+
+SS_MSG(reg_rendered_only,
+    EN("Regularize rendered splats only"),
+    JA("描画されたスプラットだけを正則化"),
+    ZH_HANS("只正则化被渲染的泼溅"),
+    ZH_HANT("只正則化被算圖的潑濺"),
+    KO("렌더된 스플랫만 정규화"),
+    DE("Nur gerenderte Splats regularisieren"),
+    FR("Régulariser seulement les splats rendus"),
+    ES("Regularizar solo los splats renderizados"),
+    PT("Regularizar só os splats renderizados"),
+    IT("Regolarizzare solo gli splat renderizzati"),
+    NL("Alleen gerenderde splats regulariseren"),
+    RU("Регуляризовать только отрисованные сплаты"),
+    TR("Yalnızca işlenen splat'ları düzenlileştir"));
+SS_MSG(reg_rendered_only_help,
+    EN("Apply the per-splat regularizers (opacity, scale, shape) only to "
+       "splats that at least one camera rendered this step. Off, a splat "
+       "nobody renders still loses about one learning rate of opacity and "
+       "scale per step, which kills fresh splats in sparsely captured regions "
+       "before their first render."),
+    JA("スプラットごとの正則化（不透明度・大きさ・形）を、このステップで少なく"
+       "とも 1 台のカメラが描画したスプラットだけにかけます。オフにすると、ど"
+       "こからも描画されないスプラットも 1 ステップごとに学習率ほど不透明度と"
+       "大きさを失い、まばらにしか撮られていない領域の新しいスプラットが、最初"
+       "に描画される前に消えてしまいます。"),
+    ZH_HANS("只对本步至少被一台相机渲染的泼溅施加逐泼溅的正则项（不透明度、尺"
+            "寸、形状）。关闭时，没有被任何相机渲染的泼溅每步仍会损失约一个学"
+            "习率的不透明度和尺寸，使拍摄稀疏区域中的新泼溅在第一次被渲染之前"
+            "就消亡。"),
+    ZH_HANT("只對本步至少被一台相機算圖的潑濺施加逐潑濺的正則項（不透明度、尺"
+            "寸、形狀）。關閉時，沒有被任何相機算圖的潑濺每步仍會損失約一個學"
+            "習率的不透明度和尺寸，使拍攝稀疏區域中的新潑濺在第一次被算圖之前"
+            "就消亡。"),
+    KO("스플랫별 정규화(불투명도, 크기, 모양)를 이번 스텝에 적어도 한 카메라가"
+       " 렌더한 스플랫에만 적용합니다. 끄면 아무도 렌더하지 않는 스플랫도 스텝"
+       "마다 학습률 하나만큼 불투명도와 크기를 잃어, 드문드문 촬영된 영역의 새"
+       " 스플랫이 처음 렌더되기도 전에 사라집니다."),
+    DE("Die Regularisierer pro Splat (Deckkraft, Größe, Form) nur auf Splats "
+       "anwenden, die in diesem Schritt mindestens eine Kamera gerendert hat. "
+       "Aus verliert auch ein Splat, den niemand rendert, pro Schritt etwa "
+       "eine Lernrate an Deckkraft und Größe, was frische Splats in spärlich "
+       "erfassten Bereichen tötet, bevor sie zum ersten Mal gerendert werden."),
+    FR("N'appliquer les régularisations par splat (opacité, taille, forme) "
+       "qu'aux splats qu'au moins une caméra a rendus à cette étape. "
+       "Désactivé, un splat que personne ne rend perd quand même environ un "
+       "taux d'apprentissage d'opacité et de taille à chaque étape, ce qui "
+       "tue les nouveaux splats des zones peu couvertes avant leur premier "
+       "rendu."),
+    ES("Aplicar los regularizadores por splat (opacidad, tamaño, forma) solo "
+       "a los splats que al menos una cámara ha renderizado en este paso. "
+       "Desactivado, un splat que nadie renderiza pierde igualmente cerca de "
+       "una tasa de aprendizaje de opacidad y tamaño por paso, lo que mata "
+       "los splats nuevos de las zonas poco capturadas antes de su primer "
+       "renderizado."),
+    PT("Aplicar os regularizadores por splat (opacidade, tamanho, forma) "
+       "apenas aos splats que pelo menos uma câmera renderizou neste passo. "
+       "Desligado, um splat que ninguém renderiza ainda perde cerca de uma "
+       "taxa de aprendizado de opacidade e tamanho por passo, o que mata "
+       "splats novos em regiões pouco capturadas antes da primeira "
+       "renderização."),
+    IT("Applicare i regolarizzatori per splat (opacità, dimensione, forma) "
+       "solo agli splat che almeno una fotocamera ha renderizzato in questo "
+       "passo. Se disattivato, uno splat che nessuno renderizza perde "
+       "comunque circa un tasso di apprendimento di opacità e dimensione a "
+       "ogni passo, e questo uccide gli splat nuovi nelle zone poco riprese "
+       "prima del loro primo rendering."),
+    NL("De regularisaties per splat (dekking, grootte, vorm) alleen toepassen "
+       "op splats die in deze stap door minstens één camera zijn gerenderd. "
+       "Uit verliest ook een splat die niemand rendert per stap ongeveer één "
+       "leersnelheid aan dekking en grootte, wat verse splats in schaars "
+       "vastgelegde gebieden doodt vóór hun eerste render."),
+    RU("Применять посплатовые регуляризаторы (непрозрачность, размер, форма) "
+       "только к сплатам, которые на этом шаге отрисовала хотя бы одна "
+       "камера. Если выключено, сплат, который никто не отрисовывает, всё "
+       "равно теряет за шаг примерно одну скорость обучения непрозрачности и "
+       "размера, и это убивает новые сплаты в редко снятых областях до их "
+       "первой отрисовки."),
+    TR("Splat başına düzenlileştiricileri (saydamsızlık, boyut, biçim) "
+       "yalnızca bu adımda en az bir kameranın işlediği splat'lara uygular. "
+       "Kapalıyken hiçbir kameranın işlemediği bir splat da her adımda "
+       "yaklaşık bir öğrenme oranı kadar saydamsızlık ve boyut kaybeder; bu "
+       "da seyrek çekilmiş bölgelerdeki yeni splat'ları ilk işlenmelerinden "
+       "önce öldürür."));
 
 SS_MSG(scale_reg,
     EN("Size penalty"), JA("大きさのペナルティ"), ZH_HANS("尺寸惩罚"),
@@ -7878,6 +10552,80 @@ SS_MSG(ppisp_exposure_from_exif_help,
        "enstantane, diyafram ve ISO'dan, kümenin ortalamasına göre başlatır. Bu "
        "etiketleri olmayan fotoğraflar ortalamadan başlar. Pozlama çekim boyunca "
        "değişiyorsa yardımcı olur."));
+
+SS_MSG(ppisp_exposure_arithmetic_mean,
+    EN("Neutral exposure by average gain"), JA("平均の倍率で露出を中立に"),
+    ZH_HANS("按平均倍率保持曝光中性"), ZH_HANT("按平均倍率保持曝光中性"),
+    KO("평균 배율로 노출 중립"), DE("Neutrale Belichtung über mittleren Faktor"),
+    FR("Exposition neutre par gain moyen"),
+    ES("Exposición neutra por ganancia media"),
+    PT("Exposição neutra pelo ganho médio"),
+    IT("Esposizione neutra per guadagno medio"),
+    NL("Neutrale belichting via gemiddelde factor"),
+    RU("Нейтральная экспозиция по среднему множителю"),
+    TR("Ortalama çarpanla nötr pozlama"));
+SS_MSG(ppisp_exposure_arithmetic_mean_help,
+    EN("Center the per-photo exposure corrections so their brightness multipliers "
+       "average to 1, rather than their values in stops averaging to 0. Applies "
+       "to both the neutral exposure penalty and the EXIF start. When exposure "
+       "varies widely, this keeps the splats at the photos' average brightness "
+       "instead of darker."),
+    JA("写真ごとの露出補正を、段数での値の平均が 0 になるようにではなく、明るさ"
+       "の倍率の平均が 1 になるように中心を合わせます。露出を中立に保つ強さと "
+       "EXIF による露出の初期化の両方に適用されます。露出の差が大きいとき、スプ"
+       "ラットが暗くならず、写真の平均的な明るさに保たれます。"),
+    ZH_HANS("让逐张照片的曝光校正以亮度倍率的平均值为 1 为中心，而不是以档数"
+            "的平均值为 0。同时作用于保持曝光中性的强度和用 EXIF 初始化曝光。"
+            "曝光差异很大时，这会让泼溅保持在照片的平均亮度，而不是更暗。"),
+    ZH_HANT("讓逐張照片的曝光校正以亮度倍率的平均值為 1 為中心，而不是以檔數"
+            "的平均值為 0。同時作用於保持曝光中性的強度和用 EXIF 初始化曝光。"
+            "曝光差異很大時，這會讓潑濺保持在照片的平均亮度，而不是更暗。"),
+    KO("사진별 노출 보정을, 스톱 단위 값의 평균이 0이 되도록이 아니라 밝기 배율"
+       "의 평균이 1이 되도록 맞춥니다. 노출을 중립으로 유지하는 강도와 EXIF로 노"
+       "출 초기화에 모두 적용됩니다. 노출 차이가 클 때 스플랫이 더 어두워지지 않"
+       "고 사진의 평균 밝기에 맞춰집니다."),
+    DE("Die Belichtungskorrekturen pro Foto so zentrieren, dass ihre "
+       "Helligkeitsfaktoren im Mittel 1 ergeben, statt dass ihre Werte in "
+       "Blendenstufen im Mittel 0 ergeben. Gilt für die Strafe für nicht neutrale "
+       "Belichtung und den Belichtungsstart aus EXIF. Bei stark schwankender "
+       "Belichtung bleiben die Splats so bei der mittleren Helligkeit der Fotos "
+       "statt dunkler."),
+    FR("Centrer les corrections d'exposition par photo pour que leurs facteurs de "
+       "luminosité aient une moyenne de 1, plutôt que leurs valeurs en stops une "
+       "moyenne de 0. S'applique à la pénalité d'exposition non neutre et à "
+       "l'exposition initiale depuis l'EXIF. Quand l'exposition varie fortement, "
+       "les splats restent ainsi à la luminosité moyenne des photos au lieu "
+       "d'être plus sombres."),
+    ES("Centrar las correcciones de exposición por foto para que sus factores de "
+       "brillo promedien 1, en lugar de que sus valores en pasos promedien 0. Se "
+       "aplica a la penalización de exposición no neutra y a la exposición inicial "
+       "desde EXIF. Cuando la exposición varía mucho, así los splats quedan con el "
+       "brillo medio de las fotos en vez de más oscuros."),
+    PT("Centralizar as correções de exposição por foto para que seus fatores de "
+       "brilho tenham média 1, em vez de seus valores em stops terem média 0. Vale "
+       "para a penalidade de exposição não neutra e para a exposição inicial do "
+       "EXIF. Quando a exposição varia muito, os splats ficam assim no brilho "
+       "médio das fotos em vez de mais escuros."),
+    IT("Centrare le correzioni di esposizione di ogni foto in modo che i loro "
+       "fattori di luminosità abbiano media 1, invece che i loro valori in stop "
+       "abbiano media 0. Vale per la penalità di esposizione non neutra e per "
+       "l'esposizione iniziale da EXIF. Quando l'esposizione varia molto, gli "
+       "splat restano così alla luminosità media delle foto invece che più scuri."),
+    NL("De belichtingscorrecties per foto zo centreren dat hun helderheidsfactoren "
+       "gemiddeld 1 zijn, in plaats van dat hun waarden in stops gemiddeld 0 zijn. "
+       "Geldt voor de straf voor niet-neutrale belichting en voor het starten van "
+       "de belichting vanuit EXIF. Bij sterk wisselende belichting blijven de "
+       "splats zo op de gemiddelde helderheid van de foto's in plaats van donkerder."),
+    RU("Центрировать коррекции экспозиции каждого фото так, чтобы в среднем 1 "
+       "давали их множители яркости, а не 0 — их значения в ступенях. Действует и "
+       "на штраф за смещение экспозиции, и на начальную экспозицию из EXIF. При "
+       "сильно различающейся экспозиции сплаты так остаются на средней яркости "
+       "фотографий, а не темнее."),
+    TR("Fotoğraf başına pozlama düzeltmelerini, durak cinsinden değerlerinin "
+       "ortalaması 0 olacak şekilde değil, parlaklık çarpanlarının ortalaması 1 "
+       "olacak şekilde ortalar. Hem nötr olmayan pozlama cezasına hem de EXIF'ten "
+       "pozlama başlangıcına uygulanır. Pozlama çok değiştiğinde splat'lar böylece "
+       "daha karanlık kalmak yerine fotoğrafların ortalama parlaklığında kalır."));
 
 SS_MSG(apply_ppisp_before_bilagrid,
     EN("Camera correction first"), JA("カメラ補正を先に適用"),
@@ -9371,54 +12119,178 @@ SS_MSG(splat_color_gamut_help,
        "korur ama bunu anlayan bir görüntüleyici gerektirir. Hiçbir ton eşlemesi "
        "uygulanmaz."));
 
-SS_MSG(convert_initial_point_cloud_color,
-    EN("Convert seed point colors"), JA("初期点群の色を変換"),
-    ZH_HANS("转换初始点云颜色"), ZH_HANT("轉換初始點雲顏色"),
-    KO("초기 포인트 색 변환"), DE("Farben der Startpunktwolke umrechnen"),
-    FR("Convertir les couleurs du nuage initial"),
-    ES("Convertir los colores de la nube inicial"),
-    PT("Converter as cores da nuvem inicial"),
-    IT("Convertire i colori della nuvola iniziale"),
-    NL("Kleuren van de startpuntenwolk omzetten"),
-    RU("Преобразовать цвета исходного облака"),
-    TR("Başlangıç nokta bulutu renklerini dönüştür"));
-SS_MSG(convert_initial_point_cloud_color_help,
-    EN("Read the seed point cloud's colors as ordinary sRGB and convert them "
-       "into the training color space. Turn on when starting colors look wrong "
-       "in a linear or wide-gamut run."),
-    JA("初期点群の色を通常の sRGB として読み、学習に使う色空間へ変換します。リ"
-       "ニアや広色域の学習で最初の色がおかしいときにオンにしてください。"),
-    ZH_HANS("把初始点云的颜色当作普通 sRGB 读取，并转换到训练所用的色彩空间。"
-            "在线性或宽色域的训练中初始颜色不对时打开它。"),
-    ZH_HANT("把初始點雲的顏色當作普通 sRGB 讀取，並轉換到訓練所用的色彩空間。"
-            "在線性或廣色域的訓練中初始顏色不對時開啟它。"),
-    KO("초기 포인트 클라우드의 색을 일반 sRGB로 읽어 학습 색 공간으로 변환합니"
-       "다. 선형이나 광색역 학습에서 시작 색이 이상해 보이면 켜십시오."),
-    DE("Die Farben der Startpunktwolke als gewöhnliches sRGB lesen und in den "
-       "Trainingsfarbraum umrechnen. Einschalten, wenn die Anfangsfarben in einem "
-       "linearen oder weiten Farbraum falsch aussehen."),
-    FR("Lire les couleurs du nuage de points initial comme du sRGB ordinaire "
-       "et les convertir vers l'espace colorimétrique d'entraînement. À activer "
-       "quand les couleurs de départ semblent fausses dans un entraînement linéaire "
-       "ou à gamut large."),
-    ES("Leer los colores de la nube de puntos inicial como sRGB corriente y convertirlos "
-       "al espacio de color del entrenamiento. Actívelo cuando los colores de "
-       "partida se vean mal en una ejecución lineal o de gamut amplio."),
-    PT("Ler as cores da nuvem de pontos inicial como sRGB comum e convertê-las "
-       "para o espaço de cor do treinamento. Ative quando as cores iniciais parecerem "
-       "erradas numa execução linear ou de gamut amplo."),
-    IT("Leggere i colori della nuvola di punti iniziale come sRGB normale e convertirli "
-       "nello spazio colore dell'addestramento. Da attivare quando i colori di "
-       "partenza sembrano sbagliati in un'esecuzione lineare o a gamut ampio."),
-    NL("De kleuren van de startpuntenwolk als gewone sRGB lezen en omzetten naar "
-       "de trainingskleurruimte. Zet dit aan als de beginkleuren er in een lineaire "
-       "run of met breed gamut verkeerd uitzien."),
-    RU("Читать цвета исходного облака точек как обычный sRGB и переводить их "
-       "в цветовое пространство обучения. Включайте, когда стартовые цвета выглядят "
-       "неверно в линейном или широкоохватном запуске."),
-    TR("Başlangıç nokta bulutunun renklerini sıradan sRGB olarak okur ve eğitim "
-       "renk uzayına dönüştürür. Doğrusal ya da geniş gamutlu bir çalıştırmada "
-       "başlangıç renkleri yanlış görünüyorsa açın."));
+SS_MSG(point_color_is_linear,
+    EN("Seed point colors are linear"), JA("初期点群の色はリニア"),
+    ZH_HANS("初始点云颜色为线性"), ZH_HANT("初始點雲顏色為線性"),
+    KO("초기 포인트 색이 선형"), DE("Farben der Startpunkte sind linear"),
+    FR("Couleurs des points initiaux linéaires"),
+    ES("Los colores de los puntos iniciales son lineales"),
+    PT("As cores dos pontos iniciais são lineares"),
+    IT("I colori dei punti iniziali sono lineari"),
+    NL("Kleuren van de startpunten zijn lineair"),
+    RU("Цвета начальных точек линейные"),
+    TR("Başlangıç nokta renkleri doğrusal"));
+SS_MSG(point_color_is_linear_help,
+    EN("Whether the seed point cloud's colors are linear light rather than "
+       "display values. Leave unset to follow the input images, which is where "
+       "a reconstruction samples them. The seeds are converted into the splat "
+       "space wherever the two differ."),
+    JA("初期点群の色が表示値ではなくリニア光かどうか。未設定なら入力画像に合わ"
+       "せます。再構成はそこから色を取るためです。スプラットの空間と異なる部分"
+       "は、初期点をその空間へ変換します。"),
+    ZH_HANS("初始点云的颜色是否为线性光而不是显示值。不设置则跟随输入图像——重"
+            "建正是从那里取色的。凡与泼溅空间不同之处，初始点都会被转换过去。"),
+    ZH_HANT("初始點雲的顏色是否為線性光而不是顯示值。不設定則跟隨輸入影像——重"
+            "建正是從那裡取色的。凡與潑濺空間不同之處，初始點都會被轉換過去。"),
+    KO("초기 포인트 클라우드의 색이 디스플레이 값이 아니라 선형 광인지 여부입니"
+       "다. 설정하지 않으면 입력 이미지를 따릅니다. 재구성이 색을 가져오는 곳이 "
+       "거기이기 때문입니다. 스플랫 공간과 다른 부분은 그 공간으로 변환합니다."),
+    DE("Ob die Farben der Startpunktwolke lineares Licht statt Anzeigewerte "
+       "sind. Nicht gesetzt richtet es sich nach den Eingabebildern, aus denen "
+       "eine Rekonstruktion sie entnimmt. Wo beide Räume abweichen, werden die "
+       "Startpunkte in den Splat-Raum umgerechnet."),
+    FR("Indique si les couleurs du nuage de points initial sont de la lumière "
+       "linéaire plutôt que des valeurs d'affichage. Non défini, suit les images "
+       "d'entrée, d'où une reconstruction les tire. Partout où les deux espaces "
+       "diffèrent, les points initiaux sont convertis vers celui des splats."),
+    ES("Si los colores de la nube de puntos inicial son luz lineal en vez de "
+       "valores de pantalla. Sin definir, sigue a las imágenes de entrada, de "
+       "donde una reconstrucción los toma. Donde ambos espacios difieren, los "
+       "puntos iniciales se convierten al de los splats."),
+    PT("Se as cores da nuvem de pontos inicial são luz linear em vez de valores "
+       "de exibição. Sem definir, segue as imagens de entrada, de onde uma "
+       "reconstrução as tira. Onde os dois espaços diferem, os pontos iniciais "
+       "são convertidos para o dos splats."),
+    IT("Se i colori della nuvola di punti iniziale sono luce lineare anziché "
+       "valori di visualizzazione. Se non impostato, segue le immagini in "
+       "ingresso, da cui una ricostruzione li prende. Dove i due spazi "
+       "differiscono, i punti iniziali vengono convertiti in quello degli splat."),
+    NL("Of de kleuren van de startpuntenwolk lineair licht zijn in plaats van "
+       "weergavewaarden. Niet ingesteld volgt het de invoerbeelden, waaruit een "
+       "reconstructie ze haalt. Waar beide ruimtes verschillen, worden de "
+       "startpunten naar die van de splats omgezet."),
+    RU("Являются ли цвета исходного облака точек линейным светом, а не экранными "
+       "значениями. Без значения следует за входными изображениями, откуда их "
+       "берёт реконструкция. Где пространства различаются, начальные точки "
+       "переводятся в пространство сплатов."),
+    TR("Başlangıç nokta bulutunun renklerinin ekran değerleri yerine doğrusal "
+       "ışık olup olmadığı. Ayarlanmazsa, bir yeniden yapılandırmanın renkleri "
+       "aldığı girdi görüntülerini izler. İki uzayın farklı olduğu yerde "
+       "başlangıç noktaları splat uzayına dönüştürülür."));
+
+SS_MSG(point_color_transfer,
+    EN("Seed point tone curve"), JA("初期点群のトーンカーブ"),
+    ZH_HANS("初始点云色调曲线"), ZH_HANT("初始點雲色調曲線"),
+    KO("초기 포인트 톤 커브"), DE("Tonkurve der Startpunkte"),
+    FR("Courbe de tonalité des points initiaux"),
+    ES("Curva tonal de los puntos iniciales"),
+    PT("Curva tonal dos pontos iniciais"),
+    IT("Curva tonale dei punti iniziali"),
+    NL("Toonkromme van de startpunten"),
+    RU("Тоновая кривая начальных точек"),
+    TR("Başlangıç noktası ton eğrisi"));
+SS_MSG(point_color_transfer_help,
+    EN("The curve that turns the seed point cloud's colors into display values. "
+       "`none` uses the input's. Where it differs from the splats' curve, the "
+       "seeds are carried across through the display value, so they look the "
+       "same on screen."),
+    JA("初期点群の色を表示値に変えるカーブです。none は入力のものを使います。ス"
+       "プラットのカーブと異なる場合、初期点は表示値を経由して移され、画面上で"
+       "同じに見えます。"),
+    ZH_HANS("把初始点云颜色变为显示值的曲线。none 用输入的那条。与泼溅的曲线不"
+            "同时，初始点经由显示值换算过去，在屏幕上看起来一样。"),
+    ZH_HANT("把初始點雲顏色變為顯示值的曲線。none 用輸入的那條。與潑濺的曲線不"
+            "同時，初始點經由顯示值換算過去，在螢幕上看起來一樣。"),
+    KO("초기 포인트 클라우드의 색을 디스플레이 값으로 바꾸는 곡선입니다. none은 "
+       "입력의 것을 씁니다. 스플랫의 곡선과 다르면 초기 포인트를 디스플레이 값을 "
+       "거쳐 옮기므로 화면에서는 똑같이 보입니다."),
+    DE("Die Kurve, die die Farben der Startpunktwolke in Anzeigewerte "
+       "überführt. `none` nimmt die der Eingabe. Weicht sie von der Kurve der "
+       "Splats ab, werden die Startpunkte über den Anzeigewert übertragen und "
+       "sehen auf dem Bildschirm gleich aus."),
+    FR("La courbe qui transforme les couleurs du nuage de points initial en "
+       "valeurs d'affichage. « none » reprend celle de l'entrée. Si elle "
+       "diffère de celle des splats, les points initiaux passent par la valeur "
+       "d'affichage et restent identiques à l'écran."),
+    ES("La curva que convierte los colores de la nube de puntos inicial en "
+       "valores de pantalla. «none» usa la de la entrada. Si difiere de la de "
+       "los splats, los puntos iniciales pasan a través del valor de pantalla y "
+       "se ven igual."),
+    PT("A curva que transforma as cores da nuvem de pontos inicial em valores "
+       "de exibição. «none» usa a da entrada. Se diferir da dos splats, os "
+       "pontos iniciais passam pelo valor de exibição e ficam iguais no ecrã."),
+    IT("La curva che trasforma i colori della nuvola di punti iniziale in valori "
+       "di visualizzazione. «none» usa quella dell'ingresso. Se differisce da "
+       "quella degli splat, i punti iniziali passano per il valore di "
+       "visualizzazione e appaiono uguali a schermo."),
+    NL("De kromme die de kleuren van de startpuntenwolk in weergavewaarden "
+       "omzet. `none` neemt die van de invoer. Wijkt ze af van die van de "
+       "splats, dan gaan de startpunten via de weergavewaarde over en zien ze er "
+       "op het scherm hetzelfde uit."),
+    RU("Кривая, переводящая цвета исходного облака точек в экранные значения. "
+       "«none» берёт кривую входа. Если она отличается от кривой сплатов, "
+       "начальные точки переносятся через экранное значение и выглядят на "
+       "экране так же."),
+    TR("Başlangıç nokta bulutunun renklerini ekran değerlerine çeviren eğri. "
+       "`none` girdininkini kullanır. Splat'ların eğrisinden farklıysa "
+       "başlangıç noktaları ekran değeri üzerinden aktarılır ve ekranda aynı "
+       "görünür."));
+
+SS_MSG(point_color_gamut,
+    EN("Seed point color space"), JA("初期点群の色空間"),
+    ZH_HANS("初始点云色彩空间"), ZH_HANT("初始點雲色彩空間"),
+    KO("초기 포인트 색 공간"), DE("Farbraum der Startpunkte"),
+    FR("Espace colorimétrique des points initiaux"),
+    ES("Espacio de color de los puntos iniciales"),
+    PT("Espaço de cor dos pontos iniciais"),
+    IT("Spazio colore dei punti iniziali"),
+    NL("Kleurruimte van de startpunten"),
+    RU("Цветовое пространство начальных точек"),
+    TR("Başlangıç noktası renk uzayı"));
+SS_MSG(point_color_gamut_help,
+    EN("Color space of the seed point cloud's colors. Leave unset to follow the "
+       "input images. Set Rec.709 for a cloud left in plain sRGB, such as one "
+       "the built-in SfM wrote with its point colors in sRGB."),
+    JA("初期点群の色の色空間です。未設定なら入力画像に合わせます。内蔵 SfM が点"
+       "の色を sRGB で書いた場合など、素の sRGB のままの点群には Rec.709 を指定"
+       "してください。"),
+    ZH_HANS("初始点云颜色所在的色彩空间。不设置则跟随输入图像。点云保持普通 sRGB "
+            "时（例如内置 SfM 以 sRGB 写出点颜色）请设为 Rec.709。"),
+    ZH_HANT("初始點雲顏色所在的色彩空間。不設定則跟隨輸入影像。點雲保持普通 sRGB "
+            "時（例如內建 SfM 以 sRGB 寫出點顏色）請設為 Rec.709。"),
+    KO("초기 포인트 클라우드 색의 색 공간입니다. 설정하지 않으면 입력 이미지를 "
+       "따릅니다. 내장 SfM이 점 색을 sRGB로 쓴 경우처럼 일반 sRGB로 남은 점 "
+       "구름이라면 Rec.709로 설정하십시오."),
+    DE("Farbraum der Farben der Startpunktwolke. Nicht gesetzt richtet es sich "
+       "nach den Eingabebildern. Rec.709 für eine Wolke in schlichtem sRGB, etwa "
+       "eine, deren Punktfarben das eingebaute SfM in sRGB geschrieben hat."),
+    FR("Espace colorimétrique des couleurs du nuage de points initial. Non "
+       "défini, suit les images d'entrée. Choisir Rec.709 pour un nuage resté "
+       "en sRGB simple, comme celui dont la SfM intégrée a écrit les couleurs "
+       "en sRGB."),
+    ES("Espacio de color de los colores de la nube de puntos inicial. Sin "
+       "definir, sigue a las imágenes de entrada. Elija Rec.709 para una nube "
+       "que quedó en sRGB simple, como una cuyos colores escribió en sRGB la "
+       "SfM integrada."),
+    PT("Espaço de cor das cores da nuvem de pontos inicial. Sem definir, segue "
+       "as imagens de entrada. Escolha Rec.709 para uma nuvem que ficou em sRGB "
+       "simples, como uma cujas cores o SfM integrado escreveu em sRGB."),
+    IT("Spazio colore dei colori della nuvola di punti iniziale. Se non "
+       "impostato, segue le immagini in ingresso. Scegliere Rec.709 per una "
+       "nuvola rimasta in sRGB semplice, come una i cui colori la SfM integrata "
+       "ha scritto in sRGB."),
+    NL("Kleurruimte van de kleuren van de startpuntenwolk. Niet ingesteld volgt "
+       "het de invoerbeelden. Kies Rec.709 voor een wolk die in gewoon sRGB is "
+       "gebleven, zoals een waarvan de ingebouwde SfM de kleuren in sRGB "
+       "schreef."),
+    RU("Цветовое пространство цветов исходного облака точек. Если не задано, "
+       "следует за входными изображениями. Выберите Rec.709 для облака, "
+       "оставшегося в обычном sRGB, например такого, чьи цвета встроенный SfM "
+       "записал в sRGB."),
+    TR("Başlangıç nokta bulutu renklerinin renk uzayı. Ayarlanmazsa girdi "
+       "görüntülerini izler. Sade sRGB'de kalmış bir bulut için, örneğin nokta "
+       "renklerini yerleşik SfM'in sRGB olarak yazdığı bir bulut için Rec.709 "
+       "seçin."));
 
 
 // ===========================================================================
@@ -9539,6 +12411,336 @@ SS_MSG(max_batch_per_epoch_help,
        "düşürmek bir adıma daha çok görüntü toplar, bu daha durağandır ama yavaştır "
        "ve daha çok bellek ister. Bundan küçük veri kümeleri adım başına tek "
        "görüntü kullanır."));
+
+SS_MSG(min_renders_per_refine,
+    EN("Min renders per round"),
+    JA("ラウンドあたりの最小描画回数"),
+    ZH_HANS("每轮最少渲染次数"),
+    ZH_HANT("每輪最少算圖次數"),
+    KO("회차당 최소 렌더 횟수"),
+    DE("Mindestzahl Renderings pro Runde"),
+    FR("Rendus minimaux par cycle"),
+    ES("Renderizados mínimos por ronda"),
+    PT("Renderizações mínimas por rodada"),
+    IT("Rendering minimi per ciclo"),
+    NL("Minimaal aantal renders per ronde"),
+    RU("Мин. отрисовок за раунд"),
+    TR("Tur başına en az işlenme"));
+SS_MSG(min_renders_per_refine_help,
+    EN("Choose the images per step so that a poorly seen splat (at the render "
+       "quantile) is still rendered at least this many times between two "
+       "refinement rounds, estimated from the seed points and the camera "
+       "frusta. 0 keeps the steps-per-pass rule instead."),
+    JA("見えにくいスプラット（描画分位点にあるもの）でも、2 回のラウンドの間に"
+       "少なくともこの回数は描画されるよう、1 ステップの画像枚数を選びます。見"
+       "積もりには初期点とカメラの視錐台を使います。0 にすると、代わりに 1 巡"
+       "あたりのステップ数の規則を使います。"),
+    ZH_HANS("选择每步的图像数，使难以看到的泼溅（处于渲染分位数处）在两轮细化"
+            "之间仍至少被渲染这么多次；这一估计基于初始点和相机视锥。0 则改用"
+            "每轮数据步数的规则。"),
+    ZH_HANT("選擇每步的影像數，使難以看到的潑濺（處於算圖分位數處）在兩輪細化"
+            "之間仍至少被算圖這麼多次；這一估計基於初始點和相機視錐。0 則改用"
+            "每輪資料步數的規則。"),
+    KO("잘 보이지 않는 스플랫(렌더 분위수에 해당하는 것)도 두 정제 회차 사이에"
+       " 적어도 이 횟수만큼 렌더되도록 스텝당 이미지 수를 고릅니다. 초기 점과 "
+       "카메라 절두체로 추정합니다. 0이면 대신 한 바퀴당 스텝 수 규칙을 따릅니"
+       "다."),
+    DE("Die Bilder pro Schritt so wählen, dass auch ein schlecht gesehener "
+       "Splat (am Render-Quantil) zwischen zwei Verfeinerungsrunden "
+       "mindestens so oft gerendert wird; geschätzt aus den Startpunkten und "
+       "den Kamerafrusta. 0 behält stattdessen die Regel der Schritte pro "
+       "Durchlauf."),
+    FR("Choisir le nombre d'images par étape pour qu'un splat peu vu (au "
+       "quantile de rendu) soit tout de même rendu au moins ce nombre de fois "
+       "entre deux cycles de raffinement, d'après une estimation tirée des "
+       "points initiaux et des frustums des caméras. 0 garde plutôt la règle "
+       "des étapes par passage."),
+    ES("Elegir las imágenes por paso para que un splat poco visto (en el "
+       "cuantil de renderizado) se renderice aun así al menos este número de "
+       "veces entre dos rondas de refinamiento, según una estimación a partir "
+       "de los puntos iniciales y los frustums de las cámaras. 0 mantiene en "
+       "su lugar la regla de pasos por pasada."),
+    PT("Escolher as imagens por passo para que um splat pouco visto (no "
+       "quantil de renderização) ainda seja renderizado pelo menos este "
+       "número de vezes entre duas rodadas de refinamento, estimado a partir "
+       "dos pontos iniciais e dos frustums das câmeras. 0 mantém em vez disso "
+       "a regra de passos por passagem."),
+    IT("Scegliere le immagini per passo in modo che uno splat poco visto (al "
+       "quantile di rendering) venga comunque renderizzato almeno questo "
+       "numero di volte tra due cicli di raffinamento, stimato dai punti "
+       "iniziali e dai frustum delle fotocamere. 0 mantiene invece la regola "
+       "dei passi per passaggio."),
+    NL("Het aantal beelden per stap zo kiezen dat ook een slecht geziene "
+       "splat (op het renderkwantiel) tussen twee verfijningsrondes nog "
+       "minstens zo vaak wordt gerenderd, geschat uit de startpunten en de "
+       "camerafrusta. 0 houdt in plaats daarvan de regel van stappen per "
+       "doorloop aan."),
+    RU("Подбирать число изображений на шаг так, чтобы даже плохо видимый "
+       "сплат (на квантиле отрисовок) отрисовывался между двумя раундами "
+       "уточнения не меньше этого числа раз; оценка строится по начальным "
+       "точкам и пирамидам видимости камер. 0 оставляет вместо этого правило "
+       "шагов за проход."),
+    TR("Adım başına görüntü sayısını, az görülen bir splat (işlenme "
+       "yüzdeliğindeki) bile iki iyileştirme turu arasında en az bu kadar kez "
+       "işlenecek şekilde seçer; tahmin başlangıç noktalarından ve kamera "
+       "görüş hacimlerinden yapılır. 0 bunun yerine geçiş başına adım "
+       "kuralını korur."));
+
+SS_MSG(render_quantile,
+    EN("Render quantile"),
+    JA("描画の分位点"),
+    ZH_HANS("渲染分位数"),
+    ZH_HANT("算圖分位數"),
+    KO("렌더 분위수"),
+    DE("Render-Quantil"),
+    FR("Quantile de rendu"),
+    ES("Cuantil de renderizado"),
+    PT("Quantil de renderização"),
+    IT("Quantile di rendering"),
+    NL("Renderkwantiel"),
+    RU("Квантиль отрисовок"),
+    TR("İşlenme yüzdeliği"));
+SS_MSG(render_quantile_help,
+    EN("Which splat min_renders_per_refine protects: 0.1 is the splat seen by "
+       "fewer cameras than 90% of the others."),
+    JA("min_renders_per_refine がどのスプラットを守るかです。0.1 は、ほかの "
+       "90% よりも少ないカメラにしか見えないスプラットです。"),
+    ZH_HANS("min_renders_per_refine 保护哪个泼溅：0.1 指看到它的相机数少于其余"
+            " 90% 泼溅的那个泼溅。"),
+    ZH_HANT("min_renders_per_refine 保護哪個潑濺：0.1 指看到它的相機數少於其餘"
+            " 90% 潑濺的那個潑濺。"),
+    KO("min_renders_per_refine가 어느 스플랫을 보호할지입니다. 0.1은 나머지 "
+       "90%보다 적은 카메라에 보이는 스플랫입니다."),
+    DE("Welchen Splat min_renders_per_refine schützt: 0.1 ist der Splat, den "
+       "weniger Kameras sehen als 90 % der übrigen."),
+    FR("Le splat que protège min_renders_per_refine : 0.1 est celui que "
+       "voient moins de caméras que 90 % des autres."),
+    ES("Qué splat protege min_renders_per_refine: 0.1 es el que ven menos "
+       "cámaras que al 90 % de los demás."),
+    PT("Qual splat min_renders_per_refine protege: 0.1 é o splat visto por "
+       "menos câmeras que 90% dos outros."),
+    IT("Quale splat protegge min_renders_per_refine: 0.1 è lo splat visto da "
+       "meno fotocamere del 90% degli altri."),
+    NL("Welke splat min_renders_per_refine beschermt: 0.1 is de splat die "
+       "door minder camera's wordt gezien dan 90% van de andere."),
+    RU("Какой сплат защищает min_renders_per_refine: 0.1 — сплат, который "
+       "видят меньше камер, чем 90% остальных."),
+    TR("min_renders_per_refine'ın hangi splat'ı koruduğu: 0.1, diğerlerinin "
+       "%90'ından daha az kameranın gördüğü splat'tır."));
+
+SS_MSG(max_train_batch_size,
+    EN("Max images per step"),
+    JA("1 ステップの最大画像数"),
+    ZH_HANS("每步最多图像数"),
+    ZH_HANT("每步最多影像數"),
+    KO("스텝당 최대 이미지 수"),
+    DE("Max. Bilder pro Schritt"),
+    FR("Images max. par étape"),
+    ES("Máx. de imágenes por paso"),
+    PT("Máx. de imagens por passo"),
+    IT("Immagini max per passo"),
+    NL("Max. beelden per stap"),
+    RU("Макс. изображений на шаг"),
+    TR("Adım başına en fazla görüntü"));
+SS_MSG(max_train_batch_size_help,
+    EN("Upper bound on the images one step may use under "
+       "min_renders_per_refine, which is what bounds its memory and time."),
+    JA("min_renders_per_refine のもとで 1 ステップが使える画像枚数の上限で、こ"
+       "れがステップのメモリと時間を抑えます。"),
+    ZH_HANS("在 min_renders_per_refine 下每步可使用的图像数上限，每步的内存和"
+            "时间也由它限定。"),
+    ZH_HANT("在 min_renders_per_refine 下每步可使用的影像數上限，每步的記憶體"
+            "和時間也由它限定。"),
+    KO("min_renders_per_refine 아래에서 한 스텝이 쓸 수 있는 이미지 수의 상한"
+       "으로, 이것이 스텝의 메모리와 시간을 제한합니다."),
+    DE("Obergrenze für die Bilder, die ein Schritt unter "
+       "min_renders_per_refine nutzen darf; sie begrenzt seinen Speicher und "
+       "seine Zeit."),
+    FR("Plafond d'images qu'une étape peut utiliser sous "
+       "min_renders_per_refine ; c'est ce qui borne sa mémoire et son temps."),
+    ES("Límite de imágenes que un paso puede usar con min_renders_per_refine; "
+       "es lo que acota su memoria y su tiempo."),
+    PT("Limite de imagens que um passo pode usar sob min_renders_per_refine; "
+       "é o que limita sua memória e seu tempo."),
+    IT("Limite alle immagini che un passo può usare con "
+       "min_renders_per_refine; è ciò che ne limita memoria e tempo."),
+    NL("Bovengrens voor de beelden die één stap onder min_renders_per_refine "
+       "mag gebruiken; die begrenst het geheugen en de tijd van de stap."),
+    RU("Верхняя граница числа изображений, которое шаг может взять при "
+       "min_renders_per_refine; именно она ограничивает его память и время."),
+    TR("min_renders_per_refine altında bir adımın kullanabileceği görüntü "
+       "sayısının üst sınırı; adımın belleğini ve süresini sınırlayan budur."));
+
+SS_MSG(view_sampling,
+    EN("View sampling"),
+    JA("視点のサンプリング"),
+    ZH_HANS("视角采样"),
+    ZH_HANT("視角取樣"),
+    KO("시점 샘플링"),
+    DE("Ansichtsauswahl"),
+    FR("Échantillonnage des vues"),
+    ES("Muestreo de vistas"),
+    PT("Amostragem de vistas"),
+    IT("Campionamento delle viste"),
+    NL("Selectie van aanzichten"),
+    RU("Выбор ракурсов"),
+    TR("Görünüm örnekleme"));
+SS_MSG(view_sampling_help,
+    EN("`uniform` visits every training image once per pass. `deficit` draws "
+       "images in proportion to how under-rendered the splats they show are, "
+       "measured from the splats each image actually contributed to last "
+       "time, so sparsely covered regions come up more often."),
+    JA("`uniform` は 1 巡ごとにすべての学習画像を 1 回ずつ使います。`deficit` "
+       "は、写っているスプラットの描画がどれだけ足りていないかに比例して画像を"
+       "選びます。不足の度合いは各画像が前回実際に寄与したスプラットから測るの"
+       "で、まばらにしか写っていない領域がより頻繁に選ばれます。"),
+    ZH_HANS("`uniform` 每遍数据把每张训练图像各用一次。`deficit` 按图像中泼溅"
+            "的渲染不足程度成比例地抽取图像，不足程度根据每张图像上一次实际贡"
+            "献过的泼溅来衡量，因此覆盖稀疏的区域会更常出现。"),
+    ZH_HANT("`uniform` 每遍資料把每張訓練影像各用一次。`deficit` 按影像中潑濺"
+            "的算圖不足程度成比例地抽取影像，不足程度根據每張影像上一次實際貢"
+            "獻過的潑濺來衡量，因此覆蓋稀疏的區域會更常出現。"),
+    KO("`uniform`은 한 바퀴마다 모든 학습 이미지를 한 번씩 씁니다. `deficit`은"
+       " 이미지에 보이는 스플랫이 얼마나 덜 렌더되었는지에 비례해 이미지를 뽑"
+       "으며, 이는 각 이미지가 지난번 실제로 기여한 스플랫으로 측정합니다. 그"
+       "래서 드문드문 담긴 영역이 더 자주 나옵니다."),
+    DE("`uniform` nutzt in jedem Durchlauf jedes Trainingsbild einmal. "
+       "`deficit` zieht Bilder im Verhältnis dazu, wie wenig die darauf "
+       "sichtbaren Splats gerendert wurden, gemessen an den Splats, zu denen "
+       "jedes Bild beim letzten Mal tatsächlich beigetragen hat; so kommen "
+       "spärlich erfasste Bereiche öfter an die Reihe."),
+    FR("`uniform` utilise chaque image d'entraînement une fois par passage. "
+       "`deficit` tire les images en proportion du manque de rendu des splats "
+       "qu'elles montrent, mesuré sur les splats auxquels chaque image a "
+       "réellement contribué la dernière fois, si bien que les zones peu "
+       "couvertes reviennent plus souvent."),
+    ES("`uniform` usa cada imagen de entrenamiento una vez por pasada. "
+       "`deficit` elige las imágenes en proporción a lo poco renderizados que "
+       "están los splats que muestran, medido a partir de los splats a los "
+       "que cada imagen contribuyó realmente la última vez, de modo que las "
+       "zonas poco cubiertas salen más a menudo."),
+    PT("`uniform` usa cada imagem de treino uma vez por passagem. `deficit` "
+       "sorteia imagens em proporção a quão pouco renderizados estão os "
+       "splats que elas mostram, medido pelos splats para os quais cada "
+       "imagem de fato contribuiu da última vez, de modo que regiões pouco "
+       "cobertas aparecem com mais frequência."),
+    IT("`uniform` usa ogni immagine di addestramento una volta per passaggio. "
+       "`deficit` estrae le immagini in proporzione a quanto sono poco "
+       "renderizzati gli splat che mostrano, misurato sugli splat a cui ogni "
+       "immagine ha davvero contribuito l'ultima volta, così le zone poco "
+       "coperte tornano più spesso."),
+    NL("`uniform` gebruikt elk trainingsbeeld één keer per doorloop. "
+       "`deficit` trekt beelden naar rato van hoe weinig de splats die ze "
+       "tonen zijn gerenderd, gemeten aan de splats waaraan elk beeld de "
+       "vorige keer werkelijk heeft bijgedragen, zodat schaars bedekte "
+       "gebieden vaker aan bod komen."),
+    RU("`uniform` берёт каждое обучающее изображение по разу за проход. "
+       "`deficit` выбирает изображения пропорционально тому, насколько "
+       "недоотрисованы видимые на них сплаты (по сплатам, в которые каждое "
+       "изображение реально внесло вклад в прошлый раз), поэтому редко "
+       "покрытые области попадаются чаще."),
+    TR("`uniform` her geçişte her eğitim görüntüsünü bir kez kullanır. "
+       "`deficit` görüntüleri, gösterdikleri splat'ların ne kadar az "
+       "işlendiğiyle orantılı seçer; bu, her görüntünün geçen sefer gerçekten "
+       "katkıda bulunduğu splat'lardan ölçülür, böylece seyrek kapsanan "
+       "bölgeler daha sık gelir."));
+
+SS_MSG(view_deficit_power,
+    EN("View deficit power"),
+    JA("視点不足の指数"),
+    ZH_HANS("视角不足指数"),
+    ZH_HANT("視角不足指數"),
+    KO("시점 부족 지수"),
+    DE("Exponent des Ansichtsdefizits"),
+    FR("Exposant du déficit de vues"),
+    ES("Exponente del déficit de vistas"),
+    PT("Expoente do déficit de vistas"),
+    IT("Esponente del deficit di viste"),
+    NL("Exponent van het aanzichttekort"),
+    RU("Степень дефицита ракурсов"),
+    TR("Görünüm açığı üssü"));
+SS_MSG(view_deficit_power_help,
+    EN("Exponent on the deficit ratio under `deficit` view sampling: 1 draws "
+       "an image in inverse proportion to its splats' render count, 0.5 "
+       "halves that pull."),
+    JA("`deficit` の視点サンプリングで、不足の比にかける指数です。1 なら画像を"
+       "、写っているスプラットの描画回数に反比例して選び、0.5 ならその引き寄せ"
+       "が半分になります。"),
+    ZH_HANS("在 `deficit` 视角采样下作用于不足比例的指数：1 按图像中泼溅渲染次"
+            "数的反比抽取图像，0.5 则让这股拉力减半。"),
+    ZH_HANT("在 `deficit` 視角取樣下作用於不足比例的指數：1 按影像中潑濺算圖次"
+            "數的反比抽取影像，0.5 則讓這股拉力減半。"),
+    KO("`deficit` 시점 샘플링에서 부족 비율에 거는 지수입니다. 1이면 이미지를 "
+       "그 스플랫들의 렌더 횟수에 반비례해 뽑고, 0.5면 그 끌림이 절반이 됩니다"
+       "."),
+    DE("Exponent auf das Defizitverhältnis bei der Ansichtsauswahl `deficit`: "
+       "1 zieht ein Bild umgekehrt proportional zur Renderzahl seiner Splats, "
+       "0.5 halbiert diesen Sog."),
+    FR("Exposant appliqué au rapport de déficit avec l'échantillonnage "
+       "`deficit` : 1 tire une image en proportion inverse du nombre de "
+       "rendus de ses splats, 0.5 réduit cette attraction de moitié."),
+    ES("Exponente sobre la razón de déficit con el muestreo `deficit`: 1 "
+       "elige una imagen en proporción inversa al número de renderizados de "
+       "sus splats, 0.5 reduce ese tirón a la mitad."),
+    PT("Expoente sobre a razão de déficit com a amostragem `deficit`: 1 "
+       "sorteia uma imagem em proporção inversa ao número de renderizações de "
+       "seus splats, 0.5 reduz essa atração à metade."),
+    IT("Esponente sul rapporto di deficit con il campionamento `deficit`: 1 "
+       "estrae un'immagine in proporzione inversa al numero di rendering dei "
+       "suoi splat, 0.5 dimezza questa spinta."),
+    NL("Exponent op de tekortverhouding bij selectie `deficit`: 1 trekt een "
+       "beeld omgekeerd evenredig met het aantal renders van zijn splats, 0.5 "
+       "halveert die trekkracht."),
+    RU("Показатель степени для отношения дефицита при выборе ракурсов "
+       "`deficit`: 1 выбирает изображение обратно пропорционально числу "
+       "отрисовок его сплатов, 0.5 вдвое ослабляет это притяжение."),
+    TR("`deficit` görünüm örneklemesinde açık oranına uygulanan üs: 1, bir "
+       "görüntüyü splat'larının işlenme sayısıyla ters orantılı seçer; 0.5 bu "
+       "çekimi yarıya indirir."));
+
+SS_MSG(view_deficit_max_ratio,
+    EN("View deficit max ratio"),
+    JA("視点不足の最大比"),
+    ZH_HANS("视角不足最大比"),
+    ZH_HANT("視角不足最大比"),
+    KO("시점 부족 최대 비율"),
+    DE("Max. Verhältnis des Ansichtsdefizits"),
+    FR("Rapport max. du déficit de vues"),
+    ES("Razón máx. del déficit de vistas"),
+    PT("Razão máx. do déficit de vistas"),
+    IT("Rapporto max del deficit di viste"),
+    NL("Max. verhouding van het aanzichttekort"),
+    RU("Макс. отношение дефицита ракурсов"),
+    TR("Görünüm açığı en büyük oranı"));
+SS_MSG(view_deficit_max_ratio_help,
+    EN("No image is drawn more than this many times as often, or this many "
+       "times less often, than the median image under `deficit` view sampling."),
+    JA("`deficit` の視点サンプリングでは、どの画像も中央値の画像と比べて、この"
+       "倍率を超えて多く、または少なく選ばれることはありません。"),
+    ZH_HANS("在 `deficit` 视角采样下，任何图像被抽中的频率，与中位图像相比都不"
+            "会高出或低于这个倍数以上。"),
+    ZH_HANT("在 `deficit` 視角取樣下，任何影像被抽中的頻率，與中位影像相比都不"
+            "會高出或低於這個倍數以上。"),
+    KO("`deficit` 시점 샘플링에서 어떤 이미지도 중앙값 이미지보다 이 배수를 넘"
+       "게 더 자주, 또는 더 드물게 뽑히지 않습니다."),
+    DE("Bei der Ansichtsauswahl `deficit` wird kein Bild mehr als so viele "
+       "Male häufiger oder seltener gezogen als das Medianbild."),
+    FR("Avec l'échantillonnage `deficit`, aucune image n'est tirée plus de ce "
+       "nombre de fois plus souvent, ou moins souvent, que l'image médiane."),
+    ES("Con el muestreo `deficit`, ninguna imagen sale más de este número de "
+       "veces más a menudo, ni menos a menudo, que la imagen mediana."),
+    PT("Com a amostragem `deficit`, nenhuma imagem é sorteada mais do que "
+       "este número de vezes mais, ou menos, frequentemente que a imagem "
+       "mediana."),
+    IT("Con il campionamento `deficit`, nessuna immagine viene estratta più "
+       "di questo numero di volte più spesso, o meno spesso, dell'immagine "
+       "mediana."),
+    NL("Bij selectie `deficit` wordt geen beeld meer dan zoveel keer vaker, "
+       "of zoveel keer minder vaak, getrokken dan het mediane beeld."),
+    RU("При выборе ракурсов `deficit` ни одно изображение не выбирается чаще "
+       "или реже медианного больше чем во столько раз."),
+    TR("`deficit` görünüm örneklemesinde hiçbir görüntü, medyan görüntüden bu "
+       "kattan daha sık ya da daha seyrek seçilmez."));
 
 SS_MSG(split_batch,
     EN("One image at a time"), JA("画像を 1 枚ずつ処理"),
@@ -9786,47 +12988,60 @@ SS_MSG(quantization_level,
     NL("Precisie van de kleuropslag"), RU("Точность хранения цвета"),
     TR("Renk saklama duyarlığı"));
 SS_MSG(quantization_level_help,
-    EN("How compactly splat colors are stored during training. 1 roughly halves "
-       "the memory spent on view-dependent color with little visible difference; "
-       "0 keeps full precision."),
-    JA("学習中にスプラットの色をどれだけコンパクトに保存するかです。1 なら視点"
-       "依存の色に使うメモリがおおよそ半分になり、見た目の違いはほとんどありま"
-       "せん。0 なら完全な精度を保ちます。"),
-    ZH_HANS("训练期间泼溅颜色存储得有多紧凑。1 大致把视角相关颜色占用的内存减"
-            "半，肉眼几乎看不出差别；0 则保持完整精度。"),
-    ZH_HANT("訓練期間潑濺顏色儲存得有多緊湊。1 大致把視角相關顏色佔用的記憶體"
-            "減半，肉眼幾乎看不出差別；0 則保持完整精度。"),
-    KO("학습 중 스플랫 색을 얼마나 압축해 저장할지입니다. 1이면 시점 의존 색에"
-       " 쓰는 메모리가 대략 절반이 되고 눈에 띄는 차이는 거의 없습니다. 0이면"
-       " 완전한 정밀도를 유지합니다."),
-    DE("Wie kompakt Splatfarben während des Trainings gespeichert werden. 1 halbiert "
-       "den Speicher für blickabhängige Farbe ungefähr, bei kaum sichtbarem Unterschied; "
-       "0 behält volle Genauigkeit."),
-    FR("À quel point les couleurs des splats sont stockées de façon compacte "
-       "pendant l'entraînement. 1 divise à peu près par deux la mémoire consacrée "
-       "à la couleur dépendante de la vue, sans différence visible ; 0 conserve "
-       "la pleine précision."),
-    ES("Con cuánta compacidad se almacenan los colores de los splats durante "
-       "el entrenamiento. 1 reduce a la mitad, más o menos, la memoria dedicada "
-       "al color dependiente de la vista, con poca diferencia visible; 0 conserva "
-       "la precisión completa."),
-    PT("Com quanta compactação as cores dos splats são armazenadas durante o "
-       "treinamento. 1 reduz pela metade, mais ou menos, a memória gasta com "
-       "a cor dependente da vista, com pouca diferença visível; 0 mantém a precisão "
-       "total."),
-    IT("Con quanta compattezza vengono memorizzati i colori degli splat durante "
+    EN("How compactly colors are stored during training. 1 roughly halves the "
+       "memory spent on view-dependent color, and keeps the full-size images "
+       "between rendering and the loss at half precision, with little visible "
+       "difference; 0 keeps full precision."),
+    JA("学習中に色をどれだけコンパクトに保存するかです。1 なら視点依存の色に使う"
+       "メモリがおおよそ半分になり、描画から損失までのフルサイズ画像も半精度で"
+       "保持しますが、見た目の違いはほとんどありません。0 なら完全な精度を保ち"
+       "ます。"),
+    ZH_HANS("训练期间颜色存储得有多紧凑。1 大致把视角相关颜色占用的内存减半，"
+            "并以半精度保存从渲染到损失之间的全尺寸图像，肉眼几乎看不出差别；"
+            "0 则保持完整精度。"),
+    ZH_HANT("訓練期間顏色儲存得有多緊湊。1 大致把視角相關顏色佔用的記憶體減半，"
+            "並以半精度保存從渲染到損失之間的全尺寸圖像，肉眼幾乎看不出差別；"
+            "0 則保持完整精度。"),
+    KO("학습 중 색을 얼마나 압축해 저장할지입니다. 1이면 시점 의존 색에 쓰는"
+       " 메모리가 대략 절반이 되고, 렌더링부터 손실까지의 전체 크기 이미지를"
+       " 반정밀도로 유지하며, 눈에 띄는 차이는 거의 없습니다. 0이면 완전한"
+       " 정밀도를 유지합니다."),
+    DE("Wie kompakt Farben während des Trainings gespeichert werden. 1 halbiert "
+       "den Speicher für blickabhängige Farbe ungefähr und hält die Bilder in "
+       "voller Größe zwischen Rendern und Loss in halber Genauigkeit, bei kaum "
+       "sichtbarem Unterschied; 0 behält volle Genauigkeit."),
+    FR("À quel point les couleurs sont stockées de façon compacte pendant "
+       "l'entraînement. 1 divise à peu près par deux la mémoire consacrée à la "
+       "couleur dépendante de la vue et garde en demi-précision les images en "
+       "pleine taille entre le rendu et la perte, sans différence visible ; 0 "
+       "conserve la pleine précision."),
+    ES("Con cuánta compacidad se almacenan los colores durante el "
+       "entrenamiento. 1 reduce a la mitad, más o menos, la memoria dedicada al "
+       "color dependiente de la vista y guarda en media precisión las imágenes "
+       "a tamaño completo entre el renderizado y la pérdida, con poca diferencia "
+       "visible; 0 conserva la precisión completa."),
+    PT("Com quanta compactação as cores são armazenadas durante o treinamento. "
+       "1 reduz pela metade, mais ou menos, a memória gasta com a cor dependente "
+       "da vista e mantém em meia precisão as imagens em tamanho completo entre "
+       "a renderização e a perda, com pouca diferença visível; 0 mantém a "
+       "precisão total."),
+    IT("Con quanta compattezza vengono memorizzati i colori durante "
        "l'addestramento. 1 dimezza all'incirca la memoria spesa per il colore "
-       "dipendente dalla vista, con differenza appena visibile; 0 mantiene la "
-       "piena precisione."),
-    NL("Hoe compact splatkleuren tijdens de training worden opgeslagen. 1 halveert "
-       "ruwweg het geheugen voor kijkrichtingafhankelijke kleur, met nauwelijks "
-       "zichtbaar verschil; 0 behoudt volledige precisie."),
-    RU("Насколько компактно хранятся цвета сплатов во время обучения. 1 примерно "
-       "вдвое сокращает память под цвет, зависящий от вида, почти без видимой "
-       "разницы; 0 сохраняет полную точность."),
-    TR("Eğitim sırasında splat renklerinin ne kadar sıkışık saklandığı. 1, bakışa "
-       "bağlı renge harcanan belleği kabaca yarıya indirir ve gözle görülür bir "
-       "fark bırakmaz; 0 tam duyarlığı korur."));
+       "dipendente dalla vista e tiene a mezza precisione le immagini a "
+       "dimensione piena tra il rendering e la loss, con differenza appena "
+       "visibile; 0 mantiene la piena precisione."),
+    NL("Hoe compact kleuren tijdens de training worden opgeslagen. 1 halveert "
+       "ruwweg het geheugen voor kijkrichtingafhankelijke kleur en houdt de "
+       "beelden op volle grootte tussen rendering en loss op halve precisie, met "
+       "nauwelijks zichtbaar verschil; 0 behoudt volledige precisie."),
+    RU("Насколько компактно хранятся цвета во время обучения. 1 примерно вдвое "
+       "сокращает память под цвет, зависящий от вида, и держит полноразмерные "
+       "изображения между рендерингом и функцией потерь с половинной точностью, "
+       "почти без видимой разницы; 0 сохраняет полную точность."),
+    TR("Eğitim sırasında renklerin ne kadar sıkışık saklandığı. 1, bakışa bağlı "
+       "renge harcanan belleği kabaca yarıya indirir ve işleme ile kayıp "
+       "arasındaki tam boyutlu görüntüleri yarım duyarlıkta tutar; gözle görülür "
+       "bir fark bırakmaz. 0 tam duyarlığı korur."));
 
 SS_MSG(preallocate_splat_tensors,
     EN("Reserve memory up front"), JA("メモリを先に確保"),
@@ -10258,6 +13473,39 @@ SS_MSG(features_sh_lr_help,
     TR("Bakışa bağlı rengin ne kadar hızlı değiştiği. Yansımaların rengi alıp "
        "götürmemesi için temel renk oranının epey altında tutulur."));
 
+SS_MSG(features_sb_lr,
+    EN("Highlight lobe rate"), JA("ハイライトのローブの学習率"),
+    ZH_HANS("高光波瓣学习率"), ZH_HANT("高光波瓣學習率"),
+    KO("하이라이트 로브 학습률"), DE("Lernrate der Glanzlicht-Keulen"),
+    FR("Taux des lobes de reflets"), ES("Tasa de los lóbulos de brillo"),
+    PT("Taxa dos lóbulos de brilho"), IT("Tasso dei lobi di riflesso"),
+    NL("Snelheid van de glanslobben"), RU("Скорость лепестков бликов"),
+    TR("Parlama lobu oranı"));
+SS_MSG(features_sb_lr_help,
+    EN("How fast the spherical-beta lobes change. Their color, direction and "
+       "sharpness share this rate."),
+    JA("球面ベータのローブがどれだけ速く変わるかです。色、向き、鋭さがこの学"
+       "習率を共有します。"),
+    ZH_HANS("球面 Beta 波瓣变化的快慢。它们的颜色、方向和锐度共用这个学习率。"),
+    ZH_HANT("球面 Beta 波瓣變化的快慢。它們的顏色、方向和銳度共用這個學習率。"),
+    KO("구면 베타 로브가 얼마나 빨리 변하는지입니다. 색, 방향, 날카로움이 이 "
+       "학습률을 함께 씁니다."),
+    DE("Wie schnell sich die sphärischen Beta-Keulen ändern. Farbe, Richtung "
+       "und Schärfe teilen sich diese Rate."),
+    FR("À quelle vitesse les lobes bêta sphériques changent. Leur couleur, leur"
+       " direction et leur netteté partagent ce taux."),
+    ES("Con qué rapidez cambian los lóbulos beta esféricos. Su color, su "
+       "dirección y su nitidez comparten esta tasa."),
+    PT("Com que rapidez os lóbulos beta esféricos mudam. A cor, a direção e a "
+       "nitidez deles compartilham esta taxa."),
+    IT("Quanto in fretta cambiano i lobi beta sferici. Colore, direzione e "
+       "nitidezza condividono questo tasso."),
+    NL("Hoe snel de sferische bètalobben veranderen. Hun kleur, richting en "
+       "scherpte delen deze snelheid."),
+    RU("Как быстро меняются сферические бета-лепестки. Их цвет, направление и "
+       "резкость делят эту скорость."),
+    TR("Küresel beta loblarının ne hızla değiştiği. Renkleri, yönleri ve "
+       "keskinlikleri bu oranı paylaşır."));
 SS_MSG(background_dc_lr,
     EN("Skybox base color rate"), JA("スカイボックス基本色の学習率"),
     ZH_HANS("天空盒基础颜色学习率"), ZH_HANT("天空盒基礎顏色學習率"),
@@ -10640,6 +13888,14 @@ SS_MSG(choice_point_mean,
     NL("gemiddelde van de puntenwolk"), RU("среднее облака точек"),
     TR("nokta bulutu ortalaması"));
 
+SS_MSG(choice_far_from_origin,
+    EN("when far from the origin"), JA("原点から遠いとき"), ZH_HANS("远离原点时"),
+    ZH_HANT("遠離原點時"), KO("원점에서 멀 때"), DE("wenn weit vom Ursprung"),
+    FR("si loin de l'origine"), ES("si está lejos del origen"),
+    PT("se estiver longe da origem"), IT("se lontana dall'origine"),
+    NL("als ver van de oorsprong"), RU("если далеко от начала координат"),
+    TR("başlangıçtan uzaksa"));
+
 SS_MSG(choice_camera_mean,
     EN("camera position mean"), JA("カメラ位置の平均"), ZH_HANS("相机位置平均"),
     ZH_HANT("相機位置平均"), KO("카메라 위치 평균"),
@@ -10708,6 +13964,126 @@ SS_MSG(choice_same_as_input,
     ES("igual que la entrada"), PT("igual à entrada"), IT("come l'ingresso"),
     NL("zoals de invoer"),  RU("как у входа"),  TR("girdiyle aynı"));
 
+SS_MSG(choice_never,
+    EN("never"),
+    JA("しない"),
+    ZH_HANS("从不"),
+    ZH_HANT("從不"),
+    KO("안 함"),
+    DE("nie"),
+    FR("jamais"),
+    ES("nunca"),
+    PT("nunca"),
+    IT("mai"),
+    NL("nooit"),
+    RU("никогда"),
+    TR("asla"));
+
+SS_MSG(choice_without_points,
+    EN("when the dataset has no points"),
+    JA("点群がないとき"),
+    ZH_HANS("数据集无点云时"),
+    ZH_HANT("資料集無點雲時"),
+    KO("점군이 없을 때"),
+    DE("wenn der Datensatz keine Punkte hat"),
+    FR("si le jeu n'a pas de points"),
+    ES("si el conjunto no tiene puntos"),
+    PT("se o conjunto não tiver pontos"),
+    IT("se il set non ha punti"),
+    NL("als de dataset geen punten heeft"),
+    RU("если в наборе нет точек"),
+    TR("veri kümesinde nokta yoksa"));
+
+SS_MSG(choice_always,
+    EN("always"),
+    JA("常に"),
+    ZH_HANS("总是"),
+    ZH_HANT("總是"),
+    KO("항상"),
+    DE("immer"),
+    FR("toujours"),
+    ES("siempre"),
+    PT("sempre"),
+    IT("sempre"),
+    NL("altijd"),
+    RU("всегда"),
+    TR("her zaman"));
+
+SS_MSG(choice_isotropic_gaussian,
+    EN("isotropic Gaussian"),
+    JA("等方ガウス分布"),
+    ZH_HANS("各向同性高斯"),
+    ZH_HANT("各向同性高斯"),
+    KO("등방성 가우시안"),
+    DE("isotrope Gauß-Verteilung"),
+    FR("gaussienne isotrope"),
+    ES("gaussiana isótropa"),
+    PT("gaussiana isotrópica"),
+    IT("gaussiana isotropa"),
+    NL("isotrope gaussverdeling"),
+    RU("изотропное гауссово"),
+    TR("izotropik Gauss"));
+
+SS_MSG(choice_anisotropic_gaussian,
+    EN("anisotropic Gaussian"),
+    JA("異方ガウス分布"),
+    ZH_HANS("各向异性高斯"),
+    ZH_HANT("各向異性高斯"),
+    KO("비등방성 가우시안"),
+    DE("anisotrope Gauß-Verteilung"),
+    FR("gaussienne anisotrope"),
+    ES("gaussiana anisótropa"),
+    PT("gaussiana anisotrópica"),
+    IT("gaussiana anisotropa"),
+    NL("anisotrope gaussverdeling"),
+    RU("анизотропное гауссово"),
+    TR("anizotropik Gauss"));
+
+SS_MSG(choice_solid_ellipsoid,
+    EN("uniform solid ellipsoid"),
+    JA("一様な中実楕円体"),
+    ZH_HANS("均匀实心椭球"),
+    ZH_HANT("均勻實心橢球"),
+    KO("균일한 속이 찬 타원체"),
+    DE("gleichmäßig gefülltes Ellipsoid"),
+    FR("ellipsoïde plein uniforme"),
+    ES("elipsoide macizo uniforme"),
+    PT("elipsoide sólido uniforme"),
+    IT("ellissoide pieno uniforme"),
+    NL("gelijkmatig gevulde ellipsoïde"),
+    RU("равномерный сплошной эллипсоид"),
+    TR("düzgün dolu elipsoid"));
+
+SS_MSG(choice_oriented_box,
+    EN("uniform oriented box"),
+    JA("一様な向き付きの箱"),
+    ZH_HANS("均匀定向长方体"),
+    ZH_HANT("均勻定向長方體"),
+    KO("균일한 방향 상자"),
+    DE("gleichmäßig gefüllter ausgerichteter Quader"),
+    FR("boîte orientée uniforme"),
+    ES("caja orientada uniforme"),
+    PT("caixa orientada uniforme"),
+    IT("scatola orientata uniforme"),
+    NL("gelijkmatig gevulde gerichte doos"),
+    RU("равномерный ориентированный параллелепипед"),
+    TR("düzgün yönlü kutu"));
+
+SS_MSG(choice_world_origin,
+    EN("world origin"),
+    JA("ワールド原点"),
+    ZH_HANS("世界原点"),
+    ZH_HANT("世界原點"),
+    KO("월드 원점"),
+    DE("Koordinatenursprung"),
+    FR("origine du repère"),
+    ES("origen de coordenadas"),
+    PT("origem das coordenadas"),
+    IT("origine delle coordinate"),
+    NL("oorsprong"),
+    RU("начало координат"),
+    TR("koordinat başlangıcı"));
+
 // ---------------------------------------------------------------------------
 // flag + value -> label. Null for anything not listed, which is most of them.
 // ---------------------------------------------------------------------------
@@ -10745,6 +14121,7 @@ inline constexpr ChoiceText kChoiceText[] = {
     {"train_frame", "camera",     &choice_camera},
     {"train_frame", "points",     &choice_points},
 
+    {"scene_center", "auto",          &choice_far_from_origin},
     {"scene_center", "none",          &choice_none},
     {"scene_center", "point-median",  &choice_point_median},
     {"scene_center", "camera-median", &choice_camera_median},
@@ -10764,13 +14141,32 @@ inline constexpr ChoiceText kChoiceText[] = {
     {"cache_images", "gpu",  &choice_gpu},
     {"cache_images", "disk", &choice_disk},
 
-    // `none` is the UNSET value for these four, not a colour space -- Rec.709
+    // `none` is the UNSET value for these six, not a colour space -- Rec.709
     // and `srgb` are the explicit ones. Labelled so the dropdown cannot read
     // as "no gamut" / "no transfer".
     {"image_color_gamut", "none", &choice_from_the_file},
     {"splat_color_gamut", "none", &choice_same_as_input},
     {"image_color_transfer", "none", &choice_srgb_default},
     {"splat_color_transfer", "none", &choice_same_as_input},
+    {"point_color_gamut", "none", &choice_same_as_input},
+    {"point_color_transfer", "none", &choice_same_as_input},
+
+    {"random_init", "never",  &choice_never},
+    {"random_init", "auto",   &choice_without_points},
+    {"random_init", "always", &choice_always},
+
+    {"random_init_distribution", "isotropic-gaussian",   &choice_isotropic_gaussian},
+    {"random_init_distribution", "anisotropic-gaussian", &choice_anisotropic_gaussian},
+    {"random_init_distribution", "ellipsoid",            &choice_solid_ellipsoid},
+    {"random_init_distribution", "box",                  &choice_oriented_box},
+
+    {"random_init_center", "camera-median", &choice_camera_median},
+    {"random_init_center", "camera-focus",  &choice_camera_focus},
+    {"random_init_center", "camera-mean",   &choice_camera_mean},
+    {"random_init_center", "origin",        &choice_world_origin},
+
+    {"random_init_spread", "median", &choice_median},
+    {"random_init_spread", "mean",   &choice_mean},
 };
 inline constexpr size_t kNumChoiceText =
     sizeof(kChoiceText) / sizeof(kChoiceText[0]);

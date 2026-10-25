@@ -47,22 +47,17 @@ inline Mat3 quaternionToRotation(const Quat& q) {
             2 * (x * z - w * y),     2 * (y * z + w * x),     1 - 2 * (x * x + y * y)};
 }
 
+// Through the quaternion everywhere: the skew-part formula divides rounding
+// noise by sin(angle) within ~1e-6 rad of pi, which turned a .360 view's
+// exact 180-degree rotation into the identity.
 inline Vec3 rotationToAngleAxis(const Mat3& R) {
-    double tr = (R[0] + R[4] + R[8] - 1.0) * 0.5;
-    tr = std::max(-1.0, std::min(1.0, tr));
-    double angle = std::acos(tr);
-    Vec3 axis = {R[7] - R[5], R[2] - R[6], R[3] - R[1]};
-    double s = 2.0 * std::sin(angle);
-    if (std::fabs(angle) < 1e-8) return {0, 0, 0};
-    if (std::fabs(s) < 1e-8) {  // angle near pi: extract from diagonal
-        // fall back to quaternion path
-        Quat q = rotationToQuaternion(R);
-        double vn = std::sqrt(q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
-        if (vn < 1e-12) return {0, 0, 0};
-        double a = 2.0 * std::atan2(vn, q[0]);
-        return {q[1] / vn * a, q[2] / vn * a, q[3] / vn * a};
-    }
-    return {axis.x / s * angle, axis.y / s * angle, axis.z / s * angle};
+    Quat q = rotationToQuaternion(R);
+    if (q[0] < 0)
+        for (double& v : q) v = -v;
+    const double vn = std::sqrt(q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+    if (vn < 1e-12) return {0, 0, 0};
+    const double a = 2.0 * std::atan2(vn, q[0]);
+    return {q[1] / vn * a, q[2] / vn * a, q[3] / vn * a};
 }
 
 inline Mat3 angleAxisToRotation(const Vec3& aa) {
@@ -74,6 +69,43 @@ inline Mat3 angleAxisToRotation(const Vec3& aa) {
             k.y * k.x * v + k.z * s, c + k.y * k.y * v,       k.y * k.z * v - k.x * s,
             k.z * k.x * v - k.y * s, k.z * k.y * v + k.x * s, c + k.z * k.z * v};
 }
+
+// SO(3) exponential map and its Jacobians (Barfoot, "State Estimation for
+// Robotics", 7.1). Left: Exp(a + d) ~ Exp(Jl(a) d) Exp(a); right: ~ Exp(a)
+// Exp(Jr(a) d), Jr(a) = Jl(-a).
+inline Mat3 so3Exp(const Vec3& phi) { return angleAxisToRotation(phi); }
+inline Vec3 so3Log(const Mat3& R) { return rotationToAngleAxis(R); }
+
+inline Mat3 so3RightJacobian(const Vec3& phi) {
+    const double th = phi.norm();
+    const Mat3 K = crossMatrix(phi);
+    const Mat3 K2 = mul(K, K);
+    double a, b;
+    if (th < 1e-5) {
+        a = 0.5;
+        b = 1.0 / 6.0;
+    } else {
+        a = (1.0 - std::cos(th)) / (th * th);
+        b = (th - std::sin(th)) / (th * th * th);
+    }
+    Mat3 J = mat3Identity();
+    for (int i = 0; i < 9; i++) J[i] += -a * K[i] + b * K2[i];
+    return J;
+}
+inline Mat3 so3LeftJacobian(const Vec3& phi) { return so3RightJacobian(phi * -1.0); }
+
+// Jl^-1(phi) = I - K/2 + (1/th^2 - (1 + cos th) / (2 th sin th)) K^2.
+inline Mat3 so3LeftJacobianInv(const Vec3& phi) {
+    const double th = phi.norm();
+    const Mat3 K = crossMatrix(phi);
+    const Mat3 K2 = mul(K, K);
+    const double c = th < 1e-5 ? 1.0 / 12.0
+                               : 1.0 / (th * th) - (1.0 + std::cos(th)) / (2.0 * th * std::sin(th));
+    Mat3 J = mat3Identity();
+    for (int i = 0; i < 9; i++) J[i] += -0.5 * K[i] + c * K2[i];
+    return J;
+}
+inline Mat3 so3RightJacobianInv(const Vec3& phi) { return so3LeftJacobianInv(phi * -1.0); }
 
 // Camera center in world coordinates: c = -R^T t.
 inline Vec3 cameraCenter(const Pose& p) {

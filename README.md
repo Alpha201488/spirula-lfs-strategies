@@ -43,17 +43,15 @@ Spirula Studio trains 3D Gaussian Splatting models &ndash; from raw photo/video 
 
 ## News
 
+- **September 23, 2026: Editing and rendering features** &ndash; Editing features for 3DGS models, sparse reconstructions, meshes, and masks have been added, along with support for exporting image and video renders.
+
+- **September 10, 2026: Metric scale** &ndash; The dataset creation module now uses telemetry metadata in common video and image formats to recover metric scale and orientation, addressing the popular report that reconstruction results are too large/small or tilted.
+
 - **September 3, 2026: LoMa feature support** &ndash; The SfM module now supports [LoMa](https://github.com/davnords/LoMa) for feature detection and matching on difficult datasets.
 
 - **August 14, 2026: macOS support** &ndash; Support for training on macOS/Apple Silicon has been validated. The app can now be downloaded from [Releases page](https://github.com/harry7557558/spirula-studio/releases/).
 
 - **August 8, 2026: Multilingual support** &ndash; Multilingual support has been added, available to both GUI and CLI. Supported languages: English, 日本語, 简体中文, 繁體中文, 한국어, Deutsch, Français, Español, Português, Italiano, Nederlands, Русский, Türkçe.
-
-- **August 8, 2026: End-to-end workflow** &ndash; The Vulkan backend now has components to extract frames from video, AI masking, native SfM, meshing, and batch training, accessible from both GUI and CLI.
-
-- **July 22, 2026: Cross-vendor support** &ndash; A Vulkan backend has been added, which works on NVIDIA, AMD, and Intel GPUs.
-
-- **July 12, 2026: GUI** &ndash; A training GUI has been implemented. CLI training will remain accessible.
 
 
 ## Download
@@ -93,19 +91,19 @@ cd spirula-studio\
 .\build_develop.bat -DSS_BACKEND=vulkan -DSS_ENABLE_PATENTED=ON
 ```
 
-If it builds successfully, you get `build\spirula.exe`.
+If it builds successfully, you get `build_vulkan\spirula.exe`.
 
 ### Windows with GCC/Clang:
 
 ```bat
 cd spirula-studio\
-cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DSS_BACKEND=vulkan -DSS_ENABLE_PATENTED=ON -DCMAKE_MAKE_PROGRAM=Ninja
-cmake --build build -j
+cmake -G Ninja -B build_vulkan -DCMAKE_BUILD_TYPE=Release -DSS_BACKEND=vulkan -DSS_ENABLE_PATENTED=ON -DCMAKE_MAKE_PROGRAM=Ninja
+cmake --build build_vulkan -j
 ```
 
 Pass `-DCMAKE_C_COMPILER` and `-DCMAKE_CXX_COMPILER` to the first `cmake` command if needed.
 
-If it builds successfully, you get `build\spirula.exe`.
+If it builds successfully, you get `build_vulkan\spirula.exe`.
 
 ### Linux:
 
@@ -114,7 +112,7 @@ cd spirula-studio/
 bash build_develop.bash -DSS_BACKEND=vulkan -DSS_ENABLE_PATENTED=ON
 ```
 
-If it builds successfully, you get `build/spirula` binary.
+If it builds successfully, you get `build_vulkan/spirula` binary.
 
 ### macOS:
 
@@ -125,7 +123,7 @@ cmake --build build --target macos_app
 cmake --build build --target macos_dmg
 ```
 
-If it builds successfully, you get `build/spirula` binary similar to Linux. Additionally, it wraps that binary in a double-clickable `build/Spirula Studio.app`, as well as disk image `build/Spirula Studio.dmg`. MoltenVK is statically linked by default and will run on a Mac without dependency installed.
+macOS has only the one backend, so it builds into `build/` rather than into a per-backend tree. If it builds successfully, you get `build/spirula` binary similar to Linux. Additionally, it wraps that binary in a double-clickable `build/Spirula Studio.app`, as well as disk image `build/Spirula Studio.dmg`. MoltenVK is statically linked by default and will run on a Mac without dependency installed.
 
 ### Notes regarding third-party licensing
 
@@ -150,7 +148,7 @@ cd spirula-studio\
 .\build_develop.bat -DSS_BACKEND=cuda
 ```
 
-If it builds successfully, you get `build\spirula.exe`.
+If it builds successfully, you get `build_cuda\spirula.exe`.
 
 ### Linux:
 
@@ -159,7 +157,7 @@ cd spirula-studio/
 bash build_develop.bash -DSS_BACKEND=cuda
 ```
 
-If it builds successfully, you get `build/spirula` binary.
+If it builds successfully, you get `build_cuda/spirula` binary.
 
 </details>
 
@@ -167,17 +165,14 @@ If it builds successfully, you get `build/spirula` binary.
 
 You can find some professional-quality splats trained by Spirula Studio from [Megascapes Library](https://library.getmegascapes.com/) and their [SuperSplat page](https://superspl.at/user/megascapes).
 
-Some splats created by the author of Spirula Studio can also be found on my [SuperSplat page](https://superspl.at/user?id=harry7557558).
+Collection of splats created by the users of Spirula Studio can also be found on [SuperSplat page](https://superspl.at/explore/software/spirula-studio).
 
-<!-- ![](https://s3-eu-west-1.amazonaws.com/images.playcanvas.com/splat/643dadb5/v1/m.webp)&nbsp;
-![](https://s3-eu-west-1.amazonaws.com/images.playcanvas.com/splat/ed448729/v1/m.webp)&nbsp;
-![](https://s3-eu-west-1.amazonaws.com/images.playcanvas.com/splat/05e46a4b/v1/m.webp)&nbsp;
-![](https://s3-eu-west-1.amazonaws.com/images.playcanvas.com/splat/9dd8696b/v1/m.webp)&nbsp;
-![](https://s3-eu-west-1.amazonaws.com/images.playcanvas.com/splat/0bcb61c6/v1/m.webp)&nbsp;
-![](https://s3-eu-west-1.amazonaws.com/images.playcanvas.com/splat/cdd6f9a2/v1/m.webp)&nbsp; -->
+Some splats created by the author of Spirula Studio can also be found on my [SuperSplat page](https://superspl.at/user?id=harry7557558).
 
 ## Trivia
 
 Spirula Studio (formerly spirulae-splat) is named after the now-inactive project [spirulae](https://github.com/harry7557558/spirulae), which was named after the [deep-ocean cephalopod mollusk](https://en.wikipedia.org/wiki/Spirula).
 
-Spirula Studio is developed and maintained almost entirely by one person. Issues and PRs welcome; response times vary.
+Spirula Studio is maintained almost entirely by one person. Issues and PRs welcome &ndash; I sometimes respond late, but rest assured that I do review them all.
+
+<!-- If you want to sponsor Spirula Studio, you may use [GitHub sponsor](https://github.com/sponsors/harry7557558) for voluntary donation. For custom arrangements, please reach out to me. -->

@@ -7,12 +7,20 @@ detector, a matcher or a depth model is added later it builds on this
 unchanged. Do not put model-specific constants here.
 
 Vulkan-only, like `src/sfm/`: built by default for `SS_BACKEND=vulkan`
-(`SS_BUILD_SAM`) and absent from a CUDA build. It carries its own device;
-converging the repository's three Vulkan contexts onto one is
-`docs/notes/sfm-port-plan.md` phase 6.
+(`SS_BUILD_SAM`) and absent from a CUDA build. It keeps its own Vulkan context
+and resolves the same native selector identity as the other built-in Vulkan
+workflows; physical or logical device handles are never shared.
 
-Runtime knobs: `SS_NN_LOG=0..3`, `SS_VK_DEVICE`, `SS_PROFILE=1`,
-`SS_VK_VALIDATION=1`, `SS_NN_DEBUG_SYNC=1`, `SS_NN_COOPMAT=0`.
+Runtime knobs: `SS_NN_LOG=0..3`, `SS_VK_DEVICE=<index|name|auto|uuid:hex>`,
+`SS_PROFILE=1`, `SS_VK_VALIDATION=1`, `SS_NN_DEBUG_SYNC=1`, `SS_NN_COOPMAT=0`,
+`SS_SUBMIT_BUDGET_MS`, `SS_VK_SUBMIT_LOG` (docs/notes/gpu-submit-budget.md).
+
+The context probes optional `VK_EXT_memory_budget`. `Context::memoryBudget`
+queries the selected device's current local-heap budgets and usage, or returns
+an empty report when unsupported. The query in `core/VulkanMemoryBudget.h`
+is shared with the trainer's memory reporting. `Allocator` exposes live bytes
+and allocation count so model-owned caches can adapt to device headroom and
+`maxMemoryAllocationCount` without a fixed cache size or device-name rule.
 
 ## The op layer
 
@@ -177,6 +185,15 @@ Tiny track, 38 in 17 M for a SAM 3 image, all on boundaries. Both kernels take
 fp16 operands with an fp32 accumulator, which is the arithmetic PyTorch runs
 these models in; `nn_ops_test` checks each path against a reference rounded the
 same way, so the tolerances stay tight rather than being widened to absorb it.
+- **Quantized weights** are a storage format, not a GEMM. `dequant_nf4`
+  expands bitsandbytes' NF4 (blocksize 64, bf16 scales, `dequantize_4bit`'s
+  bf16 rounding) into the fp16 matrix the GEMMs above already take, optionally
+  adding a merged LoRA product and scaling rows by a gate. It needs no device
+  feature past the baseline, so a model that streams 4-bit weights runs
+  wherever fp16 weights do; `src/marigold/` expands one projection at a time
+  into a reused scratch. `LinearOpts::x_scale` is its companion: activations
+  past fp16's range (Qwen-Image's reach 5e4) are prescaled by a power of two
+  before the tensor-core kernel rounds them, which changes nothing else.
 - **Convolution** is chunked im2col + GEMM, not a bespoke kernel. A full im2col
   of the seg head's 288×288×256 3×3 conv would be 764 MiB, so the output
   positions are chunked to keep the column buffer near 32 MiB. Depthwise is

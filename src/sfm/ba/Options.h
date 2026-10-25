@@ -2,6 +2,7 @@
 // the host fallback (sfm/ba/SolverCpu.h).
 #pragma once
 
+#include <cstdint>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -74,6 +75,14 @@ struct BAOverBudget : std::runtime_error {
     double need_mb, budget_mb;
 };
 
+// Where a device solve had got to: its parameters are in the problem's host
+// vectors as of `iterations` LM iterations, so a restart after a device failure
+// resumes from here instead of from the start.
+struct SolverCheckpoint {
+    int iterations = 0;
+    double damping = 0, cost = 0;
+};
+
 struct SolverOptions {
     RealCfg real = RealCfg::F64;
     float loss_param = 1.0f;      // Huber delta / Cauchy c (unused by trivial loss)
@@ -81,6 +90,15 @@ struct SolverOptions {
     double init_damping = 1e-2;
     double rtol = 1e-6;
     int patience = 10;
+    // A step under rtol that still cuts the prior cost by prior_rtol shrinks the
+    // damping, up to prior_patience times, when absolute centres are present. Canopy drone capture:
+    // at damping 3e-3 a step cut its GPS prior < 2e-5; 1e-6 is 2.5x f32 noise.
+    double prior_rtol = 1e-6;
+    int prior_patience = 15;
+    // Stop at an accepted point whose Ceres gradient max-norm (sfm/ba/GradientNorm.h)
+    // is at or under this; 0 = off. Its lengths are metres, metres_per_unit to a model unit.
+    double gradient_tol = 0;
+    double metres_per_unit = 1;
     SolverSel solver = SolverSel::Auto;
     double vram_budget_mb = 0;    // 0 = 90% of the device-local heap (host: half the RAM)
     // Throw BAOverBudget instead of warning and trying anyway. For a caller
@@ -89,12 +107,19 @@ struct SolverOptions {
     bool over_budget_throws = false;
     int cg_max_iters = 100;       // CG iteration cap per LM step
     double cg_tol = 0.1;          // relative residual tolerance eta
+    // ... and CG also stops once a step improves the quadratic model by under
+    // this fraction of the total so far (Nash-Sofer; 0 = off). It settles for a
+    // residual near sqrt of it, so a caller that wants the exact step turns it off.
+    double cg_model_tol = 0.1;
     CgFallback cg_fallback = CgFallback::Auto;
     // The kernels are compiled per (real, loss); `loss` selects the embedded
     // blob "ba_<real>_<loss>". spv_path overrides it with a module from disk
     // (a hand-compiled shader, for iteration without relinking).
     std::string loss = "trivial";
     std::string spv_path;
+    // Canonical uuid:<hex> of the device to run on, "" for the shared
+    // precedence (explicit --device, then VK_DEVICE, then Auto).
+    std::string device_selector;
     int device = -1;
     // Host worker threads for the CPU path; 0 = every core. Caps the tasks one
     // solve splits into, not the shared pool's width (bacpu::Pool).
@@ -102,7 +127,23 @@ struct SolverOptions {
     bool validate = false;
     bool verbose = true;
     bool profile = false;
+    // Written by a device solve every few seconds of accepted progress, along
+    // with the problem's parameters. Null = no checkpoints.
+    SolverCheckpoint* checkpoint = nullptr;
 };
+
+// What an accepted LM step does, in both solvers' loops: an improvement shrinks
+// the damping and resets patience, a tie counts toward patience and leaves it.
+enum class LmAccept { Improved, PriorImproved, Tie };
+
+inline LmAccept classifyAccept(const SolverOptions& o, double cost, double newCost,
+                               bool absCentres, double prior, double newPrior, int priorSteps) {
+    if (newCost / cost < 1.0 - o.rtol) return LmAccept::Improved;
+    if (absCentres && prior > 0 && newPrior <= prior * (1.0 - o.prior_rtol) &&
+        priorSteps < o.prior_patience)
+        return LmAccept::PriorImproved;
+    return LmAccept::Tie;
+}
 
 struct SolverStats {
     double initial_cost = 0, final_cost = 0;
@@ -110,7 +151,15 @@ struct SolverStats {
     double solve_seconds = 0;
     double vram_mb = 0;           // host RAM on the CPU path
     const char* solver = "dense";
+    bool jac32 = false;           // the Jacobians were stored at fp32 (Solver.h)
     double cg_iters_total = 0;    // CG iterations summed over LM solves
     int cg_solves = 0;
     int cg_fallbacks = 0;         // LM iterations re-solved densely
+    double prior_initial = 0, prior_final = 0;  // the priors' share of the cost
+    int prior_steps = 0;          // ties whose prior decrease shrank the damping
+    double final_damping = 0;
+    // The gradient max-norm at each accepted point it was measured at (gradient_tol > 0),
+    // and whether the last of them stopped the solve.
+    std::vector<double> gradient_norms;
+    bool gradient_stop = false;
 };

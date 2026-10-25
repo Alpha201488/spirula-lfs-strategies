@@ -23,6 +23,7 @@
 #include "sfm/feature/Pairing.h"
 #include "sfm/map/Assemble.h"
 #include "sfm/map/Mapper.h"
+#include "sfm/map/SensorPriors.h"
 #include "sfm/map/MetricGauge.h"
 
 #include <atomic>
@@ -50,6 +51,11 @@ struct ExtractStats {
     uint64_t masked_out = 0;      // keypoints dropped by masks
     std::string first_unmasked;   // an example, for the warning
     bool warned_empty = false;    // "this mask masked out everything", warned once
+    bool warned_exif_mirror = false;   // "the tag also asked for a mirror", ditto
+    // Over the images this run decoded (GrayImage::gain, ::peak).
+    size_t decoded = 0;
+    float gain_min = 1.0f, gain_max = 1.0f;
+    float peak = 0.0f;
 };
 
 struct MatchStats {
@@ -58,22 +64,109 @@ struct MatchStats {
     double select_seconds = 0;
 };
 
-// Calibrated verification (D45). A fisheye pair verified on raw pixels asks a
-// pinhole fundamental matrix to explain rays 100 deg off axis, which it cannot
-// represent at all; the correspondences that carry the wide field of view are
-// thrown away as outliers. With a camera model in hand we verify on unit
-// bearings instead, where the epipolar constraint is exact at any FOV.
-//
-// The model needs a focal length before it can produce bearings, and the
-// geometric default (diag/pi) is off by ~1.7x on a 200 deg lens, which is
-// enough to warp the bearings and lose most of the benefit -- so unless one is
-// given we search for it on a sample of pairs first (`bootstrapFocal`).
+// A telemetry file read once per run, with the queries the sensor priors and
+// the gauge fit make of it.
+struct LoadedCapture {
+    SensorCapture cap;
+    SensorTimeline timeline;
+};
+
+struct SensorCaptures {
+    std::vector<std::unique_ptr<LoadedCapture>> loaded;
+    bool empty() const { return loaded.empty(); }
+    std::vector<SensorCapture> caps() const {
+        std::vector<SensorCapture> out;
+        for (const auto& lc : loaded) out.push_back(lc->cap);
+        return out;
+    }
+};
+
+// Every telemetry file the config names, or none when `--sensor-gauge none`.
+SensorCaptures loadSensorCaptures(const SfmConfig& cfg, bool verbose);
+
+// The sensors as a prior source over `db`'s images (sfm/map/SensorPriors.h),
+// uncalibrated; null without telemetry or with every use of it switched off.
+std::unique_ptr<TelemetryPriors> makeSensorPriors(const SfmConfig& cfg,
+                                                  const SensorCaptures& sensors,
+                                                  const MatchesDatabase& db,
+                                                  const std::vector<uint32_t>& cam_ids);
+
+// What --metric-gps auto reads off a capture to pick a mode.
+struct MetricGpsEvidence {
+    bool positions_file = false;
+    int telemetry_gps = 0;   // telemetry files with a usable GPS track
+    int telemetry_dji = 0;   // ... of them a DJI djmd track (an Avata or Osmo .OSV)
+    int exif_fixes = 0;
+    int exif_no_alt = 0;
+    int exif_phone = 0;      // ... fixes a phone maker's camera wrote
+    std::string phone_make;  // one of those makers, for the log
+};
+
+enum class MetricGpsWhy {
+    Explicit, Positions, DjiTelemetry, OtherTelemetry, ExifAltitude, ExifNoAltitude,
+    ExifPhone, NoGps
+};
+
+struct MetricGpsChoice {
+    std::string mode;   // none | horizontal | full
+    MetricGpsWhy why = MetricGpsWhy::NoGps;
+};
+
+// `full` for a DJI telemetry track (barometric altitude) or EXIF fixes with an
+// altitude; `horizontal` where the altitude is a phone's or an action camera's
+// (D75), or missing; `none` without GPS or beside a positions file.
+MetricGpsChoice resolveMetricGps(const MetricGpsEvidence& e);
+bool isPhoneMake(const std::string& make);
+MetricGpsEvidence metricGpsEvidence(const SfmConfig& cfg, const SensorCaptures& sensors,
+                                    const std::string& imagedir);
+// Replaces an `auto` cfg.metric_gps with the mode it resolves to, and logs why;
+// an explicit mode is returned as is.
+MetricGpsChoice applyMetricGpsAuto(SfmConfig& cfg, const SensorCaptures& sensors,
+                                   const std::string& imagedir);
+
+// Each image's EXIF GPS as a prior source (ExifGpsPriors), an equirect group in
+// `cams` declaring its up unless --no-level-erp; null when no image under
+// `imagedir` carries a fix, or with --no-sensor-map and --no-sensor-pairs.
+std::unique_ptr<ExifGpsPriors> makeExifGpsPriors(const SfmConfig& cfg, const std::string& imagedir,
+                                                 const MatchesDatabase& db, const CameraSetup& cams,
+                                                 bool verbose);
+
+// Calibrate `priors` against the gyro from pairs and their matches (a
+// sample's putative ones, or the database's verified ones), reporting per group.
+void calibrateSensorPriors(TelemetryPriors& priors, const std::vector<FeatureSet>& feats,
+                           const std::vector<std::pair<uint32_t, uint32_t>>& pairs,
+                           const std::vector<std::vector<FeatureMatch>>& matches,
+                           const std::vector<Camera>& cams, const TwoViewOptions& tvopt,
+                           int threads, bool verbose);
+void calibrateSensorPriorsFromDatabase(TelemetryPriors& priors, const MatchesDatabase& db,
+                                       const std::vector<FeatureSet>& feats,
+                                       const std::vector<Camera>& cams,
+                                       const TwoViewOptions& tvopt, int threads, bool verbose);
+
+// One camera per image, from a setup.
+std::vector<Camera> perImageCameras(const CameraSetup& cs, size_t num_images);
+
+// Calibrated verification (D45): a fisheye pair is verified on unit bearings,
+// which needs a focal, so one is searched on a sample of pairs first unless
+// given (sfm/feature/Verification.h, `bootstrapFocal`).
 struct VerifyCalibration {
     CameraSetupOptions setup;
     size_t sample_pairs = 150;  // pairs per group used by the focal search
+    // The run's telemetry, for the sensor priors; null skips them.
+    const SensorCaptures* sensors = nullptr;
     // outputs
     CameraSetup cameras;        // what the grouping decided, for the caller to reuse
     bool used_bearings = false;
+    // The sensors over this database, calibrated where the pairs allowed.
+    std::unique_ptr<TelemetryPriors> priors;
+    // Where the images are, for their EXIF GPS when no telemetry covers them.
+    std::string image_dir;
+    std::unique_ptr<ExifGpsPriors> exif_priors;
+    // The source mapping and GPS pairing use: the telemetry's, else the EXIF's.
+    PriorSource* positionPriors() const {
+        if (priors) return priors.get();
+        return exif_priors.get();
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -81,10 +174,11 @@ struct VerifyCalibration {
 // ---------------------------------------------------------------------------
 
 // Features for every image under `imagedir`, written to `outdir` mirroring the
-// image tree. `reuse` keeps what an earlier run left there when it is whole and
-// newer than what it describes; a file no image maps to is removed either way.
+// image tree. `reuse` keeps a whole file newer than its image and mask, and with
+// `trusted` an older one too, listed there; a file no image maps to is removed.
 int extractDirectory(const std::string& imagedir, const std::filesystem::path& outdir,
-                     const SfmConfig& cfg, ExtractStats& stats, bool reuse = false);
+                     const SfmConfig& cfg, ExtractStats& stats, bool reuse = false,
+                     std::vector<std::filesystem::path>* trusted = nullptr);
 
 // Where an interrupted run's matching left its work, and what those files must
 // carry to be this run's (sfm/core/Resume.h). Null is a run that starts over.
@@ -113,6 +207,9 @@ std::vector<Reconstruction> runMapper(Mapper& mapper, const MatchesDatabase& db,
 // verbose. Throws std::runtime_error on a definition that does not resolve.
 RigTable buildRigs(const MatchesDatabase& db, const SfmConfig& cfg, bool verbose);
 
+// The run's sequences the same way (sfm/core/Sequence.h).
+SequenceTable buildSequences(const MatchesDatabase& db, const SfmConfig& cfg, bool verbose);
+
 // The passes that run after the mapper: merge, audit, grow, prune, reseed.
 std::vector<Reconstruction> finishModels(Mapper& mapper,
                                          std::vector<Reconstruction> models,
@@ -128,12 +225,15 @@ struct ModelGauge {
     std::string up = "none";
     std::string scale = "none";
     double scale_sigma = 0;  // relative; 0 when nothing estimated one
+    GeoOrigin origin;        // a GPS fit's: the frame is then east-north-up about it
 };
 
 // Levelling, centring and the metric gauge. False when no metric frame fitted.
+// `mapped` is the source the mapper's bundle adjustments took GPS factors from.
 bool fixGauge(std::vector<Reconstruction>& models, const SfmConfig& cfg,
               const std::string& imagedir, bool verbose,
-              std::vector<ModelGauge>& gauge);
+              std::vector<ModelGauge>& gauge, const SensorCaptures* sensors = nullptr,
+              PriorSource* mapped = nullptr);
 
 void resolveImageNames(std::vector<Reconstruction>& models, const std::string& imagedir);
 void recolorPoints(std::vector<Reconstruction>& models, const SfmConfig& cfg);
@@ -142,6 +242,10 @@ void splitCamerasBySize(std::vector<Reconstruction>& models,
 void writeModels(const std::vector<Reconstruction>& models,
                  const std::filesystem::path& dir, bool verbose,
                  const std::vector<ModelGauge>& gauge = {}, const RigTable* rigs = nullptr);
+void writeRigs(const std::filesystem::path& dir, const Reconstruction& m, const RigTable* rigs);
+// The rigs.txt writeRigs left beside a model, as a table over its image names
+// with each member's calibration in `m.rigs`. Empty when there is no file.
+RigTable readRigs(const std::filesystem::path& dir, Reconstruction& m);
 
 // ---------------------------------------------------------------------------
 // Reporting helpers the summary is built from
@@ -165,10 +269,10 @@ void warnIfMasksLookInverted(const ExtractStats& st);
 void sampleFeatureColors(FeatureSet& fs, const GrayImage& img);
 void finishFeatures(FeatureSet& fs, const GrayImage& img);
 
-// An EXR capture states its own colour space; adopt it for any of
-// `image-gamut` / `image-linear` that `seen` does not already name.
-void adoptExrColorSpace(SfmConfig& cfg, const std::string& imagedir,
-                        const std::set<std::string>& seen);
+// An EXR or a TIFF with an ICC profile states its own colour space; adopt it
+// for any of `image-gamut` / `image-linear` that `seen` does not already name.
+void adoptFileColorSpace(SfmConfig& cfg, const std::string& imagedir,
+                         const std::set<std::string>& seen);
 
 bool holdsImagesOutside(const std::filesystem::path& root,
                         const std::filesystem::path& nested);

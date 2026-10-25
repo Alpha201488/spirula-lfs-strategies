@@ -57,6 +57,21 @@ int cmdGeomSelftest(int, char**) {
 
     int fails = 0;
 
+    // ---- angle-axis round trip, up to and at 180 degrees ----
+    {
+        double worst = 0;
+        std::uniform_real_distribution<double> u(-1, 1), ue(1, 16);
+        for (int k = 0; k < 20000; k++) {
+            const Vec3 n = Vec3{u(rng), u(rng), u(rng)}.normalized();
+            const double th = k % 2 ? M_PI - std::pow(10.0, -ue(rng)) : M_PI * 0.5 * (1 + u(rng));
+            const Mat3 R = angleAxisToRotation(n * th);
+            const Mat3 R2 = angleAxisToRotation(rotationToAngleAxis(R));
+            for (int i = 0; i < 9; i++) worst = std::max(worst, std::fabs(R[i] - R2[i]));
+        }
+        printf("angle-axis round trip near pi: %.2e\n", worst);
+        if (worst > 1e-12) { printf("  FAIL: angle-axis round trip\n"); fails++; }
+    }
+
     // ---- non-planar scene with noise + outliers ----
     {
         std::vector<Vec2> p1, p2;
@@ -203,6 +218,122 @@ int cmdGeomSelftest(int, char**) {
         }
     }
 
+    // ---- generalized PnP: a rig posed as one camera (rig constraints) ----
+    //
+    // Rays that miss a common centre, rays that share one, and the case the
+    // mapper needs: ten views on two lenses, none able to pose itself.
+    {
+        std::mt19937 rg(23);
+        std::uniform_real_distribution<double> ur(-1.0, 1.0), z01(0.0, 1.0);
+        const double focal = 750.0, err_px = 4.0, err_rad = err_px / focal;
+
+        int missed = 0;
+        double worst = 0;
+        for (int t = 0; t < 400; t++) {
+            Pose F;
+            F.R = angleAxisToRotation({ur(rg) * 2, ur(rg) * 2, ur(rg) * 2});
+            F.t = {ur(rg) * 5, ur(rg) * 5, ur(rg) * 5};
+            std::array<RigRay, 3> rays;
+            std::array<Vec3, 3> Xs;
+            const Vec3 anchor{ur(rg) * 3, ur(rg) * 3, 4.0 + 12.0 * z01(rg)};
+            for (int k = 0; k < 3; k++) {
+                const Vec3 in_rig = anchor + Vec3{ur(rg), ur(rg), ur(rg)};
+                rays[k].o = {ur(rg) * 0.3, ur(rg) * 0.3, ur(rg) * 0.3};
+                rays[k].d = (in_rig - rays[k].o).normalized();
+                Xs[k] = mul(transpose(F.R), in_rig - F.t);
+            }
+            double best = 1e9;
+            for (const Pose& p : gp3p(rays, Xs))
+                best = std::min(best, rotationErrorDeg(p.R, F.R) + (p.t - F.t).norm());
+            if (best > 1e-3) missed++;
+            else worst = std::max(worst, best);
+        }
+        printf("geom: gp3p on 400 non-central samples: %d missed, worst %.2e\n", missed, worst);
+        if (missed > 8) { printf("  FAIL: gp3p\n"); fails++; }
+
+        // Concurrent rays: the same three bearings through one centre, which
+        // has no baseline to solve with and must come back as P3P does.
+        {
+            Pose F;
+            F.R = rotationY(23.0);
+            F.t = {0.4, -0.3, 0.2};
+            const Vec3 centre{0.8, -0.1, 0.05};
+            std::array<RigRay, 3> rays;
+            std::array<Vec3, 3> Xs;
+            std::array<Vec3, 3> bear;
+            const Vec3 pts[3] = {{1.0, -0.5, 7.0}, {2.1, 0.9, 8.4}, {-0.6, 1.4, 6.2}};
+            for (int k = 0; k < 3; k++) {
+                const Vec3 in_rig = pts[k];
+                rays[k].o = centre;
+                rays[k].d = (in_rig - centre).normalized();
+                bear[k] = rays[k].d;
+                Xs[k] = mul(transpose(F.R), in_rig - F.t);
+            }
+            double g_best = 1e9, p_best = 1e9;
+            for (const Pose& p : gp3p(rays, Xs))
+                g_best = std::min(g_best, rotationErrorDeg(p.R, F.R) + (p.t - F.t).norm());
+            // P3P sees the same rays from the origin, so its pose is the
+            // rig's shifted by the centre they share.
+            for (const Pose& p : p3p(bear, Xs))
+                p_best = std::min(p_best,
+                                  rotationErrorDeg(p.R, F.R) + (p.t + centre - F.t).norm());
+            printf("geom: gp3p on concurrent rays: %.2e (P3P %.2e)\n", g_best, p_best);
+            if (g_best > 1e-6 || p_best > 1e-4) {  // 1e-4: lambdatwist's own floor
+                printf("  FAIL: gp3p concurrent\n");
+                fails++;
+            }
+        }
+
+        // Ten views, two optical centres, six correspondences each and 60%
+        // of them wrong: no lens can pose itself, the rig can.
+        {
+            const int kLenses = 2, kViews = 5, kCorr = 6;
+            const double baseline = 0.03, outlier = 0.6;
+            int recovered = 0, runs = 60;
+            for (int r = 0; r < runs; r++) {
+                Pose F;
+                F.R = angleAxisToRotation({ur(rg) * 2, ur(rg) * 2, ur(rg) * 2});
+                F.t = {ur(rg) * 5, ur(rg) * 5, ur(rg) * 5};
+                std::vector<Pose> cam_from_rig;
+                for (int L = 0; L < kLenses; L++) {
+                    const Vec3 centre{L * baseline, 0, 0};
+                    for (int v = 0; v < kViews; v++) {
+                        Pose e;
+                        e.R = angleAxisToRotation(
+                            {0.3 * ur(rg), 2.0 * M_PI * v / kViews + (L ? M_PI : 0.0), 0.2 * ur(rg)});
+                        e.t = mul(e.R, centre) * -1.0;
+                        cam_from_rig.push_back(e);
+                    }
+                }
+                const size_t M = cam_from_rig.size();
+                std::vector<std::vector<Vec3>> X(M), b(M);
+                for (size_t m = 0; m < M; m++) {
+                    const Pose cam = composePose(cam_from_rig[m], F);
+                    for (int k = 0; k < kCorr; k++) {
+                        const Vec3 pc{ur(rg) * 3, ur(rg) * 3, 3.0 + 17.0 * z01(rg)};
+                        const Vec3 unit = pc.normalized();
+                        b[m].push_back(Vec3{unit.x / unit.z + noise(rg) / focal,
+                                            unit.y / unit.z + noise(rg) / focal, 1.0}
+                                           .normalized());
+                        Vec3 world = mul(transpose(cam.R), pc - cam.t);
+                        if (z01(rg) < outlier)
+                            world = world + Vec3{ur(rg) * 8, ur(rg) * 8, ur(rg) * 8};
+                        X[m].push_back(world);
+                    }
+                }
+                std::vector<RigPnPMember> gm;
+                for (size_t m = 0; m < M; m++) gm.push_back({&X[m], &b[m], cam_from_rig[m], err_rad});
+                const RigPnPResult rr = ransacRigPnP(gm);
+                if (rr.success && rotationErrorDeg(rr.rig_from_world.R, F.R) < 1.0 &&
+                    (rr.rig_from_world.t - F.t).norm() < 0.2)
+                    recovered++;
+            }
+            printf("geom: rig PnP, 10 views x 6 corr at 60%% outliers: %d/%d recovered\n",
+                   recovered, runs);
+            if (recovered < runs - 3) { printf("  FAIL: rig PnP\n"); fails++; }
+        }
+    }
+
     // ---- fisheye two-view: bearings vs pixels (D45) ----
     //
     // The claim D45 rests on: on a wide lens, verification on raw pixels loses
@@ -335,7 +466,7 @@ int cmdGeomSelftest(int, char**) {
             for (size_t i = 0; i < p1.size(); i++) {
                 fs1.keypoints.push_back({(float)p1[i].x, (float)p1[i].y, 1, 0, 0});
                 fs2.keypoints.push_back({(float)p2[i].x, (float)p2[i].y, 1, 0, 0});
-                mm.push_back({(uint32_t)i, (uint32_t)i, 0});
+                mm.push_back({(uint32_t)i, (uint32_t)i});
             }
             std::vector<FeatureSet> feats = {fs1, fs2};
             Camera guess = Camera::defaultFor(1, 1920, 1920, 0, CamModel::ThinPrismFisheye);

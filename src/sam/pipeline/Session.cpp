@@ -7,7 +7,9 @@
 
 #include "sam/pipeline/Session.h"
 
+#include "core/VulkanDeviceSelection.h"
 #include "sam/Common.h"
+#include "nn/Device.h"
 #include "nn/core/Error.h"
 #include "nn/core/Log.h"
 #include "sam/pipeline/PostProcess.h"
@@ -48,12 +50,11 @@ uint64_t arena_reserve_for(const SamModel& m) {
     return std::max(kArenaReserve, need);
 }
 
-// Whether a load request would produce the model already on the device. Every
-// field that changes what gets uploaded is here; `validation` is not one of
-// them (it is a Context property, and the context outlives the model).
+// Whether a load request would produce the model already on the device. The
+// device is not compared here: it is an identity, checked by loadModel against
+// the live context. `validation` is a Context property, not a model one.
 bool same_model(const ModelParams& a, const ModelParams& b) {
-    return a.model_path == b.model_path && a.device_index == b.device_index &&
-           a.device_match == b.device_match && a.img_size == b.img_size;
+    return a.model_path == b.model_path && a.img_size == b.img_size;
 }
 
 }  // namespace
@@ -68,8 +69,9 @@ Session::~Session() { unload(); }
 void Session::unload() {
     const bool was_loaded = impl_->loaded;
     impl_->loaded = false;
-    impl_->text_cache_valid = false;
+    impl_->device_selector.clear();
     impl_->text_cache_ids.clear();
+    impl_->text_cache_next = 0;
     // Nothing to give back, or the device is already gone (nn::shutdown() ran
     // first, which frees all of this wholesale).
     if (!was_loaded || !vk::Context::initialized()) return;
@@ -108,25 +110,54 @@ bool Session::supportsTextPrompts() const {
 bool Session::imageEncoded() const { return impl_->feats.valid(); }
 const std::string& Session::lastError() const { return impl_->error; }
 
+bool freeze_device(const std::string& device, std::string& error, bool validation,
+                   bool profile) {
+    try {
+        // Empty defaults inherit the live or configured identity.
+        if (device.empty() && !nn::current_device_selector().empty()) {
+            error.clear();
+            return true;
+        }
+        const std::string recorded = nn::configured_device_selector();
+        const std::string request = device.empty() ? recorded : device;
+        const spirula::vkselect::Request req =
+            spirula::vkselect::requestFrom(request, !request.empty());
+        // Registers the resolved physical identity without creating a logical
+        // device; a malformed, missing, ambiguous or unusable value throws the
+        // resolver's own sentence here, before anything is allocated.
+        nn::configure_device(req.text, validation, profile);
+        error.clear();
+        return true;
+    } catch (const std::exception& e) {
+        error = e.what();
+        NN_LOG_ERROR("device selection: %s\n", e.what());
+        return false;
+    }
+}
+
 bool Session::loadModel(const ModelParams& params) {
     NN_ENSURE_EMBEDDED_MODULES(sam);
-    if (impl_->loaded && same_model(impl_->loaded_params, params)) {
+    // Validate the request before reuse; loaded weights cannot satisfy another GPU.
+    if (!freeze_device(params.device, impl_->error, params.validation,
+                       params.profile))
+        return false;
+    // Reuse only when the loaded model is the one asked for and the live device
+    // is the same canonical UUID.
+    if (impl_->loaded && same_model(impl_->loaded_params, params) &&
+        impl_->device_selector == nn::current_device_selector()) {
         impl_->error.clear();
         return true;
     }
     try {
-        vk::ContextOptions opts;
-        opts.device_index = params.device_index;
-        opts.device_match = params.device_match;
-        opts.validation = params.validation;
-        opts.profile = params.profile;
-        vk::Context::get(opts);
-
         impl_->model.load(params.model_path, params.img_size);
         impl_->arena.reserve(arena_reserve_for(impl_->model));
-        impl_->text_cache_valid = false;
+        impl_->text_cache_ids.clear();
+        impl_->text_cache_next = 0;
         impl_->loaded = true;
         impl_->loaded_params = params;
+        // What the weights actually landed on -- the live context is the only
+        // thing that can say, and it is what a later reuse compares against.
+        impl_->device_selector = nn::current_device_selector();
         impl_->error.clear();
         return true;
     } catch (const std::exception& e) {
@@ -218,17 +249,27 @@ int64_t Session::Impl::buildPrompt(const ConceptPrompt& prompt, nn::Tensor& out_
     {
         const nn::Tensor rows = out_prompt.slice0(0, L);
         const uint64_t bytes = (uint64_t)L * D * sizeof(float);
-        if (text_cache_valid && text_cache_ids == ids) {
+        const auto hit = std::find(text_cache_ids.begin(), text_cache_ids.end(), ids);
+        if (hit != text_cache_ids.end()) {
+            const uint32_t sub = (uint32_t)(hit - text_cache_ids.begin());
             vk::Stream::get().copy(rows.ptr,
-                                   vk::VramPool::get().lookup(vk::PoolSlot::TextFeat, 0),
+                                   vk::VramPool::get().lookup(vk::PoolSlot::TextFeat, sub),
                                    bytes);
         } else {
             model::encode_text(model, arena, ids, rows);
+            // 32 KiB an entry; a prompt holding more phrases than this is not
+            // one anybody types.
+            constexpr size_t kMaxCached = 32;
+            size_t sub = text_cache_ids.size();
+            if (sub < kMaxCached) {
+                text_cache_ids.push_back(ids);
+            } else {
+                sub = text_cache_next++ % kMaxCached;
+                text_cache_ids[sub] = ids;
+            }
             nn::Tensor cached =
-                nn::pool_tensor(vk::PoolSlot::TextFeat, 0, nn::DType::F32, L, D);
+                nn::pool_tensor(vk::PoolSlot::TextFeat, (uint32_t)sub, nn::DType::F32, L, D);
             vk::Stream::get().copy(cached.ptr, rows.ptr, bytes);
-            text_cache_ids = ids;
-            text_cache_valid = true;
         }
     }
 

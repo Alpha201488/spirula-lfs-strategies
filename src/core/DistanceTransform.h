@@ -4,8 +4,7 @@
 //
 // Header-only because its two callers link nothing in common: the dataset
 // decoder (src/data/DataManager.cpp) applies mask_boundary_offset as an image
-// arrives, and the masking policy (src/sam/MaskDilate.cpp) grows one
-// detection before it joins the union.
+// arrives, and the masking margin (core/MaskMargin.h) grows one detection.
 
 #include <algorithm>
 #include <cmath>

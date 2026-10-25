@@ -1,5 +1,6 @@
 #include "nn/vk/Context.h"
 
+#include "core/VulkanDeviceSelection.h"
 #include "nn/core/Error.h"
 #include "nn/core/Log.h"
 
@@ -7,11 +8,14 @@
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include "core/Env.h"
 
 namespace nn {
 namespace vk {
+
+namespace sel = spirula::vkselect;
 
 // ================
 // Result names
@@ -63,24 +67,6 @@ const char* Context::resultName(VkResult r) {
 
 namespace {
 
-const char* deviceTypeName(VkPhysicalDeviceType t) {
-    switch (t) {
-        case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   return "discrete";
-        case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return "integrated";
-        case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:    return "virtual";
-        case VK_PHYSICAL_DEVICE_TYPE_CPU:            return "cpu";
-        default:                                     return "other";
-    }
-}
-
-int typeScore(const char* type) {
-    if (std::strcmp(type, "discrete") == 0)   return 4;
-    if (std::strcmp(type, "integrated") == 0) return 3;
-    if (std::strcmp(type, "virtual") == 0)    return 2;
-    if (std::strcmp(type, "cpu") == 0)        return 1;
-    return 0;
-}
-
 uint64_t deviceLocalHeap(VkPhysicalDevice pd) {
     VkPhysicalDeviceMemoryProperties mp{};
     vkGetPhysicalDeviceMemoryProperties(pd, &mp);
@@ -91,17 +77,18 @@ uint64_t deviceLocalHeap(VkPhysicalDevice pd) {
     return best;
 }
 
-// Fills `usable` / `unusable_reason` against the Vulkan 1.2 baseline.
-void probeBaseline(VkPhysicalDevice pd, DeviceInfo& out) {
-    VkPhysicalDeviceProperties props{};
-    vkGetPhysicalDeviceProperties(pd, &props);
-    out.name = props.deviceName;
-    out.type = deviceTypeName(props.deviceType);
+// Fills a shared record and adds this runtime's baseline verdict: `usable`
+// means the Vulkan 1.2 + bufferDeviceAddress + timelineSemaphore baseline, not
+// that a given model fits or that video decoding is available.
+sel::DeviceRecord probeRecord(VkPhysicalDevice pd, int index) {
+    sel::DeviceRecord out;
+    out.index = index;
+    sel::probeIdentity(pd, &out);
     out.vram_bytes = deviceLocalHeap(pd);
 
-    if (props.apiVersion < VK_API_VERSION_1_2) {
+    if (out.props.apiVersion < VK_API_VERSION_1_2) {
         out.unusable_reason = "driver reports Vulkan < 1.2";
-        return;
+        return out;
     }
 
     VkPhysicalDeviceVulkan12Features f12{
@@ -112,25 +99,36 @@ void probeBaseline(VkPhysicalDevice pd, DeviceInfo& out) {
 
     if (!f12.bufferDeviceAddress) {
         out.unusable_reason = "no bufferDeviceAddress";
-        return;
+        return out;
     }
     if (!f12.timelineSemaphore) {
         out.unusable_reason = "no timelineSemaphore";
-        return;
+        return out;
     }
 
     uint32_t nq = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(pd, &nq, nullptr);
     std::vector<VkQueueFamilyProperties> qf(nq);
     vkGetPhysicalDeviceQueueFamilyProperties(pd, &nq, qf.data());
-    bool compute = false;
     for (auto& q : qf)
-        if (q.queueFlags & VK_QUEUE_COMPUTE_BIT) compute = true;
-    if (!compute) {
-        out.unusable_reason = "no compute queue";
-        return;
-    }
-    out.usable = true;
+        if (q.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+            out.usable = true;
+            return out;
+        }
+    out.unusable_reason = "no compute queue";
+    return out;
+}
+
+DeviceInfo toDeviceInfo(const sel::DeviceRecord& r) {
+    DeviceInfo di;
+    di.index = r.index;
+    di.name = r.name;
+    di.type = sel::deviceTypeName(r.props.deviceType);
+    di.vram_bytes = r.vram_bytes;
+    di.usable = r.usable;
+    di.unusable_reason = r.unusable_reason;
+    di.uuid = sel::selectorFor(r);
+    return di;
 }
 
 VkInstance createInstance(bool validation, VkDebugUtilsMessengerEXT* messenger);
@@ -144,29 +142,78 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     return VK_FALSE;
 }
 
+#if defined(SS_HAVE_VIDEO) && defined(__linux__)
+void appendEnvToken(const char* name, const char* token) {
+    const char* cur = std::getenv(name);
+    std::string v = cur ? cur : "";
+    if (("," + v + ",").find("," + std::string(token) + ",") != std::string::npos)
+        return;
+    if (!v.empty()) v += ',';
+    v += token;
+    setenv(name, v.c_str(), 1);
+}
+
+// Mesa hides Vulkan Video on RADV (25.2) and on older ANV behind these debug
+// flags, read in vkCreateInstance, before the driver can be identified. Each
+// driver ignores the other's variable.
+void enableMesaVideo() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        appendEnvToken("RADV_PERFTEST", "video_decode");
+        appendEnvToken("RADV_PERFTEST", "video_encode");
+        appendEnvToken("ANV_DEBUG", "video-decode");
+        appendEnvToken("ANV_DEBUG", "video-encode");
+    });
+}
+#endif
+
 VkInstance createInstance(bool validation, VkDebugUtilsMessengerEXT* messenger) {
+#if defined(SS_HAVE_VIDEO) && defined(__linux__)
+    enableMesaVideo();
+#endif
     VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
     app.pApplicationName = "ssam";
     app.apiVersion = VK_API_VERSION_1_3;  // request 1.3, we only *require* 1.2
 
     std::vector<const char*> layers;
     std::vector<const char*> exts;
+    bool layer_settings = false;
     if (validation) {
+        const char* kLayer = "VK_LAYER_KHRONOS_validation";
         uint32_t n = 0;
         vkEnumerateInstanceLayerProperties(&n, nullptr);
         std::vector<VkLayerProperties> props(n);
         vkEnumerateInstanceLayerProperties(&n, props.data());
         for (auto& p : props)
-            if (std::strcmp(p.layerName, "VK_LAYER_KHRONOS_validation") == 0)
-                layers.push_back("VK_LAYER_KHRONOS_validation");
-        if (layers.empty())
+            if (std::strcmp(p.layerName, kLayer) == 0) layers.push_back(kLayer);
+        if (layers.empty()) {
             NN_LOG_WARN("[vk] validation requested but the layer is not installed\n");
-        else
+        } else {
             exts.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+            n = 0;
+            vkEnumerateInstanceExtensionProperties(kLayer, &n, nullptr);
+            std::vector<VkExtensionProperties> lext(n);
+            vkEnumerateInstanceExtensionProperties(kLayer, &n, lext.data());
+            for (auto& e : lext)
+                if (std::strcmp(e.extensionName, VK_EXT_LAYER_SETTINGS_EXTENSION_NAME) == 0)
+                    layer_settings = true;
+            if (layer_settings) exts.push_back(VK_EXT_LAYER_SETTINGS_EXTENSION_NAME);
+        }
     }
 
     VkInstanceCreateInfo ici{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     ici.pApplicationInfo = &app;
+
+    // NVIDIA 595 follows vkCmdDecodeVideoKHR's codec pNext again inside
+    // vkQueueSubmit. Handle wrapping hands the driver a copy freed when the
+    // record call returns, so a validated decode segfaults at its first submit.
+    const VkBool32 no_wrap = VK_FALSE;
+    VkLayerSettingEXT wrap_setting{"VK_LAYER_KHRONOS_validation", "unique_handles",
+                                   VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &no_wrap};
+    VkLayerSettingsCreateInfoEXT lsci{VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT};
+    lsci.settingCount = 1;
+    lsci.pSettings = &wrap_setting;
+    if (layer_settings) ici.pNext = &lsci;
 
     // A driver implementing only a subset of Vulkan (MoltenVK, the sole driver
     // on macOS) stays hidden from vkEnumeratePhysicalDevices unless the
@@ -258,11 +305,6 @@ bool hasCoopMatShape(VkInstance inst, VkPhysicalDevice pd) {
 }
 #endif
 
-std::string lower(std::string s) {
-    for (auto& c : s) c = (char)std::tolower((unsigned char)c);
-    return s;
-}
-
 }  // namespace
 
 std::vector<DeviceInfo> enumerate_devices() {
@@ -272,13 +314,29 @@ std::vector<DeviceInfo> enumerate_devices() {
     vkEnumeratePhysicalDevices(inst, &n, nullptr);
     std::vector<VkPhysicalDevice> devs(n);
     if (n) vkEnumeratePhysicalDevices(inst, &n, devs.data());
-    for (uint32_t i = 0; i < n; ++i) {
-        DeviceInfo di;
-        di.index = (int)i;
-        probeBaseline(devs[i], di);
-        out.push_back(std::move(di));
-    }
+    for (uint32_t i = 0; i < n; ++i)
+        out.push_back(toDeviceInfo(probeRecord(devs[i], (int)i)));
     vkDestroyInstance(inst, nullptr);
+    return out;
+}
+
+// Enumerates into shared records, using the caller's instance so ordinals
+// index the same list the caller sees.
+std::vector<sel::DeviceRecord> enumerate_records(VkInstance inst = VK_NULL_HANDLE) {
+    VkInstance own = VK_NULL_HANDLE;
+    if (inst == VK_NULL_HANDLE) {
+        own = createInstance(false, nullptr);
+        inst = own;
+    }
+    uint32_t n = 0;
+    vkEnumeratePhysicalDevices(inst, &n, nullptr);
+    std::vector<VkPhysicalDevice> devs(n);
+    if (n) vkEnumeratePhysicalDevices(inst, &n, devs.data());
+    std::vector<sel::DeviceRecord> out;
+    out.reserve(n);
+    for (uint32_t i = 0; i < n; ++i)
+        out.push_back(probeRecord(devs[i], (int)i));
+    if (own != VK_NULL_HANDLE) vkDestroyInstance(own, nullptr);
     return out;
 }
 
@@ -287,8 +345,20 @@ std::vector<DeviceInfo> enumerate_devices() {
 // ================
 
 namespace {
+// The configured request, held outside the Context: teardown frees GPU
+// resources, not the application's frozen selection, so every generation
+// (the GUI's second job after nn::shutdown) inherits the same device.
+struct Configured {
+    bool        set = false;
+    std::string selector;      // canonical uuid:<hex>, always resolved
+    bool        validation = false;
+    bool        profile = false;
+    bool        want_video = false;
+    bool        want_encode = false;
+};
+Configured            g_configured;
 Context*              g_ctx = nullptr;
-std::mutex            g_ctx_mu;
+std::mutex            g_state_mu;  // g_ctx + g_configured
 std::atomic<uint64_t> g_generation{0};
 }  // namespace
 
@@ -296,20 +366,136 @@ bool Context::initialized() { return g_ctx != nullptr; }
 
 uint64_t Context::generation() { return g_generation.load(std::memory_order_acquire); }
 
+// One request, in precedence order: an explicit option, else SS_VK_DEVICE,
+// else Auto. An explicit Auto wins over the environment.
+sel::Request selectionRequest(const ContextOptions& opts) {
+    if (opts.selector_set)
+        return sel::parseRequest(opts.device_selector.empty()
+                                     ? std::string("auto")
+                                     : opts.device_selector);
+    if (!opts.device_match.empty() || opts.device_index >= 0) {
+        // Legacy fields, still the spelling several call sites use.
+        sel::Request r = opts.device_index >= 0
+                             ? sel::parseRequest(std::to_string(opts.device_index))
+                             : sel::parseRequest(opts.device_match);
+        r.explicit_request = true;
+        return r;
+    }
+    return sel::requestFrom("", false);
+}
+
+// Resolve against this runtime's records without creating a logical device.
+sel::Resolution Context::resolveSelector(const sel::Request& req) {
+    return sel::resolveRequest(req, enumerate_records());
+}
+
+namespace {
+// Enumerates (throwaway instance, no logical device) and resolves; throws the
+// resolver's own reason, which distinguishes a malformed or ambiguous request
+// from a device that exists but cannot run this baseline.
+sel::Resolution resolveNow(const ContextOptions& opts) {
+    const sel::Resolution res = Context::resolveSelector(selectionRequest(opts));
+    NN_CHECK(res.ok(), "%s", res.error.c_str());
+    return res;
+}
+}  // namespace
+
+void Context::configure(const ContextOptions& opts) {
+    const sel::Resolution res = resolveNow(opts);
+    std::lock_guard<std::mutex> lock(g_state_mu);
+    if (g_ctx) {
+        // Re-configuring the device already live is a no-op; anything else is
+        // the caller trying to move a device out from under live resources.
+        NN_CHECK(res.selector == g_ctx->info().uuid,
+                 "the inference device is already initialized on %s; selecting "
+                 "another GPU needs a restart",
+                 g_ctx->info().uuid.c_str());
+        g_configured.validation = g_configured.validation || opts.validation;
+        g_configured.profile = g_configured.profile || opts.profile;
+        g_configured.want_video = g_configured.want_video || opts.want_video;
+        g_configured.want_encode = g_configured.want_encode || opts.want_encode;
+        return;
+    }
+    if (g_configured.set)
+        NN_CHECK(g_configured.selector == res.selector,
+                 "conflicting device request: %s is already configured",
+                 g_configured.selector.c_str());
+    g_configured.set = true;
+    g_configured.selector = res.selector;
+    g_configured.validation = g_configured.validation || opts.validation;
+    g_configured.profile = g_configured.profile || opts.profile;
+    g_configured.want_video = g_configured.want_video || opts.want_video;
+    g_configured.want_encode = g_configured.want_encode || opts.want_encode;
+}
+
+std::string Context::configured_selector() {
+    std::lock_guard<std::mutex> lock(g_state_mu);
+    return g_configured.set ? g_configured.selector : std::string();
+}
+
+std::string Context::current_selector() {
+    std::lock_guard<std::mutex> lock(g_state_mu);
+    return g_ctx ? g_ctx->info().uuid : std::string();
+}
+
 Context& Context::get(const ContextOptions& opts) {
-    std::lock_guard<std::mutex> lock(g_ctx_mu);
+    std::lock_guard<std::mutex> lock(g_state_mu);
+
+    // Whatever is already live (or configured) is the device this process has;
+    // an explicit request naming another one must fail rather than be silently
+    // replaced by it. A default call carries no request and simply inherits.
+    const bool explicit_device =
+        opts.selector_set || !opts.device_match.empty() || opts.device_index >= 0;
+    const std::string live =
+        g_ctx ? g_ctx->info().uuid
+              : (g_configured.set ? g_configured.selector : std::string());
+    if (explicit_device && !live.empty()) {
+        const sel::Resolution asked = resolveNow(opts);
+        NN_CHECK(asked.selector == live,
+                 "the inference device is already set to %s; %s needs a restart",
+                 live.c_str(), asked.selector.c_str());
+    }
+
     if (!g_ctx) {
         // Bumped before init() so that anything resolving entry points from
         // inside device creation caches them against the right generation.
         g_generation.fetch_add(1, std::memory_order_release);
-        g_ctx = new Context();
-        g_ctx->init(opts);
+
+        // The configured request is the frozen one; this call's own options
+        // still decide validation, profiling and the video queue (which is
+        // why the video option has to survive the seam).
+        ContextOptions applied = opts;
+        if (g_configured.set) {
+            applied.selector_set = true;
+            applied.device_selector = g_configured.selector;
+            applied.device_index = -1;
+            applied.device_match.clear();
+        }
+        applied.validation = applied.validation || g_configured.validation;
+        applied.profile = applied.profile || g_configured.profile;
+        applied.want_video = applied.want_video || g_configured.want_video;
+        applied.want_encode = applied.want_encode || g_configured.want_encode;
+
+        // Constructed locally and published only on success: an initialization
+        // failure must not leave a half-built singleton behind, and the next
+        // call must be free to try again.
+        std::unique_ptr<Context, Context::Deleter> ctx(new Context());
+        ctx->init(applied);
+        if (!g_configured.set) {
+            g_configured.set = true;
+            g_configured.selector = ctx->info().uuid;
+            g_configured.validation = opts.validation;
+            g_configured.profile = opts.profile;
+            g_configured.want_video = opts.want_video;
+            g_configured.want_encode = opts.want_encode;
+        }
+        g_ctx = ctx.release();
     }
     return *g_ctx;
 }
 
 void Context::shutdown() {
-    std::lock_guard<std::mutex> lock(g_ctx_mu);
+    std::lock_guard<std::mutex> lock(g_state_mu);
     delete g_ctx;
     g_ctx = nullptr;
 }
@@ -335,8 +521,9 @@ void Context::init(const ContextOptions& opts) {
     pickPhysicalDevice(opts);
     createDevice(opts);
 
-    NN_LOG_INFO("[vk] device: %s (%s, %.1f GiB)\n", info_.name.c_str(), info_.type,
-                  info_.vram_bytes / (1024.0 * 1024.0 * 1024.0));
+    NN_LOG_INFO("[vk] device: %s [%s] (%s, %.1f GiB)\n",
+                info_.name.c_str(), info_.uuid.c_str(), info_.type,
+                info_.vram_bytes / (1024.0 * 1024.0 * 1024.0));
 }
 
 void Context::pickPhysicalDevice(const ContextOptions& opts) {
@@ -346,61 +533,24 @@ void Context::pickPhysicalDevice(const ContextOptions& opts) {
     std::vector<VkPhysicalDevice> devs(n);
     vkEnumeratePhysicalDevices(instance_, &n, devs.data());
 
-    std::vector<DeviceInfo> infos(n);
-    for (uint32_t i = 0; i < n; ++i) {
-        infos[i].index = (int)i;
-        probeBaseline(devs[i], infos[i]);
-    }
+    std::vector<sel::DeviceRecord> infos;
+    infos.reserve(n);
+    for (uint32_t i = 0; i < n; ++i)
+        infos.push_back(probeRecord(devs[i], (int)i));
 
-    // Explicit selection: option, then $SS_VK_DEVICE (index or name substring).
-    int chosen = -1;
-    std::string match = opts.device_match;
-    int want_index = opts.device_index;
-    if (const char* env = spirula::env("VK_DEVICE")) {
-        char* end = nullptr;
-        long v = std::strtol(env, &end, 10);
-        if (end && *end == '\0') want_index = (int)v;
-        else match = env;
-    }
-    if (want_index >= 0) {
-        NN_CHECK(want_index < (int)n, "SS_VK_DEVICE index %d out of range (%u devices)",
-                   want_index, n);
-        chosen = want_index;
-    } else if (!match.empty()) {
-        std::string needle = lower(match);
-        for (uint32_t i = 0; i < n; ++i)
-            if (lower(infos[i].name).find(needle) != std::string::npos) {
-                chosen = (int)i;
-                break;
-            }
-        NN_CHECK(chosen >= 0, "no Vulkan device name contains '%s'", match.c_str());
-    } else {
-        int best_score = -1;
-        uint64_t best_vram = 0;
-        for (uint32_t i = 0; i < n; ++i) {
-            if (!infos[i].usable) continue;
-            int s = typeScore(infos[i].type);
-            if (s > best_score || (s == best_score && infos[i].vram_bytes > best_vram)) {
-                best_score = s;
-                best_vram = infos[i].vram_bytes;
-                chosen = (int)i;
-            }
-        }
-        NN_CHECK(chosen >= 0,
-                   "no Vulkan device meets the baseline (1.2 + bufferDeviceAddress "
-                   "+ timelineSemaphore); first device said: %s",
-                   infos[0].unusable_reason.c_str());
-    }
-
-    NN_CHECK(infos[chosen].usable, "device %d (%s) is unusable: %s", chosen,
-               infos[chosen].name.c_str(), infos[chosen].unusable_reason.c_str());
+    const sel::Resolution res =
+        sel::resolveRequest(selectionRequest(opts), infos);
+    NN_CHECK(res.ok(), "%s", res.error.c_str());
+    const int chosen = res.device.index;
 
     physical_ = devs[chosen];
-    info_ = infos[chosen];
-    VkPhysicalDeviceProperties props{};
-    vkGetPhysicalDeviceProperties(physical_, &props);
-    limits_ = props.limits;
+    info_ = toDeviceInfo(infos[chosen]);
+    limits_ = infos[chosen].props.limits;
     vkGetPhysicalDeviceMemoryProperties(physical_, &mem_props_);
+}
+
+spirula::vkmemory::Budget Context::memoryBudget() const {
+    return memory_budget_ ? spirula::vkmemory::queryBudget(physical_) : spirula::vkmemory::Budget{};
 }
 
 void Context::createDevice(const ContextOptions& opts) {
@@ -444,6 +594,8 @@ void Context::createDevice(const ContextOptions& opts) {
     };
 
     std::vector<const char*> exts;
+    memory_budget_ = has(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+    if (memory_budget_) exts.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
     // Mandatory where advertised: the spec forbids creating a device from a
     // portability physical device without it. Spelled out rather than using
     // the macro, which is behind VK_ENABLE_BETA_EXTENSIONS.
@@ -458,7 +610,8 @@ void Context::createDevice(const ContextOptions& opts) {
         p2.pNext = &sp;
         vkGetPhysicalDeviceProperties2(physical_, &p2);
         // Pin the widest size the device offers that our 64-wide-X kernels can
-        // still fill; Intel/ANV's varying width is the failure this avoids.
+        // still fill; Intel/ANV's varying width is the failure this avoids. On
+        // RDNA2, 64 against 32: SAM 2 + GDINO 6% faster, MoGe 1.3% slower.
         preferred_subgroup_ = std::min<uint32_t>(sp.maxSubgroupSize, 64u);
         preferred_subgroup_ = std::max<uint32_t>(preferred_subgroup_, sp.minSubgroupSize);
         NN_LOG_DEBUG("[vk] subgroup size pinned to %u (range %u..%u)\n",
@@ -587,6 +740,79 @@ void Context::createDevice(const ContextOptions& opts) {
         }
     }
 
+    // ---- video encode -----------------------------------------------------
+    // Only `spirula encode` asks: a device every other tool creates has no
+    // use for an encode queue.
+#if defined(SS_HAVE_VIDEO) && defined(VK_KHR_video_encode_queue)
+    if (opts.want_encode) {
+        if (!has(VK_KHR_VIDEO_QUEUE_EXTENSION_NAME) ||
+            !has(VK_KHR_VIDEO_ENCODE_QUEUE_EXTENSION_NAME)) {
+            encode_reason_ = "driver does not expose VK_KHR_video_encode_queue";
+        } else {
+            for (uint32_t i = 0; i < nq; ++i) {
+                if (!(qf2[i].queueFamilyProperties.queueFlags &
+                      VK_QUEUE_VIDEO_ENCODE_BIT_KHR))
+                    continue;
+                encode_queue_family_ = i;
+                encode_codec_ops_ = qvid[i].videoCodecOperations;
+                break;
+            }
+            if (!has(VK_KHR_VIDEO_ENCODE_H264_EXTENSION_NAME))
+                encode_codec_ops_ &= ~(uint32_t)VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR;
+            if (!has(VK_KHR_VIDEO_ENCODE_H265_EXTENSION_NAME))
+                encode_codec_ops_ &= ~(uint32_t)VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR;
+            uint32_t keep = VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR |
+                            VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR;
+#ifdef VK_KHR_video_encode_av1
+            // AV1 is a device feature as well as an extension.
+            if (has(VK_KHR_VIDEO_ENCODE_AV1_EXTENSION_NAME)) {
+                VkPhysicalDeviceVideoEncodeAV1FeaturesKHR fav1{
+                    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_AV1_FEATURES_KHR};
+                VkPhysicalDeviceFeatures2 q{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+                q.pNext = &fav1;
+                vkGetPhysicalDeviceFeatures2(physical_, &q);
+                if (fav1.videoEncodeAV1) keep |= VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR;
+            }
+#endif
+            encode_codec_ops_ &= keep;
+            if (encode_queue_family_ == UINT32_MAX) {
+                encode_reason_ = "no queue family advertises VIDEO_ENCODE";
+            } else if (encode_codec_ops_ == 0) {
+                encode_reason_ = "video-encode queue exists but no H.264, H.265 or AV1 encode";
+                encode_queue_family_ = UINT32_MAX;
+            } else {
+                encode_reason_.clear();
+                if (std::find_if(exts.begin(), exts.end(), [](const char* e) {
+                        return std::strcmp(e, VK_KHR_VIDEO_QUEUE_EXTENSION_NAME) == 0;
+                    }) == exts.end())
+                    exts.push_back(VK_KHR_VIDEO_QUEUE_EXTENSION_NAME);
+                exts.push_back(VK_KHR_VIDEO_ENCODE_QUEUE_EXTENSION_NAME);
+                if (encode_codec_ops_ & VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR)
+                    exts.push_back(VK_KHR_VIDEO_ENCODE_H264_EXTENSION_NAME);
+                if (encode_codec_ops_ & VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR)
+                    exts.push_back(VK_KHR_VIDEO_ENCODE_H265_EXTENSION_NAME);
+#ifdef VK_KHR_video_encode_av1
+                if (encode_codec_ops_ & VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR)
+                    exts.push_back(VK_KHR_VIDEO_ENCODE_AV1_EXTENSION_NAME);
+#endif
+            }
+        }
+    }
+#endif
+
+    // A transfer-only family is the copy engine: work on it runs beside the
+    // compute queue rather than between its dispatches.
+    if (envFlagDefaultOn("NN_TRANSFER_QUEUE"))
+        for (uint32_t i = 0; i < nq; ++i) {
+            const VkQueueFlags f = qf2[i].queueFamilyProperties.queueFlags;
+            if ((f & VK_QUEUE_TRANSFER_BIT) &&
+                !(f & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) &&
+                i != video_queue_family_ && i != encode_queue_family_) {
+                transfer_family_ = i;
+                break;
+            }
+        }
+
     // ---- queues ---------------------------------------------------------
     const float prio = 1.0f;
     std::vector<VkDeviceQueueCreateInfo> qcis;
@@ -598,6 +824,15 @@ void Context::createDevice(const ContextOptions& opts) {
         qcis.push_back(q);
         if (video_queue_family_ != UINT32_MAX && video_queue_family_ != queue_family_) {
             q.queueFamilyIndex = video_queue_family_;
+            qcis.push_back(q);
+        }
+        if (encode_queue_family_ != UINT32_MAX && encode_queue_family_ != queue_family_ &&
+            encode_queue_family_ != video_queue_family_) {
+            q.queueFamilyIndex = encode_queue_family_;
+            qcis.push_back(q);
+        }
+        if (transfer_family_ != UINT32_MAX) {
+            q.queueFamilyIndex = transfer_family_;
             qcis.push_back(q);
         }
     }
@@ -637,7 +872,18 @@ void Context::createDevice(const ContextOptions& opts) {
     // Decoded pictures are multi-planar YCbCr images. We never sample them --
     // the planes are copied to buffers and unpacked in a shader -- but creating
     // an image in one of those formats is gated on this feature.
-    if (video_queue_family_ != UINT32_MAX) f11.samplerYcbcrConversion = VK_TRUE;
+    if (video_queue_family_ != UINT32_MAX || encode_queue_family_ != UINT32_MAX)
+        f11.samplerYcbcrConversion = VK_TRUE;
+
+#if defined(SS_HAVE_VIDEO) && defined(VK_KHR_video_encode_av1)
+    VkPhysicalDeviceVideoEncodeAV1FeaturesKHR fav1{
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VIDEO_ENCODE_AV1_FEATURES_KHR};
+    if (encode_codec_ops_ & VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR) {
+        fav1.videoEncodeAV1 = VK_TRUE;
+        fav1.pNext = chain;
+        chain = &fav1;
+    }
+#endif
 
     VkPhysicalDeviceSubgroupSizeControlFeaturesEXT fsg{
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_SIZE_CONTROL_FEATURES_EXT};
@@ -664,6 +910,10 @@ void Context::createDevice(const ContextOptions& opts) {
     if (video_queue_family_ != UINT32_MAX)
         vkGetDeviceQueue(device_, video_queue_family_,
                          video_queue_family_ == queue_family_ ? 0 : 0, &video_queue_);
+    if (encode_queue_family_ != UINT32_MAX)
+        vkGetDeviceQueue(device_, encode_queue_family_, 0, &encode_queue_);
+    if (transfer_family_ != UINT32_MAX)
+        vkGetDeviceQueue(device_, transfer_family_, 0, &transfer_queue_);
 
 }
 

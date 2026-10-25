@@ -33,17 +33,20 @@ struct TrackInfo {
     // Length in bytes of the size prefix on each NAL unit; 0 means the frame
     // data is already Annex-B (start codes) or, for AV1, a stream of OBUs.
     int      nal_length_size = 4;
-    // Clockwise rotation the container declares for this track, decoded from
-    // the MP4/MOV track-header display matrix (tkhd). Phone footage (H.264/
-    // H.265) stores the upright orientation here even though the coded frames
-    // are stored rotated; extractors must apply it or the frames come out
-    // sideways. 0/90/180/270.
-    int      rotation_deg = 0;
+    // The container's display transform: turn the decoded picture this many
+    // degrees clockwise, then mirror it. A phone records a portrait clip as
+    // landscape pixels plus this matrix, and nothing else says so.
+    int      rotate = 0;             // 0, 90, 180 or 270
+    bool     mirror = false;
 };
 
 struct Packet {
     std::vector<uint8_t> data;
-    int64_t index = 0;
+    int64_t index = 0;               // position in DECODE order
+    // ... and in PRESENTATION order, which is what numbers a decoded frame:
+    // counting the pictures that come out instead drifts on a stream the
+    // decoder drops any of, and cannot survive a seek.
+    int64_t display_index = 0;
     double  pts = 0.0;               // seconds, presentation order
     double  dts = 0.0;               // seconds, decode order
     bool    is_sync = false;
@@ -59,6 +62,14 @@ public:
     // Next coded frame in DECODE order. Returns false at end of stream (with
     // `error` empty) or on a parse failure (with `error` set).
     virtual bool next(Packet& out, std::string& error) = 0;
+
+    // Rewinds to the sync sample at or before `index`, reporting which one,
+    // so a caller can decode forward from there rather than from the start.
+    // False where there is no index to do it with -- read from 0 instead.
+    virtual bool seekSync(int64_t index, int64_t& landed, std::string& error) {
+        (void)index; (void)landed; (void)error;
+        return false;
+    }
 };
 
 // Picks the implementation by content, not by extension: .insv is an MP4 and

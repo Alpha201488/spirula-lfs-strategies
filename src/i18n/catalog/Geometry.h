@@ -146,54 +146,42 @@ SS_MSG(opt_model,
        "yavaştır ve yalnızca biraz daha iyidir."));
 
 SS_MSG(opt_max_size,
-    EN("Longest side of one image the network runs, and of the maps written. "
-       "A split sizes its faces off the full frame and meets this only as a "
-       "ceiling, so a wide capture still runs most of the detail it was shot "
-       "with. 1064 is what the model's own pipeline uses."),
-    JA("ネットワークが 1 枚で処理する画像と、書き出すマップの長辺で"
-       "す。分割時の面は元の解像度から大きさを決め、これは上限としてだけ効"
-       "きます。1064 はモデル本来のパイプラインが使う大きさです。"),
-    ZH_HANS("网络单张处理的图像、以及写出贴图的长边。拆分时各面的大小由原"
-            "分辨率决定，这里只作为上限，因此超广拍摄仍能保留大部分细节。"
-            "1064 是该模型自身流程使用的大小。"),
-    ZH_HANT("網路單張處理的影像、以及寫出貼圖的長邊。拆分時各面的大小由原"
-            "解析度決定，這裡只作為上限，因此超廣拍攝仍能保留大部分細節。"
-            "1064 是該模型自身流程使用的大小。"),
-    KO("신경망이 한 번에 처리하는 이미지와 기록하는 맵의 긴 변입니"
-       "다. 분할한 면의 크기는 원본 해상도에서 정해지고 이 값은 상한으로만 "
-       "쓰입니다. 1064 는 모델 자체 파이프라인이 쓰는 크기입니다."),
-    DE("Längste Seite eines Bildes, das das Netz verarbeitet, und der "
-       "geschriebenen Karten. Eine Zerlegung bemisst ihre Flächen am vollen "
-       "Bild und trifft dies nur als Obergrenze, eine weite Aufnahme läuft "
-       "also mit fast allen Details. 1064 nutzt die Pipeline des Modells."),
-    FR("Plus grand côté d'une image traitée par le réseau, et des cartes "
-       "écrites. Un découpage dimensionne ses faces sur l'image pleine et ne "
-       "rencontre ceci que comme plafond : une prise très ouverte garde donc "
-       "presque tout son détail. 1064 est ce qu'utilise le pipeline du modèle."),
-    ES("Lado mayor de una imagen que procesa la red, y de los mapas escritos. "
-       "Una división dimensiona sus caras sobre el cuadro completo y solo "
-       "encuentra esto como techo, así que una toma muy abierta conserva casi "
-       "todo su detalle. 1064 es lo que usa la tubería del modelo."),
-    PT("Maior lado de uma imagem que a rede processa, e dos mapas escritos. "
-       "Uma divisão dimensiona as suas faces pelo quadro completo e encontra "
-       "isto apenas como tecto, pelo que uma captura muito aberta mantém quase "
-       "todo o detalhe. 1064 é o que o pipeline do modelo usa."),
-    IT("Lato più lungo di un'immagine che la rete elabora, e delle mappe "
-       "scritte. Una divisione dimensiona le sue facce sul fotogramma intero e "
-       "incontra questo solo come tetto, quindi una ripresa molto ampia "
-       "conserva quasi tutto il dettaglio. 1064 è ciò che usa la pipeline del "
-       "modello."),
-    NL("Langste zijde van één beeld dat het netwerk verwerkt, en van de "
-       "geschreven kaarten. Een splitsing bemeet haar vlakken op het volledige "
-       "beeld en komt dit alleen als plafond tegen, dus een zeer wijde opname "
-       "houdt bijna al haar detail. 1064 gebruikt de pijplijn van het model."),
-    RU("Наибольшая сторона одного изображения для сети и "
-       "записываемых карт. При разбиении грани берут размер от "
-       "полного кадра, а это лишь потолок, так что широкая съёмка "
-       "сохраняет почти весь детализм. 1064 — размер конвейера модели."),
-    TR("Ağın işlediği bir görüntünün ve yazılan haritaların en uzun "
-       "kenarı. Bölme, yüzlerini tam kareye göre boyutlandırır ve bunu yalnızca "
-       "tavan olarak görür; çok geniş bir çekim ayrıntısının çoğunu korur. "
+    EN("Longest side of the maps written, and of one image the network runs. "
+       "A split sizes its faces to match the written maps (--face-res). 1064 "
+       "is what the model's own pipeline uses."),
+    JA("書き出すマップと、ネットワークが 1 枚で処理する画像の長辺です。分割時"
+       "の面は書き出すマップに合わせた大きさになります (--face-res)。1064 はモ"
+       "デル本来のパイプラインが使う大きさです。"),
+    ZH_HANS("写出贴图、以及网络单张处理的图像的长边。拆分时各面的大小与写出的"
+            "贴图相匹配 (--face-res)。1064 是该模型自身流程使用的大小。"),
+    ZH_HANT("寫出貼圖、以及網路單張處理的影像的長邊。拆分時各面的大小與寫出的"
+            "貼圖相匹配 (--face-res)。1064 是該模型自身流程使用的大小。"),
+    KO("기록하는 맵과 신경망이 한 번에 처리하는 이미지의 긴 변입니다. 분할한 "
+       "면의 크기는 기록하는 맵에 맞춰집니다 (--face-res). 1064 는 모델 자체 "
+       "파이프라인이 쓰는 크기입니다."),
+    DE("Längste Seite der geschriebenen Karten und eines Bildes, das das Netz "
+       "verarbeitet. Eine Zerlegung bemisst ihre Flächen passend zu den "
+       "geschriebenen Karten (--face-res). 1064 nutzt die Pipeline des Modells."),
+    FR("Plus grand côté des cartes écrites, et d'une image traitée par le "
+       "réseau. Un découpage dimensionne ses faces d'après les cartes écrites "
+       "(--face-res). 1064 est ce qu'utilise le pipeline du modèle."),
+    ES("Lado mayor de los mapas escritos, y de una imagen que procesa la red. "
+       "Una división dimensiona sus caras según los mapas escritos "
+       "(--face-res). 1064 es lo que usa la tubería del modelo."),
+    PT("Maior lado dos mapas escritos, e de uma imagem que a rede processa. "
+       "Uma divisão dimensiona as suas faces pelos mapas escritos "
+       "(--face-res). 1064 é o que o pipeline do modelo usa."),
+    IT("Lato più lungo delle mappe scritte, e di un'immagine che la rete "
+       "elabora. Una divisione dimensiona le sue facce sulle mappe scritte "
+       "(--face-res). 1064 è ciò che usa la pipeline del modello."),
+    NL("Langste zijde van de geschreven kaarten, en van één beeld dat het "
+       "netwerk verwerkt. Een splitsing bemeet haar vlakken naar de geschreven "
+       "kaarten (--face-res). 1064 gebruikt de pijplijn van het model."),
+    RU("Наибольшая сторона записываемых карт и одного изображения для сети. "
+       "При разбиении грани берут размер от записываемых карт (--face-res). "
+       "1064 — размер конвейера модели."),
+    TR("Yazılan haritaların ve ağın işlediği bir görüntünün en uzun kenarı. "
+       "Bölme, yüzlerini yazılan haritalara göre boyutlandırır (--face-res). "
        "1064 modelin kendi işlem hattının kullandığı boyuttur."));
 
 SS_MSG(opt_num_tokens,
@@ -416,6 +404,70 @@ SS_MSG(opt_split,
        "balık gözünü ise tek bir iğne deliği karenin dörtte üçünden azını "
        "koruyacaksa böler."));
 
+SS_MSG(opt_face_res,
+    EN("How finely a split samples the frame. `output` sizes each face to the "
+       "map it is written into, and no smaller than the network's least input. "
+       "`source` sizes it to the frame's own resolution, up to --max-size: "
+       "several times the work on a high-resolution capture, for a sharper "
+       "input to the network."),
+    JA("分割でフレームをどれだけ細かく取るかです。`output` は各面を書き出すマッ"
+       "プに合わせ、ネットワークの最小入力より小さくはしません。`source` は元の"
+       "フレームの解像度に合わせ、--max-size が上限です。高解像度の撮影では処理"
+       "量が数倍になる代わりに、ネットワークへの入力が鮮明になります。"),
+    ZH_HANS("拆分时对画面采样的精细程度。`output` 让每个面与写出的贴图相匹配，"
+            "且不小于网络的最小输入。`source` 让它与原画面的分辨率相同，以 "
+            "--max-size 为上限：对高分辨率拍摄，开销是数倍，换来更清晰的网络"
+            "输入。"),
+    ZH_HANT("拆分時對畫面取樣的精細程度。`output` 讓每個面與寫出的貼圖相匹配，"
+            "且不小於網路的最小輸入。`source` 讓它與原畫面的解析度相同，以 "
+            "--max-size 為上限：對高解析度拍攝，開銷是數倍，換來更清晰的網路"
+            "輸入。"),
+    KO("분할할 때 프레임을 얼마나 촘촘히 샘플링할지입니다. `output` 은 각 면을 "
+       "기록하는 맵에 맞추되 신경망의 최소 입력보다 작게 하지 않습니다. "
+       "`source` 는 원본 프레임의 해상도에 맞추며 --max-size 가 상한입니다. "
+       "고해상도 촬영에서는 비용이 몇 배가 되는 대신 신경망 입력이 더 "
+       "선명해집니다."),
+    DE("Wie fein eine Zerlegung das Bild abtastet. `output` bemisst jede Fläche "
+       "nach der Karte, in die sie geschrieben wird, nie kleiner als die "
+       "kleinste Eingabe des Netzes. `source` nach der Auflösung des Bildes "
+       "selbst, bis --max-size: bei einer hochauflösenden Aufnahme ein "
+       "Mehrfaches an Arbeit für eine schärfere Eingabe."),
+    FR("Finesse avec laquelle un découpage échantillonne l'image. `output` "
+       "dimensionne chaque face d'après la carte où elle est écrite, sans "
+       "descendre sous l'entrée minimale du réseau. `source` d'après la "
+       "résolution de l'image elle-même, jusqu'à --max-size : plusieurs fois "
+       "le travail sur une prise haute résolution, pour une entrée plus nette."),
+    ES("Con qué finura una división muestrea el cuadro. `output` dimensiona "
+       "cada cara según el mapa en que se escribe, nunca por debajo de la "
+       "entrada mínima de la red. `source` según la resolución del propio "
+       "cuadro, hasta --max-size: varias veces el trabajo en una toma de alta "
+       "resolución, a cambio de una entrada más nítida."),
+    PT("Com que finura uma divisão amostra o quadro. `output` dimensiona cada "
+       "face pelo mapa onde é escrita, nunca abaixo da entrada mínima da rede. "
+       "`source` pela resolução do próprio quadro, até --max-size: várias vezes "
+       "o trabalho numa captura de alta resolução, em troca de uma entrada "
+       "mais nítida."),
+    IT("Quanto finemente una divisione campiona il fotogramma. `output` "
+       "dimensiona ogni faccia sulla mappa in cui viene scritta, mai sotto "
+       "l'ingresso minimo della rete. `source` sulla risoluzione del "
+       "fotogramma stesso, fino a --max-size: più volte il lavoro su una "
+       "ripresa ad alta risoluzione, per un ingresso più nitido."),
+    NL("Hoe fijn een splitsing het beeld bemonstert. `output` bemeet elk vlak "
+       "naar de kaart waarin het geschreven wordt, nooit kleiner dan de "
+       "kleinste invoer van het netwerk. `source` naar de resolutie van het "
+       "beeld zelf, tot --max-size: bij een opname met hoge resolutie een "
+       "veelvoud van het werk, voor scherpere invoer."),
+    RU("Насколько подробно разбиение выбирает кадр. `output` подгоняет каждую "
+       "грань под карту, в которую она записывается, но не меньше "
+       "минимального входа сети. `source` — под разрешение самого кадра, до "
+       "--max-size: на съёмке высокого разрешения в несколько раз больше "
+       "работы ради более чёткого входа."),
+    TR("Bölmenin kareyi ne kadar ince örneklediği. `output` her yüzü yazıldığı "
+       "haritaya göre boyutlandırır, ağın en küçük girdisinden küçük yapmaz. "
+       "`source` karenin kendi çözünürlüğüne göre, --max-size sınırına kadar: "
+       "yüksek çözünürlüklü bir çekimde birkaç kat iş, daha net bir girdi "
+       "karşılığında."));
+
 SS_MSG(opt_depth_units,
     EN("What a stored depth value means. `relative` fills the 16 bits with the "
        "scene, dividing by its own 99.9th percentile, and is what the depth "
@@ -526,6 +578,43 @@ SS_MSG(opt_image_linear,
        "закодированными."),
     TR("Veri kümesi görüntülerini ekran kodlu değil, doğrusal ışık olarak ele "
        "al."));
+
+SS_MSG(opt_image_exposure,
+    EN("Brighten what the model sees, in linear light, without touching the "
+       "files: auto lifts each image darker than a typical photograph, or give "
+       "a number of stops."),
+    JA("ファイルを変えずに、モデルに渡す画像をリニア光で明るくします。auto は一般的な"
+       "写真より暗い画像をそれぞれ持ち上げ、数値なら段数です。"),
+    ZH_HANS("在线性光中调亮模型看到的图像，不改动文件：auto 会提亮比普通照片暗的"
+            "每张图像，也可给出档数。"),
+    ZH_HANT("在線性光中調亮模型看到的影像，不改動檔案：auto 會提亮比一般照片暗的"
+            "每張影像，也可給出檔數。"),
+    KO("파일은 그대로 두고 모델이 보는 이미지를 선형 광에서 밝게 합니다. auto 는 "
+       "일반 사진보다 어두운 이미지를 각각 끌어올리고, 숫자는 스톱 수입니다."),
+    DE("Hellt in linearem Licht auf, was das Modell sieht, ohne die Dateien zu "
+       "ändern: auto hebt jedes Bild an, das dunkler als ein typisches Foto ist, "
+       "oder eine Zahl von Blendenstufen."),
+    FR("Éclaircit en lumière linéaire ce que voit le modèle, sans toucher aux "
+       "fichiers : auto relève chaque image plus sombre qu'une photo typique, ou "
+       "indiquez un nombre de diaphs."),
+    ES("Aclara en luz lineal lo que ve el modelo, sin tocar los archivos: auto "
+       "levanta cada imagen más oscura que una foto típica, o indique un número "
+       "de pasos."),
+    PT("Clareia em luz linear o que o modelo vê, sem mexer nos arquivos: auto "
+       "ergue cada imagem mais escura que uma foto típica, ou indique um número "
+       "de pontos."),
+    IT("Schiarisce in luce lineare ciò che vede il modello, senza toccare i "
+       "file: auto solleva ogni immagine più scura di una foto tipica, oppure "
+       "indica un numero di stop."),
+    NL("Maakt in lineair licht lichter wat het model ziet, zonder de bestanden "
+       "te wijzigen: auto tilt elk beeld op dat donkerder is dan een gewone "
+       "foto, of geef een aantal stops."),
+    RU("Осветляет в линейном свете то, что видит модель, не трогая файлы: auto "
+       "поднимает каждое изображение темнее обычной фотографии, либо укажите "
+       "число ступеней."),
+    TR("Modelin gördüğünü dosyalara dokunmadan doğrusal ışıkta aydınlatır: auto, "
+       "tipik bir fotoğraftan koyu olan her görüntüyü yükseltir; ya da bir durak "
+       "sayısı verin."));
 
 SS_MSG(opt_overwrite,
     EN("Recompute maps that are already on disk. Without it a run continues "
@@ -725,6 +814,205 @@ SS_MSG(warn_fitted_camera,
     TR("kamera {0}, hiçbir bozulma kademesinin tam olarak temsil etmediği bir "
        "mercek kullanıyor; haritalar uyum üzerinden yeniden örneklenir ve "
        "görüntülerin bir piksel yakınına düşer"));
+
+SS_MSG(opt_install,
+    EN("Fetch what --model <id> needs and stop; no dataset. Only Marigold v2 "
+       "needs it: it is built from about 45 GB streamed from Hugging Face (its "
+       "ModelScope mirror when that fails) and keeps 11 GB. --depth and "
+       "--no-normal choose which of its two networks to build. The free disk "
+       "space is checked first."),
+    JA("--model <id> に必要なものを取得して終了します（データセットは不要です）。"
+       "これが要るのは Marigold v2 だけで、Hugging Face（失敗したときはその "
+       "ModelScope ミラー）から約 45 GB をストリーミングして組み立て、11 GB "
+       "を残します。--depth と --no-normal で 2 つのネットワークのどちらを作るか"
+       "選びます。空き容量を先に確かめます。"),
+    ZH_HANS("获取 --model <id> 所需的文件后退出，不需要数据集。只有 Marigold v2 "
+            "需要这样做：它从 Hugging Face（失败时改用其 ModelScope 镜像）流式读取约 "
+            "45 GB 来构建，最终保留 11 GB。--depth 和 --no-normal 选择构建两个网络中"
+            "的哪一个。会先检查磁盘剩余空间。"),
+    ZH_HANT("取得 --model <id> 所需的檔案後結束，不需要資料集。只有 Marigold v2 "
+            "需要這樣做：它從 Hugging Face（失敗時改用其 ModelScope 鏡像）串流讀取約 "
+            "45 GB 來建置，最後保留 11 GB。--depth 和 --no-normal 選擇建置兩個網路中"
+            "的哪一個。會先檢查磁碟剩餘空間。"),
+    KO("--model <id> 에 필요한 것을 받아 두고 끝냅니다. 데이터셋은 필요 없습니다. "
+       "이것이 필요한 모델은 Marigold v2 뿐입니다. Hugging Face(실패하면 그 "
+       "ModelScope 미러)에서 약 45 GB 를 스트리밍해 만들고 11 GB 를 남깁니다. "
+       "--depth 와 --no-normal 로 두 신경망 중 무엇을 만들지 고릅니다. 디스크 여유 "
+       "공간을 먼저 확인합니다."),
+    DE("Holt, was --model <id> braucht, und endet, ohne Datensatz. Nur "
+       "Marigold v2 braucht das: Es wird aus rund 45 GB gebaut, die von Hugging "
+       "Face gestreamt werden (bei Fehlern von seinem ModelScope-Spiegel), und "
+       "belegt danach 11 GB. --depth und --no-normal wählen, welches seiner zwei "
+       "Netze gebaut wird. Der freie Speicherplatz wird vorher geprüft."),
+    FR("Récupère ce dont --model <id> a besoin puis s'arrête, sans jeu de "
+       "données. Seul Marigold v2 en a besoin : il est construit à partir "
+       "d'environ 45 Go lus en flux depuis Hugging Face (son miroir ModelScope "
+       "en cas d'échec) et en garde 11 Go. --depth et --no-normal choisissent "
+       "lequel de ses deux réseaux construire. L'espace disque libre est vérifié "
+       "d'abord."),
+    ES("Obtiene lo que necesita --model <id> y termina, sin conjunto de datos. "
+       "Solo Marigold v2 lo necesita: se construye a partir de unos 45 GB "
+       "transmitidos desde Hugging Face (desde su réplica de ModelScope si "
+       "falla) y ocupa 11 GB. --depth y --no-normal eligen cuál de sus dos redes "
+       "construir. Antes se comprueba el espacio libre en disco."),
+    PT("Obtém o que --model <id> precisa e termina, sem conjunto de dados. Só o "
+       "Marigold v2 precisa disto: é construído a partir de cerca de 45 GB "
+       "transmitidos do Hugging Face (do seu espelho no ModelScope se falhar) e "
+       "ocupa 11 GB. --depth e --no-normal escolhem qual das suas duas redes "
+       "construir. O espaço livre em disco é verificado primeiro."),
+    IT("Recupera ciò che serve a --model <id> e termina, senza insieme di "
+       "dati. Serve solo a Marigold v2: viene costruito da circa 45 GB "
+       "trasmessi da Hugging Face (dal suo mirror ModelScope in caso di errore) "
+       "e ne tiene 11 GB. --depth e --no-normal scelgono quale delle sue due "
+       "reti costruire. Lo spazio libero su disco viene controllato prima."),
+    NL("Haalt op wat --model <id> nodig heeft en stopt, zonder dataset. Alleen "
+       "Marigold v2 heeft dit nodig: het wordt gebouwd uit zo'n 45 GB die van "
+       "Hugging Face worden gestreamd (van zijn ModelScope-spiegel als dat "
+       "mislukt) en houdt 11 GB over. --depth en --no-normal kiezen welke van "
+       "zijn twee netwerken wordt gebouwd. De vrije schijfruimte wordt eerst "
+       "gecontroleerd."),
+    RU("Получает то, что нужно для --model <id>, и завершается, без набора "
+       "данных. Это нужно только Marigold v2: он собирается из примерно 45 ГБ, "
+       "потоково загружаемых с Hugging Face (при ошибке — с его зеркала на "
+       "ModelScope), и занимает 11 ГБ. --depth и --no-normal выбирают, какую из "
+       "двух его сетей собрать. Свободное место на диске проверяется заранее."),
+    TR("--model <id> için gerekenleri alır ve veri kümesi olmadan çıkar. Buna "
+       "yalnızca Marigold v2 ihtiyaç duyar: Hugging Face'ten (başarısız olursa "
+       "ModelScope yansısından) akıtılan yaklaşık 45 GB'tan oluşturulur ve 11 GB "
+       "yer kaplar. --depth ve --no-normal iki ağından hangisinin "
+       "oluşturulacağını seçer. Önce boş disk alanı denetlenir."));
+
+SS_MSG(log_install_plan,
+    EN("{0}: {1} to stream, {2} to write under {3}, {4} free"),
+    JA("{0}: ストリーミング {1}、{3} に書き込み {2}、空き {4}"),
+    ZH_HANS("{0}: 需流式读取 {1}, 需写入 {2} 到 {3}, 剩余 {4}"),
+    ZH_HANT("{0}: 需串流讀取 {1}, 需寫入 {2} 到 {3}, 剩餘 {4}"),
+    KO("{0}: 스트리밍 {1}, {3} 에 기록 {2}, 여유 {4}"),
+    DE("{0}: {1} zu streamen, {2} zu schreiben unter {3}, {4} frei"),
+    FR("{0} : {1} à lire en flux, {2} à écrire sous {3}, {4} libres"),
+    ES("{0}: {1} por transmitir, {2} por escribir en {3}, {4} libres"),
+    PT("{0}: {1} a transmitir, {2} a escrever em {3}, {4} livres"),
+    IT("{0}: {1} da trasmettere, {2} da scrivere in {3}, {4} liberi"),
+    NL("{0}: {1} te streamen, {2} te schrijven onder {3}, {4} vrij"),
+    RU("{0}: загрузить {1}, записать {2} в {3}, свободно {4}"),
+    TR("{0}: akıtılacak {1}, {3} altına yazılacak {2}, boş {4}"));
+
+SS_MSG(err_install_disk,
+    EN("Not enough disk space for {0}: it writes {1} more under {2}, which has "
+       "{3} free, and keeps {4} spare. Free some space, or move the cache with "
+       "XDG_CACHE_HOME (LOCALAPPDATA on Windows)."),
+    JA("{0} を入れるにはディスクの空きが足りません。{2} にさらに {1} を書き込みますが、"
+       "空きは {3} で、{4} は予備として残します。空きを増やすか、XDG_CACHE_HOME"
+       "（Windows では LOCALAPPDATA）でキャッシュの場所を移してください。"),
+    ZH_HANS("磁盘空间不足，无法安装 {0}：需要在 {2} 下再写入 {1}，该处剩余 {3}，"
+            "并需保留 {4} 余量。请腾出空间，或用 XDG_CACHE_HOME（Windows 上为 "
+            "LOCALAPPDATA）把缓存移到别处。"),
+    ZH_HANT("磁碟空間不足，無法安裝 {0}：需要在 {2} 下再寫入 {1}，該處剩餘 {3}，"
+            "並需保留 {4} 餘量。請騰出空間，或用 XDG_CACHE_HOME（Windows 上為 "
+            "LOCALAPPDATA）把快取移到別處。"),
+    KO("{0} 을(를) 설치할 디스크 공간이 부족합니다. {2} 에 {1} 을(를) 더 써야 하는데 "
+       "여유 공간은 {3} 이고, {4} 는 여분으로 남겨 둡니다. 공간을 비우거나 "
+       "XDG_CACHE_HOME(Windows 에서는 LOCALAPPDATA)으로 캐시 위치를 옮기세요."),
+    DE("Zu wenig Speicherplatz für {0}: Es schreibt noch {1} unter {2}, dort "
+       "sind {3} frei, und {4} bleiben als Reserve. Schaffen Sie Platz oder "
+       "verlegen Sie den Zwischenspeicher mit XDG_CACHE_HOME (unter Windows "
+       "LOCALAPPDATA)."),
+    FR("Pas assez d'espace disque pour {0} : il écrit encore {1} sous {2}, qui "
+       "a {3} de libre, et garde {4} de réserve. Libérez de l'espace ou "
+       "déplacez le cache avec XDG_CACHE_HOME (LOCALAPPDATA sous Windows)."),
+    ES("No hay espacio en disco suficiente para {0}: escribe {1} más en {2}, "
+       "que tiene {3} libres, y deja {4} de reserva. Libera espacio o mueve la "
+       "caché con XDG_CACHE_HOME (LOCALAPPDATA en Windows)."),
+    PT("Não há espaço em disco suficiente para {0}: escreve mais {1} em {2}, "
+       "que tem {3} livres, e mantém {4} de reserva. Liberte espaço ou mude a "
+       "cache de sítio com XDG_CACHE_HOME (LOCALAPPDATA no Windows)."),
+    IT("Spazio su disco insufficiente per {0}: scrive altri {1} in {2}, che ha "
+       "{3} liberi, e ne tiene {4} di riserva. Libera spazio o sposta la cache "
+       "con XDG_CACHE_HOME (LOCALAPPDATA su Windows)."),
+    NL("Te weinig schijfruimte voor {0}: het schrijft nog {1} onder {2}, waar "
+       "{3} vrij is, en houdt {4} in reserve. Maak ruimte vrij of verplaats de "
+       "cache met XDG_CACHE_HOME (LOCALAPPDATA op Windows)."),
+    RU("Недостаточно места на диске для {0}: нужно записать ещё {1} в {2}, где "
+       "свободно {3}, и оставить {4} в запасе. Освободите место или перенесите "
+       "кэш через XDG_CACHE_HOME (LOCALAPPDATA в Windows)."),
+    TR("{0} için yeterli disk alanı yok: {2} altına {1} daha yazılacak, orada "
+       "{3} boş ve {4} yedek bırakılıyor. Yer açın ya da önbelleği "
+       "XDG_CACHE_HOME (Windows'ta LOCALAPPDATA) ile taşıyın."));
+
+// Read back by the GUI (i18n::scan) for its progress bar: keep the
+// separators between the placeholders.
+SS_MSG(log_install_progress,
+    EN("installing {0}: {1} / {2} GB, {3} MB/s"),
+    JA("{0} をインストール中: {1} / {2} GB、{3} MB/s"),
+    ZH_HANS("正在安装 {0}: {1} / {2} GB, {3} MB/s"),
+    ZH_HANT("正在安裝 {0}: {1} / {2} GB, {3} MB/s"),
+    KO("{0} 설치 중: {1} / {2} GB, {3} MB/s"),
+    DE("installiere {0}: {1} / {2} GB, {3} MB/s"),
+    FR("installation de {0} : {1} / {2} Go, {3} Mo/s"),
+    ES("instalando {0}: {1} / {2} GB, {3} MB/s"),
+    PT("a instalar {0}: {1} / {2} GB, {3} MB/s"),
+    IT("installazione di {0}: {1} / {2} GB, {3} MB/s"),
+    NL("{0} installeren: {1} / {2} GB, {3} MB/s"),
+    RU("установка {0}: {1} / {2} ГБ, {3} МБ/с"),
+    TR("{0} kuruluyor: {1} / {2} GB, {3} MB/sn"));
+
+SS_MSG(log_install_done,
+    EN("{0} installed in {1}"),
+    JA("{0} のインストール完了、所要 {1}"),
+    ZH_HANS("{0} 安装完成, 用时 {1}"),
+    ZH_HANT("{0} 安裝完成, 用時 {1}"),
+    KO("{0} 설치 완료, 소요 {1}"),
+    DE("{0} installiert, in {1}"),
+    FR("{0} installé en {1}"),
+    ES("{0} instalado en {1}"),
+    PT("{0} instalado em {1}"),
+    IT("{0} installato in {1}"),
+    NL("{0} geïnstalleerd in {1}"),
+    RU("{0} установлен за {1}"),
+    TR("{0} kuruldu, süre {1}"));
+
+SS_MSG(err_not_installed,
+    EN("{0} is not installed. `{1} --install {0}` builds it: {2} to stream, "
+       "{3} to write."),
+    JA("{0} がインストールされていません。`{1} --install {0}` で組み立てられます"
+       "（ストリーミング {2}、書き込み {3}）。"),
+    ZH_HANS("{0} 尚未安装。`{1} --install {0}` 可以构建它：需流式读取 {2}，"
+            "写入 {3}。"),
+    ZH_HANT("{0} 尚未安裝。`{1} --install {0}` 可以建置它：需串流讀取 {2}，"
+            "寫入 {3}。"),
+    KO("{0} 이(가) 설치되어 있지 않습니다. `{1} --install {0}` 으로 만들 수 있습니다. "
+       "스트리밍 {2}, 기록 {3}."),
+    DE("{0} ist nicht installiert. `{1} --install {0}` baut es: {2} zu "
+       "streamen, {3} zu schreiben."),
+    FR("{0} n'est pas installé. `{1} --install {0}` le construit : {2} à lire "
+       "en flux, {3} à écrire."),
+    ES("{0} no está instalado. `{1} --install {0}` lo construye: {2} por "
+       "transmitir, {3} por escribir."),
+    PT("{0} não está instalado. `{1} --install {0}` constrói-o: {2} a "
+       "transmitir, {3} a escrever."),
+    IT("{0} non è installato. `{1} --install {0}` lo costruisce: {2} da "
+       "trasmettere, {3} da scrivere."),
+    NL("{0} is niet geïnstalleerd. `{1} --install {0}` bouwt het: {2} te "
+       "streamen, {3} te schrijven."),
+    RU("{0} не установлен. `{1} --install {0}` соберёт его: загрузить {2}, "
+       "записать {3}."),
+    TR("{0} kurulu değil. `{1} --install {0}` onu oluşturur: akıtılacak {2}, "
+       "yazılacak {3}."));
+
+SS_MSG(ask_install,
+    EN("Install it now? [y/N] "),
+    JA("今すぐインストールしますか? [y/N] "),
+    ZH_HANS("现在安装吗？[y/N] "),
+    ZH_HANT("現在安裝嗎？[y/N] "),
+    KO("지금 설치할까요? [y/N] "),
+    DE("Jetzt installieren? [y/N] "),
+    FR("L'installer maintenant ? [y/N] "),
+    ES("¿Instalarlo ahora? [y/N] "),
+    PT("Instalar agora? [y/N] "),
+    IT("Installarlo ora? [y/N] "),
+    NL("Nu installeren? [y/N] "),
+    RU("Установить сейчас? [y/N] "),
+    TR("Şimdi kurulsun mu? [y/N] "));
 
 }  // namespace geometry
 }  // namespace msg

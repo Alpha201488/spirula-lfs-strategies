@@ -48,6 +48,17 @@ static void _with_ppisp_layout(PpispParamLayout layout, F&& f) {
     }
 }
 
+template<class F>
+static void _with_ppisp_reg_mode(PpispParamLayout layout,
+                                 bool exposure_arithmetic_mean, F&& f) {
+    _with_ppisp_layout(layout, [&](auto L) {
+        if (exposure_arithmetic_mean)
+            f(L, std::true_type{});
+        else
+            f(L, std::false_type{});
+    });
+}
+
 template<PpispParamLayout layout>
 __global__ void ppisp_forward_kernel(
     const TensorView<float, 4> in_image,  // [B, H, W, C]
@@ -256,7 +267,7 @@ void ppisp_backward(
     CHECK_DEVICE_ERROR(cudaGetLastError());
 }
 
-template<PpispParamLayout layout>
+template<PpispParamLayout layout, bool exposure_arithmetic_mean>
 __global__ void compute_raw_ppisp_regularization_forward_kernel(
     int B,  // number of images
     const float* __restrict__ ppisp_params,  // [B, PPISP_NUM_PARAMS]
@@ -277,14 +288,17 @@ __global__ void compute_raw_ppisp_regularization_forward_kernel(
         }
 
         if constexpr (layout == PpispParamLayout::Original)
-            SlangPPISP::compute_raw_ppisp_regularization_loss(params, &losses);
+            SlangPPISP::compute_raw_ppisp_regularization_loss(
+                params, exposure_arithmetic_mean, &losses);
         else if constexpr (layout == PpispParamLayout::RQS)
-            SlangPPISP::compute_raw_ppisp_rqs_regularization_loss(params, &losses);
+            SlangPPISP::compute_raw_ppisp_rqs_regularization_loss(
+                params, exposure_arithmetic_mean, &losses);
         else if constexpr (layout == PpispParamLayout::NoCRF)
-            SlangPPISP::compute_raw_ppisp_no_crf_regularization_loss(params, &losses);
+            SlangPPISP::compute_raw_ppisp_no_crf_regularization_loss(
+                params, exposure_arithmetic_mean, &losses);
         else
             SlangPPISP::compute_raw_ppisp_no_crf_no_vig_regularization_loss(
-                params, &losses);
+                params, exposure_arithmetic_mean, &losses);
     }
 
     auto block = cg::this_thread_block();
@@ -300,7 +314,7 @@ __global__ void compute_raw_ppisp_regularization_forward_kernel(
     }
 }
 
-template<PpispParamLayout layout>
+template<PpispParamLayout layout, bool exposure_arithmetic_mean>
 __global__ void compute_ppisp_regularization_forward_kernel(
     int num_train_images,
     const float* __restrict__ raw_losses_buffer,  // [RawPPISPRegLossIndex::length]
@@ -319,16 +333,20 @@ __global__ void compute_ppisp_regularization_forward_kernel(
 
     if constexpr (layout == PpispParamLayout::Original)
         SlangPPISP::compute_ppisp_regularization_loss(
-            raw_losses, num_train_images, loss_weights, &losses);
+            raw_losses, num_train_images, exposure_arithmetic_mean, loss_weights,
+            &losses);
     else if constexpr (layout == PpispParamLayout::RQS)
         SlangPPISP::compute_ppisp_rqs_regularization_loss(
-            raw_losses, num_train_images, loss_weights, &losses);
+            raw_losses, num_train_images, exposure_arithmetic_mean, loss_weights,
+            &losses);
     else if constexpr (layout == PpispParamLayout::NoCRF)
         SlangPPISP::compute_ppisp_no_crf_regularization_loss(
-            raw_losses, num_train_images, loss_weights, &losses);
+            raw_losses, num_train_images, exposure_arithmetic_mean, loss_weights,
+            &losses);
     else
         SlangPPISP::compute_ppisp_no_crf_no_vig_regularization_loss(
-            raw_losses, num_train_images, loss_weights, &losses);
+            raw_losses, num_train_images, exposure_arithmetic_mean, loss_weights,
+            &losses);
 
     #pragma unroll
     for (int i = 0; i < (int)PPISPRegLossIndex::length; i++) {
@@ -341,6 +359,7 @@ void compute_ppsip_regularization_forward(
     TorchTensorView ppisp_params,       // [B, PPISP_NUM_PARAMS]
     const std::array<float, (int)PPISPRegLossIndex::length> loss_weights_0,
     std::string param_type,
+    bool exposure_arithmetic_mean,      // log2(mean gain) = 0, else mean(log2 gain) = 0
     TorchTensorView losses,             // [PPISPRegLossIndex::length] (must be pre-zeroed)
     TorchTensorView raw_losses          // [B+1, RawPPISPRegLossIndex::length] (must be pre-zeroed)
 ) {
@@ -350,8 +369,8 @@ void compute_ppsip_regularization_forward(
     long B = std::get<2>(ppisp_params)[0];
     const PpispParamSpec spec = ppisp_param_spec(param_type);
 
-    _with_ppisp_layout(spec.layout, [&](auto L) {
-        compute_raw_ppisp_regularization_forward_kernel<L.value>
+    _with_ppisp_reg_mode(spec.layout, exposure_arithmetic_mean, [&](auto L, auto A) {
+        compute_raw_ppisp_regularization_forward_kernel<L.value, A.value>
         <<<_LAUNCH_ARGS_1D(B, WARP_SIZE)>>>(
             B,
             (float*)std::get<0>(ppisp_params),
@@ -359,7 +378,7 @@ void compute_ppsip_regularization_forward(
         );
         CHECK_DEVICE_ERROR(cudaGetLastError());
 
-        compute_ppisp_regularization_forward_kernel<L.value>
+        compute_ppisp_regularization_forward_kernel<L.value, A.value>
         <<<1, 1>>>(
             B,
             (float*)std::get<0>(raw_losses) + B * spec.num_raw_losses,
@@ -370,7 +389,7 @@ void compute_ppsip_regularization_forward(
     });
 }
 
-template<PpispParamLayout layout>
+template<PpispParamLayout layout, bool exposure_arithmetic_mean>
 __global__ void compute_raw_ppisp_regularization_backward_kernel(
     int B,  // number of images
     const float* __restrict__ ppisp_params,  // [B, PPISP_NUM_PARAMS]
@@ -399,16 +418,16 @@ __global__ void compute_raw_ppisp_regularization_backward_kernel(
     FixedArray<float, kNumParams> v_params;
     if constexpr (layout == PpispParamLayout::Original)
         SlangPPISP::compute_raw_ppisp_regularization_loss_vjp(
-            params, v_losses, &v_params);
+            params, exposure_arithmetic_mean, v_losses, &v_params);
     else if constexpr (layout == PpispParamLayout::RQS)
         SlangPPISP::compute_raw_ppisp_rqs_regularization_loss_vjp(
-            params, v_losses, &v_params);
+            params, exposure_arithmetic_mean, v_losses, &v_params);
     else if constexpr (layout == PpispParamLayout::NoCRF)
         SlangPPISP::compute_raw_ppisp_no_crf_regularization_loss_vjp(
-            params, v_losses, &v_params);
+            params, exposure_arithmetic_mean, v_losses, &v_params);
     else
         SlangPPISP::compute_raw_ppisp_no_crf_no_vig_regularization_loss_vjp(
-            params, v_losses, &v_params);
+            params, exposure_arithmetic_mean, v_losses, &v_params);
 
     #pragma unroll
     for (int i = 0; i < kNumParams; i++) {
@@ -417,7 +436,7 @@ __global__ void compute_raw_ppisp_regularization_backward_kernel(
     }
 }
 
-template<PpispParamLayout layout>
+template<PpispParamLayout layout, bool exposure_arithmetic_mean>
 __global__ void compute_ppisp_regularization_backward_kernel(
     int num_train_images,
     const float* __restrict__ raw_losses_buffer,  // [RawPPISPRegLossIndex::length]
@@ -442,16 +461,20 @@ __global__ void compute_ppisp_regularization_backward_kernel(
     FixedArray<float, kNumRawLosses> v_raw_losses;
     if constexpr (layout == PpispParamLayout::Original)
         SlangPPISP::compute_ppisp_regularization_loss_vjp(
-            raw_losses, num_train_images, loss_weights, v_losses, &v_raw_losses);
+            raw_losses, num_train_images, exposure_arithmetic_mean, loss_weights,
+            v_losses, &v_raw_losses);
     else if constexpr (layout == PpispParamLayout::RQS)
         SlangPPISP::compute_ppisp_rqs_regularization_loss_vjp(
-            raw_losses, num_train_images, loss_weights, v_losses, &v_raw_losses);
+            raw_losses, num_train_images, exposure_arithmetic_mean, loss_weights,
+            v_losses, &v_raw_losses);
     else if constexpr (layout == PpispParamLayout::NoCRF)
         SlangPPISP::compute_ppisp_no_crf_regularization_loss_vjp(
-            raw_losses, num_train_images, loss_weights, v_losses, &v_raw_losses);
+            raw_losses, num_train_images, exposure_arithmetic_mean, loss_weights,
+            v_losses, &v_raw_losses);
     else
         SlangPPISP::compute_ppisp_no_crf_no_vig_regularization_loss_vjp(
-            raw_losses, num_train_images, loss_weights, v_losses, &v_raw_losses);
+            raw_losses, num_train_images, exposure_arithmetic_mean, loss_weights,
+            v_losses, &v_raw_losses);
 
     #pragma unroll
     for (int i = 0; i < kNumRawLosses; i++) {
@@ -466,6 +489,7 @@ void compute_ppsip_regularization_backward(
     TorchTensorView raw_losses,         // [B+1, RawPPISPRegLossIndex::length]
     TorchTensorView v_losses,           // [PPISPRegLossIndex::length]
     std::string param_type,
+    bool exposure_arithmetic_mean,
     TorchTensorView v_ppisp_params      // [B, PPISP_NUM_PARAMS] (must be pre-zeroed)
 ) {
     FixedArray<float, (int)PPISPRegLossIndex::length> loss_weights =
@@ -479,8 +503,8 @@ void compute_ppsip_regularization_backward(
         PoolSlot::PpispVRawLosses, spec.num_raw_losses);
     cudaMemset(v_raw_losses, 0, spec.num_raw_losses * sizeof(float));
 
-    _with_ppisp_layout(spec.layout, [&](auto L) {
-        compute_ppisp_regularization_backward_kernel<L.value>
+    _with_ppisp_reg_mode(spec.layout, exposure_arithmetic_mean, [&](auto L, auto A) {
+        compute_ppisp_regularization_backward_kernel<L.value, A.value>
         <<<1, 1>>>(
             B,
             (float*)std::get<0>(raw_losses) + B * spec.num_raw_losses,
@@ -490,7 +514,7 @@ void compute_ppsip_regularization_backward(
         );
         CHECK_DEVICE_ERROR(cudaGetLastError());
 
-        compute_raw_ppisp_regularization_backward_kernel<L.value>
+        compute_raw_ppisp_regularization_backward_kernel<L.value, A.value>
         <<<_LAUNCH_ARGS_1D(B, WARP_SIZE)>>>(
             B,
             (float*)std::get<0>(ppisp_params),

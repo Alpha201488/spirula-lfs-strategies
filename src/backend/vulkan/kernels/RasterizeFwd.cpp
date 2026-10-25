@@ -1,8 +1,8 @@
 // Vulkan implementation of the rasterization-forward launch API
 // (kernels/raster/RasterizationFwd.cuh + RasterizationEval3DFwd.cuh). Mirrors the
 // rasterize_to_pixels_*_fwd_tensor host wrappers; the device work runs
-// shaders/rasterize_fwd.slang with distortion type / median output /
-// (eval3d) camera model as specialization constants. One workgroup per
+// shaders/rasterize_fwd.slang with distortion type / median output / score
+// map / (eval3d) camera model as specialization constants. One workgroup per
 // micro-tile, grid (I, tile_h * MACRO_Y, tile_w * MACRO_X).
 
 #include <kernels/raster/RasterizationFwd.cuh>
@@ -18,9 +18,13 @@ struct RasterFwd2dParams {
     uint64_t tile_offsets, flatten_ids;
     uint64_t out_rgb, out_depth, out_T, out_last_ids;
     uint64_t dist_rgb, dist_depth, out_median;
+    uint64_t score_io;
     uint32_t I, n_isects, width, height, tile_width, tile_height, macro_log2;
+    uint32_t out_depth_on;
+    float kernel_cut;
+    uint32_t _pad0;
 };
-static_assert(sizeof(RasterFwd2dParams) == 10 * 8 + 7 * 4 + 4 /*pad*/,
+static_assert(sizeof(RasterFwd2dParams) == 11 * 8 + 10 * 4,
               "params layout must match the slang struct");
 
 // Mirrors RasterFwd3dgutParams in shaders/rasterize_fwd.slang.
@@ -31,11 +35,43 @@ struct RasterFwd3dgutParams {
     uint64_t tile_offsets, flatten_ids;
     uint64_t out_rgb, out_depth, out_T, out_last_ids;
     uint64_t dist_rgb, dist_depth, out_median;
+    uint64_t score_io;
     uint32_t I, N, n_isects, width, height, tile_width, tile_height,
         macro_log2;
+    uint32_t out_depth_on, _pad0;
 };
-static_assert(sizeof(RasterFwd3dgutParams) == 18 * 8 + 8 * 4,
+static_assert(sizeof(RasterFwd3dgutParams) == 19 * 8 + 10 * 4,
               "params layout must match the slang struct");
+
+// Mirrors RasterScoreIO in shaders/rasterize_fwd.slang.
+struct RasterScoreIO {
+    uint64_t score, gaussian_ids, out;
+    uint32_t N;
+    float exponent, prior;
+    uint32_t _pad0;
+};
+static_assert(sizeof(RasterScoreIO) == 3 * 8 + 4 * 4,
+              "params layout must match the slang struct");
+
+// The score map's inputs go through the params ring; 0 when it is off.
+uint64_t score_io(const SplatScoreRender& score,
+                  const DeviceVector<int32_t>& gaussian_ids,
+                  int64_t num_splats) {
+    if (!score.enabled()) return 0;
+    RasterScoreIO io{};
+    io.score = (uint64_t)score.score;
+    io.gaussian_ids = vkk::or_fallback(gaussian_ids.data_ptr());
+    io.out = (uint64_t)score.out;
+    io.N = gaussian_ids.data_ptr() ? 0u : (uint32_t)num_splats;
+    io.exponent = score.exponent;
+    io.prior = score.prior;
+    uint64_t addr = 0;
+    void* mapped = nullptr;
+    if (!backend::vk::params_alloc(sizeof(io), &addr, &mapped))
+        throw std::runtime_error("Vulkan backend: params ring failed");
+    std::memcpy(mapped, &io, sizeof(io));
+    return addr;
+}
 
 struct RasterOutputs {
     RenderOutput::TensorTuple renders, distortions;
@@ -58,10 +94,11 @@ uint32_t dist_spec(DistortionType dist_type) {
 RasterOutputs alloc_raster_outputs(int64_t batch, uint32_t image_height,
                                    uint32_t image_width,
                                    DistortionType dist_type,
-                                   bool output_median) {
+                                   bool output_median, bool output_depth) {
     RasterOutputs o;
     RenderOutput::resize<RenderOutputType::RGB_D>(
-        o.renders, batch, image_height, image_width, PoolSlot::Renders);
+        o.renders, batch, image_height, image_width, PoolSlot::Renders,
+        output_depth);
     if (dist_type == DistortionType::D)
         RenderOutput::resizeDistortion<DistortionType::D>(
             o.distortions, batch, image_height, image_width,
@@ -83,10 +120,11 @@ RasterOutputs alloc_raster_outputs(int64_t batch, uint32_t image_height,
 // 1 << macro_log2 micro tiles a macro tile spans on each axis.
 void dispatch_raster(const char* entry, const backend::vk::SpecList& spec,
                      uint32_t I, uint32_t tile_width, uint32_t tile_height,
-                     int macro_log2, const void* params,
+                     int macro_log2, double work, const void* params,
                      uint32_t params_size) {
-    vkk::dispatch_ring(entry, spec, I, tile_height << macro_log2,
-                       tile_width << macro_log2, params, params_size);
+    vkk::dispatch_ring_budgeted(entry, spec, I, tile_height << macro_log2,
+                                tile_width << macro_log2, params, params_size,
+                                work);
 }
 
 // The ring costs ~17 registers: its params loads are `strong`, so they cannot
@@ -95,10 +133,11 @@ void dispatch_raster(const char* entry, const backend::vk::SpecList& spec,
 void dispatch_raster_push(const char* entry,
                           const backend::vk::SpecList& spec, uint32_t I,
                           uint32_t tile_width, uint32_t tile_height,
-                          int macro_log2, const void* params,
+                          int macro_log2, double work, const void* params,
                           uint32_t params_size) {
-    vkk::dispatch(entry, spec, I, tile_height << macro_log2,
-                  tile_width << macro_log2, params, params_size);
+    vkk::dispatch_budgeted(entry, spec, I, tile_height << macro_log2,
+                           tile_width << macro_log2, params, params_size,
+                           work);
 }
 
 // Shared implementation of the 2D forward (Vanilla3DGS + MipSplatting: the
@@ -107,18 +146,22 @@ std::tuple<RenderOutput::TensorTuple, DeviceTensor3D<float>,
            DeviceTensor3D<int32_t>, RenderOutput::TensorTuple,
            DeviceTensor3D<float>>
 launch_raster_2d_fwd(
+    int64_t num_splats,
+    const DeviceVector<int32_t>& gaussian_ids,
     std::vector<DeviceTensorFloatND>& splats_s,
     const uint32_t image_width, const uint32_t image_height,
     const DeviceTensor3D<int32_t>& tile_offsets,
     const DeviceVector<int32_t>& flatten_ids,
     int macro_log2,
-    DistortionType dist_type, bool output_median) {
+    DistortionType dist_type, bool output_median, bool output_depth,
+    const SplatScoreRender& score, float kernel_cut) {
     const int64_t batch = tile_offsets.size<0>();
     const uint32_t tile_height = (uint32_t)tile_offsets.size<1>();
     const uint32_t tile_width = (uint32_t)tile_offsets.size<2>();
 
     RasterOutputs o = alloc_raster_outputs(batch, image_height, image_width,
-                                           dist_type, output_median);
+                                           dist_type, output_median,
+                                           output_depth);
 
     Vanilla3DGS<0>::ScreenBuffer sb(splats_s);
 
@@ -127,12 +170,14 @@ launch_raster_2d_fwd(
     p.tile_offsets = (uint64_t)tile_offsets.data_ptr();
     p.flatten_ids = (uint64_t)flatten_ids.data_ptr();
     p.out_rgb = (uint64_t)std::get<0>(o.renders).data_ptr();
-    p.out_depth = (uint64_t)std::get<1>(o.renders).data_ptr();
+    p.out_depth = vkk::or_fallback(std::get<1>(o.renders).data_ptr());
+    p.out_depth_on = output_depth ? 1u : 0u;
     p.out_T = (uint64_t)o.render_Ts.data_ptr();
     p.out_last_ids = (uint64_t)o.last_ids.data_ptr();
     p.dist_rgb = (uint64_t)std::get<0>(o.distortions).data_ptr();
     p.dist_depth = (uint64_t)std::get<1>(o.distortions).data_ptr();
     p.out_median = (uint64_t)o.render_median.data_ptr();
+    p.score_io = score_io(score, gaussian_ids, num_splats);
     p.I = (uint32_t)batch;
     p.n_isects = (uint32_t)flatten_ids.size();
     p.width = image_width;
@@ -140,13 +185,19 @@ launch_raster_2d_fwd(
     p.tile_width = tile_width;
     p.tile_height = tile_height;
     p.macro_log2 = (uint32_t)macro_log2;
+    p.kernel_cut = kernel_cut;
 
+    // Spec IDs as in the 3dgut entry; only the score map reads gaussian_ids.
+    const bool packed = score.enabled() && gaussian_ids.data_ptr();
     backend::vk::SpecList spec{0u, dist_spec(dist_type),
-                               output_median ? 1u : 0u};
+                               output_median ? 1u : 0u, packed ? 1u : 0u,
+                               score.enabled() ? 1u : 0u};
     static_assert(sizeof(RasterFwd2dParams) <= 128,
                   "must stay under the push-constant floor");
     dispatch_raster_push("rasterize_fwd.rasterize_fwd_2d", spec,
                          (uint32_t)batch, tile_width, tile_height, macro_log2,
+                         vkk::raster_work(p.n_isects, macro_log2, batch,
+                                          image_width, image_height),
                          &p, sizeof(p));
 
     return std::make_tuple(o.renders, o.render_Ts, o.last_ids, o.distortions,
@@ -174,14 +225,18 @@ std::tuple<
     const DeviceVector<int32_t> flatten_ids,
     int macro_log2,
     DistortionType dist_type,
-    bool output_median
+    bool output_median,
+    bool output_depth,
+    SplatScoreRender score,
+    float kernel_cut
 ) {
-    // The 2D fragment reads only the screen buffer; num_splats /
-    // gaussian_ids / splats_w never reach the kernel (as in the CUDA path).
-    (void)num_splats; (void)splats_w; (void)gaussian_ids;
-    return launch_raster_2d_fwd(splats_s, image_width, image_height,
-                                tile_offsets, flatten_ids, macro_log2, dist_type,
-                                output_median);
+    // The 2D fragment reads only the screen buffer (as in the CUDA path);
+    // num_splats / gaussian_ids reach the kernel for the score map alone.
+    (void)splats_w;
+    return launch_raster_2d_fwd(num_splats, gaussian_ids, splats_s, image_width,
+                                image_height, tile_offsets, flatten_ids,
+                                macro_log2, dist_type, output_median,
+                                output_depth, score, kernel_cut);
 }
 
 std::tuple<
@@ -201,12 +256,16 @@ std::tuple<
     const DeviceVector<int32_t> flatten_ids,
     int macro_log2,
     DistortionType dist_type,
-    bool output_median
+    bool output_median,
+    bool output_depth,
+    SplatScoreRender score,
+    float kernel_cut
 ) {
-    (void)num_splats; (void)splats_w; (void)gaussian_ids;
-    return launch_raster_2d_fwd(splats_s, image_width, image_height,
-                                tile_offsets, flatten_ids, macro_log2, dist_type,
-                                output_median);
+    (void)splats_w;
+    return launch_raster_2d_fwd(num_splats, gaussian_ids, splats_s, image_width,
+                                image_height, tile_offsets, flatten_ids,
+                                macro_log2, dist_type, output_median,
+                                output_depth, score, kernel_cut);
 }
 
 /* API definition matching kernels/raster/RasterizationEval3DFwd.cuh */
@@ -234,7 +293,9 @@ std::tuple<
     const DeviceVector<int32_t> flatten_ids,
     int macro_log2,
     DistortionType dist_type,
-    bool output_median
+    bool output_median,
+    bool output_depth,
+    SplatScoreRender score
 ) {
     const vkk::CamDistSpec cd = vkk::cam_dist_spec(camera_model, distortion);
 
@@ -243,7 +304,8 @@ std::tuple<
     const uint32_t tile_width = (uint32_t)tile_offsets.size<2>();
 
     RasterOutputs o = alloc_raster_outputs(batch, image_height, image_width,
-                                           dist_type, output_median);
+                                           dist_type, output_median,
+                                           output_depth);
 
     Vanilla3DGUT<0>::WorldBuffer wb(splats_w);
     Vanilla3DGUT<0>::ScreenBuffer sb(splats_s);
@@ -261,12 +323,14 @@ std::tuple<
     p.tile_offsets = (uint64_t)tile_offsets.data_ptr();
     p.flatten_ids = (uint64_t)flatten_ids.data_ptr();
     p.out_rgb = (uint64_t)std::get<0>(o.renders).data_ptr();
-    p.out_depth = (uint64_t)std::get<1>(o.renders).data_ptr();
+    p.out_depth = vkk::or_fallback(std::get<1>(o.renders).data_ptr());
+    p.out_depth_on = output_depth ? 1u : 0u;
     p.out_T = (uint64_t)o.render_Ts.data_ptr();
     p.out_last_ids = (uint64_t)o.last_ids.data_ptr();
     p.dist_rgb = (uint64_t)std::get<0>(o.distortions).data_ptr();
     p.dist_depth = (uint64_t)std::get<1>(o.distortions).data_ptr();
     p.out_median = (uint64_t)o.render_median.data_ptr();
+    p.score_io = score_io(score, gaussian_ids, num_splats);
     p.I = (uint32_t)batch;
     // packed mode passes gaussian_ids and N stays 0 (never read); the
     // non-packed projection layout uses cur_num_splats per camera stride
@@ -279,13 +343,17 @@ std::tuple<
     p.macro_log2 = (uint32_t)macro_log2;
 
     // Spec IDs: 0 = camera model, 1 = dist type, 2 = median,
-    // 3 = kRasterPacked (gaussian_ids present), 4 = distortion tier.
+    // 3 = kRasterPacked (gaussian_ids present), 4 = score map,
+    // 5 = distortion tier.
     backend::vk::SpecList spec{cd.cam, dist_spec(dist_type),
                                output_median ? 1u : 0u,
-                               gaussian_ids.data_ptr() ? 1u : 0u, cd.dist};
+                               gaussian_ids.data_ptr() ? 1u : 0u,
+                               score.enabled() ? 1u : 0u, cd.dist};
     dispatch_raster("rasterize_fwd.rasterize_fwd_3dgut", spec,
-                    (uint32_t)batch, tile_width, tile_height, macro_log2, &p,
-                    sizeof(p));
+                    (uint32_t)batch, tile_width, tile_height, macro_log2,
+                    vkk::raster_work(p.n_isects, macro_log2, batch,
+                                     image_width, image_height),
+                    &p, sizeof(p));
 
     return std::make_tuple(o.renders, o.render_Ts, o.last_ids, o.distortions,
                            o.render_median);

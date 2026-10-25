@@ -11,6 +11,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -24,8 +25,7 @@ namespace gui {
 
 namespace {
 
-// Whole file, or empty when it is not there. A snapshot is at most ~1 MB and
-// arrives by rename, so there is no partial read to guard against.
+// Snapshot metadata arrives by rename; dense point files are read separately.
 std::string slurp_if_newer(const fs::path& p, int64_t& mtime) {
     std::error_code ec;
     const auto t = fs::last_write_time(p, ec);
@@ -55,6 +55,11 @@ struct Reader {
     uint32_t u32() { uint32_t v = 0; take(&v, 4); return v; }
     uint64_t u64() { uint64_t v = 0; take(&v, 8); return v; }
     float f32() { float v = 0; take(&v, 4); return v; }
+    std::string text() {
+        const uint32_t n = u32();
+        if (!ok || n > (size_t)(end - p)) { ok = false; return {}; }
+        std::string s(p, n); p += n; return s;
+    }
 };
 
 }  // namespace
@@ -91,22 +96,27 @@ float mapping_fraction(int64_t done, int64_t total) {
     return (float)(kMappingBarFull * x * std::sqrt(x));
 }
 
-bool read_live_model(const std::string& dir, int64_t& mtime, LiveModel& out) {
-    const std::string b = slurp_if_newer(fs::path(dir) / "model.bin", mtime);
+bool read_live_model(const std::string& dir, int64_t& mtime, LiveModel& out, uint64_t point_memory_budget) {
+    int64_t stamp = mtime;
+    const std::string b = slurp_if_newer(fs::path(dir) / "model.bin", stamp);
     if (b.size() < 24 || std::memcmp(b.data(), "VKPM", 4) != 0) return false;
 
     Reader r{b.data() + 4, b.data() + b.size()};
     const uint32_t version = r.u32();
-    if (version != 2 && version != 3) return false;
+    if (version < 2 || version > 7) return false;
     LiveModel m;
+    uint32_t flags = 0;
     if (version >= 3) {
-        const uint32_t flags = r.u32();
+        flags = r.u32();
         m.ds.gauge_oriented = (flags & 1u) != 0;
         m.ds.gauge_metric = (flags & 2u) != 0;
+        m.provisional = version >= 6 && (flags & 16u) != 0;
+        m.filtered = version >= 7 && (flags & 32u) != 0;
     }
     m.n_images = r.u32();
     m.n_registered = r.u32();
     m.n_points = r.u64();
+    if (!r.ok || m.n_registered > b.size() / 64) return false;
 
     ParsedDataset& ds = m.ds;
     ds.num_cameras = (int64_t)m.n_registered;
@@ -123,11 +133,24 @@ bool read_live_model(const std::string& dir, int64_t& mtime, LiveModel& out) {
     // repeats one: colmap_preview_intrins solves a least-squares fit for a
     // lens no tier represents, which is ~25 ms each.
     std::map<std::string, std::optional<PreviewIntrins>> cams;
+    if (version >= 4) m.ids.resize(m.n_registered);
     for (uint32_t i = 0; i < m.n_registered; i++) {
+        if (version >= 4) m.ids[i] = r.u32();
         for (int k = 0; k < 12; k++) ds.c2w[(size_t)i * 12 + k] = r.f32();
         const int w = (int)r.u32(), h = (int)r.u32();
         ds.widths[i] = (int32_t)w;
         ds.heights[i] = (int32_t)h;
+        if (version >= 6) {
+            const uint32_t model = r.u32(), distortion = r.u32();
+            if (model > (uint32_t)CameraModelType::EQUIRECTANGULAR ||
+                distortion > (uint32_t)CameraDistortionType::ThinPrism) return false;
+            ds.camera_models[i] = (int32_t)model;
+            ds.camera_distortions[i] = (int32_t)distortion;
+            for (int k = 0; k < 4; ++k) ds.intrins[(size_t)i * 4 + k] = r.f32();
+            for (int k = 0; k < kCameraDistortionParams; ++k)
+                ds.dist_coeffs[(size_t)i * kCameraDistortionParams + k] = r.f32();
+            continue;
+        }
         const int model_id = (int)r.u32();
         const uint32_t np = r.u32();
         if (!r.ok || np > 16) return false;
@@ -162,11 +185,43 @@ bool read_live_model(const std::string& dir, int64_t& mtime, LiveModel& out) {
                 ds.intrins[(size_t)i * 4 + k] = (float)params[k];
         }
     }
-    const uint32_t n_pts = r.u32();
+    const uint64_t n_pts = version >= 5 ? m.n_points : r.u32();
     if (!r.ok) return false;
+    if (n_pts > ds.points.xyz.max_size() / 3 || n_pts > ds.points.rgb.max_size() / 3) return false;
+    const uint64_t working_bytes = 3 * (sizeof(double) + 4 * sizeof(float) + sizeof(uint8_t));
+    if (point_memory_budget && n_pts > point_memory_budget / working_bytes)
+        throw std::runtime_error("full point checkpoint exceeds available host memory");
+    std::ifstream points;
+    if (version >= 5) {
+        const std::string name = r.text(), error = r.text();
+        if (!r.ok) return false;
+        if (flags & 8u) throw std::runtime_error(error);
+        if (name.empty() || fs::path(name).filename().string() != name || name == "." || name == "..") return false;
+        if (version == 5) m.provisional = name.size() >= 20 && name.compare(name.size() - 20, 20, "-observations.points") == 0;
+        const fs::path file = fs::path(dir) / name;
+        std::error_code ec;
+        const uint64_t bytes = fs::file_size(file, ec);
+        if (ec || n_pts > bytes / 15) return false;
+        points.open(file, std::ios::binary);
+        if (!points) return false;
+    } else if (n_pts > (uint64_t)(r.end - r.p) / 15) return false;
     ds.points.xyz.resize((size_t)n_pts * 3);
     ds.points.rgb.resize((size_t)n_pts * 3);
-    for (uint32_t i = 0; i < n_pts; i++) {
+    if (version >= 5) {
+        std::array<char, 4096 * 15> chunk;
+        for (uint64_t begin = 0; begin < n_pts;) {
+            const size_t count = (size_t)std::min<uint64_t>(chunk.size() / 15, n_pts - begin);
+            points.read(chunk.data(), (std::streamsize)(count * 15));
+            if (!points) return false;
+            for (size_t i = 0; i < count; ++i) {
+                float xyz[3];
+                std::memcpy(xyz, chunk.data() + i * 15, sizeof xyz);
+                for (int k = 0; k < 3; ++k) ds.points.xyz[(size_t)(begin + i) * 3 + k] = xyz[k];
+                std::memcpy(&ds.points.rgb[(size_t)(begin + i) * 3], chunk.data() + i * 15 + 12, 3);
+            }
+            begin += count;
+        }
+    } else for (uint64_t i = 0; i < n_pts; i++) {
         for (int k = 0; k < 3; k++) ds.points.xyz[(size_t)i * 3 + k] = r.f32();
         r.take(&ds.points.rgb[(size_t)i * 3], 3);
     }
@@ -196,7 +251,7 @@ bool read_live_model(const std::string& dir, int64_t& mtime, LiveModel& out) {
     // One or two cameras have no spread to measure; the points are all there
     // is to frame by until the third arrives.
     if (radius <= 1e-6f && n_pts) {
-        for (uint32_t i = 0; i < n_pts; i++) {
+        for (uint64_t i = 0; i < n_pts; i++) {
             float d = 0.0f;
             for (int k = 0; k < 3; k++) {
                 const float v = ds.points.xyz[(size_t)i * 3 + k] - centre[k];
@@ -220,10 +275,53 @@ bool read_live_model(const std::string& dir, int64_t& mtime, LiveModel& out) {
     m.post.c2w_flip = ds.c2w;
 
     out = std::move(m);
+    mtime = stamp;
     return true;
 }
 
 namespace {
+
+// (x - centre) / radius: train frame to the preview's normalized one.
+void normalized_centre(const LiveModel& m, size_t i, double out[3]) {
+    const auto& A = m.ds.train_to_normalized;
+    const double r = A[0] > 0 ? A[0] : 1.0;
+    for (int k = 0; k < 3; k++)
+        out[k] = (m.ds.c2w[i * 12 + (size_t)k * 4 + 3] - A[(size_t)k * 4 + 3]) / r;
+}
+
+void rotation_of(const LiveModel& m, size_t i, double R[9]) {
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++) R[r * 3 + c] = m.ds.c2w[i * 12 + (size_t)r * 4 + c];
+}
+
+// Unit quaternion (x, y, z, w) of a rotation matrix, row-major.
+void to_quat(const double m[9], double q[4]) {
+    const double tr = m[0] + m[4] + m[8];
+    if (tr > 0) {
+        const double s = 0.5 / std::sqrt(tr + 1.0);
+        q[0] = (m[7] - m[5]) * s; q[1] = (m[2] - m[6]) * s;
+        q[2] = (m[3] - m[1]) * s; q[3] = 0.25 / s;
+    } else if (m[0] > m[4] && m[0] > m[8]) {
+        const double s = 2.0 * std::sqrt(1.0 + m[0] - m[4] - m[8]);
+        q[0] = 0.25 * s; q[1] = (m[1] + m[3]) / s;
+        q[2] = (m[2] + m[6]) / s; q[3] = (m[7] - m[5]) / s;
+    } else if (m[4] > m[8]) {
+        const double s = 2.0 * std::sqrt(1.0 + m[4] - m[0] - m[8]);
+        q[0] = (m[1] + m[3]) / s; q[1] = 0.25 * s;
+        q[2] = (m[5] + m[7]) / s; q[3] = (m[2] - m[6]) / s;
+    } else {
+        const double s = 2.0 * std::sqrt(1.0 + m[8] - m[0] - m[4]);
+        q[0] = (m[2] + m[6]) / s; q[1] = (m[5] + m[7]) / s;
+        q[2] = 0.25 * s; q[3] = (m[3] - m[1]) / s;
+    }
+}
+
+void from_quat(const double q[4], double m[9]) {
+    const double x = q[0], y = q[1], z = q[2], w = q[3];
+    m[0] = 1 - 2*(y*y + z*z); m[1] = 2*(x*y - z*w);     m[2] = 2*(x*z + y*w);
+    m[3] = 2*(x*y + z*w);     m[4] = 1 - 2*(x*x + z*z); m[5] = 2*(y*z - x*w);
+    m[6] = 2*(x*z - y*w);     m[7] = 2*(y*z + x*w);     m[8] = 1 - 2*(x*x + y*y);
+}
 
 void note_peak(PairMatrix& m) {
     m.peak = 0;
@@ -231,6 +329,100 @@ void note_peak(PairMatrix& m) {
 }
 
 }  // namespace
+
+bool snapshot_motion(const LiveModel& from, const LiveModel& to, float S[12]) {
+    std::map<uint32_t, size_t> at;
+    for (size_t i = 0; i < from.ids.size(); i++) at[from.ids[i]] = i;
+    std::vector<std::pair<size_t, size_t>> both;
+    for (size_t j = 0; j < to.ids.size(); j++) {
+        const auto it = at.find(to.ids[j]);
+        if (it != at.end()) both.push_back({it->second, j});
+    }
+    if (both.size() < 2) return false;
+
+    // The turn: every shared camera's c2w rotation, taken from one frame to
+    // the other, averaged as quaternions on one hemisphere.
+    double qsum[4] = {0, 0, 0, 0}, q0[4] = {0, 0, 0, 0};
+    std::vector<std::array<double, 4>> qs;
+    for (const auto& [i, j] : both) {
+        double A[9], B[9], R[9], q[4];
+        rotation_of(from, i, A);
+        rotation_of(to, j, B);
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 3; c++) {
+                R[r * 3 + c] = 0;
+                for (int k = 0; k < 3; k++) R[r * 3 + c] += B[r * 3 + k] * A[c * 3 + k];
+            }
+        to_quat(R, q);
+        if (qs.empty()) std::copy(q, q + 4, q0);
+        const double sgn = q[0]*q0[0] + q[1]*q0[1] + q[2]*q0[2] + q[3]*q0[3] < 0 ? -1.0 : 1.0;
+        for (int k = 0; k < 4; k++) qsum[k] += sgn * q[k];
+        qs.push_back({sgn * q[0], sgn * q[1], sgn * q[2], sgn * q[3]});
+    }
+    const double qn = std::sqrt(qsum[0]*qsum[0] + qsum[1]*qsum[1] + qsum[2]*qsum[2] + qsum[3]*qsum[3]);
+    if (!(qn > 1e-12)) return false;
+    for (double& v : qsum) v /= qn;
+    // Cameras that turned by different amounts moved relative to each other.
+    for (const auto& q : qs)
+        if (std::fabs(q[0]*qsum[0] + q[1]*qsum[1] + q[2]*qsum[2] + q[3]*qsum[3]) < 0.996)
+            return false;   // more than ~10 degrees apart
+    double R[9];
+    from_quat(qsum, R);
+
+    // Scale and move from the camera centres, least squares given R.
+    std::vector<std::array<double, 3>> a(both.size()), b(both.size());
+    double ma[3] = {0, 0, 0}, mb[3] = {0, 0, 0};
+    for (size_t k = 0; k < both.size(); k++) {
+        normalized_centre(from, both[k].first, a[k].data());
+        normalized_centre(to, both[k].second, b[k].data());
+        for (int d = 0; d < 3; d++) { ma[d] += a[k][d]; mb[d] += b[k][d]; }
+    }
+    for (int d = 0; d < 3; d++) { ma[d] /= (double)both.size(); mb[d] /= (double)both.size(); }
+    std::vector<std::array<double, 3>> ra(both.size());
+#if 0
+    double num = 0, den = 0;
+    for (size_t k = 0; k < both.size(); k++) {
+        const double p[3] = {a[k][0] - ma[0], a[k][1] - ma[1], a[k][2] - ma[2]};
+        for (int r = 0; r < 3; r++) ra[k][r] = R[r*3]*p[0] + R[r*3+1]*p[1] + R[r*3+2]*p[2];
+        for (int d = 0; d < 3; d++) {
+            num += (b[k][d] - mb[d]) * ra[k][d];
+            den += p[d] * p[d];
+        }
+    }
+    if (!(den > 1e-12) || !(num > 0)) return false;
+    const double s = num / den;
+#else
+    const double s = 1.0;
+#endif
+    // The normalized frames are about one unit across; a camera that lands a
+    // tenth of that away from where the fit puts it is not the same model.
+    double err = 0;
+    for (size_t k = 0; k < both.size(); k++)
+        for (int d = 0; d < 3; d++) {
+            const double e = b[k][d] - mb[d] - s * ra[k][d];
+            err += e * e;
+        }
+    if (std::sqrt(err / (double)both.size()) > 0.1) return false;
+    for (int r = 0; r < 3; r++) {
+        double t = mb[r];
+        for (int c = 0; c < 3; c++) {
+            S[r*4 + c] = (float)(s * R[r*3 + c]);
+            t -= s * R[r*3 + c] * ma[c];
+        }
+        S[r*4 + 3] = (float)t;
+    }
+    return true;
+}
+
+bool snapshot_up(const LiveModel& m, float up[3]) {
+    double u[3] = {0, 0, 0};
+    for (int64_t i = 0; i < m.ds.num_cameras; i++)
+        for (int r = 0; r < 3; r++) u[r] += m.ds.c2w[(size_t)i * 12 + (size_t)r * 4 + 1];
+    const double n = std::sqrt(u[0]*u[0] + u[1]*u[1] + u[2]*u[2]);
+    if (!(n > 1e-9)) return false;
+    for (int r = 0; r < 3; r++) up[r] = (float)(u[r] / n);
+    return true;
+}
 
 bool read_pair_matrix(const std::string& dir, int64_t& mtime, PairMatrix& out) {
     const std::string b = slurp_if_newer(fs::path(dir) / "pairs.bin", mtime);

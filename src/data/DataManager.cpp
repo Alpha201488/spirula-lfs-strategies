@@ -1,14 +1,21 @@
 // DataManager — see DataManager.h for the public contract.
 
 #include "data/DataManager.h"
+#include "core/Env.h"
+
 #include "core/DistanceTransform.h"
 #include "core/ExrImage.h"
+#include "core/ImageOrient.h"
+#include "core/TiffImage.h"
 #include "data/ImageProbe.h"
+#include "data/ResolutionSchedule.h"
+#include "data/SourceCamera.h"
 #include "i18n/catalog/Data.h"
 
 #include "external/stb_image.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -35,6 +42,10 @@ using spirula::i18n::format;
 // Small utilities
 // ===========================================================================
 namespace {
+
+// Pixels one warp pass may render. A 5.7K panorama's six faces stay one pass;
+// a 120 MP one's faces go one at a time.
+constexpr int64_t kWarpPassPixelBudget = (int64_t)1 << 24;
 
 // Why a decode failed, for a message a user reads. stbi_failure_reason() is
 // a global every decode thread writes, so a missing file -- the common case,
@@ -184,6 +195,7 @@ private:
 struct SubBatchSpec {
     int32_t              group = 0;   // index into the train IndexGroup vector
     std::vector<int32_t> picks;       // dataset-global image indices
+    int32_t              divisor = 1; // progressive resolution of its epoch
 };
 // One optimizer step = one or more homogeneous sub-batches. Most steps hold a
 // single sub-batch; cross-group remainder packing produces multi-sub-batch
@@ -321,6 +333,17 @@ inline void cpu_nearest_resize_u8(const uint8_t* src, int sh, int sw,
 }
 
 
+// One cached RGB row (sh x sw) area-filtered into dst (dh x dw), in its own dtype.
+inline void resize_rgb_row(const uint8_t* src, int sh, int sw, uint8_t* dst, int dh, int dw,
+                           PixelDType dt) {
+    if (dt == PixelDType::FLOAT32)
+        cpu_resize<float, 3>((const float*)src, sh, sw, (float*)dst, dh, dw);
+    else if (dt == PixelDType::UINT16)
+        cpu_resize<uint16_t, 3>((const uint16_t*)src, sh, sw, (uint16_t*)dst, dh, dw);
+    else
+        cpu_resize<uint8_t, 3>(src, sh, sw, dst, dh, dw);
+}
+
 // Modality decoders. `dst_h` / `dst_w` are the BATCH-slot shape (= group
 // shape); when the file is smaller it is upsampled (nearest for mask,
 // bilinear for depth / normal). The 1x1 mask case is a degenerate
@@ -347,60 +370,160 @@ static void _warn_rgb_dim_mismatch_once(
     }
 }
 
-// `decode_threads` is what an EXR may use: 1 on the worker pool, which is
-// already 16 wide, and every core for a lone image the viewer asked for.
+// Turn a just-decoded buffer into `scratch`, so the size the caller then
+// compares against the camera's is the one it will train on. `px` ends up
+// pointing at the turned pixels (core/ImageOrient.h).
+template <typename T>
+void turn_decoded(const T*& px, int& w, int& h, int channels, int turns_cw,
+                  std::vector<T>& scratch) {
+    if ((turns_cw & 3) == 0) return;
+    scratch.resize((size_t)w * h * (size_t)channels);
+    spirula::orient_pixels(px, w, h, channels, turns_cw, false, scratch.data());
+    spirula::oriented_size(turns_cw, w, h);
+    px = scratch.data();
+}
+
+// A normal lives in the camera frame the turn rotates, so its x and y move with
+// the pixels: CW by one quarter takes (nx, ny) to (-ny, nx), and the uint8
+// encoding (x/127.5 - 1) negates as 255 - v.
+void turn_normal_vectors(uint8_t* px, size_t n, int turns_cw) {
+    if ((turns_cw & 3) == 0) return;
+    for (size_t i = 0; i < n; i++) {
+        uint8_t* p = px + i * 3;
+        const uint8_t x = p[0], y = p[1];
+        switch (turns_cw & 3) {
+            case 1: p[0] = (uint8_t)(255 - y); p[1] = x; break;
+            case 2: p[0] = (uint8_t)(255 - x); p[1] = (uint8_t)(255 - y); break;
+            case 3: p[0] = y; p[1] = (uint8_t)(255 - x); break;
+            default: break;
+        }
+    }
+}
+
+// Straight alpha over `over` (display-referred, 0..1), in the file's own
+// encoding: what a transparent pixel looks like rendered on that background.
+template <typename T>
+std::vector<T> composite_over(const T* rgba, size_t n, const float over[3]) {
+    const double top = (double)std::numeric_limits<T>::max();
+    std::vector<T> out(n * 3);
+    for (size_t i = 0; i < n; ++i) {
+        const double a = rgba[i * 4 + 3] / top;
+        for (int c = 0; c < 3; ++c)
+            out[i * 3 + c] = (T)std::lround(rgba[i * 4 + c] * a +
+                                            (double)over[c] * top * (1.0 - a));
+    }
+    return out;
+}
+
+// `src` (w x h, RGB) turned by `turns_cw` and fitted to the camera in `dst`.
+template <typename T>
+void place_rgb(const std::string& path, const T* src, int w, int h, int turns_cw,
+               int expected_h, int expected_w, uint8_t* dst) {
+    std::vector<T> turned;
+    turn_decoded(src, w, h, 3, turns_cw, turned);
+    if (w == expected_w && h == expected_h) {
+        std::memcpy(dst, src, (size_t)w * h * 3 * sizeof(T));
+    } else {
+        _warn_rgb_dim_mismatch_once(path, w, h, expected_w, expected_h);
+        cpu_resize<T, 3>(src, h, w, (T*)dst, expected_h, expected_w);
+    }
+}
+
+// RGBA composited onto `over` when it is set, RGB as it is otherwise.
+template <typename T>
+void place_rgb_over(const std::string& path, const T* px, int w, int h, const float* over,
+                    int turns_cw, int expected_h, int expected_w, uint8_t* dst) {
+    std::vector<T> flat;
+    if (over) {
+        flat = composite_over(px, (size_t)w * h, over);
+        px = flat.data();
+    }
+    place_rgb(path, px, w, h, turns_cw, expected_h, expected_w, dst);
+}
+
+// `decode_threads` is what an EXR or TIFF may use: 1 on the worker pool, which
+// is already 16 wide, and every core for a lone image the viewer asked for.
+// `over`, when set, composites the file's alpha onto that colour.
 void decode_rgb_into(const std::string& path,
                      int expected_h, int expected_w,
                      PixelDType dtype,
                      uint8_t* dst,
-                     int decode_threads = 1)
+                     int turns_cw = 0,
+                     int decode_threads = 1,
+                     const float* over = nullptr)
 {
+    if (tiff::is_tiff(path)) {
+        tiff::Info info;
+        tiff::Options opt;
+        if (dtype == PixelDType::FLOAT32) over = nullptr;
+        opt.channels = over ? 4 : 3;
+        opt.threads = decode_threads;
+        std::vector<uint8_t> px;
+        const std::string err = tiff::decode(path, opt, info, px);
+        if (!err.empty())
+            throw std::runtime_error(decode_failure(path) + " (" + err + ")");
+        const int w = info.width, h = info.height;
+        if (dtype == PixelDType::FLOAT32 && info.sample == tiff::Sample::F32)
+            place_rgb(path, (const float*)px.data(), w, h, turns_cw, expected_h, expected_w, dst);
+        else if (dtype == PixelDType::UINT16 && info.sample == tiff::Sample::U16)
+            place_rgb_over(path, (const uint16_t*)px.data(), w, h, over, turns_cw,
+                           expected_h, expected_w, dst);
+        else if (dtype == PixelDType::UINT8 && info.sample == tiff::Sample::U8)
+            place_rgb_over(path, px.data(), w, h, over, turns_cw, expected_h, expected_w, dst);
+        else
+            throw std::runtime_error(decode_failure(path));   // rewritten since the probe
+        return;
+    }
     int w, h, ch;
     if (dtype == PixelDType::FLOAT32) {
         exr::Info info;
         exr::Options opt;
         opt.threads = decode_threads;
+        opt.channels = over ? 4 : 3;
         std::vector<float> px;
         const std::string err = exr::decode(path, opt, info, px);
         if (!err.empty())
             throw std::runtime_error(decode_failure(path) + " (" + err + ")");
-        if (info.width == expected_w && info.height == expected_h) {
-            std::memcpy(dst, px.data(), px.size() * sizeof(float));
-        } else {
-            _warn_rgb_dim_mismatch_once(path, info.width, info.height, expected_w, expected_h);
-            cpu_resize<float, 3>(px.data(), info.height, info.width,
-                                 (float*)dst, expected_h, expected_w);
+        if (over) {
+            // EXR colour is premultiplied by its alpha, so the background
+            // only fills what the alpha leaves.
+            const size_t n = (size_t)info.width * info.height;
+            std::vector<float> rgb(n * 3);
+            for (size_t i = 0; i < n; ++i)
+                for (int c = 0; c < 3; ++c)
+                    rgb[i * 3 + c] = px[i * 4 + c] + over[c] * (1.0f - px[i * 4 + 3]);
+            px.swap(rgb);
         }
+        place_rgb(path, px.data(), info.width, info.height, turns_cw, expected_h, expected_w,
+                  dst);
     } else if (dtype == PixelDType::UINT16) {
-        stbi_us* img = stbi_load_16(path.c_str(), &w, &h, &ch, 3);
+        stbi_us* img = stbi_load_16(path.c_str(), &w, &h, &ch, over ? 4 : 3);
         if (!img) throw std::runtime_error(decode_failure(path));
-        if (w == expected_w && h == expected_h) {
-            std::memcpy(dst, img, (size_t)w * h * 3 * sizeof(stbi_us));
-        } else {
-            _warn_rgb_dim_mismatch_once(path, w, h, expected_w, expected_h);
-            cpu_resize<stbi_us, 3>(img, h, w, (stbi_us*)dst, expected_h, expected_w);
-        }
+        place_rgb_over(path, img, w, h, over, turns_cw, expected_h, expected_w, dst);
         stbi_image_free(img);
     } else if (dtype == PixelDType::UINT8) {
-        stbi_uc* img = stbi_load(path.c_str(), &w, &h, &ch, 3);
+        stbi_uc* img = stbi_load(path.c_str(), &w, &h, &ch, over ? 4 : 3);
         if (!img) throw std::runtime_error(decode_failure(path));
-        if (w == expected_w && h == expected_h) {
-            std::memcpy(dst, img, (size_t)w * h * 3);
-        } else {
-            _warn_rgb_dim_mismatch_once(path, w, h, expected_w, expected_h);
-            cpu_resize<stbi_uc, 3>(img, h, w, dst, expected_h, expected_w);
-        }
+        place_rgb_over(path, img, w, h, over, turns_cw, expected_h, expected_w, dst);
         stbi_image_free(img);
     } else {
         throw std::runtime_error("DataManager: unsupported RGB pixel type for '" + path + "'");
     }
 }
 
+// Signed dilate (+) / erode (-) of a 0/1 mask, by fraction * sqrt(W * H) pixels.
+void apply_boundary_offset(uint8_t* mask, int h, int w, float fraction) {
+    if (fraction == 0.0f) return;
+    const float offset_px = fraction * std::sqrt((float)w * (float)h);
+    edt::apply_mask_boundary_offset_in_place(mask, h, w, offset_px);
+}
+
 void decode_mask_into(const std::string& path,
                       int dst_h, int dst_w,
                       bool flip,
                       float boundary_offset_frac,
-                      uint8_t* dst)
+                      uint8_t* dst,
+                      int turns_cw = 0)
 {
     int w, h, ch;
     stbi_uc* img = stbi_load(path.c_str(), &w, &h, &ch, 1);
@@ -411,10 +534,13 @@ void decode_mask_into(const std::string& path,
     for (size_t i = 0; i < (size_t)w * h; ++i)
         img[i] = (uint8_t)(img[i] != 0);
 
+    const stbi_uc* src = img;
+    std::vector<stbi_uc> turned;
+    turn_decoded(src, w, h, 1, turns_cw, turned);
     if (w == dst_w && h == dst_h) {
-        std::memcpy(dst, img, (size_t)w * h);
+        std::memcpy(dst, src, (size_t)w * h);
     } else {
-        cpu_nearest_resize_u8(img, h, w, dst, dst_h, dst_w);
+        cpu_nearest_resize_u8(src, h, w, dst, dst_h, dst_w);
     }
     stbi_image_free(img);
 
@@ -422,46 +548,111 @@ void decode_mask_into(const std::string& path,
     if (flip)
         for (size_t i = 0; i < (size_t)dst_h * dst_w; i++) dst[i] = (uint8_t)!dst[i];
 
-    // Apply signed boundary offset (dilate/erode) at the decoded resolution.
-    // offset_px = fraction * sqrt(dst_W * dst_H).
-    if (boundary_offset_frac != 0.0f) {
-        float offset_px = boundary_offset_frac
-                        * std::sqrt((float)dst_w * (float)dst_h);
-        edt::apply_mask_boundary_offset_in_place(dst, dst_h, dst_w, offset_px);
+    apply_boundary_offset(dst, dst_h, dst_w, boundary_offset_frac);
+}
+
+// An image's alpha as a 0/1 mask at dst_h x dst_w: area-resampled first, so a
+// shrunk mask keeps the pixels at least half covered, then gated at 128.
+void decode_alpha_mask_into(const std::string& path,
+                            int dst_h, int dst_w,
+                            uint8_t* dst,
+                            int turns_cw = 0)
+{
+    int w, h, ch;
+    std::vector<stbi_uc> alpha;
+    if (exr::is_exr(path)) {
+        exr::Info info;
+        exr::Options opt;
+        opt.channels = 4;
+        opt.threads = 1;
+        std::vector<float> px;
+        const std::string err = exr::decode(path, opt, info, px);
+        if (!err.empty())
+            throw std::runtime_error(decode_failure(path) + " (" + err + ")");
+        w = info.width;
+        h = info.height;
+        alpha.resize((size_t)w * h);
+        for (size_t i = 0; i < alpha.size(); ++i)
+            alpha[i] = (stbi_uc)std::lround(std::clamp(px[i * 4 + 3], 0.0f, 1.0f) * 255.0f);
+    } else if (tiff::is_tiff(path)) {
+        tiff::Info info;
+        tiff::Options opt;
+        opt.channels = 4;
+        opt.threads = 1;
+        std::vector<uint8_t> px;
+        const std::string err = tiff::decode_srgb8(path, opt, info, px);
+        if (!err.empty())
+            throw std::runtime_error(decode_failure(path) + " (" + err + ")");
+        w = info.width;
+        h = info.height;
+        alpha.resize((size_t)w * h);
+        for (size_t i = 0; i < alpha.size(); ++i) alpha[i] = px[i * 4 + 3];
+    } else {
+        stbi_uc* img = stbi_load(path.c_str(), &w, &h, &ch, 0);
+        if (!img) throw std::runtime_error(decode_failure(path));
+        if (ch != 2 && ch != 4) {
+            // Replaced by an opaque file since the probe.
+            stbi_image_free(img);
+            std::memset(dst, 1, (size_t)dst_h * dst_w);
+            return;
+        }
+        alpha.resize((size_t)w * h);
+        for (size_t i = 0; i < alpha.size(); ++i) alpha[i] = img[i * ch + ch - 1];
+        stbi_image_free(img);
     }
+
+    const stbi_uc* src = alpha.data();
+    std::vector<stbi_uc> turned, resized;
+    turn_decoded(src, w, h, 1, turns_cw, turned);
+    if (w != dst_w || h != dst_h) {
+        resized.resize((size_t)dst_h * dst_w);
+        cpu_resize<stbi_uc, 1>(src, h, w, resized.data(), dst_h, dst_w);
+        src = resized.data();
+    }
+    for (size_t i = 0; i < (size_t)dst_h * dst_w; ++i)
+        dst[i] = (uint8_t)(src[i] >= 128);
 }
 
 void decode_depth_into(const std::string& path,
                        int dst_h, int dst_w,
                        PixelDType dtype,
-                       uint8_t* dst)
+                       uint8_t* dst,
+                       int turns_cw = 0)
 {
     int w, h, ch;
     if (dtype != PixelDType::UINT16)
         throw std::runtime_error("DataManager: only 16-bit depth PNGs are supported in stb_image path");
     stbi_us* img = stbi_load_16(path.c_str(), &w, &h, &ch, 1);
     if (!img) throw std::runtime_error(decode_failure(path));
+    const stbi_us* src = img;
+    std::vector<stbi_us> turned;
+    turn_decoded(src, w, h, 1, turns_cw, turned);
     if (w == dst_w && h == dst_h) {
-        std::memcpy(dst, img, (size_t)w * h * sizeof(stbi_us));
+        std::memcpy(dst, src, (size_t)w * h * sizeof(stbi_us));
     } else {
-        cpu_bilinear_resize<stbi_us, 1>(img, h, w, (stbi_us*)dst, dst_h, dst_w);
+        cpu_bilinear_resize<stbi_us, 1>(src, h, w, (stbi_us*)dst, dst_h, dst_w);
     }
     stbi_image_free(img);
 }
 
 void decode_normal_into(const std::string& path,
                         int dst_h, int dst_w,
-                        uint8_t* dst)
+                        uint8_t* dst,
+                        int turns_cw = 0)
 {
     int w, h, ch;
     stbi_uc* img = stbi_load(path.c_str(), &w, &h, &ch, 3);
     if (!img) throw std::runtime_error(decode_failure(path));
+    const stbi_uc* src = img;
+    std::vector<stbi_uc> turned;
+    turn_decoded(src, w, h, 3, turns_cw, turned);
     if (w == dst_w && h == dst_h) {
-        std::memcpy(dst, img, (size_t)w * h * 3);
+        std::memcpy(dst, src, (size_t)w * h * 3);
     } else {
-        cpu_bilinear_resize<stbi_uc, 3>(img, h, w, dst, dst_h, dst_w);
+        cpu_bilinear_resize<stbi_uc, 3>(src, h, w, dst, dst_h, dst_w);
     }
     stbi_image_free(img);
+    turn_normal_vectors(dst, (size_t)dst_h * dst_w, turns_cw);
 }
 
 bool probe_image_shape(const std::string& path, int& w, int& h) {
@@ -469,12 +660,19 @@ bool probe_image_shape(const std::string& path, int& w, int& h) {
 }
 
 // On-disk RGB dtype. EXR is float32 whatever it stores: half carries values
-// above 1, and 16-bit normalized would clip every one of them.
+// above 1, and 16-bit normalized would clip every one of them. A TIFF is what
+// it stores, any float width as float32 for the same reason.
 PixelDType probe_pixel_dtype(const std::string& path,
                              PixelDType fallback = PixelDType::UINT8)
 {
     if (path.empty()) return fallback;
     if (exr::is_exr(path)) return PixelDType::FLOAT32;
+    if (tiff::is_tiff(path)) {
+        tiff::Info info;
+        if (!tiff::probe(path, info).empty()) return fallback;
+        return info.sample == tiff::Sample::F32 ? PixelDType::FLOAT32
+             : info.sample == tiff::Sample::U16 ? PixelDType::UINT16 : PixelDType::UINT8;
+    }
     if (stbi_is_16_bit(path.c_str())) return PixelDType::UINT16;
     return PixelDType::UINT8;
 }
@@ -591,6 +789,9 @@ public:
     int64_t num_val()      const { return (int64_t)_val_indices.size(); }
     bool    has_val()      const { return !_val_indices.empty(); }
     CacheMode cache_mode() const { return _cfg.cache_mode; }
+    void set_view_stats(std::vector<float> cam_sum, std::vector<uint32_t> cam_cnt);
+
+    int last_train_divisor() const { return _last_train_divisor.load(); }
 
     int max_face_passes() const {
         int n = 1;
@@ -635,6 +836,8 @@ private:
     std::vector<int32_t>      _K_per_camera;
     std::vector<int32_t>      _post_offsets;
     int64_t                   _n_post = 0;     // total post-split cameras
+    std::vector<float>        _view_sum;       // [n_post], under _sampling_mu
+    std::vector<uint32_t>     _view_cnt;       // [n_post]
     std::vector<std::string>  _image_filenames;
     std::vector<std::string>  _mask_filenames;
     // Per-image synthetic-mask flag: load_masks is on and no real mask file
@@ -642,6 +845,7 @@ private:
     // which the warp kernel projects into a post-split FOV mask.
     std::vector<uint8_t>      _synth_white_mask;
     bool                      _has_synth_masks = false;
+    bool                      _has_alpha_masks = false;
     std::vector<std::string>  _depth_filenames;
     std::vector<std::string>  _normal_filenames;
     std::vector<int32_t>      _widths, _heights;
@@ -676,11 +880,20 @@ private:
     std::vector<int32_t> _depth_h_per,  _depth_w_per;
     std::vector<int32_t> _normal_h_per, _normal_w_per;
 
+    // Quarter turns image `i` is loaded with (DataManagerConfig).
+    int turns_of(int64_t i) const {
+        return i >= 0 && (size_t)i < _cfg.exif_quarter_turns.size()
+                   ? (int)_cfg.exif_quarter_turns[(size_t)i] : 0;
+    }
+
     // ---- CPU mode preloaded buffers --------------------------------------
     //
     // Per-image, the decoded payload. Empty for images that don't have the
     // modality on disk. For DISK mode these stay empty.
     std::vector<std::vector<uint8_t>> _rgb_cache;
+    // The same rows area-filtered per progressive divisor, built at preload so
+    // the step does not pay for the filter; a stage's rows go once it is passed.
+    std::map<int, std::vector<std::vector<uint8_t>>> _rgb_cache_scaled;
     std::vector<std::vector<uint8_t>> _mask_cache;
     std::vector<std::vector<uint8_t>> _depth_cache;
     std::vector<std::vector<uint8_t>> _normal_cache;
@@ -698,6 +911,8 @@ private:
     // build_train_schedule_locked() under _sampling_mu.
     std::vector<StepSpec>     _train_schedule;
     size_t                    _train_sched_cursor = 0;
+    int64_t                   _issued = 0;   // steps handed out since first_step
+    std::atomic<int>          _last_train_divisor{1};
 
     // The currently-returned-to-caller data. We hold one slot per kind so the
     // reference returned by next_*_batch()/next_train_step() stays valid until
@@ -756,8 +971,27 @@ private:
     // build the views and publish to the appropriate ready queue.
     void publish_if_done(DecodeJob& job);
 
+    // The colour image i's alpha is composited onto at decode, or null.
+    const float* composite_of(int64_t i) const {
+        return (size_t)i < _cfg.composite_alpha.size() && _cfg.composite_alpha[(size_t)i]
+                   ? _cfg.composite_color.data() : nullptr;
+    }
+    bool alpha_mask(int64_t i) const {
+        return _has_alpha_masks && _cfg.alpha_masks[(size_t)i];
+    }
+    bool mask_present(int64_t i) const {
+        return !_mask_filenames[(size_t)i].empty() || alpha_mask(i) ||
+               (!_synth_white_mask.empty() && _synth_white_mask[(size_t)i]);
+    }
+    // Image i's mask at dst_h x dst_w, from whichever of mask_present's
+    // sources it has.
+    void decode_mask_of(int64_t i, int dst_h, int dst_w, uint8_t* dst) const;
+
     // ---- Setup helpers ---------------------------------------------------
     void probe_dtypes();
+    // A mask file shaped unlike its image is stretched onto it, which is only
+    // right if it was drawn for a resized copy.
+    void warn_mask_aspect() const;
     // Build (W,H)-keyed groups, enforcing per-modality uniformity WITHIN
     // each group (allowing 1x1 broadcast for mask). Throws on intra-group
     // shape mismatch. Inter-group differences are fine.
@@ -766,7 +1000,10 @@ private:
     void preload_cpu_cache();
     void allocate_batch(DecodedBatch& b,
                         const IndexGroup& g,
-                        const std::vector<int32_t>& ds_indices);
+                        const std::vector<int32_t>& ds_indices,
+                        int divisor = 1);
+    // Scale a filled batch's sizes and cameras down by `divisor`.
+    void scale_batch(DecodedBatch& b, const IndexGroup& g, int divisor) const;
     void fill_camera_params(DecodedBatch& b);
 
     // CPU-mode synchronous batch fetch helpers.
@@ -782,6 +1019,7 @@ private:
     // (non-warp groups only) across resolutions into <=B-image steps. Caller
     // must hold _sampling_mu.
     void build_train_schedule_locked();
+    std::vector<float> view_weights_locked() const;
     // Return the next scheduled step, rebuilding the schedule at epoch
     // boundaries. Thread-safe (locks _sampling_mu).
     StepSpec next_train_step_spec();
@@ -930,11 +1168,15 @@ DataManagerImpl::DataManagerImpl(
     // The equirectangular warp kernel projects an all-ones input to
     // all-ones too (it covers the full sphere), so this is also
     // correct for equirect inputs.
+    if (!_cfg.alpha_masks.empty() && (int64_t)_cfg.alpha_masks.size() != N)
+        throw std::runtime_error("DataManager: alpha_masks length mismatch");
     _synth_white_mask.assign((size_t)N, 0);
     if (_cfg.load_masks) {
         for (int64_t i = 0; i < N; ++i) {
+            const bool alpha = !_cfg.alpha_masks.empty() && _cfg.alpha_masks[i];
             bool has_real = (!_mask_filenames.empty() &&
-                             !_mask_filenames[i].empty());
+                             !_mask_filenames[i].empty()) || alpha;
+            _has_alpha_masks = _has_alpha_masks || alpha;
             if (!has_real) {
                 _synth_white_mask[i] = 1;
                 _has_synth_masks = true;
@@ -943,7 +1185,7 @@ DataManagerImpl::DataManagerImpl(
         // Ensure _mask_filenames is sized to N so per-image lookups below
         // are valid (entries for synthesized slots stay empty strings,
         // which the probe / decode paths special-case).
-        if (_has_synth_masks && _mask_filenames.empty()) {
+        if ((_has_synth_masks || _has_alpha_masks) && _mask_filenames.empty()) {
             _mask_filenames.assign((size_t)N, std::string());
         }
     }
@@ -1018,6 +1260,8 @@ void DataManagerImpl::probe_dtypes() {
             if (!probe_image_shape(fns[i], wi, hi))
                 throw std::runtime_error(std::string("DataManager: failed to probe ")
                     + name + " '" + fns[i] + "'");
+            // The shape these are decoded AT, which a turn transposes.
+            spirula::oriented_size(turns_of(i), wi, hi);
             out_h[i] = (int32_t)hi;
             out_w[i] = (int32_t)wi;
         }
@@ -1042,8 +1286,59 @@ void DataManagerImpl::probe_dtypes() {
             }
         }
     }
+    if (has_masks()) warn_mask_aspect();
+    // An alpha mask is made at the size the image trains at, or at its mask
+    // file's when that is larger, so the AND loses neither.
+    if (_has_alpha_masks) {
+        for (int64_t i = 0; i < N; ++i) {
+            if (!alpha_mask(i)) continue;
+            const int64_t file_area = (int64_t)_mask_h_per[(size_t)i] * _mask_w_per[(size_t)i];
+            if (file_area >= (int64_t)_heights[(size_t)i] * _widths[(size_t)i]) continue;
+            _mask_h_per[(size_t)i] = _heights[(size_t)i];
+            _mask_w_per[(size_t)i] = _widths[(size_t)i];
+        }
+    }
     if (has_depths())  probe_per_image(_depth_filenames,  "depth",  _depth_h_per,  _depth_w_per);
     if (has_normals()) probe_per_image(_normal_filenames, "normal", _normal_h_per, _normal_w_per);
+}
+
+void DataManagerImpl::warn_mask_aspect() const {
+    static std::mutex mu;
+    static std::set<std::array<int32_t, 4>> seen;
+    for (size_t i = 0; i < _mask_filenames.size(); ++i) {
+        if (_mask_filenames[i].empty()) continue;
+        const int32_t mw = _mask_w_per[i], mh = _mask_h_per[i];
+        const int32_t w = _widths[i], h = _heights[i];
+        if (mw <= 1 || mh <= 1 || w <= 0 || h <= 0) continue;
+        // One pixel of slack for the rounding an honest downscaler does.
+        if (std::fabs((double)mh * w / mw - (double)h) <= 1.0) continue;
+        std::lock_guard<std::mutex> lk(mu);
+        if (!seen.insert({mw, mh, w, h}).second) continue;
+        std::fprintf(stderr, "%s %s\n", dmsg::word_warning.get(),
+                     format(dmsg::mask_image_aspect,
+                            {_mask_filenames[i], std::to_string(mw) + "x" + std::to_string(mh),
+                             std::to_string(w) + "x" + std::to_string(h)}).c_str());
+        std::fflush(stderr);
+    }
+}
+
+void DataManagerImpl::decode_mask_of(int64_t i, int dst_h, int dst_w,
+                                     uint8_t* dst) const {
+    const std::string& file = _mask_filenames[(size_t)i];
+    const int turns = turns_of(i);
+    if (!alpha_mask(i)) {
+        if (file.empty()) std::memset(dst, 1, (size_t)dst_h * dst_w);
+        else decode_mask_into(file, dst_h, dst_w, _cfg.flip_mask,
+                              _cfg.mask_boundary_offset, dst, turns);
+        return;
+    }
+    decode_alpha_mask_into(_image_filenames[(size_t)i], dst_h, dst_w, dst, turns);
+    if (!file.empty()) {
+        std::vector<uint8_t> other((size_t)dst_h * dst_w);
+        decode_mask_into(file, dst_h, dst_w, _cfg.flip_mask, 0.0f, other.data(), turns);
+        for (size_t k = 0; k < other.size(); ++k) dst[k] &= other[k];
+    }
+    apply_boundary_offset(dst, dst_h, dst_w, _cfg.mask_boundary_offset);
 }
 
 
@@ -1098,8 +1393,14 @@ std::vector<IndexGroup> DataManagerImpl::build_index_groups_member(
                 const int64_t o = _post_offsets[i] + k;
                 const int32_t w = K_i > 1 ? _post_widths[o]  : out_w;
                 const int32_t h = K_i > 1 ? _post_heights[o] : out_h;
+                // A pass renders its faces at once, so every per-pixel buffer
+                // of the step is sized by the pass; the split's weighting keeps
+                // the loss independent of where a run is cut.
+                const bool fits = !g.passes.empty() &&
+                    (int64_t)(g.passes.back().k1 - g.passes.back().k0 + 1) * w * h <=
+                        kWarpPassPixelBudget;
                 if (!g.passes.empty() && g.passes.back().width == w &&
-                    g.passes.back().height == h)
+                    g.passes.back().height == h && fits)
                     g.passes.back().k1 = k + 1;
                 else
                     g.passes.push_back(WarpFacePass{k, k + 1, w, h});
@@ -1199,6 +1500,14 @@ void DataManagerImpl::preload_cpu_cache() {
     if (has_depths())  _depth_cache.resize(N);
     if (has_normals()) _normal_cache.resize(N);
 
+    // Every coarser stage this run will still reach, filtered once here.
+    std::vector<int> coarse;
+    const auto& stages = _cfg.resolution_stages;
+    for (size_t k = 0; k < stages.size(); ++k)
+        if (stages[k].second > 1 && (k + 1 == stages.size() || stages[k + 1].first > _cfg.first_step))
+            coarse.push_back(stages[k].second);
+    for (int d : coarse) _rgb_cache_scaled[d].resize(N);
+
     // Pick a sensible worker count for the preload sweep — capped by the
     // number of images, so we don't spawn 32 threads to decode 4 images.
     int n_threads = (int)std::max(1u, std::thread::hardware_concurrency());
@@ -1230,27 +1539,23 @@ void DataManagerImpl::preload_cpu_cache() {
                     PixelDType dt = _rgb_dtype[i];
                     size_t bytes = (size_t)W * H * 3 * pixel_dtype_size(dt);
                     _rgb_cache[i].assign(bytes, 0);
-                    decode_rgb_into(_image_filenames[i], H, W, dt, _rgb_cache[i].data());
+                    decode_rgb_into(_image_filenames[i], H, W, dt,
+                                    _rgb_cache[i].data(), turns_of(i), 1,
+                                    composite_of(i));
+                    for (int d : coarse) {
+                        const int w = progressive::scaled_extent(W, d), h = progressive::scaled_extent(H, d);
+                        auto& row = _rgb_cache_scaled[d][i];
+                        row.assign((size_t)w * h * 3 * pixel_dtype_size(dt), 0);
+                        resize_rgb_row(_rgb_cache[i].data(), H, W, row.data(), h, w, dt);
+                    }
                 }
-                // Per-image modality shape (may differ across images; group
-                // uniformity was enforced at construction). Mask 1x1 stays
-                // 1x1 in cache and is broadcast at batch-fill time.
-                if (has_masks() && !_mask_filenames[i].empty()) {
+                // Per-image shape; a 1x1 mask is broadcast at batch-fill time.
+                // A synthesized one is image-sized: a 1x1 broadcast fails the
+                // warp kernel's bounds check everywhere but the centre pixel.
+                if (has_masks() && mask_present(i)) {
                     int32_t mh = _mask_h_per[i], mw = _mask_w_per[i];
                     _mask_cache[i].assign((size_t)mw * mh, 0);
-                    decode_mask_into(_mask_filenames[i], mh, mw,
-                                     _cfg.flip_mask, _cfg.mask_boundary_offset,
-                                     _mask_cache[i].data());
-                } else if (has_masks() && _synth_white_mask[(size_t)i]) {
-                    // Full-size all-ones mask matching the input image shape
-                    // (see constructor note: 1x1 broadcast breaks the warp
-                    // kernel's bounds check, leaving only the center pixel
-                    // as 1 -> "front face is gray" symptom). The disk path
-                    // memsets at H*W directly; here we mirror that into the
-                    // per-image cache so fill_batch_from_cache's memcpy
-                    // hits the equal-shape fast path.
-                    int32_t mh = _mask_h_per[i], mw = _mask_w_per[i];
-                    _mask_cache[i].assign((size_t)mw * mh, (uint8_t)1);
+                    decode_mask_of(i, mh, mw, _mask_cache[i].data());
                 }
                 if (has_depths() && !_depth_filenames[i].empty()) {
                     PixelDType dt = _depth_dtype[i];
@@ -1258,13 +1563,13 @@ void DataManagerImpl::preload_cpu_cache() {
                     size_t bytes = (size_t)dw * dh * pixel_dtype_size(dt);
                     _depth_cache[i].assign(bytes, 0);
                     decode_depth_into(_depth_filenames[i], dh, dw,
-                                      dt, _depth_cache[i].data());
+                                      dt, _depth_cache[i].data(), turns_of(i));
                 }
                 if (has_normals() && !_normal_filenames[i].empty()) {
                     int32_t nh = _normal_h_per[i], nw = _normal_w_per[i];
                     _normal_cache[i].assign((size_t)nw * nh * 3, 0);
                     decode_normal_into(_normal_filenames[i], nh, nw,
-                                       _normal_cache[i].data());
+                                       _normal_cache[i].data(), turns_of(i));
                 }
 
                 int64_t d = done_count.fetch_add(1) + 1;
@@ -1295,7 +1600,8 @@ void DataManagerImpl::preload_cpu_cache() {
 void DataManagerImpl::allocate_batch(
     DecodedBatch& b,
     const IndexGroup& g,
-    const std::vector<int32_t>& ds_indices)
+    const std::vector<int32_t>& ds_indices,
+    int divisor)
 {
     int B   = (int)ds_indices.size();
     int H   = g.height, W = g.width;
@@ -1387,6 +1693,40 @@ void DataManagerImpl::allocate_batch(
     }
 
     fill_camera_params(b);
+    b.resolution_divisor = 1;
+    if (divisor > 1) scale_batch(b, g, divisor);
+}
+
+void DataManagerImpl::scale_batch(DecodedBatch& b, const IndexGroup& g, int divisor) const {
+    const int in_w = progressive::scaled_extent(g.width, divisor);
+    const int in_h = progressive::scaled_extent(g.height, divisor);
+    // The input image is resampled exactly onto in_w x in_h, so its cameras take
+    // the realized ratio; split faces are rendered, so theirs take 1 / divisor.
+    const float rx = (float)in_w / (float)g.width, ry = (float)in_h / (float)g.height;
+    const float face = 1.0f / (float)divisor;
+    const bool split = g.K > 1;
+    b.resolution_divisor = divisor;
+    b.input_width = in_w;
+    b.input_height = in_h;
+    b.width  = split ? progressive::scaled_extent(g.out_w, divisor) : in_w;
+    b.height = split ? progressive::scaled_extent(g.out_h, divisor) : in_h;
+    for (auto& pass : b.face_passes) {
+        pass.width  = progressive::scaled_extent(pass.width, divisor);
+        pass.height = progressive::scaled_extent(pass.height, divisor);
+    }
+    const float sx = split ? face : rx, sy = split ? face : ry;
+    for (size_t c = 0; c < b.intrins.size(); c += 4) {
+        b.intrins[c] *= sx; b.intrins[c + 2] *= sx;
+        b.intrins[c + 1] *= sy; b.intrins[c + 3] *= sy;
+    }
+    for (size_t c = 0; c < b.input_intrins.size(); c += 4) {
+        b.input_intrins[c] *= rx; b.input_intrins[c + 2] *= rx;
+        b.input_intrins[c + 1] *= ry; b.input_intrins[c + 3] *= ry;
+    }
+    for (size_t j = 0; j < b.input_source_models.size(); ++j)
+        if (b.input_source_models[j] >= 0)
+            srccam::rescale(b.input_source_models[j], &b.input_source_params[j * 16], rx, ry);
+    b.rgb_buffer.assign((size_t)b.input_num * in_h * in_w * 3 * pixel_dtype_size(b.rgb_dtype), 0);
 }
 
 void DataManagerImpl::fill_camera_params(DecodedBatch& b) {
@@ -1439,10 +1779,17 @@ void DataManagerImpl::fill_batch_from_cache(DecodedBatch& b) {
     size_t depth_row  = (size_t)b.depth_height  * b.depth_width * pixel_dtype_size(b.depth_dtype);
     size_t normal_row = (size_t)b.normal_height * b.normal_width * 3;
 
+    const auto scaled = b.resolution_divisor > 1 ? _rgb_cache_scaled.find(b.resolution_divisor)
+                                                  : _rgb_cache_scaled.end();
     for (int j = 0; j < B; ++j) {
         int32_t i = b.indices[j];
-        std::memcpy(b.rgb_buffer.data() + (size_t)j * rgb_row,
-                    _rgb_cache[i].data(), rgb_row);
+        uint8_t* rgb_dst = b.rgb_buffer.data() + (size_t)j * rgb_row;
+        if (b.resolution_divisor <= 1)
+            std::memcpy(rgb_dst, _rgb_cache[i].data(), rgb_row);
+        else if (scaled != _rgb_cache_scaled.end() && scaled->second[i].size() == rgb_row)
+            std::memcpy(rgb_dst, scaled->second[i].data(), rgb_row);
+        else   // a stage the preload did not build
+            resize_rgb_row(_rgb_cache[i].data(), _heights[i], _widths[i], rgb_dst, H, W, b.rgb_dtype);
 
         // Mask: cache row at per-image on-disk shape, batch slot at group
         // shape. If equal, memcpy. If cache is 1x1, broadcast (memset).
@@ -1541,6 +1888,45 @@ void DataManagerImpl::build_train_schedule_locked() {
     for (auto& g : _train_groups)
         std::shuffle(g.indices.begin(), g.indices.end(), _rng);
 
+    // Deficit sampling replaces a group's once-each pass by a multiset of the
+    // same size, images drawn in proportion to their weight.
+    std::vector<float> view_w;
+    if (_cfg.deficit_sampling) view_w = view_weights_locked();
+    // SS_VIEW_SAMPLING_LOG=1: the draw weights each epoch, in English like
+    // the other deep diagnostics.
+    static const bool log_view = [] {
+        const char* v = spirula::env("VIEW_SAMPLING_LOG");
+        return v && *v && v[0] != '0';
+    }();
+    if (log_view && !view_w.empty()) {
+        std::vector<float> w;
+        for (const auto& g : _train_groups)
+            for (int32_t i : g.indices) w.push_back(view_w[(size_t)i]);
+        std::sort(w.begin(), w.end());
+        const size_t n = w.size();
+        std::fprintf(stderr,
+                     "[view-sampling] %zu images: weight min %.3f p10 %.3f median %.3f "
+                     "p90 %.3f max %.3f\n", n, w[0], w[n / 10], w[n / 2],
+                     w[(9 * n) / 10], w[n - 1]);
+    }
+    std::vector<std::vector<int32_t>> epoch_lists(_train_groups.size());
+    for (size_t gi = 0; gi < _train_groups.size(); ++gi) {
+        const auto& idx = _train_groups[gi].indices;
+        auto& out = epoch_lists[gi];
+        if (view_w.empty()) { out = idx; continue; }
+        double wsum = 0.0;
+        for (int32_t i : idx) wsum += view_w[(size_t)i];
+        std::uniform_real_distribution<double> u01(0.0, 1.0);
+        for (int32_t i : idx) {
+            double expect = (double)idx.size() * view_w[(size_t)i] / std::max(wsum, 1e-30);
+            int n = (int)std::floor(expect);
+            if (u01(_rng) < expect - (double)n) ++n;
+            for (int r = 0; r < n; ++r) out.push_back(i);
+        }
+        if (out.empty()) out = idx;
+        std::shuffle(out.begin(), out.end(), _rng);
+    }
+
     // Full B-image chunks become their own single-sub-batch (homogeneous)
     // steps. Sub-B remainders are collected for cross-group packing; groups
     // that need the warp path -- K > 1, and K == 1 re-distort -- are never
@@ -1549,7 +1935,7 @@ void DataManagerImpl::build_train_schedule_locked() {
     // their remainder is emitted as its own step.
     std::vector<SubBatchSpec> remainders;
     for (size_t gi = 0; gi < _train_groups.size(); ++gi) {
-        const auto& idx = _train_groups[gi].indices;
+        const auto& idx = epoch_lists[gi];
         const size_t n  = idx.size();
         size_t off = 0;
         for (; off + (size_t)B <= n; off += (size_t)B) {
@@ -1603,6 +1989,59 @@ void DataManagerImpl::build_train_schedule_locked() {
 
     // Interleave step order so full-chunk and mixed steps don't cluster.
     std::shuffle(_train_schedule.begin(), _train_schedule.end(), _rng);
+
+    // One divisor per epoch, so each image trains equally often at each size. An
+    // epoch that would cross a stage switch ends at it, which keeps the switch on
+    // its planned step after a mid-epoch resume or a pass of uneven length.
+    const int64_t at = _cfg.first_step + _issued;
+    const int divisor = progressive::divisor_at(_cfg.resolution_stages, at);
+    for (const auto& [first, d] : _cfg.resolution_stages)
+        if (first > at) {
+            if ((int64_t)_train_schedule.size() > first - at) _train_schedule.resize((size_t)(first - at));
+            break;
+        }
+    for (auto& step : _train_schedule)
+        for (auto& sub : step) sub.divisor = divisor;
+    // CPU mode builds schedules on the consuming thread, the one that reads these rows.
+    for (auto it = _rgb_cache_scaled.begin(); it != _rgb_cache_scaled.end();)
+        it = it->first > divisor ? _rgb_cache_scaled.erase(it) : std::next(it);
+}
+
+// One draw weight per input image from the post-split view stats; empty when
+// no camera has stats yet. Faces of one input are pooled.
+std::vector<float> DataManagerImpl::view_weights_locked() const {
+    const size_t N = _image_filenames.size();
+    if (_view_cnt.empty() || (int64_t)_view_cnt.size() < _n_post) return {};
+    std::vector<float> mean(N, -1.0f);
+    std::vector<float> known;
+    known.reserve(N);
+    for (size_t i = 0; i < N; ++i) {
+        const int K = _K_per_camera.empty() ? 1 : _K_per_camera[i];
+        const int off = _post_offsets.empty() ? (int)i : _post_offsets[i];
+        double s = 0.0; uint64_t c = 0;
+        for (int k = 0; k < K; ++k) { s += _view_sum[(size_t)off + k]; c += _view_cnt[(size_t)off + k]; }
+        if (c == 0) continue;
+        mean[i] = (float)(s / (double)c);
+        known.push_back(mean[i]);
+    }
+    if (known.empty()) return {};
+    std::nth_element(known.begin(), known.begin() + known.size() / 2, known.end());
+    const float ref = known[known.size() / 2];
+    const float R = std::max(_cfg.deficit_max_ratio, 1.0f);
+    std::vector<float> w(N, 1.0f);
+    for (size_t i = 0; i < N; ++i) {
+        if (mean[i] < 0.0f) continue;
+        float ratio = (ref + 1.0f) / (mean[i] + 1.0f);
+        ratio = std::min(std::max(ratio, 1.0f / R), R);
+        w[i] = std::pow(ratio, _cfg.deficit_power);
+    }
+    return w;
+}
+
+void DataManagerImpl::set_view_stats(std::vector<float> cam_sum, std::vector<uint32_t> cam_cnt) {
+    std::lock_guard<std::mutex> lk(_sampling_mu);
+    _view_sum = std::move(cam_sum);
+    _view_cnt = std::move(cam_cnt);
 }
 
 StepSpec DataManagerImpl::next_train_step_spec() {
@@ -1611,6 +2050,7 @@ StepSpec DataManagerImpl::next_train_step_spec() {
         throw std::runtime_error("DataManager: no training indices configured");
     if (_train_sched_cursor >= _train_schedule.size())
         build_train_schedule_locked();   // next epoch
+    ++_issued;
     return _train_schedule[_train_sched_cursor++];
 }
 
@@ -1625,10 +2065,11 @@ const TrainStep& DataManagerImpl::next_step_cpu() {
     for (size_t i = 0; i < spec.size(); ++i) {
         if (!st.subs[i]) st.subs[i] = std::make_shared<DecodedBatch>();
         DecodedBatch& b = *st.subs[i];
-        allocate_batch(b, _train_groups[spec[i].group], spec[i].picks);
+        allocate_batch(b, _train_groups[spec[i].group], spec[i].picks, spec[i].divisor);
         fill_batch_from_cache(b);
         b.build_views();
     }
+    if (!st.subs.empty()) _last_train_divisor = st.subs[0]->resolution_divisor;
     return st;
 }
 
@@ -1744,7 +2185,8 @@ void DataManagerImpl::worker_loop_rgb() {
         uint8_t* dst = b.rgb_buffer.data() + (size_t)job.slot * row;
         if (!decode_or_park([&]{
                 decode_rgb_into(_image_filenames[job.ds_index], H, W,
-                                b.rgb_dtype, dst); }))
+                                b.rgb_dtype, dst, turns_of(job.ds_index), 1,
+                                composite_of(job.ds_index)); }))
             return;
         publish_if_done(job);
     }
@@ -1758,17 +2200,8 @@ void DataManagerImpl::worker_loop_mask() {
         int H = b.mask_height, W = b.mask_width;
         size_t row = (size_t)H * W;
         uint8_t* dst = b.mask_buffer.data() + (size_t)job.slot * row;
-        if (_synth_white_mask.empty() ||
-            !_synth_white_mask[(size_t)job.ds_index]) {
-            if (!decode_or_park([&]{
-                    decode_mask_into(_mask_filenames[job.ds_index], H, W,
-                                     _cfg.flip_mask, _cfg.mask_boundary_offset,
-                                     dst); }))
-                return;
-        } else {
-            // Synthesized all-white: skip disk read, fill the slot directly.
-            std::memset(dst, 1, (size_t)H * W);
-        }
+        if (!decode_or_park([&]{ decode_mask_of(job.ds_index, H, W, dst); }))
+            return;
         publish_if_done(job);
     }
 }
@@ -1783,7 +2216,7 @@ void DataManagerImpl::worker_loop_depth() {
         uint8_t* dst = b.depth_buffer.data() + (size_t)job.slot * row;
         if (!decode_or_park([&]{
                 decode_depth_into(_depth_filenames[job.ds_index], H, W,
-                                  b.depth_dtype, dst); }))
+                                  b.depth_dtype, dst, turns_of(job.ds_index)); }))
             return;
         publish_if_done(job);
     }
@@ -1798,7 +2231,8 @@ void DataManagerImpl::worker_loop_normal() {
         size_t row = (size_t)H * W * 3;
         uint8_t* dst = b.normal_buffer.data() + (size_t)job.slot * row;
         if (!decode_or_park([&]{
-                decode_normal_into(_normal_filenames[job.ds_index], H, W, dst); }))
+                decode_normal_into(_normal_filenames[job.ds_index], H, W, dst,
+                                   turns_of(job.ds_index)); }))
             return;
         publish_if_done(job);
     }
@@ -1906,11 +2340,8 @@ void DataManagerImpl::enqueue_batch(
 
         rgb_jobs.push_back(jb);
         if (has_masks()) {
-            bool has_real  = !_mask_filenames[i].empty();
-            bool is_synth  = !_synth_white_mask.empty() &&
-                             _synth_white_mask[(size_t)i];
-            if (has_real || is_synth) mask_jobs.push_back(jb);
-            else                       try_publish();  // truly absent
+            if (mask_present(i)) mask_jobs.push_back(jb);
+            else                 try_publish();  // truly absent
         }
         if (has_depths()) {
             if (!_depth_filenames[i].empty()) depth_jobs.push_back(jb);
@@ -1977,7 +2408,7 @@ void DataManagerImpl::enqueue_step(
     // before any job runs.
     for (size_t i = 0; i < spec.size(); ++i) {
         stepp->subs[i] = std::make_shared<DecodedBatch>();
-        allocate_batch(*stepp->subs[i], _train_groups[spec[i].group], spec[i].picks);
+        allocate_batch(*stepp->subs[i], _train_groups[spec[i].group], spec[i].picks, spec[i].divisor);
     }
 
     auto decrement_absent = [&]() {
@@ -2006,11 +2437,8 @@ void DataManagerImpl::enqueue_step(
 
             rgb_jobs.push_back(jb);
             if (has_masks()) {
-                bool has_real = !_mask_filenames[idx].empty();
-                bool is_synth = !_synth_white_mask.empty() &&
-                                _synth_white_mask[(size_t)idx];
-                if (has_real || is_synth) mask_jobs.push_back(jb);
-                else                       decrement_absent();
+                if (mask_present(idx)) mask_jobs.push_back(jb);
+                else                   decrement_absent();
             }
             if (has_depths()) {
                 if (!_depth_filenames[idx].empty()) depth_jobs.push_back(jb);
@@ -2047,6 +2475,7 @@ const TrainStep& DataManagerImpl::next_train_step() {
             throw std::runtime_error("DataManager: train prefetch queue closed");
     }
     _last_train_step_held = s;
+    if (!s->subs.empty()) _last_train_divisor = s->subs[0]->resolution_divisor;
     return *_last_train_step_held;
 }
 
@@ -2095,29 +2524,21 @@ void DataManagerImpl::fetch_one(int32_t index, DecodedBatch& out) {
     } else {
         decode_rgb_into(_image_filenames[index], out.input_height,
                         out.input_width, out.rgb_dtype, out.rgb_buffer.data(),
-                        /*decode_threads=*/0);
-        if (!out.mask_buffer.empty()) {
-            bool synth = !_synth_white_mask.empty() &&
-                         _synth_white_mask[(size_t)index];
-            if (synth) {
-                std::memset(out.mask_buffer.data(), 1, out.mask_buffer.size());
-            } else if (!_mask_filenames.empty() &&
-                       !_mask_filenames[index].empty()) {
-                decode_mask_into(_mask_filenames[index], out.mask_height,
-                                 out.mask_width, _cfg.flip_mask,
-                                 _cfg.mask_boundary_offset,
-                                 out.mask_buffer.data());
-            }
-            // Neither: the row stays zero, which is what the training path
-            // leaves for an image with no mask of its own.
-        }
+                        turns_of(index), /*decode_threads=*/0,
+                        composite_of(index));
+        // No mask of its own: the row stays zero, as the training path
+        // leaves it.
+        if (!out.mask_buffer.empty() && mask_present(index))
+            decode_mask_of(index, out.mask_height, out.mask_width,
+                           out.mask_buffer.data());
         if (!out.depth_buffer.empty() && !_depth_filenames[index].empty())
             decode_depth_into(_depth_filenames[index], out.depth_height,
                               out.depth_width, out.depth_dtype,
-                              out.depth_buffer.data());
+                              out.depth_buffer.data(), turns_of(index));
         if (!out.normal_buffer.empty() && !_normal_filenames[index].empty())
             decode_normal_into(_normal_filenames[index], out.normal_height,
-                               out.normal_width, out.normal_buffer.data());
+                               out.normal_width, out.normal_buffer.data(),
+                               turns_of(index));
     }
     out.build_views();
 }
@@ -2182,3 +2603,7 @@ bool      DataManager::has_depths()     const              { return _impl->has_d
 bool      DataManager::has_normals()    const              { return _impl->has_normals(); }
 int64_t   DataManager::max_input_batch_size() const         { return _impl->max_input_batch_size(); }
 int       DataManager::max_face_passes() const              { return _impl->max_face_passes(); }
+int       DataManager::last_train_divisor() const           { return _impl->last_train_divisor(); }
+void      DataManager::set_view_stats(std::vector<float> cam_sum, std::vector<uint32_t> cam_cnt) {
+    _impl->set_view_stats(std::move(cam_sum), std::move(cam_cnt));
+}

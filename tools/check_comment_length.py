@@ -9,7 +9,9 @@ build; `--all` lists that debt for a deliberate cleanup pass.
 Divider rules and section banners do not count toward a block: they are
 structure, not prose.
 
-Usage:  python3 tools/check_comment_length.py [--all] [--quiet]
+Usage:  python3 tools/check_comment_length.py [--all | --base REV] [--quiet]
+
+--base REV checks every block a branch touched since REV, committed or not.
 """
 
 import os
@@ -162,9 +164,11 @@ def blocks(path, source):
         header_open = False
 
 
-def changed_lines(root):
+def changed_lines(root, since="HEAD"):
     """Map path -> set of new-side line numbers, staged and unstaged alike."""
-    head = run(["git", "-C", root, "rev-parse", "--verify", "HEAD"])
+    head = run(["git", "-C", root, "rev-parse", "--verify", since + "^{commit}"])
+    if head is None and since != "HEAD":
+        return None
     base = head.strip() if head else "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
     diff = run(["git", "-C", root, "diff", "--unified=0", "--no-color",
@@ -205,8 +209,21 @@ def report(hits, root):
 
 
 def main():
-    quiet = "--quiet" in sys.argv          # say nothing when the tree is clean
-    scan_all = "--all" in sys.argv
+    args = sys.argv[1:]
+    quiet = "--quiet" in args          # say nothing when the tree is clean
+    scan_all = "--all" in args
+    since = "HEAD"
+    if "--base" in args:
+        at = args.index("--base")
+        if at + 1 >= len(args) or scan_all:
+            print("check_comment_length: --base takes a revision, and not with --all")
+            return 2
+        since = args.pop(at + 1)
+        args.pop(at)
+    unknown = [a for a in args if a not in ("--all", "--quiet")]
+    if unknown:
+        print(f"check_comment_length: unknown argument {unknown[0]}")
+        return 2
 
     if os.environ.get("SS_SKIP_COMMENT_CHECK"):
         return 0
@@ -221,8 +238,11 @@ def main():
         listed = run(["git", "-C", root, "ls-files"]) or ""
         targets = {p: None for p in listed.splitlines() if in_scope(p)}
     else:
-        touched = changed_lines(root)
+        touched = changed_lines(root, since)
         if touched is None:
+            if since != "HEAD":
+                print(f"check_comment_length: cannot diff against {since}")
+                return 2
             return 0
         targets = {p: v for p, v in touched.items() if in_scope(p)}
 
@@ -243,7 +263,8 @@ def main():
         if scan_all:
             print("OK: no comment block in the tree is over budget.")
         elif not quiet:
-            print("OK: comment lengths in the working tree are within budget.")
+            scope = "the working tree" if since == "HEAD" else f"everything since {since}"
+            print(f"OK: comment lengths in {scope} are within budget.")
         return 0
 
     report(hits, root)

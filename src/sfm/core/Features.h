@@ -6,14 +6,21 @@
 // (D4); a converter to/from COLMAP's SQLite database is a separate host tool.
 #pragma once
 
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include "core/MappedFile.h"
 
 namespace sfm {
 
@@ -54,10 +61,19 @@ struct FeatureSet {
     // stage that sees the image file; matching and mapping only see features.
     double exif_focal = 0;
     std::string exif_camera;
+    // The Orientation tag, 1..8, of the pixels as the mapper will see them --
+    // so 1 once `--exif-orientation apply` has turned them (sfm/core/Exif.h).
+    // The gauge fix reads it: a portrait capture's up is not the image's.
+    uint8_t exif_orientation = 1;
     uint32_t dim = 128;
     DType dtype = DType::U8;
     std::vector<Keypoint> keypoints;
-    std::vector<uint8_t> descriptors;   // count*dim*dtypeSize bytes
+    std::vector<uint8_t> descriptors;   // count*dim*dtypeSize bytes, or empty when mapped
+    // Or the same bytes left in the feature file, mapped (readFeatures with `map`):
+    // pages the OS drops and reads back under pressure rather than heap that
+    // fails, at a gigabyte per thousand images. Read both through descData().
+    std::shared_ptr<const spirula::MappedFile> desc_map;
+    size_t desc_offset = 0;
     // Optional per-keypoint RGB sampled from the source image (count*3 bytes, or
     // empty). Written by `spirula-sfm extract`; the mapper averages them over each 3D
     // point's track to color the point cloud for 3DGS init. Empty for a feature
@@ -65,6 +81,16 @@ struct FeatureSet {
     std::vector<uint8_t> colors;
 
     uint32_t count() const { return (uint32_t)keypoints.size(); }
+    const uint8_t* descData() const {
+        return desc_map ? desc_map->data() + desc_offset : descriptors.data();
+    }
+    size_t descBytes() const {
+        return desc_map ? (size_t)count() * dim * dtypeSize(dtype) : descriptors.size();
+    }
+    void dropDescriptors() {
+        std::vector<uint8_t>().swap(descriptors);
+        desc_map.reset();
+    }
     bool hasColors() const { return colors.size() == (size_t)count() * 3; }
     // Whether any keypoint carries a detection score worth persisting. SIFT
     // leaves response at 0; a learned detector fills it in.
@@ -116,39 +142,21 @@ inline void scaleKeypoints(FeatureSet& fs, int w, int h) {
 }
 
 // ---- features.bin -------------------------------------------------------
-// Header (little-endian):
-//   char[4] magic  = "VKFT"
-//   u32     version = 3
-//   i32     width, height
-//   u32     count, dim, dtype
-// Then `count` keypoints, each { f32 x, y, scale, orientation }, then the
-// descriptor blob (count*dim*dtypeSize bytes).
-//
-// v2 appends a color section after the descriptors: u8 has_colors, then (if 1)
-// count*3 bytes of per-keypoint RGB. v1 files have no such trailing bytes and
-// read back with empty colors; the reader accepts all three.
-//
-// v3 appends an EXIF section after the colors: f64 exif_focal, u32 name length,
-// then that many bytes of exif_camera. A v1/v2 file reads back with no EXIF,
-// i.e. exactly the behaviour that predates it.
-//
-// v4 appends i32 extract_width, extract_height after that. Older files read
-// back with 0, i.e. pixelScale() == 1, i.e. thresholds in source pixels --
-// which is what those files were produced under.
-//
-// v5 appends u8 has_scores, then (if 1) count f32 detection scores. A v1-v4
-// file reads back with every response 0, which is what those files carried:
-// SIFT never persisted it and nothing read it.
+// The layout and every version's appended section: src/sfm/README.md. Each one
+// is read back as its own absence, so a stale cache is reused, not rejected.
 
-// Written to a sibling and renamed over the destination, so a run killed mid
-// stage leaves a file that is either whole or absent -- which is what lets the
+// Written to a per-call sibling (a shared one lets two writers interleave) and
+// renamed over the destination, so the file is whole or absent -- which lets the
 // next run reuse it without reading the descriptor block back to check (D76).
 inline void writeFeatures(const std::string& path, const FeatureSet& fs) {
-    const std::string tmp = path + ".part";
+    static std::atomic<uint64_t> write_seq{0};
+    const std::string tmp = path + ".part" + std::to_string(
+        ((uint64_t)std::hash<std::thread::id>{}(std::this_thread::get_id()) << 8) ^
+        ++write_seq);
     {
     std::ofstream f(tmp, std::ios::binary);
     if (!f) throw std::runtime_error("cannot write " + path);
-    uint32_t version = 5, count = fs.count(), dtype = (uint32_t)fs.dtype;
+    uint32_t version = 6, count = fs.count(), dtype = (uint32_t)fs.dtype;
     f.write("VKFT", 4);
     f.write((const char*)&version, 4);
     f.write((const char*)&fs.width, 4);
@@ -174,10 +182,18 @@ inline void writeFeatures(const std::string& path, const FeatureSet& fs) {
     f.write((const char*)&has_scores, 1);
     if (has_scores)
         for (const Keypoint& k : fs.keypoints) f.write((const char*)&k.response, 4);
+    f.write((const char*)&fs.exif_orientation, 1);
     if (!f) throw std::runtime_error("cannot write " + path);
     }
     std::error_code ec;
     std::filesystem::rename(tmp, path, ec);
+    // Antivirus and indexers on Windows hold a fresh file open without
+    // delete-sharing for well under a second, failing the rename meanwhile.
+    for (int i = 0; ec && i < 4; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        ec.clear();
+        std::filesystem::rename(tmp, path, ec);
+    }
     if (ec) {
         std::filesystem::remove(tmp, ec);
         throw std::runtime_error("cannot write " + path);
@@ -185,8 +201,8 @@ inline void writeFeatures(const std::string& path, const FeatureSet& fs) {
 }
 
 // Is there a whole feature file at `path`, and how many keypoints does it hold?
-// The keypoints and descriptors are all but the whole file, so the size against
-// the header catches a truncated one without reading a gigabyte to find out.
+// Sized against the header without reading a gigabyte of descriptors: v6 to the
+// exact byte, so an oversize file is refused too; older versions for truncation.
 inline bool peekFeatures(const std::string& path, uint32_t& count) {
     std::error_code ec;
     const uint64_t bytes = (uint64_t)std::filesystem::file_size(path, ec);
@@ -204,18 +220,36 @@ inline bool peekFeatures(const std::string& path, uint32_t& count) {
     f.read((char*)&dim, 4);
     f.read((char*)&dtype, 4);
     if (!f || std::memcmp(magic, "VKFT", 4) != 0 || dtype > 1) return false;
-    const uint64_t need = 28 + (uint64_t)n * 16 + (uint64_t)n * dim * dtypeSize((DType)dtype);
-    if (bytes < need) return false;
+    uint64_t size = 28 + (uint64_t)n * 16 + (uint64_t)n * dim * dtypeSize((DType)dtype);
+    if (version < 6) {
+        if (bytes < size) return false;
+        count = n;
+        return true;
+    }
+    uint8_t flag = 0;
+    uint32_t cam_len = 0;
+    f.seekg((std::streamoff)size);
+    f.read((char*)&flag, 1);                        // has_colors
+    if (!f || flag > 1) return false;
+    size += 1 + (flag ? (uint64_t)n * 3 : 0) + 8;   // colors, exif_focal
+    f.seekg((std::streamoff)size);
+    f.read((char*)&cam_len, 4);
+    if (!f) return false;
+    size += 4 + cam_len + 8;                        // exif_camera, extract w+h
+    f.seekg((std::streamoff)size);
+    f.read((char*)&flag, 1);                        // has_scores
+    if (!f || flag > 1) return false;
+    size += 1 + (flag ? (uint64_t)n * 4 : 0) + 1;   // scores, exif_orientation
+    if (bytes != size) return false;
     count = n;
     return true;
 }
 
-// `with_descriptors == false` seeks past the descriptor block instead of
-// reading it. Everything downstream of matching -- the mapper, and so the
-// whole `map` subcommand -- wants only keypoints and colors, and the
-// descriptors are the file: a gigabyte per thousand images, read and then
-// never touched.
-inline FeatureSet readFeatures(const std::string& path, bool with_descriptors = true) {
+// `with_descriptors == false` skips the descriptors -- a gigabyte per thousand
+// images, which nothing after matching reads -- and `map` leaves them in the
+// file (FeatureSet::desc_map).
+inline FeatureSet readFeatures(const std::string& path, bool with_descriptors = true,
+                               bool map = false) {
     std::ifstream f(path, std::ios::binary);
     if (!f) throw std::runtime_error("cannot read " + path);
     char magic[4];
@@ -243,7 +277,15 @@ inline FeatureSet readFeatures(const std::string& path, bool with_descriptors = 
     }
     const std::streamsize desc_bytes = (std::streamsize)((size_t)count * dim *
                                                          dtypeSize(fs.dtype));
-    if (with_descriptors) {
+    if (with_descriptors && map && desc_bytes > 0) {
+        auto mf = std::make_shared<spirula::MappedFile>();
+        const size_t at = (size_t)f.tellg();
+        if (mf->open(path).empty() && mf->size() >= at + (size_t)desc_bytes) {
+            fs.desc_map = std::move(mf);
+            fs.desc_offset = at;
+        }
+    }
+    if (with_descriptors && !fs.desc_map) {
         fs.descriptors.resize((size_t)desc_bytes);
         f.read((char*)fs.descriptors.data(), desc_bytes);
     } else {
@@ -291,6 +333,11 @@ inline FeatureSet readFeatures(const std::string& path, bool with_descriptors = 
             f.read((char*)raw.data(), (std::streamsize)(raw.size() * sizeof(float)));
             for (uint32_t i = 0; i < count; i++) fs.keypoints[i].response = raw[i];
         }
+    }
+    if (version >= 6) {
+        uint8_t o = 0;
+        f.read((char*)&o, 1);
+        if (f.gcount() == 1 && o >= 1 && o <= 8) fs.exif_orientation = o;
     }
     return fs;
 }

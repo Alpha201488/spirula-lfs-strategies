@@ -263,19 +263,19 @@ SS_MSG(sum_merge,
     TR("parçalanmış bir çekimin modellerini daha aza kaynaştır"));
 
 SS_MSG(sum_ba,
-    EN("bundle-adjust a BAL problem (solver benchmark)"),
-    JA("BAL 形式の問題をバンドル調整します（ソルバーのベンチマーク）"),
-    ZH_HANS("对 BAL 格式的问题做平差（求解器基准测试）"),
-    ZH_HANT("對 BAL 格式的問題做平差（求解器基準測試）"),
-    KO("BAL 형식 문제를 번들 조정합니다(솔버 벤치마크)"),
-    DE("ein BAL-Problem ausgleichen (Löser-Benchmark)"),
-    FR("ajuster un problème BAL (banc d'essai du solveur)"),
-    ES("ajustar un problema BAL (banco de pruebas del solucionador)"),
-    PT("ajustar um problema BAL (banco de provas do solucionador)"),
-    IT("aggiustare un problema BAL (banco di prova del risolutore)"),
-    NL("een BAL-probleem aanpassen (oplosser-benchmark)"),
-    RU("уравнять задачу в формате BAL (тест решателя)"),
-    TR("bir BAL problemini dengele (çözücü kıyaslaması)"));
+    EN("bundle-adjust a sparse model"),
+    JA("疎なモデルをバンドル調整します"),
+    ZH_HANS("对稀疏模型做光束法平差"),
+    ZH_HANT("對稀疏模型做光束法平差"),
+    KO("성긴 모델을 번들 조정합니다"),
+    DE("ein dünnes Modell bündelausgleichen"),
+    FR("ajuster les faisceaux d'un modèle épars"),
+    ES("ajustar los haces de un modelo disperso"),
+    PT("ajustar os feixes de um modelo esparso"),
+    IT("eseguire il bundle adjustment di un modello sparso"),
+    NL("een ijl model bundelaanpassen"),
+    RU("уравнять разреженную модель"),
+    TR("seyrek bir modeli demet dengelemesinden geçir"));
 
 // ===========================================================================
 // What each command does, at length
@@ -972,51 +972,73 @@ SS_MSG(opt_rig,
     EN("Images under these path prefixes with the same name are one rig frame "
        "and keep a fixed relative pose (cam0,cam1 pairs cam0/x.jpg with "
        "cam1/x.jpg). Repeat for several rigs; the manifest's `rigs:` can also "
-       "carry known extrinsics."),
+       "carry known extrinsics."
+       " A `dual-fisheye=` prefix says the first two are the back-to-back lenses of "
+       "one 360 camera."),
     JA("これらのパス接頭辞の下で同名の画像を 1 つのリグフレームとして、相対姿勢を固定します"
        "（cam0,cam1 なら cam0/x.jpg と cam1/x.jpg が組になります）。複数のリグには繰り返し"
-       "指定します。マニフェストの `rigs:` では既知の外部パラメータも渡せます。"),
+       "指定します。マニフェストの `rigs:` では既知の外部パラメータも渡せます。"
+       "`dual-fisheye=` を前に付けると、最初の 2 つが 1 台の 360 カメラの背中合わせのレンズであることを示します。"),
     ZH_HANS("这些路径前缀下同名的图像构成一个装置帧，保持固定的相对位姿（cam0,cam1 把 "
             "cam0/x.jpg 和 cam1/x.jpg 配对）。多个装置可重复指定；清单的 `rigs:` 还能"
-            "给出已知外参。"),
+            "给出已知外参。"
+       "加上 `dual-fisheye=` 前缀表示前两个是同一台 360 相机背靠背的镜头。"),
     ZH_HANT("這些路徑前綴下同名的影像構成一個裝置幀，保持固定的相對姿態（cam0,cam1 把 "
             "cam0/x.jpg 和 cam1/x.jpg 配對）。多個裝置可重複指定；清單的 `rigs:` 還能"
-            "給出已知外參。"),
+            "給出已知外參。"
+       "加上 `dual-fisheye=` 前綴表示前兩個是同一台 360 相機背靠背的鏡頭。"),
     KO("이 경로 접두사 아래 이름이 같은 이미지는 하나의 리그 프레임이 되어 상대 자세가 고정됩니다"
        "(cam0,cam1 은 cam0/x.jpg 와 cam1/x.jpg 를 짝지음). 리그가 여럿이면 반복하세요. "
-       "매니페스트의 `rigs:` 로 알려진 외부 파라미터도 줄 수 있습니다."),
+       "매니페스트의 `rigs:` 로 알려진 외부 파라미터도 줄 수 있습니다."
+       " `dual-fisheye=` 를 앞에 붙이면 처음 둘이 한 360 카메라의 등을 맞댄 렌즈임을 뜻합니다."),
     DE("Bilder mit gleichem Namen unter diesen Pfadpräfixen bilden einen Rig-Frame "
        "mit fester relativer Pose (cam0,cam1 paart cam0/x.jpg mit cam1/x.jpg). "
        "Für mehrere Rigs wiederholen; `rigs:` im Manifest kann auch bekannte "
-       "Extrinsik tragen."),
+       "Extrinsik tragen."
+       " Das Präfix `dual-fisheye=` sagt, dass die ersten beiden die Rücken an "
+       "Rücken liegenden Objektive einer 360-Kamera sind."),
     FR("Les images de même nom sous ces préfixes de chemin forment une image de "
        "rig à pose relative fixe (cam0,cam1 apparie cam0/x.jpg à cam1/x.jpg). "
        "Répéter pour plusieurs rigs ; `rigs:` dans le manifeste peut aussi porter "
-       "des extrinsèques connus."),
+       "des extrinsèques connus."
+       " Le préfixe `dual-fisheye=` indique que les deux premiers sont les "
+       "objectifs dos à dos d'une caméra 360."),
     ES("Las imágenes con el mismo nombre bajo estos prefijos de ruta forman un "
        "cuadro de rig con pose relativa fija (cam0,cam1 empareja cam0/x.jpg con "
        "cam1/x.jpg). Repetir para varios rigs; `rigs:` en el manifiesto puede "
-       "llevar también extrínsecos conocidos."),
+       "llevar también extrínsecos conocidos."
+       " El prefijo `dual-fisheye=` indica que los dos primeros son las lentes "
+       "espalda con espalda de una cámara 360."),
     PT("Imagens com o mesmo nome sob estes prefixos de caminho formam um quadro "
        "de rig com pose relativa fixa (cam0,cam1 emparelha cam0/x.jpg com "
        "cam1/x.jpg). Repita para vários rigs; `rigs:` no manifesto também pode "
-       "trazer extrínsecos conhecidos."),
+       "trazer extrínsecos conhecidos."
+       " O prefixo `dual-fisheye=` diz que os dois primeiros são as lentes costas "
+       "com costas de uma câmera 360."),
     IT("Le immagini con lo stesso nome sotto questi prefissi di percorso formano "
        "un fotogramma di rig a posa relativa fissa (cam0,cam1 accoppia cam0/x.jpg "
        "con cam1/x.jpg). Ripetere per più rig; `rigs:` nel manifesto può anche "
-       "portare estrinseci noti."),
+       "portare estrinseci noti."
+       " Il prefisso `dual-fisheye=` dice che i primi due sono gli obiettivi "
+       "schiena contro schiena di una fotocamera 360."),
     NL("Beelden met dezelfde naam onder deze padvoorvoegsels vormen één rigframe "
        "met vaste relatieve pose (cam0,cam1 koppelt cam0/x.jpg aan cam1/x.jpg). "
        "Herhaal voor meerdere rigs; `rigs:` in het manifest kan ook bekende "
-       "extrinsieken bevatten."),
+       "extrinsieken bevatten."
+       " Het voorvoegsel `dual-fisheye=` zegt dat de eerste twee de "
+       "rug-aan-rug-lenzen van één 360-camera zijn."),
     RU("Изображения с одинаковым именем под этими префиксами пути образуют один "
        "кадр рига с фиксированной относительной позой (cam0,cam1 объединяет "
        "cam0/x.jpg и cam1/x.jpg). Повторите для нескольких ригов; `rigs:` в "
-       "манифесте может также нести известные экстринсики."),
+       "манифесте может также нести известные экстринсики."
+       " Префикс `dual-fisheye=` означает, что первые два -- расположенные спиной к "
+       "спине объективы одной 360-камеры."),
     TR("Bu yol öneklerinin altındaki aynı adlı görüntüler sabit göreli duruşlu tek "
        "bir rig karesi olur (cam0,cam1, cam0/x.jpg ile cam1/x.jpg'yi eşler). Birden "
        "çok rig için yineleyin; bildirimdeki `rigs:` bilinen dış parametreleri de "
-       "taşıyabilir."));
+       "taşıyabilir."
+       " `dual-fisheye=` öneki, ilk ikisinin tek bir 360 kameranın sırt sırta "
+       "mercekleri olduğunu söyler."));
 
 SS_MSG(opt_manifest,
     EN("Read the capture's description from FILE (YAML or JSON): where the "
@@ -1372,7 +1394,7 @@ SS_MSG(exit_3,
 
 
 // ===========================================================================
-// `spirula sfm ba` -- the solver benchmark
+// `spirula sfm ba` -- one global bundle adjustment of a model
 // ===========================================================================
 
 SS_MSG(exit_4,
@@ -1391,117 +1413,136 @@ SS_MSG(exit_4,
     TR("model yazıldı, ancak istenen metrik çerçevede değil"));
 
 SS_MSG(ba_desc_1,
-    EN("Runs the GPU bundle adjuster directly on a problem in Bundle Adjustment "
-       "in the Large format, and reports cost, iterations, time and VRAM. This "
-       "is how the solver is benchmarked and debugged against a published "
-       "reference; the pipeline itself never reads BAL. See src/sfm/ba/README.md."),
-    JA("Bundle Adjustment in the Large 形式の問題に対して GPU のバンドル調整器を"
-       "直接走らせ、コスト・反復回数・時間・VRAM を報告します。公開されている"
-       "リファレンスと突き合わせてソルバーをベンチマークし、デバッグするための"
-       "ものです。パイプライン自体が BAL を読むことはありません。"
-       "src/sfm/ba/README.md を参照してください。"),
-    ZH_HANS("直接对 Bundle Adjustment in the Large 格式的问题运行 GPU 平差器，"
-            "并报告代价、迭代次数、耗时与显存。这是拿已发表的参考实现来给求解器"
-            "做基准测试和排错的方式；流程本身从不读取 BAL。参见 "
-            "src/sfm/ba/README.md。"),
-    ZH_HANT("直接對 Bundle Adjustment in the Large 格式的問題執行 GPU 平差器，"
-            "並回報代價、疊代次數、耗時與顯示記憶體。這是拿已發表的參考實作來給求解器"
-            "做基準測試和除錯的方式；流程本身從不讀取 BAL。參見 "
-            "src/sfm/ba/README.md。"),
-    KO("Bundle Adjustment in the Large 형식의 문제에 GPU 번들 조정기를 곧바로 "
-       "돌리고 비용, 반복 횟수, 시간, VRAM 을 알려 줍니다. 공개된 참조 구현과 "
-       "견주어 솔버를 벤치마크하고 디버깅하는 방법이며, 파이프라인 자체는 BAL 을 "
-       "읽지 않습니다. src/sfm/ba/README.md 를 보세요."),
-    DE("Lässt den GPU-Bündelausgleicher unmittelbar auf einem Problem im Format "
-       "Bundle Adjustment in the Large laufen und meldet Kosten, Iterationen, "
-       "Zeit und VRAM. So wird der Löser gegen eine veröffentlichte Referenz "
-       "gemessen und geprüft; die Pipeline selbst liest nie BAL. Siehe "
-       "src/sfm/ba/README.md."),
-    FR("Fait tourner l'ajusteur de faisceaux GPU directement sur un problème au "
-       "format Bundle Adjustment in the Large, et rapporte coût, itérations, "
-       "temps et VRAM. C'est ainsi que le solveur est étalonné et débogué face à "
-       "une référence publiée ; la chaîne elle-même ne lit jamais BAL. Voir "
-       "src/sfm/ba/README.md."),
-    ES("Ejecuta el ajustador de haces en la GPU directamente sobre un problema "
-       "en formato Bundle Adjustment in the Large, e informa de coste, "
-       "iteraciones, tiempo y VRAM. Así se mide y se depura el solucionador "
-       "frente a una referencia publicada; la cadena en sí nunca lee BAL. Véase "
-       "src/sfm/ba/README.md."),
-    PT("Executa o ajustador de feixes na GPU diretamente sobre um problema no "
-       "formato Bundle Adjustment in the Large, e relata custo, iterações, tempo "
-       "e VRAM. É assim que o solucionador é medido e depurado face a uma "
-       "referência publicada; a cadeia em si nunca lê BAL. Veja "
-       "src/sfm/ba/README.md."),
-    IT("Esegue l'aggiustatore di fasci su GPU direttamente su un problema in "
-       "formato Bundle Adjustment in the Large, e riferisce costo, iterazioni, "
-       "tempo e VRAM. È così che il risolutore viene misurato e messo a punto "
-       "contro un riferimento pubblicato; la catena stessa non legge mai BAL. "
-       "Veda src/sfm/ba/README.md."),
-    NL("Draait de GPU-bundelaanpasser rechtstreeks op een probleem in het "
-       "formaat Bundle Adjustment in the Large, en meldt kosten, iteraties, tijd "
-       "en VRAM. Zo wordt de oplosser gemeten en nagelopen tegen een "
-       "gepubliceerde referentie; de keten zelf leest nooit BAL. Zie "
-       "src/sfm/ba/README.md."),
-    RU("Запускает уравниватель на GPU прямо на задаче в формате Bundle "
-       "Adjustment in the Large и сообщает стоимость, число итераций, время и "
-       "видеопамять. Так решатель сверяют с опубликованным эталоном и отлаживают; "
-       "сам конвейер BAL никогда не читает. См. src/sfm/ba/README.md."),
-    TR("GPU demet dengeleyicisini, Bundle Adjustment in the Large biçimindeki "
-       "bir problem üzerinde doğrudan çalıştırır ve maliyeti, yinelemeleri, "
-       "süreyi ve VRAM'i bildirir. Çözücü, yayımlanmış bir referansa karşı böyle "
-       "kıyaslanır ve ayıklanır; işlem hattının kendisi BAL'ı hiç okumaz. Bkz. "
-       "src/sfm/ba/README.md."));
+    EN("Reads a COLMAP sparse model, runs on it the global bundle adjustment the "
+       "mapper runs (Huber 2 px unless --loss says otherwise, with the rigs in "
+       "the model's rigs.txt unless --rig names others), and writes the refined "
+       "model to OUTPUT, which may be the input directory itself. If the GPU "
+       "fails partway (VK_ERROR_DEVICE_LOST, or out of memory), the CPU carries "
+       "on from the last checkpoint the GPU saved."),
+    JA("COLMAP の疎なモデルを読み込み、マッパーが行うのと同じ全体バンドル調整を"
+       "実行して（--loss の指定がなければ Huber 2 px、--rig で別のリグを指定"
+       "しなければモデルの rigs.txt のリグを使用）、精密化したモデルを OUTPUT "
+       "に書き出します。OUTPUT は入力ディレクトリそのものでも構いません。GPU が"
+       "途中で失敗した場合（VK_ERROR_DEVICE_LOST やメモリ不足）は、GPU が最後に"
+       "保存したチェックポイントから CPU が続きを実行します。"),
+    ZH_HANS("读取 COLMAP 稀疏模型，对其执行与建图器相同的全局平差（除非 --loss "
+            "另有指定，否则用 Huber 2 px；除非 --rig 指定了别的装配，否则使用模型"
+            " rigs.txt 中的装配），并把精化后的模型写到 OUTPUT，OUTPUT 可以就是"
+            "输入目录本身。若 GPU 中途失败（VK_ERROR_DEVICE_LOST 或显存不足），"
+            "CPU 会从 GPU 最后保存的检查点接着算。"),
+    ZH_HANT("讀取 COLMAP 稀疏模型，對其執行與建圖器相同的全域平差（除非 --loss "
+            "另有指定，否則用 Huber 2 px；除非 --rig 指定了別的裝配，否則使用模型"
+            " rigs.txt 中的裝配），並把精化後的模型寫到 OUTPUT，OUTPUT 可以就是"
+            "輸入目錄本身。若 GPU 中途失敗（VK_ERROR_DEVICE_LOST 或顯示記憶體不足），"
+            "CPU 會從 GPU 最後儲存的檢查點接著算。"),
+    KO("COLMAP 성긴 모델을 읽어 매퍼가 돌리는 것과 같은 전역 번들 조정을 실행하고"
+       "(--loss 로 달리 말하지 않으면 Huber 2 px, --rig 로 다른 리그를 지정하지 "
+       "않으면 모델의 rigs.txt 에 있는 리그 사용), 정련된 모델을 OUTPUT 에 씁니다. "
+       "OUTPUT 은 입력 디렉터리 자체여도 됩니다. GPU 가 도중에 실패하면"
+       "(VK_ERROR_DEVICE_LOST 또는 메모리 부족) GPU 가 마지막으로 저장한 "
+       "체크포인트부터 CPU 가 이어서 계산합니다."),
+    DE("Liest ein dünnes COLMAP-Modell, führt darauf den globalen Bündelausgleich "
+       "aus, den der Kartierer ausführt (Huber 2 px, sofern --loss nichts anderes "
+       "sagt, mit den Rigs aus der rigs.txt des Modells, sofern --rig keine "
+       "anderen nennt), und schreibt das verfeinerte Modell nach OUTPUT, das auch "
+       "das Eingabeverzeichnis selbst sein darf. Scheitert die GPU unterwegs "
+       "(VK_ERROR_DEVICE_LOST oder Speichermangel), rechnet die CPU ab dem letzten "
+       "Prüfpunkt weiter, den die GPU gesichert hat."),
+    FR("Lit un modèle épars COLMAP, y exécute l'ajustement de faisceaux global "
+       "que le cartographe exécute (Huber 2 px sauf indication de --loss, avec "
+       "les rigs du rigs.txt du modèle sauf si --rig en nomme d'autres), et écrit "
+       "le modèle affiné dans OUTPUT, qui peut être le dossier d'entrée lui-même. "
+       "Si le GPU échoue en cours de route (VK_ERROR_DEVICE_LOST, ou mémoire "
+       "épuisée), le CPU reprend au dernier point de contrôle sauvegardé par le "
+       "GPU."),
+    ES("Lee un modelo disperso de COLMAP, ejecuta sobre él el ajuste de haces "
+       "global que ejecuta el cartógrafo (Huber 2 px salvo que --loss diga otra "
+       "cosa, con los rigs del rigs.txt del modelo salvo que --rig nombre otros) "
+       "y escribe el modelo refinado en OUTPUT, que puede ser la propia carpeta de "
+       "entrada. Si la GPU falla a mitad (VK_ERROR_DEVICE_LOST, o sin memoria), "
+       "la CPU continúa desde el último punto de control que guardó la GPU."),
+    PT("Lê um modelo esparso do COLMAP, executa sobre ele o ajuste de feixes "
+       "global que o cartógrafo executa (Huber 2 px salvo se --loss disser outra "
+       "coisa, com os rigs do rigs.txt do modelo salvo se --rig nomear outros) e "
+       "escreve o modelo refinado em OUTPUT, que pode ser a própria pasta de "
+       "entrada. Se a GPU falhar a meio (VK_ERROR_DEVICE_LOST, ou sem memória), a "
+       "CPU continua a partir do último ponto de controle que a GPU guardou."),
+    IT("Legge un modello sparso COLMAP, vi esegue il bundle adjustment globale "
+       "che esegue il cartografo (Huber 2 px salvo diverso --loss, con i rig del "
+       "rigs.txt del modello salvo che --rig ne indichi altri) e scrive il modello "
+       "affinato in OUTPUT, che può essere la cartella di ingresso stessa. Se la "
+       "GPU fallisce a metà (VK_ERROR_DEVICE_LOST, o memoria esaurita), la CPU "
+       "prosegue dall'ultimo punto di controllo salvato dalla GPU."),
+    NL("Leest een ijl COLMAP-model, draait daarop de globale bundelaanpassing die "
+       "de kaartmaker draait (Huber 2 px tenzij --loss anders zegt, met de rigs "
+       "uit de rigs.txt van het model tenzij --rig andere noemt), en schrijft het "
+       "verfijnde model naar OUTPUT, dat ook de invoermap zelf mag zijn. Faalt de "
+       "GPU halverwege (VK_ERROR_DEVICE_LOST, of geheugen op), dan rekent de CPU "
+       "verder vanaf het laatste controlepunt dat de GPU bewaarde."),
+    RU("Читает разреженную модель COLMAP, выполняет на ней то глобальное "
+       "уравнивание, которое выполняет картограф (Huber 2 px, если --loss не "
+       "задаёт иное, с ригами из rigs.txt модели, если --rig не называет другие), "
+       "и записывает уточнённую модель в OUTPUT — это может быть и сам входной "
+       "каталог. Если GPU сбоит посреди работы (VK_ERROR_DEVICE_LOST или нехватка "
+       "памяти), CPU продолжает с последней контрольной точки, сохранённой GPU."),
+    TR("Bir COLMAP seyrek modelini okur, üzerinde haritalayıcının çalıştırdığı "
+       "genel demet dengelemesini çalıştırır (--loss aksini söylemedikçe Huber "
+       "2 px; --rig başkalarını belirtmedikçe modelin rigs.txt dosyasındaki "
+       "düzeneklerle) ve iyileştirilmiş modeli OUTPUT'a yazar; OUTPUT girdi "
+       "dizininin kendisi de olabilir. GPU yarı yolda başarısız olursa "
+       "(VK_ERROR_DEVICE_LOST ya da bellek yetersizliği), CPU GPU'nun kaydettiği "
+       "son denetim noktasından devam eder."));
 
 SS_MSG(ba_desc_2,
-    EN("Given a directory instead, it reads a COLMAP sparse model and runs "
-       "exactly the global BA the mapper runs on it (Huber 2 px unless --loss "
-       "says otherwise), which is how the solver is profiled on real captures. "
-       "-o writes the refined model."),
-    JA("代わりにディレクトリを渡すと COLMAP の疎なモデルを読み込み、マッパーが"
-       "そのモデルに対して行うのと同じ全体バンドル調整を実行します"
-       "（--loss の指定がなければ Huber 2 px）。実際の撮影でソルバーを"
-       "プロファイルする方法です。-o を付けると精密化したモデルを書き出します。"),
-    ZH_HANS("若改为传入一个目录，它会读取 COLMAP 稀疏模型，并对其执行与建图器完全"
-            "相同的全局平差（除非 --loss 另有指定，否则用 Huber 2 px）；"
-            "这是在真实拍摄上给求解器做性能分析的方式。-o 会写出精化后的模型。"),
-    ZH_HANT("若改為傳入一個目錄，它會讀取 COLMAP 稀疏模型，並對其執行與建圖器完全"
-            "相同的全域平差（除非 --loss 另有指定，否則用 Huber 2 px）；"
-            "這是在真實拍攝上給求解器做效能分析的方式。-o 會寫出精化後的模型。"),
-    KO("대신 디렉터리를 주면 COLMAP 성긴 모델을 읽어, 매퍼가 그 모델에 돌리는 것과 "
-       "똑같은 전역 번들 조정을 실행합니다(--loss 로 달리 말하지 않으면 Huber 2 px). "
-       "실제 촬영에서 솔버를 프로파일링하는 방법입니다. -o 는 정련된 모델을 씁니다."),
-    DE("Bekommt es stattdessen ein Verzeichnis, liest es ein dünnes COLMAP-Modell "
-       "und führt genau den globalen Ausgleich aus, den der Kartierer darauf "
-       "ausführt (Huber 2 px, sofern --loss nichts anderes sagt) -- so wird der "
-       "Löser an echten Aufnahmen vermessen. -o schreibt das verfeinerte Modell."),
-    FR("Si on lui donne plutôt un dossier, il lit un modèle épars COLMAP et "
-       "exécute exactement l'ajustement global que le cartographe y applique "
-       "(Huber 2 px sauf indication de --loss), ce qui permet de profiler le "
-       "solveur sur de vraies prises de vue. -o écrit le modèle affiné."),
-    ES("Si en su lugar se le da una carpeta, lee un modelo disperso de COLMAP y "
-       "ejecuta exactamente el ajuste global que el cartógrafo le aplica (Huber "
-       "2 px salvo que --loss diga otra cosa), que es como se perfila el "
-       "solucionador sobre capturas reales. -o escribe el modelo refinado."),
-    PT("Se em vez disso receber uma pasta, lê um modelo esparso do COLMAP e "
-       "executa exatamente o ajuste global que o cartógrafo lhe aplica (Huber "
-       "2 px salvo se --loss disser outra coisa), que é como o solucionador é "
-       "perfilado em capturas reais. -o escreve o modelo refinado."),
-    IT("Se invece riceve una cartella, legge un modello sparso COLMAP ed esegue "
-       "esattamente il bundle adjustment globale che il cartografo vi applica "
-       "(Huber 2 px salvo diverso --loss), ed è così che il risolutore viene "
-       "profilato su riprese reali. -o scrive il modello affinato."),
-    NL("Krijgt het in plaats daarvan een map, dan leest het een ijl COLMAP-model "
-       "en draait precies de globale aanpassing die de kaartmaker erop draait "
-       "(Huber 2 px tenzij --loss anders zegt), waarmee de oplosser op echte "
-       "opnamen wordt doorgemeten. -o schrijft het verfijnde model."),
-    RU("Если же ему дать каталог, он прочитает разреженную модель COLMAP и "
-       "выполнит ровно то глобальное уравнивание, которое проводит по ней "
-       "построитель (Huber 2 px, если --loss не скажет иначе) -- так решатель "
-       "профилируют на настоящих съёмках. -o записывает уточнённую модель."),
-    TR("Bunun yerine bir dizin verilirse, bir COLMAP seyrek modelini okur ve "
-       "haritalayıcının onun üzerinde çalıştırdığı genel dengelemenin tam olarak "
-       "aynısını çalıştırır (--loss aksini söylemedikçe Huber 2 px); çözücü "
-       "gerçek çekimlerde böyle profillenir. -o iyileştirilmiş modeli yazar."));
+    EN("Given a problem file in Bundle Adjustment in the Large format instead, "
+       "it runs the solver on that and writes the refined points to OUTPUT as a "
+       "PLY. That is how the solver is benchmarked against a published reference; "
+       "the pipeline itself never reads BAL."),
+    JA("代わりに Bundle Adjustment in the Large 形式の問題ファイルを渡すと、それに"
+       "対してソルバーを走らせ、精密化した点を PLY として OUTPUT に書き出します。"
+       "公開されているリファレンスと突き合わせてソルバーをベンチマークする方法"
+       "です。パイプライン自体が BAL を読むことはありません。"),
+    ZH_HANS("若改为传入 Bundle Adjustment in the Large 格式的问题文件，它会对其运行"
+            "求解器，并把精化后的点以 PLY 写到 OUTPUT。这是拿已发表的参考实现给"
+            "求解器做基准测试的方式；流程本身从不读取 BAL。"),
+    ZH_HANT("若改為傳入 Bundle Adjustment in the Large 格式的問題檔，它會對其執行"
+            "求解器，並把精化後的點以 PLY 寫到 OUTPUT。這是拿已發表的參考實作給"
+            "求解器做基準測試的方式；流程本身從不讀取 BAL。"),
+    KO("대신 Bundle Adjustment in the Large 형식의 문제 파일을 주면 거기에 솔버를 "
+       "돌리고, 정련된 점을 PLY 로 OUTPUT 에 씁니다. 공개된 참조 구현과 견주어 "
+       "솔버를 벤치마크하는 방법이며, 파이프라인 자체는 BAL 을 읽지 않습니다."),
+    DE("Bekommt es stattdessen eine Problemdatei im Format Bundle Adjustment in "
+       "the Large, lässt es den Löser darauf laufen und schreibt die verfeinerten "
+       "Punkte als PLY nach OUTPUT. So wird der Löser gegen eine veröffentlichte "
+       "Referenz gemessen; die Pipeline selbst liest nie BAL."),
+    FR("Si on lui donne plutôt un fichier de problème au format Bundle Adjustment "
+       "in the Large, il y fait tourner le solveur et écrit les points affinés "
+       "dans OUTPUT en PLY. C'est ainsi que le solveur est étalonné face à une "
+       "référence publiée ; la chaîne elle-même ne lit jamais BAL."),
+    ES("Si en su lugar se le da un archivo de problema en formato Bundle "
+       "Adjustment in the Large, ejecuta el solucionador sobre él y escribe los "
+       "puntos refinados en OUTPUT como PLY. Así se mide el solucionador frente a "
+       "una referencia publicada; la cadena en sí nunca lee BAL."),
+    PT("Se em vez disso receber um ficheiro de problema no formato Bundle "
+       "Adjustment in the Large, executa o solucionador sobre ele e escreve os "
+       "pontos refinados em OUTPUT como PLY. É assim que o solucionador é medido "
+       "face a uma referência publicada; a cadeia em si nunca lê BAL."),
+    IT("Se invece riceve un file di problema in formato Bundle Adjustment in the "
+       "Large, vi esegue il risolutore e scrive i punti affinati in OUTPUT come "
+       "PLY. È così che il risolutore viene misurato contro un riferimento "
+       "pubblicato; la catena stessa non legge mai BAL."),
+    NL("Krijgt het in plaats daarvan een probleembestand in het formaat Bundle "
+       "Adjustment in the Large, dan draait het de oplosser daarop en schrijft de "
+       "verfijnde punten als PLY naar OUTPUT. Zo wordt de oplosser gemeten tegen "
+       "een gepubliceerde referentie; de keten zelf leest nooit BAL."),
+    RU("Если же ему дать файл задачи в формате Bundle Adjustment in the Large, "
+       "он запустит решатель на нём и запишет уточнённые точки в OUTPUT в виде "
+       "PLY. Так решатель сверяют с опубликованным эталоном; сам конвейер BAL "
+       "никогда не читает."),
+    TR("Bunun yerine Bundle Adjustment in the Large biçiminde bir problem dosyası "
+       "verilirse, çözücüyü onun üzerinde çalıştırır ve iyileştirilmiş noktaları "
+       "OUTPUT'a PLY olarak yazar. Çözücü, yayımlanmış bir referansa karşı böyle "
+       "kıyaslanır; işlem hattının kendisi BAL'ı hiç okumaz."));
 
 SS_MSG(ba_note,
     EN("A (--real, --loss) pair that was trimmed out of the build reports "
@@ -1759,50 +1800,20 @@ SS_MSG(ba_opt_vram_budget,
     RU("сколько памяти устройства может занять решатель"),
     TR("çözücünün kullanabileceği aygıt belleği"));
 
-SS_MSG(ba_opt_ply,
-    EN("write PREFIX_before.ply and PREFIX_after.ply"),
-    JA("PREFIX_before.ply と PREFIX_after.ply を書き出します"),
-    ZH_HANS("写出 PREFIX_before.ply 与 PREFIX_after.ply"),
-    ZH_HANT("寫出 PREFIX_before.ply 與 PREFIX_after.ply"),
-    KO("PREFIX_before.ply 와 PREFIX_after.ply 를 씁니다"),
-    DE("PREFIX_before.ply und PREFIX_after.ply schreiben"),
-    FR("écrire PREFIX_before.ply et PREFIX_after.ply"),
-    ES("escribir PREFIX_before.ply y PREFIX_after.ply"),
-    PT("escrever PREFIX_before.ply e PREFIX_after.ply"),
-    IT("scrivere PREFIX_before.ply e PREFIX_after.ply"),
-    NL("PREFIX_before.ply en PREFIX_after.ply schrijven"),
-    RU("записать PREFIX_before.ply и PREFIX_after.ply"),
-    TR("PREFIX_before.ply ve PREFIX_after.ply yaz"));
-
-SS_MSG(ba_opt_output,
-    EN("write the refined sparse model (model input only)"),
-    JA("精密化した疎なモデルを書き出します（入力がモデルの場合のみ）"),
-    ZH_HANS("写出精化后的稀疏模型（仅当输入是模型时）"),
-    ZH_HANT("寫出精化後的稀疏模型（僅當輸入是模型時）"),
-    KO("정련한 성긴 모델을 씁니다(입력이 모델일 때만)"),
-    DE("das verfeinerte dünne Modell schreiben (nur bei Modelleingabe)"),
-    FR("écrire le modèle épars affiné (entrée modèle seulement)"),
-    ES("escribir el modelo disperso refinado (solo con entrada de modelo)"),
-    PT("escrever o modelo esparso refinado (só com entrada de modelo)"),
-    IT("scrivere il modello sparso affinato (solo con ingresso modello)"),
-    NL("het verfijnde ijle model schrijven (alleen bij modelinvoer)"),
-    RU("записать уточнённую разреженную модель (только если на входе модель)"),
-    TR("iyileştirilmiş seyrek modeli yaz (yalnızca model girdisinde)"));
-
 SS_MSG(ba_opt_device,
-    EN("Vulkan device index"),
-    JA("Vulkan デバイスの番号"),
-    ZH_HANS("Vulkan 设备序号"),
-    ZH_HANT("Vulkan 裝置序號"),
-    KO("Vulkan 장치 번호"),
-    DE("Index des Vulkan-Geräts"),
-    FR("indice du périphérique Vulkan"),
-    ES("índice del dispositivo Vulkan"),
-    PT("índice do dispositivo Vulkan"),
-    IT("indice del dispositivo Vulkan"),
-    NL("index van het Vulkan-apparaat"),
-    RU("номер устройства Vulkan"),
-    TR("Vulkan aygıt sırası"));
+    EN("Vulkan device: index, name, auto or uuid:hex"),
+    JA("Vulkan デバイス: 番号、名前、auto、uuid:hex"),
+    ZH_HANS("Vulkan 设备：序号、名称、auto 或 uuid:hex"),
+    ZH_HANT("Vulkan 裝置：序號、名稱、auto 或 uuid:hex"),
+    KO("Vulkan 장치: 번호, 이름, auto, uuid:hex"),
+    DE("Vulkan-Gerät: Index, Name, auto oder uuid:hex"),
+    FR("périphérique Vulkan : indice, nom, auto ou uuid:hex"),
+    ES("dispositivo Vulkan: índice, nombre, auto o uuid:hex"),
+    PT("dispositivo Vulkan: índice, nome, auto ou uuid:hex"),
+    IT("dispositivo Vulkan: indice, nome, auto o uuid:hex"),
+    NL("Vulkan-apparaat: index, naam, auto of uuid:hex"),
+    RU("устройство Vulkan: номер, имя, auto или uuid:hex"),
+    TR("Vulkan aygıtı: sıra, ad, auto veya uuid:hex"));
 
 SS_MSG(ba_opt_validate,
     EN("check the assembled system against a reference"),
@@ -1935,6 +1946,100 @@ SS_MSG(ba_res_vram,
     NL("VRAM: {0} MB"),
     RU("видеопамять: {0} МБ"),
     TR("VRAM: {0} MB"));
+
+
+SS_MSG(opt_sequence,
+    EN("Images under these path prefixes were taken in file-name order (a "
+       "video's frames, a folder shot in a walk). Their neighbours are matched, "
+       "and the mapper trusts a neighbour's correspondences before any other, "
+       "which keeps repeated structure from folding the model onto itself. "
+       "Images with the same name under two members share a position, so a "
+       "rig's lenses are one sequence (cam0,cam1). Repeat for several "
+       "sequences; `.` is the image directory itself."),
+    JA("これらのパス接頭辞の下の画像はファイル名順に撮影されたものです（動画の"
+       "フレーム、歩きながら撮ったフォルダー）。隣接画像同士をマッチングし、"
+       "マッパーは隣接画像との対応を他のどれよりも先に信頼するので、繰り返し"
+       "構造でモデルが自身の上に折り畳まれるのを防ぎます。2 つのメンバーの下で"
+       "同名の画像は同じ位置を共有するため、リグのレンズは 1 つのシーケンスです"
+       "（cam0,cam1）。複数のシーケンスには繰り返し指定します。`.` は画像"
+       "ディレクトリ自体です。"),
+    ZH_HANS("这些路径前缀下的图像按文件名顺序拍摄（视频帧、边走边拍的文件夹）。"
+            "相邻图像会被匹配，建图时先信任相邻图像的对应关系，再参考其他部分，"
+            "以免重复结构把模型折叠到自身上。两个成员下同名的图像共享同一位置，"
+            "所以一个装置的镜头是同一个序列（cam0,cam1）。多个序列可重复指定；"
+            "`.` 表示图像目录本身。"),
+    ZH_HANT("這些路徑前綴下的影像按檔名順序拍攝（影片影格、邊走邊拍的資料夾）。"
+            "相鄰影像會被比對，建圖時先信任相鄰影像的對應關係，再參考其他部分，"
+            "以免重複結構把模型摺疊到自身上。兩個成員下同名的影像共用同一位置，"
+            "所以一個裝置的鏡頭是同一個序列（cam0,cam1）。多個序列可重複指定；"
+            "`.` 表示影像目錄本身。"),
+    KO("이 경로 접두사 아래의 이미지는 파일 이름 순서로 촬영되었습니다(동영상 "
+       "프레임, 걸으며 찍은 폴더). 이웃끼리 매칭하고, 매퍼는 이웃과의 대응을 "
+       "다른 무엇보다 먼저 신뢰하므로 반복되는 구조가 모델을 자기 위로 접는 일을 "
+       "막습니다. 두 멤버 아래 같은 이름의 이미지는 같은 위치를 공유하므로 리그의 "
+       "렌즈들은 하나의 시퀀스입니다(cam0,cam1). 여러 시퀀스에는 반복해서 지정합니다. "
+       "`.`은 이미지 디렉터리 자체입니다."),
+    DE("Die Bilder unter diesen Pfadpräfixen wurden in Dateinamensreihenfolge "
+       "aufgenommen (die Frames eines Videos, ein im Gehen aufgenommener Ordner). "
+       "Ihre Nachbarn werden zugeordnet, und der Mapper vertraut den "
+       "Korrespondenzen eines Nachbarn vor allen anderen, was verhindert, dass "
+       "wiederholte Struktur das Modell auf sich selbst faltet. Bilder gleichen "
+       "Namens unter zwei Mitgliedern teilen eine Position, sodass die Objektive "
+       "eines Rigs eine Sequenz sind (cam0,cam1). Für mehrere Sequenzen "
+       "wiederholen; `.` ist das Bildverzeichnis selbst."),
+    FR("Les images sous ces préfixes de chemin ont été prises dans l'ordre des noms "
+       "de fichier (les images d'une vidéo, un dossier filmé en marchant). Leurs "
+       "voisines sont appariées, et le mapper fait confiance aux correspondances "
+       "d'une voisine avant toute autre, ce qui empêche une structure répétée de "
+       "replier le modèle sur lui-même. Les images de même nom sous deux membres "
+       "partagent une position, si bien que les objectifs d'un rig forment une "
+       "seule séquence (cam0,cam1). À répéter pour plusieurs séquences ; `.` "
+       "désigne le répertoire d'images lui-même."),
+    ES("Las imágenes bajo estos prefijos de ruta se tomaron en orden de nombre de "
+       "archivo (los fotogramas de un vídeo, una carpeta grabada caminando). Sus "
+       "vecinas se emparejan, y el mapeador confía en las correspondencias de una "
+       "vecina antes que en cualquier otra, lo que evita que una estructura "
+       "repetida pliegue el modelo sobre sí mismo. Las imágenes con el mismo "
+       "nombre bajo dos miembros comparten posición, así que las lentes de un rig "
+       "son una sola secuencia (cam0,cam1). Repítase para varias secuencias; `.` "
+       "es el propio directorio de imágenes."),
+    PT("As imagens sob estes prefixos de caminho foram captadas por ordem de nome "
+       "de ficheiro (os quadros de um vídeo, uma pasta gravada a andar). As suas "
+       "vizinhas são comparadas, e o mapeador confia nas correspondências de uma "
+       "vizinha antes de qualquer outra, o que impede que uma estrutura repetida "
+       "dobre o modelo sobre si mesmo. Imagens com o mesmo nome sob dois membros "
+       "partilham uma posição, pelo que as lentes de um rig são uma só sequência "
+       "(cam0,cam1). Repita para várias sequências; `.` é o próprio diretório de "
+       "imagens."),
+    IT("Le immagini sotto questi prefissi di percorso sono state riprese in ordine "
+       "di nome di file (i fotogrammi di un video, una cartella ripresa "
+       "camminando). Le vicine vengono abbinate e il mapper si fida delle "
+       "corrispondenze di una vicina prima di ogni altra, il che impedisce a una "
+       "struttura ripetuta di ripiegare il modello su se stesso. Le immagini con "
+       "lo stesso nome sotto due membri condividono una posizione, così gli "
+       "obiettivi di un rig sono una sola sequenza (cam0,cam1). Ripetere per più "
+       "sequenze; `.` è la directory delle immagini stessa."),
+    NL("De beelden onder deze padvoorvoegsels zijn in bestandsnaamvolgorde "
+       "opgenomen (de frames van een video, een al lopend opgenomen map). Hun "
+       "buren worden gematcht, en de mapper vertrouwt de correspondenties van een "
+       "buur vóór alle andere, wat voorkomt dat herhaalde structuur het model op "
+       "zichzelf vouwt. Beelden met dezelfde naam onder twee leden delen een "
+       "positie, zodat de lenzen van een rig één reeks zijn (cam0,cam1). Herhaal "
+       "voor meerdere reeksen; `.` is de beeldmap zelf."),
+    RU("Изображения под этими префиксами пути сняты в порядке имён файлов (кадры "
+       "видео, папка, снятая на ходу). Их соседи сопоставляются, а маппер доверяет "
+       "соответствиям соседа прежде всех остальных, что не даёт повторяющейся "
+       "структуре сложить модель саму на себя. Изображения с одинаковым именем под "
+       "двумя элементами делят одну позицию, поэтому объективы рига — одна "
+       "последовательность (cam0,cam1). Повторите для нескольких "
+       "последовательностей; `.` — сам каталог изображений."),
+    TR("Bu yol öneklerinin altındaki görüntüler dosya adı sırasıyla çekilmiştir "
+       "(bir videonun kareleri, yürürken çekilen bir klasör). Komşuları "
+       "eşleştirilir ve haritalayıcı bir komşunun eşleşmelerine diğer her şeyden "
+       "önce güvenir; bu, yinelenen yapının modeli kendi üzerine katlamasını "
+       "önler. İki üyenin altındaki aynı adlı görüntüler aynı konumu paylaşır, "
+       "bu yüzden bir rigin lensleri tek bir dizidir (cam0,cam1). Birden çok dizi "
+       "için yineleyin; `.` görüntü dizininin kendisidir."));
 
 }  // namespace sfmhelp
 }  // namespace msg

@@ -192,6 +192,7 @@ inline FeatureSet compactFeatureSet(FeatureSet input,
     out.extract_height = input.extract_height;
     out.exif_focal = input.exif_focal;
     out.exif_camera = input.exif_camera;
+    out.exif_orientation = input.exif_orientation;
     out.dim = input.dim;
     out.dtype = input.dtype;
     out.keypoints.reserve(compact_count);
@@ -257,7 +258,7 @@ inline void remapMatches(MatchesDatabase& db, const FeatureCompactionPlan& plan,
         correspondences += pair.matches.size();
         const std::vector<StoredFeatureIndex>& a = plan.old_to_new[pair.image1];
         const std::vector<StoredFeatureIndex>& b = plan.old_to_new[pair.image2];
-        for (FeatureMatch& match : pair.matches) {
+        for (FeatureMatch& match : pair.matches.mut()) {
             if (match.idx1 >= a.size() || match.idx2 >= b.size())
                 throw compactionError("match index changed before remapping");
             const StoredFeatureIndex mapped1 = a[match.idx1];

@@ -59,11 +59,15 @@ no in-shader branching:
 | `.noint64` | `shaderInt64` | `uint2` word-pair emulation for keys, morton codes, indexing |
 | `.int8` | `shaderInt8` + `storageBuffer8BitAccess` | packed u32 word access |
 
-Baseline is Vulkan 1.2 core with `bufferDeviceAddress` + `timelineSemaphore`.
-Subgroup size is **never** assumed to be 32 — AMD wave64 and Intel
-variable-width are first-class. `SS_VK_NATIVE_ATOMICS=0`,
+Baseline is Vulkan 1.2 core with `bufferDeviceAddress` + `timelineSemaphore`,
+and compute subgroups of 64 lanes or fewer. `VK_EXT_subgroup_size_control`
+pins Intel's variable width, and on RDNA picks wave32 or wave64 per kernel
+(`kWave64Entries`, src/backend/vulkan/VulkanPipelines.cpp);
+`SS_VK_SUBGROUP=N` forces one width everywhere. `SS_VK_NATIVE_ATOMICS=0`,
 `SS_VK_NATIVE_INT64=0`, `SS_VK_NATIVE_INT8=0` force the fallback blobs
-for A/B testing.
+for A/B testing, and `SS_VK_XCHG_FLOAT_ADD=0/1` (Windows builds) the
+exchange-based float add that AMD's Windows driver gets by default
+(src/backend/vulkan/README.md).
 
 The Vulkan README documents hard-won specifics that are easy to regress —
 e.g. the emulated i64 scan accumulator must stay a `uint2` rather than a

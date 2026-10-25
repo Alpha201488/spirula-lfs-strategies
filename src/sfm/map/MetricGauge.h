@@ -17,11 +17,15 @@
 #include <fstream>
 #include <limits>
 #include <map>
+#include <random>
+#include <set>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "sfm/core/Exif.h"
+#include "sfm/core/Geodetic.h"
 #include "sfm/core/Model.h"
 #include "sfm/core/Pose.h"
 #include "sfm/map/Orient.h"
@@ -38,9 +42,10 @@ struct MetricRef {
     std::vector<Vec3> centres;
     std::vector<Vec3> targets;
     std::vector<uint32_t> image_ids;
+    GeoOrigin origin;   // where `targets` are centred, when they are GPS
 };
 
-enum class MetricFail { None, Pairs, Spread, Inliers, Collinear };
+enum class MetricFail { None, Pairs, Distinct, Spread, Inliers, Collinear, Tilted };
 
 // Which components of the reference carry the gauge. Horizontal reads the
 // level pair and takes the tilt from the caller's own up axis: a GPS altitude
@@ -52,6 +57,8 @@ struct MetricFit {
     MetricFail reason = MetricFail::Pairs;
     Sim3 T;
     int n = 0;                  // paired cameras offered
+    int distinct = 0;           // ... at different reference positions
+    bool flat = false;          // a level fit
     int inliers = 0;
     double max_error = 0;       // metres
     double rms = 0;             // metres, over the inliers
@@ -59,6 +66,14 @@ struct MetricFit {
     double rot_unc_deg = 0;     // worst principal axis -- advisory
     double spread = 0;          // metres, RMS radius of the reference positions
     double perp_frac = 0;       // spread across the least-resisted axis, over the whole
+    // Metres per axis: the inliers' scatter about the fit, and its level and vertical
+    // parts (sigma_v 0 on a level fit); `centroid` is their mean reference position.
+    double sigma = 0, sigma_h = 0, sigma_v = 0;
+    Vec3 centroid{0, 0, 0};
+    // Horizontal only: the scale the inliers' 3D distances give (0 without enough
+    // pairs), and the robust sigma of their altitude about the fitted vertical, metres.
+    double scale_3d = 0;
+    double vertical_sigma = 0;
     std::vector<char> inlier_mask;
 };
 
@@ -67,12 +82,80 @@ struct MetricFit {
 // the derivation gives the shape, not 20 rather than 10 (D74, one flight).
 inline constexpr double kMetricMinPerpFraction = 0.05;
 
+// Distinct reference positions a scattered fit needs: twice as many equations as it has
+// parameters (4 level, 7 full). A bracketing phone repeats each fix five times, and two
+// fixes fit a level similarity exactly -- a zero scatter that reads as a centimetre radius.
+inline int metricMinDistinct(bool flat) { return flat ? 4 : 5; }
+
+// A scattered radius never under this fraction of the spread: drift bends a model off a
+// similarity at that level, and a radius under it splits the capture at the bend (one leg
+// of an L-shaped track went outlier, sfm_sensor_prior_test).
+inline constexpr double kMetricMinRadiusFrac = 0.005;
+
+// A level fit's scale past this multiple of the 3D one: the up it was levelled
+// about tips the camera path, whose shortened level part inflates the scale. An
+// Avata clip's IMU up ~90 deg off read 35x; a path climbing 37 deg reads 1.25x.
+inline constexpr double kMetricMaxLevelScaleRatio = 1.25;
+
 namespace detail {
 
 inline Vec3 meanOf(const std::vector<Vec3>& v) {
     Vec3 m{0, 0, 0};
     for (const Vec3& p : v) m = m + p;
     return v.empty() ? m : m * (1.0 / (double)v.size());
+}
+
+inline double medianOf(std::vector<double> v) {
+    if (v.empty()) return 0;
+    std::nth_element(v.begin(), v.begin() + (long)(v.size() / 2), v.end());
+    return v[v.size() / 2];
+}
+
+// Median of reference over model distance between inliers a half and a third of
+// the set apart, rotation-free. Pairs under `min_dist` metres are noise; 0 under 5 pairs.
+inline double pairwiseScale(const MetricRef& ref, const std::vector<int>& keep, double min_dist) {
+    const size_t m = keep.size();
+    std::vector<double> r;
+    for (size_t a = 0; a < m; a++)
+        for (size_t step : {m / 2, m / 3}) {
+            if (!step) continue;
+            const int i = keep[a], j = keep[(a + step) % m];
+            const double dg = (ref.targets[i] - ref.targets[j]).norm();
+            const double dc = (ref.centres[i] - ref.centres[j]).norm();
+            if (dg > min_dist && dc > 0) r.push_back(dg / dc);
+        }
+    return r.size() < 5 ? 0.0 : medianOf(std::move(r));
+}
+
+// Chi-square median and 99th-percentile radius of a residual over 2 (level) or 3 axes:
+// a per-axis sigma from a residual norm, and the norm an inlier stays under.
+inline double chi2Median(bool flat) { return flat ? 1.3863 : 2.3660; }
+inline double chi99(bool flat) { return flat ? 3.0349 : 3.3682; }
+
+// Per-axis sigma of the least-median-of-squares fit over minimal samples, with
+// Rousseeuw's finite-sample factor: a scale no threshold went into. 0 when n is minimal.
+template <class Fit, class Res>
+inline double lmedsSigma(int n, int sample, bool flat, Fit fit, Res res) {
+    if (n <= sample) return 0;
+    std::mt19937 rng(0);
+    std::uniform_int_distribution<int> pick(0, n - 1);
+    std::vector<int> idx;
+    std::vector<double> r2((size_t)n);
+    double best = std::numeric_limits<double>::infinity();
+    for (int t = 0; t < 200; t++) {
+        idx.clear();
+        while ((int)idx.size() < sample) {
+            const int i = pick(rng);
+            if (std::find(idx.begin(), idx.end(), i) == idx.end()) idx.push_back(i);
+        }
+        const auto models = fit(idx);
+        if (models.empty()) continue;
+        for (int i = 0; i < n; i++) r2[(size_t)i] = res(models.front(), i);
+        std::nth_element(r2.begin(), r2.begin() + n / 2, r2.end());
+        best = std::min(best, r2[(size_t)(n / 2)]);
+    }
+    if (!std::isfinite(best)) return 0;
+    return std::sqrt(best / chi2Median(flat)) * (1.0 + 5.0 / (double)(n - sample));
 }
 
 }  // namespace detail
@@ -105,24 +188,40 @@ inline bool estimateSim3Yaw(const std::vector<Vec3>& src, const std::vector<Vec3
     return std::isfinite(out.t.x) && std::isfinite(out.t.y) && std::isfinite(out.t.z);
 }
 
-// The similarity taking `ref.centres` onto `ref.targets`, refused with a named
-// reason when the data cannot support one. The inlier radius is `max_error`
-// metres or `max_error_frac` of the reference's RMS radius, whichever is larger.
+// The similarity taking `ref.centres` onto `ref.targets`, refused with a named reason when
+// the data cannot support one. `max_error` > 0 fixes the inlier radius (or `max_error_frac`
+// of the spread, if larger); 0 takes it from the references' own scatter about the fit.
 inline MetricFit fitMetricGauge(const MetricRef& ref, double max_error,
                                 MetricAxes axes = MetricAxes::Full,
                                 double max_error_frac = 0.0) {
     MetricFit out;
     out.max_error = max_error;
     const bool flat = axes == MetricAxes::Horizontal;
+    const bool adaptive = !(max_error > 0);
     const int n = (int)ref.centres.size();
     out.n = n;
+    out.flat = flat;
     if (n < 3 || (int)ref.targets.size() != n) {
         out.reason = MetricFail::Pairs;
         return out;
     }
+    // Only a scattered radius trusts what the residuals say; a fixed one never reads them.
+    auto distinctOf = [&](const std::vector<int>* subset) {
+        std::set<std::tuple<double, double, double>> seen;
+        auto add = [&](int i) {
+            const Vec3& p = ref.targets[(size_t)i];
+            seen.emplace(p.x, p.y, flat ? 0.0 : p.z);
+        };
+        if (subset) for (int i : *subset) add(i);
+        else for (int i = 0; i < n; i++) add(i);
+        return (int)seen.size();
+    };
+    out.distinct = distinctOf(nullptr);
+    if (adaptive && out.distinct < metricMinDistinct(flat)) {
+        out.reason = MetricFail::Distinct;
+        return out;
+    }
 
-    // Reference positions that do not spread out carry no scale to fit, and
-    // every fit to them is an arbitrary one that would pass an RMS gate.
     const Vec3 pbar = detail::meanOf(ref.targets);
     double var_t = 0;
     for (const Vec3& p : ref.targets) {
@@ -130,14 +229,6 @@ inline MetricFit fitMetricGauge(const MetricRef& ref, double max_error,
         var_t += flat ? d.x * d.x + d.y * d.y : d.dot(d);
     }
     out.spread = std::sqrt(var_t / (double)n);
-    if (!(out.spread > max_error)) {
-        out.reason = MetricFail::Spread;
-        return out;
-    }
-    // A capture's own error grows with its extent -- GPS drift, and the
-    // model's own -- so the radius scales with the spread past the floor.
-    max_error = std::max(max_error, max_error_frac * out.spread);
-    out.max_error = max_error;
 
     auto fit_fn = [&](const std::vector<int>& idx) {
         std::vector<Sim3> models;
@@ -157,6 +248,22 @@ inline MetricFit fitMetricGauge(const MetricRef& ref, double max_error,
         return flat ? r.x * r.x + r.y * r.y : r.dot(r);
     };
 
+    // An RTK flight scatters by centimetres and a phone by metres; a radius fixed
+    // for one is blind or deaf on the other.
+    if (adaptive)
+        max_error = std::max(detail::chi99(flat) *
+                                 detail::lmedsSigma(n, flat ? 2 : 3, flat, fit_fn, res_fn),
+                             kMetricMinRadiusFrac * out.spread);
+    else
+        max_error = std::max(max_error, max_error_frac * out.spread);
+    out.max_error = max_error;
+    // References spread no wider than their own noise carry no scale to fit, and
+    // every fit to them is an arbitrary one that would pass an RMS gate.
+    if (!(out.spread > max_error)) {
+        out.reason = MetricFail::Spread;
+        return out;
+    }
+
     RansacOptions opt;
     opt.max_error = max_error;
     opt.max_num_trials = 1000;
@@ -171,28 +278,61 @@ inline MetricFit fitMetricGauge(const MetricRef& ref, double max_error,
     }
 
     std::vector<int> keep;
-    keep.reserve(out.inliers);
-    for (int i = 0; i < n; i++)
-        if (out.inlier_mask[i]) keep.push_back(i);
-    std::vector<Sim3> refit = fit_fn(keep);
-    if (refit.empty()) {
-        out.reason = MetricFail::Inliers;
+    // Seven parameters come out of 3m residual components -- four out of the
+    // 2m level ones -- so the noise estimate divides by what is left.
+    auto noise = [&](const std::vector<int>& k) {
+        double s = 0;
+        for (int i : k) s += res_fn(out.T, i);
+        const int dof = flat ? 2 * (int)k.size() - 4 : 3 * (int)k.size() - 7;
+        return dof > 0 ? std::sqrt(s / (double)dof) : 0.0;
+    };
+    for (int pass = 0; pass < 2; pass++) {
+        keep.clear();
+        for (int i = 0; i < n; i++)
+            if (out.inlier_mask[i]) keep.push_back(i);
+        std::vector<Sim3> refit = fit_fn(keep);
+        if (refit.empty() || (int)keep.size() < need) {
+            out.reason = MetricFail::Inliers;
+            return out;
+        }
+        out.T = refit.front();
+        if (!adaptive || pass) break;
+        // The LMedS scale is a median's; the inliers' own scatter sets the radius.
+        max_error =
+            std::max(detail::chi99(flat) * noise(keep), kMetricMinRadiusFrac * out.spread);
+        out.max_error = max_error;
+        if (!(out.spread > max_error)) {
+            out.reason = MetricFail::Spread;
+            return out;
+        }
+        const double r2 = max_error * max_error;
+        for (int i = 0; i < n; i++) out.inlier_mask[i] = res_fn(out.T, i) < r2;
+    }
+    out.inliers = (int)keep.size();
+    if (adaptive && distinctOf(&keep) < metricMinDistinct(flat)) {
+        out.reason = MetricFail::Distinct;
+        out.distinct = distinctOf(&keep);
         return out;
     }
-    out.T = refit.front();
 
     const int m = (int)keep.size();
-    double ss = 0;
+    double ss = 0, ssz = 0;
     Vec3 cbar{0, 0, 0};
     for (int i : keep) {
         ss += res_fn(out.T, i);
         cbar = cbar + ref.centres[i];
+        out.centroid = out.centroid + ref.targets[i];
+        if (!flat) ssz += std::pow(ref.targets[i].z - transformPoint(out.T, ref.centres[i]).z, 2);
     }
     cbar = cbar * (1.0 / (double)m);
+    out.centroid = out.centroid * (1.0 / (double)m);
     out.rms = std::sqrt(ss / (double)m);
-    // Seven parameters come out of 3m residual components -- four out of the
-    // 2m level ones -- so the noise estimate divides by what is left.
-    const double sigma = std::sqrt(ss / (double)(flat ? 2 * m - 4 : 3 * m - 7));
+    const double sigma = noise(keep);
+    out.sigma = sigma;
+    // Split by the share of the residual each part carries, at the fit's degrees of freedom.
+    const double share = std::max(ss, 1e-300);
+    out.sigma_h = flat ? sigma : sigma * std::sqrt(1.5 * std::max(ss - ssz, 0.0) / share);
+    out.sigma_v = flat ? 0.0 : sigma * std::sqrt(3.0 * ssz / share);
 
     std::vector<double> C(9, 0.0);
     for (int i : keep) {
@@ -221,6 +361,22 @@ inline MetricFit fitMetricGauge(const MetricRef& ref, double max_error,
     out.rot_unc_deg = worst * 180.0 / M_PI;
     out.perp_frac = tr > 0.0 ? std::sqrt(std::max(perp_min, 0.0) / tr) : 0.0;
 
+    // The level fit's vertical place is the median altitude offset, not
+    // estimateSim3Yaw's mean, which a few fixes stated at sea level would drag.
+    if (flat) {
+        std::vector<double> rz;
+        rz.reserve(keep.size());
+        for (int i : keep) rz.push_back(ref.targets[i].z - transformPoint(out.T, ref.centres[i]).z);
+        const double dz = detail::medianOf(rz);
+        out.T.t.z += dz;
+        for (double& r : rz) r = std::fabs(r - dz);
+        out.vertical_sigma = 1.4826 * detail::medianOf(std::move(rz));
+        out.scale_3d = detail::pairwiseScale(ref, keep, 2.0 * max_error);
+        if (out.scale_3d > 0 && out.T.scale > kMetricMaxLevelScaleRatio * out.scale_3d) {
+            out.reason = MetricFail::Tilted;
+            return out;
+        }
+    }
     // The horizontal fit makes no rotation this can refuse.
     if (!flat && !(out.perp_frac >= kMetricMinPerpFraction)) {
         out.reason = MetricFail::Collinear;
@@ -307,59 +463,6 @@ inline MetricPairCounts pairMetricRef(const Reconstruction& rec,
 }
 
 
-struct Geodetic {
-    double lat_deg = 0, lon_deg = 0, alt_m = 0;
-};
-
-// WGS-84 geodetic to earth-centred earth-fixed, in double: ECEF magnitudes are
-// ~6.4e6 m, where a float's half-ulp is 0.25 m.
-inline Vec3 ecefFromGeodetic(double lat_deg, double lon_deg, double h) {
-    constexpr double a = 6378137.0, f = 1.0 / 298.257223563;
-    constexpr double e2 = f * (2.0 - f);
-    const double p = lat_deg * M_PI / 180.0, l = lon_deg * M_PI / 180.0;
-    const double sp = std::sin(p), cp = std::cos(p);
-    const double N = a / std::sqrt(1.0 - e2 * sp * sp);
-    return {(N + h) * cp * std::cos(l), (N + h) * cp * std::sin(l), (N * (1.0 - e2) + h) * sp};
-}
-
-// A local east-north-up metre frame about `origin`. Right-handed, north
-// positive. Not valid across the antimeridian or over ~100 km.
-inline std::vector<Vec3> enuFromGeodetic(const std::vector<Geodetic>& g,
-                                         const Geodetic& origin) {
-    std::vector<Vec3> out;
-    if (g.empty()) return out;
-    const double lat0 = origin.lat_deg, lon0 = origin.lon_deg, h0 = origin.alt_m;
-    const Vec3 o = ecefFromGeodetic(lat0, lon0, h0);
-    const double p = lat0 * M_PI / 180.0, l = lon0 * M_PI / 180.0;
-    const double sp = std::sin(p), cp = std::cos(p), sl = std::sin(l), cl = std::cos(l);
-    out.reserve(g.size());
-    for (const Geodetic& q : g) {
-        const Vec3 d = ecefFromGeodetic(q.lat_deg, q.lon_deg, q.alt_m) - o;
-        out.push_back({-sl * d.x + cl * d.y,
-                       -sp * cl * d.x - sp * sl * d.y + cp * d.z,
-                       cp * cl * d.x + cp * sl * d.y + sp * d.z});
-    }
-    return out;
-}
-
-// The same, about the mean of the fixes. The rotation depends on where the
-// origin is, so two origins do not differ by a translation alone.
-inline std::vector<Vec3> enuFromGeodetic(const std::vector<Geodetic>& g) {
-    if (g.empty()) return {};
-    Geodetic o;
-    for (const Geodetic& q : g) {
-        o.lat_deg += q.lat_deg;
-        o.lon_deg += q.lon_deg;
-        o.alt_m += q.alt_m;
-    }
-    const double inv = 1.0 / (double)g.size();
-    o.lat_deg *= inv;
-    o.lon_deg *= inv;
-    o.alt_m *= inv;
-    return enuFromGeodetic(g, o);
-}
-
-
 // What reading GPS off the images found.
 struct MetricGpsCounts {
     int matched = 0;
@@ -368,9 +471,11 @@ struct MetricGpsCounts {
 };
 
 // Reference positions from each registered image's own EXIF, in a local ENU
-// metre frame. Altitude is optional; a fix without one is still a fix.
+// metre frame. Altitude is optional; a fix without one is still a fix. Images
+// under a `skip` prefix count as carrying none.
 inline MetricGpsCounts metricRefFromGps(const Reconstruction& rec, const std::string& image_dir,
-                                        MetricRef& ref) {
+                                        MetricRef& ref,
+                                        const std::vector<std::string>& skip = {}) {
     MetricGpsCounts c;
     std::vector<Geodetic> g;
     std::vector<Vec3> centres;
@@ -378,7 +483,9 @@ inline MetricGpsCounts metricRefFromGps(const Reconstruction& rec, const std::st
     for (const auto& kv : rec.images) {
         if (!kv.second.registered) continue;
         const ExifData e =
-            readExif((std::filesystem::path(image_dir) / kv.second.name).string());
+            exifPrefixCovers(skip, kv.second.name)
+                ? ExifData{}
+                : readExif((std::filesystem::path(image_dir) / kv.second.name).string());
         if (!e.has_gps) {
             c.no_gps++;
             continue;
@@ -389,7 +496,9 @@ inline MetricGpsCounts metricRefFromGps(const Reconstruction& rec, const std::st
         ids.push_back(kv.first);
         c.matched++;
     }
-    std::vector<Vec3> enu = enuFromGeodetic(g);
+    if (g.empty()) return c;
+    ref.origin = {true, meanGeodetic(g), c.no_alt ? "" : "exif"};
+    std::vector<Vec3> enu = enuFromGeodetic(g, ref.origin.at);
     for (size_t i = 0; i < enu.size(); i++) {
         ref.centres.push_back(centres[i]);
         ref.targets.push_back(enu[i]);

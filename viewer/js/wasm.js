@@ -48,17 +48,21 @@ async function fileToHeap(file) {
 // uploaded to RGBA16F textures as HALF_FLOAT with zero conversion). scale is
 // 4-strided: [3] holds the per-splat SH quantization scale. sh is snorm8
 // (Int8Array, uploaded to RGB8_SNORM): coeff = (sh/127) * scale[i*4+3].
+// sb is the spherical-beta lobes, two RGBA16F texels each: (axis, sharpness)
+// and (amplitude, 0), already activated.
 function readSplat() {
   const count = call('ssv_splat_count');
   const shDegree = call('ssv_splat_sh_degree');
   const shRest = call('ssv_splat_sh_rest');
+  const sbLobes = call('ssv_splat_sb_lobes');
   const data = {
-    count, shDegree, shRest,
+    count, shDegree, shRest, sbLobes,
     posop: f32(call('ssv_splat_posop'), count*4),
     quat:  u16(call('ssv_splat_quat'), count*4),
     scale: u16(call('ssv_splat_scale'), count*4),
     fdc:   u16(call('ssv_splat_fdc'), count*3),
     sh:    shRest>0 ? i8(call('ssv_splat_sh'), count*shRest*3) : null,
+    sb:    sbLobes>0 ? u16(call('ssv_splat_sb'), count*sbLobes*8) : null,
   };
   return data;
 }
@@ -149,7 +153,7 @@ export async function loadModelFromUrl(url, name) {
 
 // ---- public: parse a PLY / OBJ file via WASM ----
 async function loadNative(file, hint) {
-  if (hint !== 1) {
+  if (hint === 0) {
     const res = await tryStreamPly(file);
     if (res) return res;
   }
@@ -367,9 +371,9 @@ async function loadOBJTexture(objFile, text, siblings) {
 export async function loadModel(files) {
   const list = Array.from(files);
   // pick the main model file
-  const exts = ['.ply','.glb','.gltf','.obj'];
+  const exts = ['.ply','.glb','.gltf','.obj','.stl'];
   const main = list.find(f => exts.some(e => f.name.toLowerCase().endsWith(e)));
-  if (!main) throw new Error('no supported model file found (.ply/.obj/.gltf/.glb)');
+  if (!main) throw new Error('no supported model file found (.ply/.obj/.gltf/.glb/.stl)');
   if (main.urlStream) return await loadModelFromUrl(main.urlStream, main.name);
   const lname = main.name.toLowerCase();
   if (lname.endsWith('.gltf') || lname.endsWith('.glb')) {
@@ -385,6 +389,7 @@ export async function loadModel(files) {
     res.image = image;
     return res;
   }
+  if (lname.endsWith('.stl')) return await loadNative(main, 2);
   // PLY (splat or mesh, auto-detected)
   return await loadNative(main, 0);
 }
@@ -491,6 +496,8 @@ export function dsEnumerate() {
 export function dsParse(token) {
   return Module.ccall('ssv_ds_parse', 'number', ['string'], [token]);
 }
+// kCameraDistortionParams (core/CameraModel.h)
+const DIST_PARAMS = 8;
 export function dsReadCameras() {
   const n = call('ssv_ds_num_cameras');
   const out = [];
@@ -499,7 +506,9 @@ export function dsReadCameras() {
   const models  = new Int32Array(Module.HEAP32.buffer, call('ssv_ds_cam_models') >>> 0, n);
   const intr    = f32(call('ssv_ds_cam_intrins') >>> 0, n*4);
   const distPtr = call('ssv_ds_cam_dist') >>> 0;
-  const dist    = distPtr ? f32(distPtr, n*10) : null;
+  const dist    = distPtr ? f32(distPtr, n*DIST_PARAMS) : null;
+  const dtPtr   = call('ssv_ds_cam_dist_types') >>> 0;
+  const dtypes  = dtPtr ? new Int32Array(Module.HEAP32.buffer, dtPtr, n) : null;
   const c2w     = f32(call('ssv_ds_cam_c2w') >>> 0, n*12);
   const widths  = new Int32Array(Module.HEAP32.buffer, call('ssv_ds_cam_widths') >>> 0, n);
   const heights = new Int32Array(Module.HEAP32.buffer, call('ssv_ds_cam_heights') >>> 0, n);
@@ -507,7 +516,8 @@ export function dsReadCameras() {
     out.push({
       model: models[i],
       fx: intr[i*4], fy: intr[i*4+1], cx: intr[i*4+2], cy: intr[i*4+3],
-      dist: dist ? Array.from(dist.subarray(i*10, i*10+10)) : new Array(10).fill(0),
+      distType: dtypes ? dtypes[i] : 0,
+      dist: dist ? Array.from(dist.subarray(i*DIST_PARAMS, (i+1)*DIST_PARAMS)) : new Array(DIST_PARAMS).fill(0),
       c2w: Array.from(c2w.subarray(i*12, i*12+12)),
       w: widths[i], h: heights[i],
       name: names[i] || '',

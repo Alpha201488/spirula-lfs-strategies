@@ -2,15 +2,14 @@
 //
 // What it can check on its own is that a real checkpoint parses, that every
 // weight the forward pass asks for exists at the width the rest of the model
-// assumes, and that a prediction comes back finite and in range. It cannot
-// check the numbers: we do not own these weights and cannot embed a golden
-// copy. That is tools/metric3d/compare_ort.py's job, and it is the gate that
-// matters -- run it against the same .onnx before believing a change.
+// assumes, and that a prediction comes back finite and in range. Not the
+// numbers: these weights are third-party, so no golden copy can be embedded.
+// tools/metric3d/compare_ort.py is that gate -- run it against the same .onnx.
 //
-//   ./build/metric3d_test                       # cached checkpoints, or SKIP
-//   ./build/metric3d_test --fetch               # download them first
-//   ./build/metric3d_test --model M --image IMG.jpg [--max-size N] [--repeat N]
-//   SS_METRIC3D_DUMP=/tmp/ours ./build/metric3d_test --model M --image IMG.jpg
+//   ./build_vulkan/metric3d_test                       # cached checkpoints, or SKIP
+//   ./build_vulkan/metric3d_test --fetch               # download them first
+//   ./build_vulkan/metric3d_test --model M --image IMG.jpg [--max-size N] [--repeat N]
+//   SS_METRIC3D_DUMP=/tmp/ours ./build_vulkan/metric3d_test --model M --image IMG.jpg
 
 #include "metric3d/Metric3D.h"
 #include "metric3d/model/Fetch.h"

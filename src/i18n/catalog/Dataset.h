@@ -15,6 +15,9 @@
 
 #include "i18n/BeginCatalog.h"
 
+#include <cstddef>
+#include <cstring>
+
 namespace spirula {
 namespace i18n {
 namespace msg {
@@ -132,8 +135,8 @@ SS_MSG(input_is_linear,
     RU("Кодировка света на входе"),
     TR("Girdi ışık kodlaması"));
 
-// Item 0 of BOTH colour-space pickers: an EXR declares its own, and this is
-// what says "do not override it".
+// Item 0 of BOTH colour-space pickers: an EXR or a TIFF with an ICC profile
+// declares its own, and this is what says "do not override it".
 SS_MSG(space_from_file,
     EN("From the file"), JA("ファイルから"), ZH_HANS("取自文件"),
     ZH_HANT("取自檔案"), KO("파일에서"), DE("Aus der Datei"),
@@ -156,41 +159,137 @@ SS_MSG(transfer_display,
 
 SS_MSG(input_is_linear_help,
     EN("Whether the pictures hold scene-linear light (EXR, linear 16-bit) or "
-       "ordinary display-encoded values. Read from an EXR's own header unless "
-       "you set it here."),
+       "ordinary display-encoded values. Read from an EXR's header or a TIFF's "
+       "ICC profile unless you set it here."),
     JA("写真がシーンリニアの光（EXR、リニア 16 ビット）か、通常の表示用に"
-       "エンコードされた値かです。ここで設定しない限り、EXR のヘッダーから"
-       "読み取ります。"),
+       "エンコードされた値かです。ここで設定しない限り、EXR のヘッダーや TIFF の"
+       " ICC プロファイルから読み取ります。"),
     ZH_HANS("照片存的是场景线性光（EXR、线性 16 位），还是普通的显示编码数值。"
-            "除非在此设置，否则取自 EXR 自己的文件头。"),
+            "除非在此设置，否则取自 EXR 的文件头或 TIFF 的 ICC 配置文件。"),
     ZH_HANT("照片存的是場景線性光（EXR、線性 16 位元），還是普通的顯示編碼數值。"
-            "除非在此設定，否則取自 EXR 自己的檔頭。"),
+            "除非在此設定，否則取自 EXR 的檔頭或 TIFF 的 ICC 設定檔。"),
     KO("사진이 장면 선형 광(EXR, 선형 16비트)인지 보통의 디스플레이 인코딩 "
-       "값인지입니다. 여기서 설정하지 않으면 EXR 헤더에서 읽습니다."),
+       "값인지입니다. 여기서 설정하지 않으면 EXR 헤더나 TIFF 의 ICC "
+       "프로파일에서 읽습니다."),
     DE("Ob die Bilder szenenlineares Licht (EXR, lineare 16 Bit) oder gewöhnliche "
-       "anzeigecodierte Werte enthalten. Wird aus dem Kopf einer EXR gelesen, "
-       "solange Sie es hier nicht setzen."),
+       "anzeigecodierte Werte enthalten. Wird aus dem Kopf einer EXR oder dem "
+       "ICC-Profil einer TIFF gelesen, solange Sie es hier nicht setzen."),
     FR("Si les images contiennent de la lumière scène-linéaire (EXR, 16 bits "
        "linéaire) ou des valeurs encodées pour l'affichage. Lu dans l'en-tête "
-       "d'un EXR tant que vous ne le réglez pas ici."),
+       "d'un EXR ou le profil ICC d'un TIFF tant que vous ne le réglez pas ici."),
     ES("Si las fotos guardan luz escena-lineal (EXR, 16 bits lineal) o valores "
        "corrientes codificados para pantalla. Se lee de la cabecera de un EXR "
-       "mientras no lo fije aquí."),
+       "o del perfil ICC de un TIFF mientras no lo fije aquí."),
     PT("Se as fotos guardam luz cena-linear (EXR, 16 bits linear) ou valores "
-       "comuns codificados para exibição. Lido do cabeçalho de um EXR enquanto "
-       "não o definir aqui."),
+       "comuns codificados para exibição. Lido do cabeçalho de um EXR ou do "
+       "perfil ICC de um TIFF enquanto não o definir aqui."),
     IT("Se le foto contengono luce scena-lineare (EXR, 16 bit lineare) o comuni "
        "valori codificati per la visualizzazione. Letto dall'intestazione di un "
-       "EXR finché non lo imposti qui."),
+       "EXR o dal profilo ICC di un TIFF finché non lo imposti qui."),
     NL("Of de foto's scène-lineair licht (EXR, lineair 16-bits) bevatten of "
        "gewone voor weergave gecodeerde waarden. Wordt uit de kop van een EXR "
-       "gelezen zolang u het hier niet instelt."),
+       "of het ICC-profiel van een TIFF gelezen zolang u het hier niet instelt."),
     RU("Хранят ли снимки сцен-линейный свет (EXR, линейные 16 бит) или обычные "
-       "значения с кодировкой для дисплея. Читается из заголовка EXR, пока вы не "
-       "зададите это здесь."),
+       "значения с кодировкой для дисплея. Читается из заголовка EXR или "
+       "ICC-профиля TIFF, пока вы не зададите это здесь."),
     TR("Fotoğrafların sahne-doğrusal ışık (EXR, doğrusal 16 bit) mi yoksa "
        "sıradan ekran için kodlanmış değerler mi tuttuğu. Burada ayarlamadığınız "
-       "sürece bir EXR'nin başlığından okunur."));
+       "sürece bir EXR'nin başlığından ya da bir TIFF'in ICC profilinden okunur."));
+
+// What reconstruction, masking and geometry see, never what training reads
+// (--image-exposure). Item 2 opens a number of stops.
+SS_MSG(input_exposure,
+    EN("Exposure for analysis"), JA("解析用の露出"), ZH_HANS("分析用曝光"),
+    ZH_HANT("分析用曝光"), KO("분석용 노출"), DE("Belichtung für die Analyse"),
+    FR("Exposition pour l'analyse"), ES("Exposición para el análisis"),
+    PT("Exposição para a análise"), IT("Esposizione per l'analisi"),
+    NL("Belichting voor analyse"), RU("Экспозиция для анализа"),
+    TR("Analiz için pozlama"));
+
+SS_MSG(exposure_as_stored,
+    EN("As stored"), JA("ファイルのまま"), ZH_HANS("保持原样"), ZH_HANT("保持原樣"),
+    KO("저장된 그대로"), DE("Wie gespeichert"), FR("Telle quelle"), ES("Tal cual"),
+    PT("Como está"), IT("Così com'è"), NL("Zoals opgeslagen"), RU("Как есть"),
+    TR("Olduğu gibi"));
+
+SS_MSG(exposure_auto,
+    EN("Auto"), JA("自動"), ZH_HANS("自动"), ZH_HANT("自動"), KO("자동"),
+    DE("Automatisch"), FR("Automatique"), ES("Automática"), PT("Automática"),
+    IT("Automatica"), NL("Automatisch"), RU("Авто"), TR("Otomatik"));
+
+SS_MSG(exposure_fixed,
+    EN("Fixed"), JA("固定"), ZH_HANS("固定"), ZH_HANT("固定"), KO("고정"),
+    DE("Fest"), FR("Fixe"), ES("Fija"), PT("Fixa"), IT("Fissa"), NL("Vast"),
+    RU("Фиксированная"), TR("Sabit"));
+
+SS_MSG(input_exposure_stops,
+    EN("Stops"), JA("段数"), ZH_HANS("档数"), ZH_HANT("檔數"), KO("스톱"),
+    DE("Blendenstufen"), FR("Diaphs"), ES("Pasos"), PT("Pontos"), IT("Stop"),
+    NL("Stops"), RU("Ступени"), TR("Durak"));
+
+SS_MSG(input_exposure_help,
+    EN("Brightens what reconstruction, AI masking and depth/normal estimation "
+       "see, in linear light, without changing the files or what training reads. "
+       "Auto lifts each picture darker than a typical photograph -- raw exports "
+       "pulled down to keep their highlights. Point cloud colours keep the files' "
+       "own values."),
+    JA("再構成・AI マスキング・深度/法線推定に渡す画像を、ファイルや学習が読む値は"
+       "変えずにリニア光で明るくします。自動は一般的な写真より暗い画像をそれぞれ"
+       "持ち上げます（ハイライトを残すために暗く書き出した RAW 現像など）。点群の"
+       "色はファイル本来の値のままです。"),
+    ZH_HANS("在线性光中调亮重建、AI 遮罩与深度/法线估计所看到的图像，不改动文件，"
+            "也不改变训练读取的数值。自动会提亮比普通照片暗的每张图像——例如为保留"
+            "高光而压暗导出的 RAW。点云颜色保持文件原值。"),
+    ZH_HANT("在線性光中調亮重建、AI 遮罩與深度/法線估計所看到的影像，不改動檔案，"
+            "也不改變訓練讀取的數值。自動會提亮比一般照片暗的每張影像——例如為保留"
+            "高光而壓暗匯出的 RAW。點雲顏色維持檔案原值。"),
+    KO("재구성, AI 마스킹, 깊이/법선 추정이 보는 이미지를 선형 광에서 밝게 하며, "
+       "파일이나 학습이 읽는 값은 바꾸지 않습니다. 자동은 일반 사진보다 어두운 "
+       "이미지를 각각 끌어올립니다(하이라이트를 지키려고 어둡게 내보낸 RAW 등). "
+       "점 구름 색은 파일 본래 값을 유지합니다."),
+    DE("Hellt in linearem Licht auf, was Rekonstruktion, KI-Maskierung und "
+       "Tiefen-/Normalenschätzung sehen, ohne die Dateien oder das, was das "
+       "Training liest, zu ändern. Automatisch hebt jedes Bild an, das dunkler als "
+       "ein typisches Foto ist -- etwa RAW-Exporte, die für die Lichter "
+       "abgedunkelt wurden. Punktwolkenfarben behalten die Werte der Dateien."),
+    FR("Éclaircit en lumière linéaire ce que voient la reconstruction, le masquage "
+       "par IA et l'estimation de profondeur/normales, sans changer les fichiers "
+       "ni ce que lit l'entraînement. Automatique relève chaque image plus sombre "
+       "qu'une photo typique -- des exports RAW assombris pour garder les hautes "
+       "lumières. Les couleurs du nuage de points gardent les valeurs des "
+       "fichiers."),
+    ES("Aclara en luz lineal lo que ven la reconstrucción, el enmascarado por IA "
+       "y la estimación de profundidad/normales, sin cambiar los archivos ni lo "
+       "que lee el entrenamiento. Automática levanta cada imagen más oscura que "
+       "una foto típica -- exportaciones RAW oscurecidas para conservar las "
+       "luces. Los colores de la nube de puntos conservan los valores de los "
+       "archivos."),
+    PT("Clareia em luz linear o que a reconstrução, o mascaramento por IA e a "
+       "estimativa de profundidade/normais veem, sem mudar os arquivos nem o que "
+       "o treino lê. Automática ergue cada imagem mais escura que uma foto típica "
+       "-- exportações RAW escurecidas para manter os realces. As cores da nuvem "
+       "de pontos mantêm os valores dos arquivos."),
+    IT("Schiarisce in luce lineare ciò che vedono ricostruzione, mascheratura con "
+       "IA e stima di profondità/normali, senza cambiare i file né ciò che legge "
+       "l'addestramento. Automatica solleva ogni immagine più scura di una foto "
+       "tipica -- esportazioni RAW scurite per salvare le alte luci. I colori "
+       "della nuvola di punti mantengono i valori dei file."),
+    NL("Maakt in lineair licht lichter wat reconstructie, AI-maskering en "
+       "diepte-/normaalschatting zien, zonder de bestanden of wat de training "
+       "leest te veranderen. Automatisch tilt elk beeld op dat donkerder is dan "
+       "een gewone foto -- RAW-exports die donkerder zijn gemaakt om de "
+       "hooglichten te sparen. Puntenwolkkleuren houden de waarden van de "
+       "bestanden."),
+    RU("Осветляет в линейном свете то, что видят реконструкция, ИИ-маскирование "
+       "и оценка глубины/нормалей, не меняя файлы и то, что читает обучение. "
+       "Авто поднимает каждое изображение темнее обычной фотографии — например, "
+       "RAW, выгруженные темнее ради светов. Цвета облака точек сохраняют "
+       "значения файлов."),
+    TR("Yeniden oluşturmanın, yapay zekâ maskelemenin ve derinlik/normal "
+       "kestiriminin gördüğünü, dosyaları ya da eğitimin okuduğunu değiştirmeden "
+       "doğrusal ışıkta aydınlatır. Otomatik, tipik bir fotoğraftan koyu olan her "
+       "görüntüyü yükseltir -- parlak alanları korumak için koyu dışa aktarılmış "
+       "RAW'lar gibi. Nokta bulutu renkleri dosyaların kendi değerlerini korur."));
 
 SS_MSG(point_color_image_space,
     EN("Point cloud colours in the input colour space"),
@@ -208,42 +307,47 @@ SS_MSG(point_color_image_space,
     TR("Nokta bulutu renkleri girdi renk uzayında"));
 
 SS_MSG(point_color_image_space_help,
-    EN("Off leaves the sparse point cloud in sRGB, which the trainer converts "
-       "with \"Convert seed point colours\". On writes it in the photographs' "
-       "own space, for training with that conversion off."),
-    JA("オフなら疎な点群は sRGB のままで、学習側の「シード点の色を変換」が処理"
-       "します。オンなら写真と同じ空間で書き出し、その変換をオフにして学習します。"),
-    ZH_HANS("关闭时稀疏点云保持 sRGB，由训练端的\"转换种子点颜色\"处理；开启则以"
-            "照片自身的空间写出，训练时关掉该转换。"),
-    ZH_HANT("關閉時稀疏點雲保持 sRGB，由訓練端的「轉換種子點顏色」處理；開啟則以"
-            "照片自身的空間寫出，訓練時關掉該轉換。"),
-    KO("끄면 희소 점 구름은 sRGB 로 남고 학습 쪽의 \"시드 점 색 변환\"이 처리합니다. "
-       "켜면 사진과 같은 공간으로 써서, 그 변환을 끄고 학습합니다."),
-    DE("Aus lässt die dünne Punktwolke in sRGB, was das Training mit "
-       "\"Startpunktfarben umrechnen\" erledigt. An schreibt sie im Raum der "
-       "Fotos, für ein Training mit ausgeschalteter Umrechnung."),
-    FR("Désactivé laisse le nuage épars en sRGB, que l'entraînement traite avec "
-       "« Convertir les couleurs des points de départ ». Activé l'écrit dans "
-       "l'espace des photographies, pour un entraînement sans cette conversion."),
-    ES("Desactivado deja la nube dispersa en sRGB, de lo que se encarga "
-       "«Convertir los colores de los puntos iniciales» en el entrenamiento. "
-       "Activado la escribe en el espacio de las fotografías, para entrenar sin "
-       "esa conversión."),
-    PT("Desligado deixa a nuvem esparsa em sRGB, do que trata «Converter as "
-       "cores dos pontos iniciais» no treino. Ligado escreve-a no espaço das "
-       "fotografias, para treinar sem essa conversão."),
-    IT("Spento lascia la nuvola sparsa in sRGB, di cui si occupa «Converti i "
-       "colori dei punti iniziali» nell'addestramento. Attivo la scrive nello "
-       "spazio delle fotografie, per addestrare con quella conversione spenta."),
-    NL("Uit laat de dunne puntenwolk in sRGB, waar \"Kleuren van startpunten "
-       "omzetten\" in de training voor zorgt. Aan schrijft haar in de ruimte van "
-       "de foto's, om te trainen met die omzetting uit."),
-    RU("Выключено оставляет разреженное облако в sRGB, чем занимается "
-       "«Преобразовать цвета начальных точек» при обучении. Включено пишет его в "
-       "пространстве фотографий — для обучения с выключенным преобразованием."),
-    TR("Kapalı, seyrek nokta bulutunu sRGB'de bırakır; bunu eğitimdeki "
-       "\"Başlangıç noktası renklerini dönüştür\" halleder. Açık, onu "
-       "fotoğrafların uzayında yazar; o dönüşüm kapalıyken eğitmek için."));
+    EN("On writes the sparse point cloud in the photographs' own space, which "
+       "is where training assumes it by default. Off leaves it in sRGB; train "
+       "it with \"Seed point color space\" set to Rec.709."),
+    JA("オンなら疎な点群を写真と同じ空間で書き出します。学習側は既定でそう想定し"
+       "ます。オフなら sRGB のままで、学習では「初期点群の色空間」を Rec.709 に"
+       "してください。"),
+    ZH_HANS("开启时稀疏点云以照片自身的空间写出，这也是训练端的默认假定。关闭则"
+            "保持 sRGB，训练时请把\"初始点云色彩空间\"设为 Rec.709。"),
+    ZH_HANT("開啟時稀疏點雲以照片自身的空間寫出，這也是訓練端的預設假定。關閉則"
+            "保持 sRGB，訓練時請把「初始點雲色彩空間」設為 Rec.709。"),
+    KO("켜면 희소 점 구름을 사진과 같은 공간으로 씁니다. 학습 쪽의 기본 가정도 "
+       "그렇습니다. 끄면 sRGB로 남으며, 학습 시 \"초기 포인트 색 공간\"을 "
+       "Rec.709로 설정하십시오."),
+    DE("An schreibt die dünne Punktwolke im Raum der Fotos, wovon das Training "
+       "standardmäßig ausgeht. Aus lässt sie in sRGB; dann im Training "
+       "\"Farbraum der Startpunkte\" auf Rec.709 setzen."),
+    FR("Activé écrit le nuage épars dans l'espace des photographies, ce que "
+       "l'entraînement suppose par défaut. Désactivé le laisse en sRGB ; "
+       "entraînez alors avec « Espace colorimétrique des points initiaux » sur "
+       "Rec.709."),
+    ES("Activado escribe la nube dispersa en el espacio de las fotografías, que "
+       "es lo que el entrenamiento supone por defecto. Desactivado la deja en "
+       "sRGB; entrene entonces con «Espacio de color de los puntos iniciales» en "
+       "Rec.709."),
+    PT("Ligado escreve a nuvem esparsa no espaço das fotografias, que é o que o "
+       "treino supõe por omissão. Desligado deixa-a em sRGB; treine então com "
+       "«Espaço de cor dos pontos iniciais» em Rec.709."),
+    IT("Attivo scrive la nuvola sparsa nello spazio delle fotografie, che è ciò "
+       "che l'addestramento presume per impostazione predefinita. Spento la "
+       "lascia in sRGB; addestrare allora con «Spazio colore dei punti "
+       "iniziali» su Rec.709."),
+    NL("Aan schrijft de dunne puntenwolk in de ruimte van de foto's, waar de "
+       "training standaard van uitgaat. Uit laat haar in sRGB; train dan met "
+       "\"Kleurruimte van de startpunten\" op Rec.709."),
+    RU("Включено пишет разреженное облако в пространстве фотографий -- это и "
+       "предполагает обучение по умолчанию. Выключено оставляет его в sRGB; "
+       "тогда при обучении задайте «Цветовое пространство начальных точек» "
+       "Rec.709."),
+    TR("Açık, seyrek nokta bulutunu fotoğrafların uzayında yazar; eğitim "
+       "varsayılan olarak bunu kabul eder. Kapalı onu sRGB'de bırakır; eğitimde "
+       "\"Başlangıç noktası renk uzayı\"nı Rec.709 yapın."));
 
 SS_MSG(gamut_rec709,
     EN("sRGB / Rec.709"), JA("sRGB / Rec.709"), ZH_HANS("sRGB / Rec.709"),
@@ -727,6 +831,555 @@ SS_MSG(model_live_counts,
     NL("Geplaatste camera's: {0} van {1}   Punten: {2}"),
     RU("Размещено камер: {0} из {1}   Точек: {2}"),
     TR("Yerleşen kamera: {0} / {1}   Nokta: {2}"));
+
+SS_MSG(pano360_unsupported,
+    EN("360 layout not recognised"),
+    JA("360 の並びが不明です"),
+    ZH_HANS("无法识别的 360 排布"),
+    ZH_HANT("無法辨識的 360 排布"),
+    KO("알 수 없는 360 배치"),
+    DE("360-Anordnung nicht erkannt"),
+    FR("disposition 360 non reconnue"),
+    ES("disposición 360 no reconocida"),
+    PT("disposição 360 não reconhecida"),
+    IT("disposizione 360 non riconosciuta"),
+    NL("360-indeling niet herkend"),
+    RU("раскладка 360 не распознана"),
+    TR("360 yerleşimi tanınmadı"));
+
+SS_MSG(pano360_unsupported_help,
+    EN("This file says it is a 360 capture, but its two tracks are packed in a "
+       "way this build does not know how to unwrap. They are read as two "
+       "ordinary lenses instead, which is unlikely to reconstruct."),
+    JA("このファイルは 360 撮影だと名乗っていますが、2 つのトラックの並びが"
+       "このビルドでは展開できません。代わりにふつうのレンズ 2 本として読み"
+       "ますが、再構成はまず通りません。"),
+    ZH_HANS("这个文件自称是 360 素材，但两条轨道的排布方式本版本无法展开。"
+            "只能当作两个普通镜头来读，重建多半不会成功。"),
+    ZH_HANT("這個檔案自稱是 360 素材，但兩條軌道的排布方式本版本無法展開。"
+            "只能當作兩個普通鏡頭來讀，重建多半不會成功。"),
+    KO("이 파일은 360 촬영본이라고 하지만, 두 트랙의 배치를 이 빌드는 펼칠 수 "
+       "없습니다. 대신 보통 렌즈 두 개로 읽으며, 재구성은 거의 되지 않습니다."),
+    DE("Diese Datei nennt sich eine 360-Aufnahme, aber ihre zwei Spuren sind so "
+       "gepackt, dass dieser Build sie nicht auffalten kann. Sie werden "
+       "stattdessen als zwei gewöhnliche Objektive gelesen, was kaum "
+       "rekonstruiert."),
+    FR("Ce fichier se dit une prise 360, mais ses deux pistes sont rangées "
+       "d'une façon que cette version ne sait pas déplier. Elles sont lues "
+       "comme deux objectifs ordinaires, ce qui a peu de chances d'aboutir."),
+    ES("Este archivo dice ser una toma 360, pero sus dos pistas están dispuestas "
+       "de un modo que esta versión no sabe desplegar. Se leen como dos "
+       "objetivos corrientes, lo que difícilmente reconstruirá."),
+    PT("Este ficheiro diz ser uma captura 360, mas as suas duas faixas estão "
+       "dispostas de um modo que esta versão não sabe desdobrar. São lidas como "
+       "duas lentes vulgares, o que dificilmente reconstrói."),
+    IT("Questo file si dichiara una ripresa 360, ma le sue due tracce sono "
+       "disposte in un modo che questa versione non sa aprire. Vengono lette "
+       "come due obiettivi normali, e difficilmente si ricostruirà."),
+    NL("Dit bestand noemt zich een 360-opname, maar de twee sporen zijn zo "
+       "ingepakt dat deze versie ze niet kan uitvouwen. Ze worden als twee "
+       "gewone lenzen gelezen, wat vrijwel zeker niet reconstrueert."),
+    RU("Файл называет себя съёмкой 360, но его две дорожки уложены так, что эта "
+       "сборка не умеет их разворачивать. Они читаются как два обычных "
+       "объектива, и реконструкция вряд ли получится."),
+    TR("Bu dosya kendini 360 çekimi diye tanıtıyor, ama iki izi bu yapının "
+       "açmayı bilmediği bir düzende. Bunun yerine iki sıradan mercek gibi "
+       "okunuyorlar; bundan kurma pek çıkmaz."));
+
+SS_MSG(view_motion,
+    EN("Motion"),
+    JA("動き"),
+    ZH_HANS("运动"),
+    ZH_HANT("運動"),
+    KO("움직임"),
+    DE("Bewegung"),
+    FR("Mouvement"),
+    ES("Movimiento"),
+    PT("Movimento"),
+    IT("Movimento"),
+    NL("Beweging"),
+    RU("Движение"),
+    TR("Hareket"));
+
+SS_MSG(view_sharpness,
+    EN("Sharpness"),
+    JA("シャープさ"),
+    ZH_HANS("清晰度"),
+    ZH_HANT("清晰度"),
+    KO("선명도"),
+    DE("Schärfe"),
+    FR("Netteté"),
+    ES("Nitidez"),
+    PT("Nitidez"),
+    IT("Nitidezza"),
+    NL("Scherpte"),
+    RU("Резкость"),
+    TR("Keskinlik"));
+
+SS_MSG(sharpness_preview,
+    EN("This is what these settings would keep, not what the dataset "
+       "holds. Applying them sorts the frames again; the list beside the "
+       "button says what else that redoes."),
+    JA("これは今の設定で残るフレームで、データセットの現状ではありません。適用す"
+       "るとフレームを仕分け直します。ほかに何をやり直すかは、ボタン横の一覧に出"
+       "ます。"),
+    ZH_HANS("这是按当前设置会保留的帧，而不是数据集现有的内容。应用后会重新整理帧；还"
+            "会重做什么，见按钮旁的列表。"),
+    ZH_HANT("這是依目前設定會保留的影格，而不是資料集現有的內容。套用後會重新整理影格"
+            "；還會重做什麼，請看按鈕旁的清單。"),
+    KO("지금 설정으로 남게 될 프레임이며, 데이터셋의 현재 상태가 아닙니"
+       "다. 적용하면 프레임을 다시 정리합니다. 그 밖에 무엇을 다시 하"
+       "는지는 버튼 옆 목록에 나옵니다."),
+    DE("Das ist, was diese Einstellungen behalten würden, nicht was der "
+       "Datensatz enthält. Beim Anwenden werden die Bilder neu sortiert; "
+       "was sonst noch neu gemacht wird, steht in der Liste neben der "
+       "Schaltfläche."),
+    FR("Voici ce que ces réglages garderaient, pas ce que contient le jeu "
+       "de données. Les appliquer trie de nouveau les images ; la liste à "
+       "côté du bouton dit ce qui est refait d’autre."),
+    ES("Esto es lo que conservarían estos ajustes, no lo que contiene el "
+       "conjunto de datos. Al aplicarlos se vuelven a ordenar los "
+       "fotogramas; la lista junto al botón dice qué más se rehace."),
+    PT("Isto é o que estas configurações manteriam, não o que o conjunto "
+       "de dados contém. Aplicá-las organiza os quadros de novo; a lista "
+       "ao lado do botão diz o que mais é refeito."),
+    IT("Questo è ciò che queste impostazioni terrebbero, non ciò che il "
+       "set di dati contiene. Applicandole i fotogrammi vengono "
+       "riordinati; l’elenco accanto al pulsante dice cos’altro viene "
+       "rifatto."),
+    NL("Dit is wat deze instellingen zouden behouden, niet wat de dataset "
+       "bevat. Toepassen sorteert de beelden opnieuw; de lijst naast de "
+       "knop zegt wat er verder opnieuw wordt gedaan."),
+    RU("Это то, что оставили бы эти настройки, а не то, что сейчас в "
+       "наборе данных. При применении кадры сортируются заново; что ещё "
+       "будет переделано, показано в списке рядом с кнопкой."),
+    TR("Bu, bu ayarların tutacağı karelerdir; veri kümesinde şu an olanlar"
+       " değil. Uygulandığında kareler yeniden ayıklanır; başka neyin "
+       "yeniden yapılacağını düğmenin yanındaki liste söyler."));
+
+SS_MSG(sharpness_apply,
+    EN("Apply to the dataset"),
+    JA("データセットに適用"),
+    ZH_HANS("应用到数据集"),
+    ZH_HANT("套用到資料集"),
+    KO("데이터셋에 적용"),
+    DE("Auf den Datensatz anwenden"),
+    FR("Appliquer au jeu de données"),
+    ES("Aplicar al conjunto de datos"),
+    PT("Aplicar ao conjunto de dados"),
+    IT("Applica al set di dati"),
+    NL("Toepassen op de dataset"),
+    RU("Применить к набору данных"),
+    TR("Veri kümesine uygula"));
+
+SS_MSG(sharpness_view_help,
+    EN("Every frame the run chose, in order, coloured by how blurred it "
+       "is: green for sharp, red for twice the threshold. The ones left "
+       "out are hollow or dimmed. Move a setting to see what it would "
+       "keep, click a frame to look at it closely, and hold Ctrl while "
+       "scrolling to resize the pictures."),
+    JA("処理が選んだすべてのフレームを順に並べ、ぶれの大きさで色分けします。緑は"
+       "シャープ、赤はしきい値の 2 倍です。除外されたものは枠だけ、または暗く"
+       "表示されます。設定を動かすと何が残るかが分かり、フレームをクリックすると"
+       "拡大して確認できます。Ctrl を押しながらスクロールすると画像の大きさ"
+       "を変えられます。"),
+    ZH_HANS("按顺序列出运行选中的每一帧，并按模糊程度着色：绿色表示清晰，红色表示达到"
+            "阈值的两倍。被剔除的帧显示为空心或变暗。调整设置可查看会保留哪些帧，点击"
+            "某一帧可放大查看，按住 Ctrl 滚动可调整图片大小。"),
+    ZH_HANT("依序列出執行選中的每個影格，並依模糊程度著色：綠色表示清晰，紅色表示達到"
+            "閾值的兩倍。被剔除的影格顯示為空心或變暗。調整設定可查看會保留哪些影格，"
+            "點選某個影格可放大查看，按住 Ctrl 捲動可調整圖片大小。"),
+    KO("실행에서 고른 모든 프레임을 순서대로 보여 주며, 흐린 정도에 따"
+       "라 색을 입힙니다. 초록은 선명함, 빨강은 임계값의 두 배입니다."
+       " 빠진 프레임은 속이 비거나 어둡게 표시됩니다. 설정을 움직이면 "
+       "무엇이 남는지 볼 수 있고, 프레임을 클릭하면 크게 볼 수 있으며"
+       ", Ctrl을 누른 채 스크롤하면 그림 크기가 바뀝니다."),
+    DE("Alle Bilder, die der Lauf gewählt hat, in ihrer Reihenfolge, "
+       "gefärbt nach ihrer Unschärfe: Grün für scharf, Rot für das "
+       "Doppelte der Schwelle. Ausgelassene Bilder sind hohl oder "
+       "abgedunkelt. Eine Einstellung verschieben zeigt, was sie behalten "
+       "würde, ein Klick auf ein Bild zeigt es aus der Nähe, und mit Strg "
+       "beim Scrollen ändert sich die Bildgröße."),
+    FR("Toutes les images choisies par le traitement, dans l’ordre, "
+       "colorées selon leur flou : vert pour net, rouge pour le double du "
+       "seuil. Celles qui sont écartées sont creuses ou assombries. "
+       "Déplacez un réglage pour voir ce qu’il garderait, cliquez sur une "
+       "image pour la regarder de près, et maintenez Ctrl en faisant "
+       "défiler pour changer la taille des images."),
+    ES("Todos los fotogramas que eligió el proceso, en orden, coloreados "
+       "según su desenfoque: verde para nítido, rojo para el doble del "
+       "umbral. Los descartados aparecen huecos o atenuados. Mueva un "
+       "ajuste para ver qué conservaría, haga clic en un fotograma para "
+       "verlo de cerca y mantenga Ctrl al desplazar para cambiar el tamaño"
+       " de las imágenes."),
+    PT("Todos os quadros que a execução escolheu, em ordem, coloridos pelo"
+       " quanto estão borrados: verde para nítido, vermelho para o dobro "
+       "do limiar. Os deixados de fora aparecem vazados ou escurecidos. "
+       "Mova uma configuração para ver o que ela manteria, clique em um "
+       "quadro para vê-lo de perto e segure Ctrl ao rolar para mudar o "
+       "tamanho das imagens."),
+    IT("Tutti i fotogrammi scelti dall’esecuzione, in ordine, colorati in "
+       "base alla sfocatura: verde per nitido, rosso per il doppio della "
+       "soglia. Quelli scartati sono vuoti o attenuati. Sposta "
+       "un’impostazione per vedere cosa terrebbe, fai clic su un "
+       "fotogramma per guardarlo da vicino e tieni premuto Ctrl mentre "
+       "scorri per cambiare la dimensione delle immagini."),
+    NL("Alle beelden die de run heeft gekozen, op volgorde, gekleurd naar "
+       "hun onscherpte: groen voor scherp, rood voor twee keer de drempel."
+       " De weggelaten beelden zijn hol of gedimd. Verschuif een "
+       "instelling om te zien wat die zou behouden, klik op een beeld om "
+       "het van dichtbij te bekijken en houd Ctrl ingedrukt tijdens het "
+       "scrollen om de beelden groter of kleiner te maken."),
+    RU("Все кадры, выбранные при запуске, по порядку, окрашенные по "
+       "степени размытия: зелёный — резкий, красный — вдвое больше порога."
+       " Исключённые кадры показаны пустыми или затемнёнными. Сдвиньте "
+       "настройку, чтобы увидеть, что она оставит, щёлкните кадр, чтобы "
+       "рассмотреть его, и прокручивайте с нажатой Ctrl, чтобы изменить "
+       "размер картинок."),
+    TR("Çalışmanın seçtiği tüm kareler sırayla, bulanıklığına göre "
+       "renklendirilmiş olarak gösterilir: yeşil net, kırmızı eşiğin iki "
+       "katı demektir. Dışarıda bırakılanlar içi boş veya soluk görünür. "
+       "Neyi tutacağını görmek için bir ayarı kaydırın, yakından bakmak "
+       "için bir kareye tıklayın, resimleri boyutlandırmak için "
+       "kaydırırken Ctrl tuşunu basılı tutun."));
+
+SS_MSG(sharpness_counts,
+    EN("{0}: kept {1}, blurry {2}, too similar {3}"),
+    JA("{0}: 残す {1}、ぶれ {2}、似すぎ {3}"),
+    ZH_HANS("{0}：保留 {1}，模糊 {2}，过于相似 {3}"),
+    ZH_HANT("{0}：保留 {1}，模糊 {2}，過於相似 {3}"),
+    KO("{0}: 유지 {1}, 흐림 {2}, 너무 비슷함 {3}"),
+    DE("{0}: behalten {1}, unscharf {2}, zu ähnlich {3}"),
+    FR("{0} : gardées {1}, floues {2}, trop semblables {3}"),
+    ES("{0}: conservados {1}, borrosos {2}, demasiado parecidos {3}"),
+    PT("{0}: mantidos {1}, borrados {2}, parecidos demais {3}"),
+    IT("{0}: tenuti {1}, sfocati {2}, troppo simili {3}"),
+    NL("{0}: behouden {1}, onscherp {2}, te gelijkend {3}"),
+    RU("{0}: оставлено {1}, размытых {2}, слишком похожих {3}"),
+    TR("{0}: tutulan {1}, bulanık {2}, fazla benzer {3}"));
+
+SS_MSG(pick_kept,
+    EN("Frame {0}, kept: blurred about {1} px"),
+    JA("フレーム {0}、残す: ぶれ約 {1} px"),
+    ZH_HANS("帧 {0}，保留：模糊约 {1} px"),
+    ZH_HANT("影格 {0}，保留：模糊約 {1} px"),
+    KO("프레임 {0}, 유지: 흐림 약 {1} px"),
+    DE("Bild {0}, behalten: etwa {1} px unscharf"),
+    FR("Image {0}, gardée : flou d’environ {1} px"),
+    ES("Fotograma {0}, conservado: desenfoque de unos {1} px"),
+    PT("Quadro {0}, mantido: borrão de cerca de {1} px"),
+    IT("Fotogramma {0}, tenuto: sfocatura di circa {1} px"),
+    NL("Beeld {0}, behouden: ongeveer {1} px onscherp"),
+    RU("Кадр {0}, оставлен: размытие около {1} px"),
+    TR("Kare {0}, tutuldu: yaklaşık {1} px bulanık"));
+
+SS_MSG(pick_blurry,
+    EN("Frame {0}, skipped as blurry: blurred about {1} px"),
+    JA("フレーム {0}、ぶれのため除外: ぶれ約 {1} px"),
+    ZH_HANS("帧 {0}，因模糊跳过：模糊约 {1} px"),
+    ZH_HANT("影格 {0}，因模糊略過：模糊約 {1} px"),
+    KO("프레임 {0}, 흐려서 건너뜀: 흐림 약 {1} px"),
+    DE("Bild {0}, als unscharf übersprungen: etwa {1} px unscharf"),
+    FR("Image {0}, ignorée car floue : flou d’environ {1} px"),
+    ES("Fotograma {0}, omitido por borroso: desenfoque de unos {1} px"),
+    PT("Quadro {0}, ignorado por estar borrado: borrão de cerca de {1} px"),
+    IT("Fotogramma {0}, saltato perché sfocato: sfocatura di circa {1} px"),
+    NL("Beeld {0}, overgeslagen als onscherp: ongeveer {1} px onscherp"),
+    RU("Кадр {0}, пропущен как размытый: размытие около {1} px"),
+    TR("Kare {0}, bulanık olduğu için atlandı: yaklaşık {1} px bulanık"));
+
+SS_MSG(pick_similar,
+    EN("Frame {0}, skipped as too similar to the last kept frame "
+       "(fingerprint bits that differ, of 64: {1})"),
+    JA("フレーム {0}、似すぎのため除外 (直前に残したフレームと違う指紋ビッ"
+       "ト、64 中: {1})"),
+    ZH_HANS("帧 {0}，过于相似，跳过（与上一个保留帧不同的指纹位，64 位中："
+            "{1}）"),
+    ZH_HANT("影格 {0}，過於相似，略過（與上一個保留的影格不同的指紋位元，64 位"
+            "元中：{1}）"),
+    KO("프레임 {0}, 너무 비슷해 건너뜀 (마지막으로 남긴 프레임과 다"
+       "른 지문 비트, 64비트 중: {1})"),
+    DE("Bild {0}, als zu ähnlich übersprungen (Bits des Fingerabdrucks, "
+       "die sich vom zuletzt behaltenen Bild unterscheiden, von 64: {1})"),
+    FR("Image {0}, ignorée car trop semblable à la dernière image gardée "
+       "(bits de l’empreinte qui diffèrent, sur 64 : {1})"),
+    ES("Fotograma {0}, omitido por parecerse demasiado al último "
+       "conservado (bits de la huella que difieren, de 64: {1})"),
+    PT("Quadro {0}, ignorado por ser parecido demais com o último mantido "
+       "(bits da impressão digital que diferem, de 64: {1})"),
+    IT("Fotogramma {0}, saltato perché troppo simile all’ultimo tenuto "
+       "(bit dell’impronta che differiscono, su 64: {1})"),
+    NL("Beeld {0}, overgeslagen als te gelijkend op het laatst behouden "
+       "beeld (vingerafdrukbits die verschillen, van 64: {1})"),
+    RU("Кадр {0}, пропущен как слишком похожий на последний оставленный "
+       "(отличается бит отпечатка, из 64: {1})"),
+    TR("Kare {0}, son tutulan kareye fazla benzediği için atlandı (farklı "
+       "parmak izi biti, 64 bitten: {1})"));
+
+SS_MSG(pick_unmeasured,
+    EN("Frame {0}: its blur was not measured"),
+    JA("フレーム {0}: ぶれは測っていません"),
+    ZH_HANS("帧 {0}：未测量模糊"),
+    ZH_HANT("影格 {0}：未測量模糊"),
+    KO("프레임 {0}: 흐림을 측정하지 않았습니다"),
+    DE("Bild {0}: Unschärfe wurde nicht gemessen"),
+    FR("Image {0} : son flou n’a pas été mesuré"),
+    ES("Fotograma {0}: no se midió su desenfoque"),
+    PT("Quadro {0}: o borrão não foi medido"),
+    IT("Fotogramma {0}: la sfocatura non è stata misurata"),
+    NL("Beeld {0}: onscherpte is niet gemeten"),
+    RU("Кадр {0}: размытие не измерялось"),
+    TR("Kare {0}: bulanıklığı ölçülmedi"));
+
+SS_MSG(review_continue,
+    EN("Continue with these frames"),
+    JA("これらのフレームで続行"),
+    ZH_HANS("用这些帧继续"),
+    ZH_HANT("用這些影格繼續"),
+    KO("이 프레임으로 계속"),
+    DE("Mit diesen Bildern fortfahren"),
+    FR("Continuer avec ces images"),
+    ES("Continuar con estos fotogramas"),
+    PT("Continuar com estes quadros"),
+    IT("Continua con questi fotogrammi"),
+    NL("Doorgaan met deze beelden"),
+    RU("Продолжить с этими кадрами"),
+    TR("Bu karelerle devam et"));
+
+SS_MSG(review_hint,
+    EN("The frames are out and the run is waiting. Set the thresholds, "
+       "look at what is left out, then continue: masks, reconstruction and"
+       " depth are made once, from the frames kept."),
+    JA("フレームの取り出しが終わり、処理は待機中です。しきい値を決めて除外される"
+       "ものを確かめてから続行してください。マスク、再構成、深度は残したフレーム"
+       "から一度だけ作られます。"),
+    ZH_HANS("帧已提取完毕，运行正在等待。设置阈值，查看被剔除的帧，然后继续：蒙版、重"
+            "建和深度只会用保留的帧生成一次。"),
+    ZH_HANT("影格已擷取完畢，執行正在等待。設定閾值，查看被剔除的影格，然後繼續：遮罩"
+            "、重建和深度只會用保留的影格建立一次。"),
+    KO("프레임 추출이 끝났고 실행이 기다리고 있습니다. 임계값을 정하고 "
+       "빠지는 프레임을 확인한 뒤 계속하세요. 마스크, 재구성, 깊이는 "
+       "남긴 프레임으로 한 번만 만듭니다."),
+    DE("Die Bilder sind entnommen, und der Lauf wartet. Schwellen "
+       "einstellen, ansehen, was ausgelassen wird, dann fortfahren: "
+       "Masken, Rekonstruktion und Tiefe werden einmal erstellt, aus den "
+       "behaltenen Bildern."),
+    FR("Les images sont extraites et le traitement attend. Réglez les "
+       "seuils, regardez ce qui est écarté, puis continuez : masques, "
+       "reconstruction et profondeur sont faits une seule fois, à partir "
+       "des images gardées."),
+    ES("Los fotogramas ya están extraídos y el proceso espera. Ajuste los "
+       "umbrales, mire lo que se descarta y continúe: las máscaras, la "
+       "reconstrucción y la profundidad se hacen una sola vez, con los "
+       "fotogramas conservados."),
+    PT("Os quadros já foram extraídos e a execução está esperando. Ajuste "
+       "os limiares, veja o que fica de fora e continue: máscaras, "
+       "reconstrução e profundidade são feitas uma única vez, a partir dos"
+       " quadros mantidos."),
+    IT("I fotogrammi sono stati estratti e l’esecuzione attende. Imposta "
+       "le soglie, guarda cosa viene scartato, poi continua: maschere, "
+       "ricostruzione e profondità vengono fatte una sola volta, dai "
+       "fotogrammi tenuti."),
+    NL("De beelden zijn uitgenomen en de run wacht. Stel de drempels in, "
+       "bekijk wat wordt weggelaten en ga dan door: maskers, reconstructie"
+       " en diepte worden één keer gemaakt, van de behouden beelden."),
+    RU("Кадры извлечены, запуск ждёт. Задайте пороги, посмотрите, что "
+       "исключается, и продолжайте: маски, реконструкция и глубина "
+       "делаются один раз, из оставленных кадров."),
+    TR("Kareler çıkarıldı ve çalışma bekliyor. Eşikleri ayarlayın, nelerin"
+       " dışarıda kaldığına bakın, sonra devam edin: maskeler, yeniden "
+       "kurma ve derinlik, tutulan karelerden bir kez üretilir."));
+
+SS_MSG(pick_back,
+    EN("Back to all frames"),
+    JA("すべてのフレームに戻る"),
+    ZH_HANS("返回全部帧"),
+    ZH_HANT("返回全部影格"),
+    KO("모든 프레임으로 돌아가기"),
+    DE("Zurück zu allen Bildern"),
+    FR("Retour à toutes les images"),
+    ES("Volver a todos los fotogramas"),
+    PT("Voltar a todos os quadros"),
+    IT("Torna a tutti i fotogrammi"),
+    NL("Terug naar alle beelden"),
+    RU("Назад ко всем кадрам"),
+    TR("Tüm karelere dön"));
+
+SS_MSG(pick_no_file,
+    EN("The full frame is not on disk; this is its thumbnail."),
+    JA("フレーム本体はディスクにありません。これはサムネイルです。"),
+    ZH_HANS("完整的帧不在磁盘上；这是它的缩略图。"),
+    ZH_HANT("完整的影格不在磁碟上；這是它的縮圖。"),
+    KO("원본 프레임이 디스크에 없습니다. 이것은 미리보기입니다."),
+    DE("Das volle Bild liegt nicht auf der Festplatte; dies ist seine "
+       "Vorschau."),
+    FR("L’image complète n’est pas sur le disque ; ceci est sa vignette."),
+    ES("El fotograma completo no está en el disco; esta es su miniatura."),
+    PT("O quadro completo não está no disco; esta é a miniatura."),
+    IT("Il fotogramma intero non è sul disco; questa è la sua miniatura."),
+    NL("Het volledige beeld staat niet op schijf; dit is de miniatuur."),
+    RU("Полного кадра на диске нет; это его миниатюра."),
+    TR("Karenin tamamı diskte yok; bu onun küçük resmi."));
+
+SS_MSG(pick_view_help,
+    EN("Scroll to zoom, drag to move, double-click for 1:1 or to fit. The "
+       "arrow keys step to the next frame and Esc goes back."),
+    JA("スクロールで拡大縮小、ドラッグで移動、ダブルクリックで等倍または全体表示"
+       "。矢印キーで次のフレームへ、Esc で戻ります。"),
+    ZH_HANS("滚动缩放，拖动平移，双击切换 1:1 或适应窗口。方向键切换到下一帧，E"
+            "sc 返回。"),
+    ZH_HANT("捲動縮放，拖曳平移，按兩下切換 1:1 或符合視窗。方向鍵切換到下一個影"
+            "格，Esc 返回。"),
+    KO("스크롤로 확대/축소, 끌어서 이동, 두 번 클릭하면 1:1 또는 "
+       "화면 맞춤. 화살표 키로 다음 프레임으로 가고 Esc로 돌아갑니다"
+       "."),
+    DE("Scrollen zoomt, Ziehen verschiebt, Doppelklick zeigt 1:1 oder "
+       "passt ein. Die Pfeiltasten gehen zum nächsten Bild, Esc geht "
+       "zurück."),
+    FR("Faites défiler pour zoomer, glissez pour déplacer, double-cliquez "
+       "pour 1:1 ou pour ajuster. Les flèches passent à l’image suivante "
+       "et Échap revient en arrière."),
+    ES("Desplace para ampliar, arrastre para mover, doble clic para 1:1 o "
+       "para ajustar. Las flechas pasan al siguiente fotograma y Esc "
+       "vuelve atrás."),
+    PT("Role para ampliar, arraste para mover, clique duas vezes para 1:1 "
+       "ou para ajustar. As setas passam ao próximo quadro e Esc volta."),
+    IT("Scorri per ingrandire, trascina per spostare, doppio clic per 1:1 "
+       "o per adattare. I tasti freccia passano al fotogramma successivo "
+       "ed Esc torna indietro."),
+    NL("Scrollen om te zoomen, slepen om te verplaatsen, dubbelklikken "
+       "voor 1:1 of passend. De pijltoetsen gaan naar het volgende beeld "
+       "en Esc gaat terug."),
+    RU("Прокрутка — масштаб, перетаскивание — сдвиг, двойной щелчок — 1:1 "
+       "или вписать. Стрелки переходят к следующему кадру, Esc возвращает "
+       "назад."),
+    TR("Yakınlaştırmak için kaydırın, taşımak için sürükleyin, 1:1 veya "
+       "sığdırmak için çift tıklayın. Ok tuşları sonraki kareye geçer, Esc"
+       " geri döner."));
+
+SS_MSG(blur_off_hint,
+    EN("Blur is measured only while blurry frames are being skipped. "
+       "Choose that under Skip blurry frames and create the dataset again "
+       "to see it for each frame."),
+    JA("ぶれは、ぶれたフレームを除外しているときだけ測ります。「ぶれたフレームを"
+       "除外」で選び、データセットを作り直すと、フレームごとに表示されます。"),
+    ZH_HANS("只有在跳过模糊帧时才会测量模糊。请在“跳过模糊帧”中选择，然后重新创建数"
+            "据集，即可看到每一帧的模糊程度。"),
+    ZH_HANT("只有在略過模糊影格時才會測量模糊。請在「略過模糊影格」中選擇，然後重新建"
+            "立資料集，即可看到每個影格的模糊程度。"),
+    KO("흐림은 흐린 프레임을 건너뛸 때만 측정합니다. ‘흐린 프레임 건너"
+       "뛰기’에서 선택하고 데이터셋을 다시 만들면 프레임마다 볼 수 있습"
+       "니다."),
+    DE("Unschärfe wird nur gemessen, solange unscharfe Bilder übersprungen"
+       " werden. Unter „Unscharfe Bilder überspringen“ wählen und den "
+       "Datensatz neu erstellen, um sie für jedes Bild zu sehen."),
+    FR("Le flou n’est mesuré que lorsque les images floues sont ignorées. "
+       "Choisissez-le sous « Ignorer les images floues » et recréez le jeu"
+       " de données pour le voir pour chaque image."),
+    ES("El desenfoque solo se mide mientras se omiten los fotogramas "
+       "borrosos. Elíjalo en «Omitir fotogramas borrosos» y vuelva a crear"
+       " el conjunto de datos para verlo en cada fotograma."),
+    PT("O borrão só é medido enquanto os quadros borrados estão sendo "
+       "ignorados. Escolha isso em “Ignorar quadros borrados” e crie o "
+       "conjunto de dados de novo para vê-lo em cada quadro."),
+    IT("La sfocatura viene misurata solo mentre si saltano i fotogrammi "
+       "sfocati. Sceglilo in «Salta i fotogrammi sfocati» e crea di nuovo "
+       "il set di dati per vederla su ogni fotogramma."),
+    NL("Onscherpte wordt alleen gemeten zolang onscherpe beelden worden "
+       "overgeslagen. Kies dat onder ‘Onscherpe beelden overslaan’ en maak"
+       " de dataset opnieuw om het voor elk beeld te zien."),
+    RU("Размытие измеряется, только когда размытые кадры пропускаются. "
+       "Выберите это в пункте «Пропускать размытые кадры» и создайте набор"
+       " данных заново, чтобы увидеть его для каждого кадра."),
+    TR("Bulanıklık yalnızca bulanık kareler atlanırken ölçülür. Bunu "
+       "“Bulanık kareleri atla” altında seçin ve her kare için görmek "
+       "üzere veri kümesini yeniden oluşturun."));
+
+SS_MSG(scan_picture_size,
+    EN("Picture size"),
+    JA("画像サイズ"),
+    ZH_HANS("图片大小"),
+    ZH_HANT("圖片大小"),
+    KO("그림 크기"),
+    DE("Bildgröße"),
+    FR("Taille des images"),
+    ES("Tamaño de imagen"),
+    PT("Tamanho da imagem"),
+    IT("Dimensione immagini"),
+    NL("Beeldgrootte"),
+    RU("Размер картинок"),
+    TR("Resim boyutu"));
+
+SS_MSG(scan_photos,
+    EN("{0} photographs, nothing to measure"),
+    JA("写真 {0} 枚、測るものはありません"),
+    ZH_HANS("{0} 张照片，没有运动可测"),
+    ZH_HANT("{0} 張照片，沒有運動可測"),
+    KO("사진 {0}장, 잴 것이 없습니다"),
+    DE("{0} Fotos, nichts zu messen"),
+    FR("{0} photographies, rien à mesurer"),
+    ES("{0} fotografías, nada que medir"),
+    PT("{0} fotografias, nada a medir"),
+    IT("{0} fotografie, niente da misurare"),
+    NL("{0} foto's, niets te meten"),
+    RU("{0} фотографий, измерять нечего"),
+    TR("{0} fotoğraf, ölçecek bir şey yok"));
+
+SS_MSG(scan_kept_frames,
+    EN("{0} frames kept"),
+    JA("{0} フレームを残しました"),
+    ZH_HANS("保留了 {0} 帧"),
+    ZH_HANT("保留了 {0} 影格"),
+    KO("{0}개 프레임을 남겼습니다"),
+    DE("{0} Einzelbilder behalten"),
+    FR("{0} images conservées"),
+    ES("{0} fotogramas conservados"),
+    PT("{0} quadros mantidos"),
+    IT("{0} fotogrammi tenuti"),
+    NL("{0} beelden gehouden"),
+    RU("оставлено кадров: {0}"),
+    TR("{0} kare tutuldu"));
+
+SS_MSG(scan_show_pictures,
+    EN("Show the frames"),
+    JA("フレームを表示"),
+    ZH_HANS("显示帧"),
+    ZH_HANT("顯示影格"),
+    KO("프레임 보기"),
+    DE("Bilder anzeigen"),
+    FR("Afficher les images"),
+    ES("Mostrar los fotogramas"),
+    PT("Mostrar os quadros"),
+    IT("Mostra i fotogrammi"),
+    NL("Beelden tonen"),
+    RU("Показывать кадры"),
+    TR("Kareleri göster"));
+
+SS_MSG(frame_spacing_help,
+    EN("Left to right is the length of the capture. A tall bar is a stretch "
+       "where the view changed fast and more frames were kept."),
+    JA("左から右が撮影の長さです。棒が高いところは視界の変化が速く、"
+       "多くのフレームを残した区間です。"),
+    ZH_HANS("从左到右是整段素材的长度。柱子高的地方视野变化快，留下的帧也多。"),
+    ZH_HANT("從左到右是整段素材的長度。柱子高的地方視野變化快，留下的影格也多。"),
+    KO("왼쪽에서 오른쪽이 촬영 전체 길이입니다. 막대가 높은 구간은 화면이 빨리 "
+       "바뀌어 프레임을 더 남긴 곳입니다."),
+    DE("Links nach rechts ist die Länge der Aufnahme. Ein hoher Balken ist ein "
+       "Stück, in dem sich das Bild schnell änderte und mehr Bilder blieben."),
+    FR("De gauche à droite, la durée de la prise. Une barre haute est un "
+       "passage où la vue changeait vite et où plus d'images ont été gardées."),
+    ES("De izquierda a derecha, la duración de la toma. Una barra alta es un "
+       "tramo donde la vista cambiaba deprisa y se guardaron más fotogramas."),
+    PT("Da esquerda para a direita, a duração da captura. Uma barra alta é um "
+       "trecho onde a vista mudava depressa e ficaram mais quadros."),
+    IT("Da sinistra a destra, la durata della ripresa. Una barra alta è un "
+       "tratto in cui la vista cambiava in fretta e sono rimasti più fotogrammi."),
+    NL("Van links naar rechts is de lengte van de opname. Een hoge balk is een "
+       "stuk waar het beeld snel veranderde en meer beelden zijn gehouden."),
+    RU("Слева направо — длительность съёмки. Высокий столбик — участок, где "
+       "вид менялся быстро и кадров осталось больше."),
+    TR("Soldan sağa çekimin uzunluğu. Yüksek çubuk, görüntünün hızlı değiştiği "
+       "ve daha çok kare tutulan bir bölüm."));
 
 SS_MSG(model_waiting,
     EN("Nothing placed yet -- the first two views have to agree before there is "
@@ -1333,6 +1986,73 @@ SS_MSG(add_photos_help,
     TR("Bir fotoğraf klasörü ekleyin. Tek başınaysa bulunduğu yerde okunur; "
        "başka bir girdiyle birlikteyse görüntüleri veri kümesine bağlanır, "
        "çünkü yeniden oluşturma tek bir klasör ağacı okur."));
+
+SS_MSG(add_dataset,
+    EN("Add dataset..."), JA("データセットを追加…"), ZH_HANS("添加数据集…"),
+    ZH_HANT("新增資料集…"), KO("데이터셋 추가…"),
+    DE("Datensatz hinzufügen …"), FR("Ajouter un jeu de données…"),
+    ES("Añadir un conjunto de datos…"), PT("Adicionar um conjunto de dados…"),
+    IT("Aggiungi un set di dati…"), NL("Dataset toevoegen…"),
+    RU("Добавить набор данных…"), TR("Veri kümesi ekle…"));
+
+SS_MSG(add_dataset_help,
+    EN("Add a folder that already holds a reconstruction -- this program's, or "
+       "COLMAP's, Nerfstudio's or Metashape's. Its images become the input and "
+       "the folder itself the output, so pressing the button adds masks, depth "
+       "and normals to it instead of solving the cameras again."),
+    JA("すでに再構成結果があるフォルダを追加します。このソフトが作ったもので"
+       "も、COLMAP や Nerfstudio、Metashape が作ったものでもかまいません。その"
+       "画像が入力になり、そのフォルダが出力フォルダになるので、ボタンを押すと"
+       "カメラを求め直すのではなく、マスクや深度・法線を足すだけになります。"),
+    ZH_HANS("添加一个已经重建好的文件夹——这里做的，或者 COLMAP、Nerfstudio、"
+            "Metashape 做的。它的图像是输入，这个文件夹是输出，所以按下按钮只是"
+            "给它补上蒙版和深度、法线，不会重新求解相机。"),
+    ZH_HANT("新增一個已經重建好的資料夾——這裡做的，或者 COLMAP、Nerfstudio、"
+            "Metashape 做的。它的影像是輸入，這個資料夾是輸出，所以按下按鈕只是"
+            "給它補上遮罩和深度、法線，不會重新求解相機。"),
+    KO("이미 재구성 결과가 있는 폴더를 추가합니다. 이 프로그램이 만든 것이든 "
+       "COLMAP, Nerfstudio, Metashape 이 만든 것이든 상관없습니다. 그 이미지가 "
+       "입력이 되고 폴더 자체가 출력이 되므로, 단추를 누르면 카메라를 다시 "
+       "구하지 않고 마스크와 깊이·법선만 더합니다."),
+    DE("Einen Ordner hinzufügen, in dem schon eine Rekonstruktion liegt -- eine "
+       "von diesem Programm oder von COLMAP, Nerfstudio oder Metashape. Seine "
+       "Bilder werden die Eingabe und der Ordner selbst die Ausgabe, der Knopf "
+       "fügt also Masken, Tiefe und Normalen hinzu, statt die Kameras erneut "
+       "zu bestimmen."),
+    FR("Ajouter un dossier qui contient déjà une reconstruction -- de ce "
+       "programme, ou de COLMAP, Nerfstudio ou Metashape. Ses images "
+       "deviennent l'entrée et le dossier lui-même la sortie : le bouton y "
+       "ajoute donc masques, profondeur et normales au lieu de recalculer les "
+       "caméras."),
+    ES("Añadir una carpeta que ya contiene una reconstrucción: de este "
+       "programa, o de COLMAP, Nerfstudio o Metashape. Sus imágenes son la "
+       "entrada y la carpeta misma la salida, así que el botón le añade "
+       "máscaras, profundidad y normales en vez de volver a resolver las "
+       "cámaras."),
+    PT("Adicionar uma pasta que já contém uma reconstrução -- deste programa, "
+       "ou do COLMAP, do Nerfstudio ou do Metashape. As imagens dela viram a "
+       "entrada e a própria pasta a saída, então o botão lhe acrescenta "
+       "máscaras, profundidade e normais em vez de resolver as câmeras de "
+       "novo."),
+    IT("Aggiunge una cartella che contiene già una ricostruzione: di questo "
+       "programma, oppure di COLMAP, Nerfstudio o Metashape. Le sue immagini "
+       "diventano l'ingresso e la cartella stessa l'uscita, quindi il pulsante "
+       "vi aggiunge maschere, profondità e normali invece di risolvere di "
+       "nuovo le fotocamere."),
+    NL("Een map toevoegen waarin al een reconstructie staat -- van dit "
+       "programma, of van COLMAP, Nerfstudio of Metashape. De beelden worden "
+       "de invoer en de map zelf de uitvoer, dus de knop voegt er maskers, "
+       "diepte en normalen aan toe in plaats van de camera's opnieuw op te "
+       "lossen."),
+    RU("Добавить папку, в которой уже есть реконструкция, — этой программы "
+       "или COLMAP, Nerfstudio, Metashape. Её снимки становятся входом, а сама "
+       "папка — выходом, так что кнопка добавит к ней маски, глубину и "
+       "нормали, а не будет заново решать камеры."),
+    TR("İçinde zaten bir yeniden kurma bulunan bir klasör ekleyin -- bu "
+       "programın ya da COLMAP, Nerfstudio veya Metashape'in yaptığı. "
+       "Görüntüleri girdi, klasörün kendisi çıktı olur; düğme böylece "
+       "kameraları yeniden çözmek yerine ona maske, derinlik ve normal "
+       "ekler."));
 
 SS_MSG(no_input_yet,
     EN("no input picked yet"),
@@ -2433,96 +3153,394 @@ SS_MSG(loop_closure_help_builtin,
        "varsayılan olarak açıktır. “Otomatik”te yalnızca 100 karenin altında "
        "geçerlidir -- üstünde eşleştirme zaten içerik temellidir."));
 
-SS_MSG(frames_per_second,
-    EN("Frames per second"),
-    JA("1秒あたりのフレーム数"),
-    ZH_HANS("每秒帧数"),
-    ZH_HANT("每秒影格數"),
-    KO("초당 프레임 수"),
-    DE("Bilder pro Sekunde"),
-    FR("Images par seconde"),
-    ES("Fotogramas por segundo"),
-    PT("Quadros por segundo"),
-    IT("Fotogrammi al secondo"),
-    NL("Beelden per seconde"),
-    RU("Кадров в секунду"),
-    TR("Saniyedeki kare"));
-
 SS_MSG(frames_per_second_help,
     EN("How many frames to keep per second of video. 1-3 is right for a slow "
-       "walkthrough; more only helps if the camera moved fast. Applies to "
-       "every video in the list."),
+       "walkthrough; more only helps if the camera moved fast. A video with a "
+       "rate of its own uses that instead. "
+       "0 keeps every frame."),
     JA("動画1秒あたり何フレーム残すかです。ゆっくり歩いて撮ったなら 1〜3 が"
-       "適切で、それ以上が効くのはカメラが速く動いたときだけです。リスト内の"
-       "すべての動画に適用されます。"),
+       "適切で、それ以上が効くのはカメラが速く動いたときだけです。個別の値を"
+       "入れた動画はそちらに従います。"
+       "0 にするとすべてのフレームを残します。"),
     ZH_HANS("每秒视频保留多少帧。慢慢走着拍的话 1-3 就合适；更高只有在相机移动"
-            "很快时才有用。对列表中的所有视频都生效。"),
+            "很快时才有用。单独设了帧率的视频按各自的来。"
+            "设为 0 则保留每一帧。"),
     ZH_HANT("每秒影片保留多少影格。慢慢走著拍的話 1-3 就合適；更高只有在相機移動"
-            "很快時才有用。對清單中的所有影片都生效。"),
+            "很快時才有用。單獨設了影格率的影片按各自的來。"
+            "設為 0 則保留每一影格。"),
     KO("동영상 1초당 몇 프레임을 남길지입니다. 천천히 걸으며 찍었다면 1~3이 "
        "알맞고, 그보다 높이는 건 카메라가 빠르게 움직였을 때만 도움이 됩니다. "
-       "목록의 모든 동영상에 적용됩니다."),
+       "자체 값이 있는 동영상은 그 값을 씁니다. "
+       "0이면 모든 프레임을 남깁니다."),
     DE("Wie viele Bilder je Sekunde Video behalten werden. 1-3 passt für "
        "einen langsamen Rundgang; mehr hilft nur, wenn die Kamera schnell "
-       "bewegt wurde. Gilt für jedes Video in der Liste."),
+       "bewegt wurde. Ein Video mit eigener Rate nimmt seine eigene. "
+       "0 behält jedes Bild."),
     FR("Combien d'images conserver par seconde de vidéo. 1 à 3 convient à une "
        "déambulation lente ; davantage n'aide que si la caméra bougeait vite. "
-       "S'applique à toutes les vidéos de la liste."),
+       "Une vidéo ayant son propre débit garde le sien. "
+       "0 conserve toutes les images."),
     ES("Cuántos fotogramas conservar por segundo de vídeo. De 1 a 3 va bien "
        "para un recorrido lento; más solo ayuda si la cámara se movía rápido. "
-       "Se aplica a todos los vídeos de la lista."),
+       "Un vídeo con su propia tasa usa la suya. "
+       "0 conserva todos los fotogramas."),
     PT("Quantos quadros manter por segundo de vídeo. De 1 a 3 serve para um "
-       "percurso lento; mais só ajuda se a câmera se moveu rápido. Vale para "
-       "todos os vídeos da lista."),
+       "percurso lento; mais só ajuda se a câmera se moveu rápido. Um vídeo "
+       "com taxa própria usa a dele. "
+       "0 mantém todos os quadros."),
     IT("Quanti fotogrammi tenere per ogni secondo di video. Da 1 a 3 va bene "
        "per una camminata lenta; di più serve solo se la fotocamera si "
-       "muoveva in fretta. Vale per tutti i video dell'elenco."),
+       "muoveva in fretta. Un video con una frequenza propria usa la sua. "
+       "0 tiene tutti i fotogrammi."),
     NL("Hoeveel beelden per seconde video bewaard blijven. 1-3 past bij een "
-       "rustige rondgang; meer helpt alleen als de camera snel bewoog. Geldt "
-       "voor elke video in de lijst."),
+       "rustige rondgang; meer helpt alleen als de camera snel bewoog. Een "
+       "video met een eigen tempo houdt dat van zichzelf. "
+       "0 bewaart elk beeld."),
     RU("Сколько кадров оставлять на секунду видео. 1-3 подходит для "
        "неторопливого обхода; больше помогает, только если камера двигалась "
-       "быстро. Применяется ко всем видео в списке."),
+       "быстро. Видео со своей частотой берёт свою. "
+       "0 оставляет все кадры."),
     TR("Videonun her saniyesinden kaç karenin tutulacağı. Yavaş bir gezinti "
        "için 1-3 uygundur; daha fazlası yalnızca kamera hızlı hareket ettiyse "
-       "işe yarar. Listedeki bütün videolara uygulanır."));
+       "işe yarar. Kendi hızı olan video kendininkini kullanır. "
+       "0 her kareyi tutar."));
 
-SS_MSG(pano360_clicks_warning,
-    EN("Clicks are drawn on the camera's own frame, which the 360 unwrap "
-       "reshapes: on a 360 capture they land somewhere else. Prompt it with "
-       "text instead."),
-    JA("クリックはカメラ本来のフレーム上に打たれますが、360 の展開はその形を変えます。"
-       "360 撮影ではクリック位置がずれるので、テキストで指示してください。"),
-    ZH_HANS("点击是打在相机原始帧上的，而 360 展开会改变画面形状：在 360 素材上点击"
-            "会落到别处。请改用文字提示。"),
-    ZH_HANT("點擊是打在相機原始影格上的，而 360 展開會改變畫面形狀：在 360 素材上點擊"
-            "會落到別處。請改用文字提示。"),
-    KO("클릭은 카메라 원본 프레임에 찍히지만 360 펼치기가 그 모양을 바꿉니다. 360 "
-       "촬영에서는 클릭이 엉뚱한 곳에 놓이니 텍스트로 지시하세요."),
-    DE("Klicks werden auf dem Originalbild der Kamera gesetzt, das die "
-       "360-Entfaltung umformt: Bei einer 360-Aufnahme landen sie woanders. "
-       "Nimm stattdessen einen Textprompt."),
-    FR("Les clics sont posés sur l'image d'origine de la caméra, que le "
-       "dépliage 360 remodèle : sur une prise 360 ils tombent ailleurs. "
-       "Utilisez plutôt une invite textuelle."),
-    ES("Los clics se ponen sobre el fotograma propio de la cámara, que el "
-       "desplegado 360 reconfigura: en una toma 360 caen en otro sitio. Usa "
-       "mejor una indicación de texto."),
-    PT("Os cliques são dados no quadro original da câmera, que o desdobramento "
-       "360 remodela: numa captura 360 eles caem em outro lugar. Use antes uma "
-       "instrução de texto."),
-    IT("I clic vengono posti sul fotogramma originale della fotocamera, che lo "
-       "sviluppo 360 rimodella: su una ripresa 360 finiscono altrove. Usa "
-       "piuttosto un prompt testuale."),
-    NL("Kliks worden op het eigen beeld van de camera gezet, dat het "
-       "360-uitvouwen hervormt: bij een 360-opname komen ze ergens anders "
-       "terecht. Gebruik in plaats daarvan een tekstprompt."),
-    RU("Клики ставятся на собственный кадр камеры, который развёртка 360 "
-       "перекраивает: на съёмке 360 они попадут не туда. Задайте подсказку "
-       "текстом."),
-    TR("Tıklamalar kameranın kendi karesine konur, ama 360 açımı o kareyi "
-       "yeniden biçimlendirir: bir 360 çekiminde başka yere düşerler. Bunun "
-       "yerine metinle yönlendirin."));
+SS_MSG(frames_per_second_help_adaptive,
+    EN("The AVERAGE number of frames to keep per second of video; where they "
+       "fall is decided by how much the view changes. A video with a rate of "
+       "its own uses that instead. "
+       "0 keeps every frame, which leaves nothing to space by motion."),
+    JA("動画1秒あたり平均で何フレーム残すかです。どこで残すかは見えの変化量が"
+       "決めます。個別の値を入れた動画はそちらに従います。"
+       "0 にするとすべてのフレームを残すので、動きで間隔を変える余地はなくなり"
+       "ます。"),
+    ZH_HANS("每秒视频平均保留多少帧；具体取在哪里由画面变化量决定。单独设了帧率"
+            "的视频按各自的来。"
+            "设为 0 则保留每一帧，也就没有按运动调整的余地了。"),
+    ZH_HANT("每秒影片平均保留多少影格；具體取在哪裡由畫面變化量決定。單獨設了影格率"
+            "的影片按各自的來。"
+            "設為 0 則保留每一影格，也就沒有依運動調整的空間了。"),
+    KO("동영상 1초당 평균 몇 프레임을 남길지입니다. 어디서 남길지는 시야가 바뀐 "
+       "정도가 정합니다. 자체 값이 있는 동영상은 그 값을 씁니다. "
+       "0이면 모든 프레임을 남기므로 움직임에 따라 간격을 조절할 여지가 없습니다."),
+    DE("Wie viele Bilder je Sekunde Video im DURCHSCHNITT behalten werden; wo "
+       "sie liegen, entscheidet die Änderung des Blicks. Ein Video mit eigener "
+       "Rate nimmt seine eigene. "
+       "0 behält jedes Bild; dann bleibt nichts nach der Bewegung zu "
+       "verteilen."),
+    FR("Le nombre MOYEN d'images conservées par seconde de vidéo ; leur "
+       "emplacement suit le changement de vue. Une vidéo ayant son propre "
+       "débit garde le sien. "
+       "0 conserve toutes les images ; il ne reste alors rien à répartir "
+       "selon le mouvement."),
+    ES("El número MEDIO de fotogramas conservados por segundo de vídeo; dónde "
+       "caen lo decide cuánto cambia la vista. Un vídeo con su propia tasa usa "
+       "la suya. "
+       "0 conserva todos los fotogramas, y entonces no queda nada que "
+       "repartir según el movimiento."),
+    PT("O número MÉDIO de quadros guardados por segundo de vídeo; onde caem "
+       "depende de quanto a vista muda. Um vídeo com taxa própria usa o dele. "
+       "0 mantém todos os quadros, e então não sobra nada para espaçar pelo "
+       "movimento."),
+    IT("Il numero MEDIO di fotogrammi tenuti per secondo di video; dove "
+       "cadono lo decide quanto cambia la vista. Un video con una frequenza "
+       "propria usa la sua. "
+       "0 tiene tutti i fotogrammi, e allora non resta nulla da distribuire "
+       "secondo il movimento."),
+    NL("Het GEMIDDELDE aantal beelden per seconde video; waar ze vallen "
+       "bepaalt hoeveel het beeld verandert. Een video met een eigen tempo "
+       "houdt dat van zichzelf. "
+       "0 bewaart elk beeld; dan valt er niets meer naar de beweging te "
+       "spreiden."),
+    RU("СРЕДНЕЕ число кадров, оставляемых на секунду видео; где именно они "
+       "придутся, решает изменение вида. Видео со своей частотой берёт свою. "
+       "0 оставляет все кадры, и распределять по движению уже нечего."),
+    TR("Videonun her saniyesinden ORTALAMA kaç kare tutulacağı; nereye "
+       "düşecekleri görüntünün ne kadar değiştiğine bağlıdır. Kendi hızı olan "
+       "video kendininkini kullanır. "
+       "0 her kareyi tutar; o zaman harekete göre aralanacak bir şey kalmaz."));
+
+SS_MSG(video_lut_none,
+    EN("No LUT"), JA("LUT なし"), ZH_HANS("无 LUT"), ZH_HANT("無 LUT"),
+    KO("LUT 없음"), DE("Keine LUT"), FR("Aucune LUT"), ES("Sin LUT"),
+    PT("Sem LUT"), IT("Nessuna LUT"), NL("Geen LUT"), RU("Без LUT"),
+    TR("LUT yok"));
+
+SS_MSG(video_lut_choose,
+    EN("Choose a .cube file..."), JA(".cube ファイルを選択..."),
+    ZH_HANS("选择 .cube 文件…"), ZH_HANT("選擇 .cube 檔案…"),
+    KO(".cube 파일 선택..."), DE(".cube-Datei wählen..."),
+    FR("Choisir un fichier .cube..."), ES("Elegir un archivo .cube..."),
+    PT("Escolher um arquivo .cube..."), IT("Scegli un file .cube..."),
+    NL("Een .cube-bestand kiezen..."), RU("Выбрать файл .cube..."),
+    TR(".cube dosyası seç..."));
+
+SS_MSG(video_lut_pick_title,
+    EN("Choose a colour LUT (.cube)"), JA("カラー LUT（.cube）を選択"),
+    ZH_HANS("选择颜色 LUT（.cube）"), ZH_HANT("選擇色彩 LUT（.cube）"),
+    KO("색상 LUT(.cube) 선택"), DE("Farb-LUT (.cube) wählen"),
+    FR("Choisir une LUT couleur (.cube)"), ES("Elegir una LUT de color (.cube)"),
+    PT("Escolher uma LUT de cor (.cube)"), IT("Scegli una LUT colore (.cube)"),
+    NL("Een kleur-LUT (.cube) kiezen"), RU("Выбрать цветовую LUT (.cube)"),
+    TR("Renk LUT'u seç (.cube)"));
+
+SS_MSG(video_lut_auto,
+    EN("Automatic"), JA("自動"), ZH_HANS("自动"), ZH_HANT("自動"), KO("자동"),
+    DE("Automatisch"), FR("Automatique"), ES("Automático"), PT("Automático"),
+    IT("Automatico"), NL("Automatisch"), RU("Автоматически"), TR("Otomatik"));
+
+SS_MSG(video_lut_auto_help,
+    EN("The LUT the clip's own metadata names, when it was shot in a log profile "
+       "Spirula knows; otherwise the choice made on a row above, or none."),
+    JA("Spirula が知っているログプロファイルで撮影されたクリップなら、そのメタデータが"
+       "示す LUT。そうでなければ上の行での選択、それもなければ LUT なし。"),
+    ZH_HANS("片段若以 Spirula 认识的 Log 配置拍摄，就用其元数据所指的 LUT；否则沿用"
+            "上面某一行的选择，都没有则不套用。"),
+    ZH_HANT("片段若以 Spirula 認得的 Log 設定檔拍攝，就用其中繼資料所指的 LUT；否則"
+            "沿用上面某一行的選擇，都沒有則不套用。"),
+    KO("Spirula가 아는 로그 프로필로 촬영된 클립이면 메타데이터가 가리키는 LUT, "
+       "아니면 위 행에서 고른 것, 그것도 없으면 LUT 없음."),
+    DE("Die LUT, die die Metadaten des Clips nennen, wenn er in einem Log-Profil "
+       "gedreht wurde, das Spirula kennt; sonst die Wahl einer Zeile darüber, oder keine."),
+    FR("La LUT que nomment les métadonnées du clip, s'il a été tourné dans un profil "
+       "log que Spirula connaît ; sinon le choix fait sur une ligne au-dessus, ou aucune."),
+    ES("La LUT que indican los metadatos del clip, si se grabó en un perfil log que "
+       "Spirula conoce; si no, la elegida en una fila de arriba, o ninguna."),
+    PT("A LUT indicada pelos metadados do clipe, se foi gravado num perfil log que o "
+       "Spirula conhece; senão, a escolhida numa linha acima, ou nenhuma."),
+    IT("La LUT indicata dai metadati del clip, se è stato girato in un profilo log "
+       "che Spirula conosce; altrimenti la scelta fatta in una riga sopra, o nessuna."),
+    NL("De LUT die de metadata van de clip noemt, als die is opgenomen in een "
+       "log-profiel dat Spirula kent; anders de keuze van een rij erboven, of geen."),
+    RU("LUT, указанная в метаданных клипа, если он снят в известном Spirula "
+       "лог-профиле; иначе выбор из строки выше или никакой."),
+    TR("Klip Spirula'nın bildiği bir log profiliyle çekildiyse meta verisinin "
+       "belirttiği LUT; değilse yukarıdaki bir satırda yapılan seçim, o da yoksa hiçbiri."));
+
+SS_MSG(video_lut_help,
+    EN("A 3D colour LUT baked into this video's frames as they are extracted -- "
+       "the camera maker's log-to-Rec.709 LUT turns flat log footage into the "
+       "colours the reconstruction and the model should see. The built-in ones "
+       "approximate each maker's LUT with formulas; any other is a .cube file.\nNow: {0}"),
+    JA("抽出時にこの動画のフレームへ焼き込む 3D カラー LUT です。メーカー提供の"
+       "ログ→Rec.709 LUT を使うと、眠いログ映像が再構成とモデルに渡すべき色になります。"
+       "内蔵のものは各メーカーの LUT を数式で近似したもので、それ以外は .cube "
+       "ファイルを選びます。\n現在：{0}"),
+    ZH_HANS("抽帧时烘焙进这个视频每一帧的 3D 颜色 LUT。用相机厂商提供的 Log 转 "
+            "Rec.709 LUT，可以把灰平的 Log 素材还原成重建和模型应该看到的颜色。"
+            "内置的是用公式近似各厂商 LUT 的版本；其他的请选 .cube 文件。\n当前：{0}"),
+    ZH_HANT("抽幀時烘焙進這個影片每一幀的 3D 色彩 LUT。用相機廠商提供的 Log 轉 "
+            "Rec.709 LUT，可以把灰平的 Log 素材還原成重建和模型應該看到的顏色。"
+            "內建的是用公式近似各廠商 LUT 的版本；其他的請選 .cube 檔案。\n目前：{0}"),
+    KO("추출할 때 이 영상의 프레임에 구워 넣는 3D 색상 LUT입니다. 제조사의 로그→"
+       "Rec.709 LUT를 쓰면 밋밋한 로그 영상이 재구성과 모델이 봐야 할 색이 됩니다. "
+       "내장 LUT는 각 제조사의 LUT를 수식으로 근사한 것이고, 그 밖의 것은 .cube "
+       "파일을 고르면 됩니다.\n현재: {0}"),
+    DE("Eine 3D-Farb-LUT, die beim Extrahieren in die Einzelbilder dieses Videos "
+       "eingerechnet wird -- die Log-zu-Rec.709-LUT des Herstellers macht aus "
+       "flachem Log-Material die Farben, die Rekonstruktion und Modell sehen "
+       "sollen. Die eingebauten bilden die LUT des jeweiligen "
+       "Herstellers mit Formeln nach; jede andere ist eine .cube-Datei.\nJetzt: {0}"),
+    FR("Une LUT couleur 3D appliquée aux images de cette vidéo à l'extraction -- "
+       "la LUT log vers Rec.709 du fabricant rend aux images log les couleurs "
+       "que la reconstruction et le modèle doivent voir. Les LUT intégrées "
+       "approchent par des formules celle de chaque fabricant ; toute autre est un "
+       "fichier .cube.\nActuelle : {0}"),
+    ES("Una LUT de color 3D aplicada a los fotogramas de este vídeo al "
+       "extraerlos: la LUT log a Rec.709 del fabricante devuelve al material log "
+       "los colores que deben ver la reconstrucción y el modelo. Las integradas "
+       "aproximan con fórmulas la LUT de cada fabricante; cualquier otra es un "
+       "archivo .cube.\nAhora: {0}"),
+    PT("Uma LUT de cor 3D aplicada aos fotogramas deste vídeo na extração -- a "
+       "LUT log para Rec.709 do fabricante devolve ao material log as cores que "
+       "a reconstrução e o modelo devem ver. As integradas aproximam com fórmulas "
+       "a LUT de cada fabricante; qualquer outra é um arquivo .cube.\nAgora: {0}"),
+    IT("Una LUT colore 3D applicata ai fotogrammi di questo video durante "
+       "l'estrazione: la LUT log-Rec.709 del produttore restituisce al materiale "
+       "log i colori che ricostruzione e modello devono vedere. Quelle integrate "
+       "approssimano con formule la LUT di ciascun produttore; ogni altra è un "
+       "file .cube.\nOra: {0}"),
+    NL("Een 3D-kleur-LUT die bij het extraheren in de beelden van deze video "
+       "wordt ingebakken -- de log-naar-Rec.709-LUT van de fabrikant geeft "
+       "vlakke log-opnamen de kleuren die reconstructie en model moeten zien. "
+       "De ingebouwde benaderen de LUT van elke fabrikant met formules; elke "
+       "andere is een .cube-bestand.\nNu: {0}"),
+    RU("3D-LUT цвета, запекаемая в кадры этого видео при извлечении: LUT "
+       "производителя «лог → Rec.709» возвращает плоскому лог-материалу цвета, "
+       "которые должны видеть реконструкция и модель. Встроенные приближают "
+       "LUT каждого производителя формулами; любая другая — файл .cube.\nСейчас: {0}"),
+    TR("Kareler çıkarılırken bu videonun karelerine işlenen 3D renk LUT'u -- "
+       "üreticinin log'dan Rec.709'a LUT'u düz log görüntüye, yeniden "
+       "oluşturmanın ve modelin görmesi gereken renkleri verir. Yerleşik olanlar "
+       "her üreticinin LUT'una formüllerle yaklaşır; diğerleri bir .cube "
+       "dosyasıdır.\nŞu an: {0}"));
+
+SS_MSG(video_fps_this_one_help,
+    EN("Frames per second for this video alone. \"^\" is following the video "
+       "above it; type that rate back in to go back to following. "
+       "0 keeps every frame of it."),
+    JA("この動画だけの毎秒フレーム数です。「^」は上の動画に従っている印で、"
+       "上と同じ値を入れ直すとまた従います。"
+       "0 にするとこの動画のすべてのフレームを残します。"),
+    ZH_HANS("仅用于这个视频的每秒帧数。「^」表示跟随上面那个视频；改回上面的值"
+            "就重新跟随。"
+            "设为 0 则保留它的每一帧。"),
+    ZH_HANT("僅用於這個影片的每秒影格數。「^」表示跟隨上面那個影片；改回上面的"
+            "值就重新跟隨。"
+            "設為 0 則保留它的每一影格。"),
+    KO("이 동영상에만 적용되는 초당 프레임 수입니다. \"^\"는 위 동영상을 따르고 "
+       "있다는 뜻이며, 그 값을 다시 입력하면 다시 따릅니다. "
+       "0이면 이 동영상의 모든 프레임을 남깁니다."),
+    DE("Bilder je Sekunde nur für dieses Video. \"^\" heißt, es folgt dem Video "
+       "darüber; die Rate wieder eintragen, und es folgt erneut. "
+       "0 behält jedes seiner Bilder."),
+    FR("Images par seconde pour cette vidéo seule. « ^ » signifie qu'elle suit "
+       "la vidéo au-dessus ; retapez ce débit pour qu'elle la suive à nouveau. "
+       "0 en conserve toutes les images."),
+    ES("Fotogramas por segundo solo para este vídeo. «^» es que sigue al vídeo "
+       "de arriba; vuelve a escribir esa tasa para que lo siga otra vez. "
+       "0 conserva todos sus fotogramas."),
+    PT("Quadros por segundo só para este vídeo. \"^\" é seguir o vídeo acima; "
+       "escreva essa taxa outra vez para voltar a segui-lo. "
+       "0 mantém todos os quadros dele."),
+    IT("Fotogrammi al secondo solo per questo video. \"^\" vuol dire che segue "
+       "il video qui sopra; riscrivi quella frequenza e torna a seguirlo. "
+       "0 ne tiene tutti i fotogrammi."),
+    NL("Beelden per seconde alleen voor deze video. \"^\" is de video hierboven "
+       "volgen; typ dat tempo terug om weer te volgen. "
+       "0 bewaart er elk beeld van."),
+    RU("Кадров в секунду только для этого видео. «^» значит, что оно следует за "
+       "видео выше; введите ту же частоту, чтобы снова следовать. "
+       "0 оставляет все его кадры."),
+    TR("Yalnızca bu video için saniyedeki kare sayısı. \"^\", üstündeki videoyu "
+       "izlediği anlamına gelir; o hızı yeniden yazınca yine izler. "
+       "0 onun her karesini tutar."));
+
+SS_MSG(adaptive_fps,
+    EN("Adapt the rate to the motion"),
+    JA("動きに合わせてレートを変える"),
+    ZH_HANS("按运动调整帧率"),
+    ZH_HANT("依運動調整影格率"),
+    KO("움직임에 맞춰 속도 조절"),
+    DE("Rate an die Bewegung anpassen"),
+    FR("Adapter le débit au mouvement"),
+    ES("Adaptar la tasa al movimiento"),
+    PT("Adaptar a taxa ao movimento"),
+    IT("Adatta la frequenza al movimento"),
+    NL("Tempo aanpassen aan de beweging"),
+    RU("Подстраивать частоту под движение"),
+    TR("Hızı harekete göre ayarla"));
+
+SS_MSG(adaptive_fps_help,
+    EN("Keep more frames where the camera moves fast or passes close to "
+       "something, fewer where it only turns on the spot or looks at distant "
+       "scenery. The rate above becomes the average. Costs one extra pass "
+       "over each video."),
+    JA("カメラが速く動いたときや近くの物のそばを通ったときは多めに、その場で"
+       "向きを変えただけのときや遠景を見ているときは少なめに残します。上の"
+       "レートは平均値になります。動画ごとに1回分の解析が余計にかかります。"),
+    ZH_HANS("相机移动快或贴近物体时多留几帧，原地转动或只看远景时少留。上面的帧率"
+            "变成平均值。每个视频要多跑一遍分析。"),
+    ZH_HANT("相機移動快或貼近物體時多留幾格，原地轉動或只看遠景時少留。上面的影格率"
+            "變成平均值。每個影片要多跑一遍分析。"),
+    KO("카메라가 빠르게 움직이거나 가까운 물체를 지날 때는 더 많이, 제자리에서 "
+       "돌거나 먼 풍경만 볼 때는 더 적게 남깁니다. 위의 속도는 평균이 됩니다. "
+       "동영상마다 분석 패스가 한 번 더 듭니다."),
+    DE("Mehr Bilder behalten, wo die Kamera schnell fährt oder dicht an etwas "
+       "vorbeikommt, weniger, wo sie sich nur dreht oder in die Ferne sieht. "
+       "Die Rate oben wird der Durchschnitt. Kostet einen zusätzlichen "
+       "Durchlauf je Video."),
+    FR("Conserver davantage d'images là où la caméra va vite ou frôle un "
+       "objet, moins là où elle pivote sur place ou regarde au loin. Le débit "
+       "ci-dessus devient la moyenne. Coûte une passe supplémentaire par "
+       "vidéo."),
+    ES("Conservar más fotogramas donde la cámara va rápido o pasa cerca de "
+       "algo, y menos donde solo gira sobre sí misma o mira a lo lejos. La "
+       "tasa de arriba pasa a ser el promedio. Cuesta una pasada más por "
+       "vídeo."),
+    PT("Guardar mais quadros onde a câmera anda depressa ou passa perto de "
+       "algo, e menos onde apenas gira no lugar ou olha ao longe. A taxa "
+       "acima passa a ser a média. Custa uma passagem extra por vídeo."),
+    IT("Tenere più fotogrammi dove la camera va veloce o sfiora qualcosa, "
+       "meno dove ruota sul posto o guarda lontano. La frequenza qui sopra "
+       "diventa la media. Costa un passaggio in più per video."),
+    NL("Meer beelden bewaren waar de camera snel gaat of vlak langs iets "
+       "komt, minder waar hij alleen draait of in de verte kijkt. Het tempo "
+       "hierboven wordt het gemiddelde. Kost één extra doorloop per video."),
+    RU("Оставлять больше кадров там, где камера идёт быстро или проходит "
+       "близко к предмету, и меньше там, где она лишь поворачивается на месте "
+       "или смотрит вдаль. Частота сверху становится средней. Стоит одного "
+       "дополнительного прохода на каждое видео."),
+    TR("Kamera hızlı giderken ya da bir şeyin yakınından geçerken daha çok, "
+       "yerinde dönerken ya da uzağa bakarken daha az kare tut. Yukarıdaki "
+       "hız ortalama olur. Her video için bir ek geçişe mal olur."));
+
+SS_MSG(adaptive_fps_every_frame,
+    EN("Every video keeps every frame (0 fps), so adapting the rate to the "
+       "motion has no effect."),
+    JA("どの動画もすべてのフレームを残す設定（0 fps）なので、動きに合わせた"
+       "レート調整は効きません。"),
+    ZH_HANS("所有视频都保留每一帧（0 fps），按运动调整帧率不会起作用。"),
+    ZH_HANT("所有影片都保留每一影格（0 fps），依運動調整影格率不會起作用。"),
+    KO("모든 동영상이 모든 프레임을 남기므로(0 fps) 움직임에 맞춘 속도 조절은 "
+       "효과가 없습니다."),
+    DE("Jedes Video behält jedes Bild (0 fps), die Anpassung an die Bewegung "
+       "wirkt daher nicht."),
+    FR("Chaque vidéo conserve toutes ses images (0 fps) : adapter le débit au "
+       "mouvement n'a donc aucun effet."),
+    ES("Todos los vídeos conservan todos sus fotogramas (0 fps), así que "
+       "adaptar la tasa al movimiento no tiene efecto."),
+    PT("Todos os vídeos mantêm todos os quadros (0 fps), então adaptar a taxa "
+       "ao movimento não tem efeito."),
+    IT("Ogni video tiene tutti i fotogrammi (0 fps), quindi adattare la "
+       "frequenza al movimento non ha effetto."),
+    NL("Elke video bewaart elk beeld (0 fps), dus het tempo aanpassen aan de "
+       "beweging doet niets."),
+    RU("Каждое видео оставляет все кадры (0 fps), поэтому подстройка частоты "
+       "под движение ни на что не влияет."),
+    TR("Her video her kareyi tutuyor (0 fps), bu yüzden hızı harekete göre "
+       "ayarlamanın etkisi yok."));
+
+SS_MSG(adaptive_range,
+    EN("Spread"),
+    JA("振れ幅"),
+    ZH_HANS("浮动范围"),
+    ZH_HANT("浮動範圍"),
+    KO("변동 폭"),
+    DE("Spanne"),
+    FR("Amplitude"),
+    ES("Margen"),
+    PT("Margem"),
+    IT("Escursione"),
+    NL("Spreiding"),
+    RU("Разброс"),
+    TR("Aralık"));
+
+SS_MSG(adaptive_range_help,
+    EN("How far the rate may stray from the average, either way. 4 lets it "
+       "run between a quarter of it and four times it."),
+    JA("レートが平均からどこまで離れてよいかです。4 なら平均の 1/4 から 4 倍まで"
+       "振れます。"),
+    ZH_HANS("帧率相对平均值的上下浮动倍数。设为 4 表示可在平均值的 1/4 到 4 倍之间。"),
+    ZH_HANT("影格率相對平均值的上下浮動倍數。設為 4 表示可在平均值的 1/4 到 4 倍之間。"),
+    KO("속도가 평균에서 얼마나 벗어날 수 있는지입니다. 4면 평균의 1/4에서 4배 "
+       "사이를 오갑니다."),
+    DE("Wie weit die Rate nach beiden Seiten vom Durchschnitt abweichen darf. "
+       "Bei 4 reicht sie von einem Viertel bis zum Vierfachen."),
+    FR("De combien le débit peut s'écarter de la moyenne, dans les deux sens. "
+       "4 le laisse aller du quart au quadruple."),
+    ES("Cuánto puede alejarse la tasa del promedio, en ambos sentidos. Con 4 "
+       "va de la cuarta parte al cuádruple."),
+    PT("Quanto a taxa pode afastar-se da média, nos dois sentidos. Com 4 vai "
+       "de um quarto ao quádruplo."),
+    IT("Di quanto la frequenza può scostarsi dalla media, in entrambi i sensi. "
+       "Con 4 va da un quarto al quadruplo."),
+    NL("Hoever het tempo van het gemiddelde mag afwijken, beide kanten op. "
+       "Bij 4 loopt het van een kwart tot vier keer."),
+    RU("Насколько частота может отходить от средней в обе стороны. При 4 она "
+       "идёт от четверти до четырёхкратной."),
+    TR("Hızın ortalamadan iki yöne de ne kadar sapabileceği. 4 olunca dörtte "
+       "birinden dört katına kadar gider."));
 
 SS_MSG(pano360_output,
     EN("Unwrap into (360 video)"),
@@ -2764,6 +3782,538 @@ SS_MSG(pano360_colmap_warning,
     TR("COLMAP'te küresel kamera yok. Perspektif görünümleri seçin ya da "
        "yerleşik motorla geri çatın."));
 
+SS_MSG(skip_blurry,
+    EN("Skip blurry frames"),
+    JA("ぶれたフレームを除外"),
+    ZH_HANS("跳过模糊帧"),
+    ZH_HANT("略過模糊影格"),
+    KO("흐린 프레임 건너뛰기"),
+    DE("Unscharfe Bilder überspringen"),
+    FR("Ignorer les images floues"),
+    ES("Omitir fotogramas borrosos"),
+    PT("Ignorar quadros borrados"),
+    IT("Salta i fotogrammi sfocati"),
+    NL("Onscherpe beelden overslaan"),
+    RU("Пропускать размытые кадры"),
+    TR("Bulanık kareleri atla"));
+
+SS_MSG(skip_blurry_help,
+    EN("Leave out the frames blurred past the threshold. The blur is "
+       "measured on each frame by itself, from how wide its edges are: "
+       "video frames, image sequences and photographs alike."),
+    JA("しきい値を超えてぶれたフレームを除外します。ぶれはフレームごとにエッジの"
+       "幅から測るので、動画のフレーム、連番画像、写真のどれでも同じです。"),
+    ZH_HANS("剔除模糊超过阈值的帧。模糊按每一帧自身的边缘宽度测量：视频帧、图像序列和"
+            "照片都一样。"),
+    ZH_HANT("剔除模糊超過閾值的影格。模糊依每個影格自身的邊緣寬度測量：視訊影格、影像"
+            "序列和照片都一樣。"),
+    KO("임계값보다 더 흐린 프레임을 뺍니다. 흐림은 각 프레임의 가장자리"
+       " 폭으로 측정하므로 동영상 프레임, 이미지 시퀀스, 사진 모두 같"
+       "습니다."),
+    DE("Lässt die Bilder aus, die über die Schwelle hinaus unscharf sind. "
+       "Die Unschärfe wird an jedem Bild für sich gemessen, an der Breite "
+       "seiner Kanten: Videobilder, Bildsequenzen und Fotos gleichermaßen."),
+    FR("Écarte les images floues au-delà du seuil. Le flou est mesuré sur "
+       "chaque image, d’après la largeur de ses contours : images de "
+       "vidéo, séquences d’images et photos de la même façon."),
+    ES("Descarta los fotogramas desenfocados más allá del umbral. El "
+       "desenfoque se mide en cada fotograma por sí solo, por el ancho de "
+       "sus bordes: fotogramas de vídeo, secuencias de imágenes y "
+       "fotografías por igual."),
+    PT("Deixa de fora os quadros borrados além do limiar. O borrão é "
+       "medido em cada quadro, pela largura das suas bordas: quadros de "
+       "vídeo, sequências de imagens e fotografias da mesma forma."),
+    IT("Scarta i fotogrammi sfocati oltre la soglia. La sfocatura si "
+       "misura su ogni fotogramma, dalla larghezza dei suoi bordi: "
+       "fotogrammi video, sequenze di immagini e fotografie allo stesso "
+       "modo."),
+    NL("Laat de beelden weg die voorbij de drempel onscherp zijn. De "
+       "onscherpte wordt op elk beeld afzonderlijk gemeten, aan de breedte"
+       " van de randen: videobeelden, beeldreeksen en foto’s op dezelfde "
+       "manier."),
+    RU("Исключает кадры, размытые сильнее порога. Размытие измеряется по "
+       "самому кадру, по ширине его границ: одинаково для кадров видео, "
+       "последовательностей изображений и фотографий."),
+    TR("Eşiğin ötesinde bulanık olan kareleri dışarıda bırakır. Bulanıklık"
+       " her karenin kendisinde, kenarlarının genişliğinden ölçülür: video"
+       " kareleri, görüntü dizileri ve fotoğraflar için aynı şekilde."));
+
+SS_MSG(blur_review,
+    EN("Set by hand (the run pauses)"),
+    JA("手動で設定（処理を一時停止）"),
+    ZH_HANS("手动设置（运行会暂停）"),
+    ZH_HANT("手動設定（執行會暫停）"),
+    KO("직접 설정(실행이 일시 중지됨)"),
+    DE("Von Hand einstellen (der Lauf pausiert)"),
+    FR("Régler à la main (le traitement se met en pause)"),
+    ES("Ajustar a mano (el proceso se pausa)"),
+    PT("Ajustar à mão (a execução pausa)"),
+    IT("Imposta a mano (l’esecuzione va in pausa)"),
+    NL("Met de hand instellen (de run pauzeert)"),
+    RU("Задать вручную (запуск приостановится)"),
+    TR("Elle ayarla (çalışma duraklar)"));
+
+SS_MSG(blur_review_help,
+    EN("PAUSES the run once the frames are out and opens the Sharpness "
+       "view. Set the threshold there while looking at the frames, then "
+       "press Continue; masks, reconstruction and depth are not started "
+       "until then."),
+    JA("フレームを取り出した時点で処理を一時停止し、「シャープさ」ビューを開きま"
+       "す。フレームを見ながらしきい値を決め、「これらのフレームで続行」を押して"
+       "ください。マスク、再構成、深度はそれまで始まりません。"),
+    ZH_HANS("帧提取完成后会暂停运行并打开“清晰度”视图。一边查看帧一边设置阈值，然后"
+            "按“用这些帧继续”；在此之前不会开始生成蒙版、重建和深度。"),
+    ZH_HANT("影格擷取完成後會暫停執行並開啟「清晰度」檢視。一邊查看影格一邊設定閾值，"
+            "然後按「用這些影格繼續」；在此之前不會開始建立遮罩、重建和深度。"),
+    KO("프레임을 뽑은 뒤 실행을 멈추고 ‘선명도’ 보기를 엽니다. 프레임"
+       "을 보면서 임계값을 정한 다음 ‘이 프레임으로 계속’을 누르세요."
+       " 그때까지 마스크, 재구성, 깊이는 시작하지 않습니다."),
+    DE("HÄLT den Lauf AN, sobald die Bilder entnommen sind, und öffnet die"
+       " Ansicht „Schärfe“. Dort die Schwelle beim Betrachten der Bilder "
+       "einstellen und dann „Mit diesen Bildern fortfahren“ drücken; "
+       "Masken, Rekonstruktion und Tiefe beginnen erst danach."),
+    FR("MET le traitement EN PAUSE une fois les images extraites et ouvre "
+       "la vue « Netteté ». Réglez-y le seuil en regardant les images, "
+       "puis appuyez sur « Continuer avec ces images » ; masques, "
+       "reconstruction et profondeur ne commencent pas avant."),
+    ES("PAUSA el proceso cuando los fotogramas ya están extraídos y abre "
+       "la vista «Nitidez». Ajuste allí el umbral mirando los fotogramas y"
+       " pulse «Continuar con estos fotogramas»; las máscaras, la "
+       "reconstrucción y la profundidad no empiezan hasta entonces."),
+    PT("PAUSA a execução quando os quadros já foram extraídos e abre a "
+       "vista “Nitidez”. Ajuste ali o limiar olhando os quadros e "
+       "pressione “Continuar com estes quadros”; máscaras, reconstrução e "
+       "profundidade só começam depois disso."),
+    IT("METTE IN PAUSA l’esecuzione una volta estratti i fotogrammi e apre"
+       " la vista «Nitidezza». Imposta lì la soglia guardando i "
+       "fotogrammi, poi premi «Continua con questi fotogrammi»; maschere, "
+       "ricostruzione e profondità non iniziano prima."),
+    NL("PAUZEERT de run zodra de beelden zijn uitgenomen en opent de "
+       "weergave ‘Scherpte’. Stel daar de drempel in terwijl je de beelden"
+       " bekijkt en druk dan op ‘Doorgaan met deze beelden’; maskers, "
+       "reconstructie en diepte beginnen pas daarna."),
+    RU("ПРИОСТАНАВЛИВАЕТ запуск, когда кадры извлечены, и открывает вид "
+       "«Резкость». Задайте там порог, глядя на кадры, и нажмите "
+       "«Продолжить с этими кадрами»; маски, реконструкция и глубина до "
+       "этого не начинаются."),
+    TR("Kareler çıkarılınca çalışmayı DURAKLATIR ve “Keskinlik” görünümünü"
+       " açar. Karelere bakarak eşiği orada ayarlayın, sonra “Bu karelerle"
+       " devam et” düğmesine basın; maskeler, yeniden kurma ve derinlik o "
+       "zamana kadar başlamaz."));
+
+SS_MSG(blur_every_frame,
+    EN("A video that keeps every frame (0 fps) is not sorted: nothing is "
+       "skipped from it."),
+    JA("すべてのフレームを残す動画（0 fps）は仕分けしません。そこからは何も"
+       "除外されません。"),
+    ZH_HANS("保留每一帧的视频（0 fps）不做整理：不会从中跳过任何帧。"),
+    ZH_HANT("保留每個影格的視訊（0 fps）不做整理：不會從中略過任何影格。"),
+    KO("모든 프레임을 남기는 동영상(0 fps)은 정리하지 않습니다. 거"
+       "기서는 아무것도 건너뛰지 않습니다."),
+    DE("Ein Video, das jedes Bild behält (0 fps), wird nicht sortiert: "
+       "daraus wird nichts übersprungen."),
+    FR("Une vidéo qui garde toutes ses images (0 fps) n’est pas triée : "
+       "rien n’y est ignoré."),
+    ES("Un vídeo que conserva todos los fotogramas (0 fps) no se ordena: "
+       "no se omite nada de él."),
+    PT("Um vídeo que mantém todos os quadros (0 fps) não é organizado: "
+       "nada dele é ignorado."),
+    IT("Un video che tiene tutti i fotogrammi (0 fps) non viene "
+       "riordinato: non ne viene saltato nessuno."),
+    NL("Een video die elk beeld behoudt (0 fps) wordt niet gesorteerd: er "
+       "wordt niets uit overgeslagen."),
+    RU("Видео, из которого берётся каждый кадр (0 fps), не сортируется: из"
+       " него ничего не пропускается."),
+    TR("Her kareyi tutan bir video (0 fps) ayıklanmaz: ondan hiçbir kare "
+       "atlanmaz."));
+
+SS_MSG(plan_sort,
+    EN("Sort: leave the blurry ones out, keep what is built"),
+    JA("仕分け: ぶれたものを外し、作成済みのものは残す"),
+    ZH_HANS("整理：剔除模糊帧，保留已生成的内容"),
+    ZH_HANT("整理：剔除模糊影格，保留已建立的內容"),
+    KO("정리: 흐린 프레임은 빼고, 이미 만든 것은 유지"),
+    DE("Sortieren: unscharfe Bilder auslassen, Erstelltes behalten"),
+    FR("Trier : écarter les images floues, garder ce qui est construit"),
+    ES("Ordenar: apartar los borrosos, conservar lo ya construido"),
+    PT("Organizar: deixar de fora os borrados, manter o que já foi feito"),
+    IT("Riordina: scarta gli sfocati, tieni ciò che è già costruito"),
+    NL("Sorteren: onscherpe beelden weglaten, het gebouwde behouden"),
+    RU("Сортировка: убрать размытые, готовое оставить"),
+    TR("Ayıkla: bulanıkları çıkar, kurulmuş olanı koru"));
+
+SS_MSG(blur_kept_note,
+    EN("Not applied: this run keeps the frames the dataset already has. "
+       "Untick \"Keep the existing frames and reconstruction\" to sort "
+       "them again."),
+    JA("適用されません: 今回はデータセットに今あるフレームを残します。仕分け直"
+       "すには「いまあるフレームと再構成を残す」のチェックを外してください。"),
+    ZH_HANS("未应用：本次运行保留数据集已有的帧。要重新整理，请取消勾选“保留现有的帧"
+            "和重建”。"),
+    ZH_HANT("未套用：本次執行保留資料集已有的影格。要重新整理，請取消勾選「保留現有的"
+            "影格和重建」。"),
+    KO("적용되지 않음: 이번 실행은 데이터셋에 이미 있는 프레임을 그대로"
+       " 둡니다. 다시 정리하려면 ‘지금 있는 프레임과 재구성 남겨 두기"
+       "’를 해제하세요."),
+    DE("Nicht angewendet: dieser Lauf behält die Bilder, die der Datensatz"
+       " schon hat. „Vorhandene Bilder und Rekonstruktion behalten“ "
+       "abwählen, um sie neu zu sortieren."),
+    FR("Non appliqué : ce traitement garde les images que le jeu de "
+       "données a déjà. Décochez « Garder les images et la reconstruction "
+       "existantes » pour les trier de nouveau."),
+    ES("No aplicado: este proceso conserva los fotogramas que el conjunto "
+       "de datos ya tiene. Desmarque «Conservar los fotogramas y la "
+       "reconstrucción existentes» para volver a ordenarlos."),
+    PT("Não aplicado: esta execução mantém os quadros que o conjunto de "
+       "dados já tem. Desmarque “Manter os quadros e a reconstrução "
+       "existentes” para organizá-los de novo."),
+    IT("Non applicato: questa esecuzione tiene i fotogrammi che il set di "
+       "dati ha già. Deseleziona «Tenere i fotogrammi e la ricostruzione "
+       "esistenti» per riordinarli."),
+    NL("Niet toegepast: deze run behoudt de beelden die de dataset al "
+       "heeft. Vink ‘Bestaande beelden en reconstructie behouden’ uit om "
+       "ze opnieuw te sorteren."),
+    RU("Не применено: при этом запуске остаются кадры, которые уже есть в "
+       "наборе данных. Снимите флажок «Оставить имеющиеся кадры и "
+       "реконструкцию», чтобы отсортировать их заново."),
+    TR("Uygulanmadı: bu çalışma veri kümesinde zaten bulunan kareleri "
+       "korur. Yeniden ayıklamak için “Mevcut kareleri ve yeniden kurmayı "
+       "koru” işaretini kaldırın."));
+
+SS_MSG(blur_review_note,
+    EN("The run will pause after the frames, in the Sharpness view, until "
+       "you press Continue."),
+    JA("フレームの取り出し後、「シャープさ」ビューで処理が一時停止し、「これらの"
+       "フレームで続行」を押すまで待ちます。"),
+    ZH_HANS("提取帧之后，运行会在“清晰度”视图中暂停，直到你按下“用这些帧继续”。"),
+    ZH_HANT("擷取影格之後，執行會在「清晰度」檢視中暫停，直到你按下「用這些影格繼續」"
+            "。"),
+    KO("프레임을 뽑은 뒤 ‘선명도’ 보기에서 실행이 멈추고, ‘이 프레임"
+       "으로 계속’을 누를 때까지 기다립니다."),
+    DE("Der Lauf hält nach den Bildern in der Ansicht „Schärfe“ an, bis "
+       "„Mit diesen Bildern fortfahren“ gedrückt wird."),
+    FR("Le traitement se mettra en pause après les images, dans la vue « "
+       "Netteté », jusqu’à ce que vous appuyiez sur « Continuer avec ces "
+       "images »."),
+    ES("El proceso se pausará después de los fotogramas, en la vista "
+       "«Nitidez», hasta que pulse «Continuar con estos fotogramas»."),
+    PT("A execução vai pausar depois dos quadros, na vista “Nitidez”, até "
+       "você pressionar “Continuar com estes quadros”."),
+    IT("L’esecuzione andrà in pausa dopo i fotogrammi, nella vista "
+       "«Nitidezza», finché non premi «Continua con questi fotogrammi»."),
+    NL("De run pauzeert na de beelden, in de weergave ‘Scherpte’, totdat "
+       "je op ‘Doorgaan met deze beelden’ drukt."),
+    RU("Запуск приостановится после кадров, в виде «Резкость», пока вы не "
+       "нажмёте «Продолжить с этими кадрами»."),
+    TR("Çalışma karelerden sonra “Keskinlik” görünümünde duraklar ve siz "
+       "“Bu karelerle devam et” düğmesine basana kadar bekler."));
+
+SS_MSG(blur_review_no_pause,
+    EN("Only the built-in engine pauses, and never in a batch: here the "
+       "threshold is applied as it stands."),
+    JA("一時停止するのは内蔵エンジンだけで、バッチでは停止しません。ここではしき"
+       "い値がそのまま適用されます。"),
+    ZH_HANS("只有内置引擎会暂停，批处理中从不暂停：这里会直接按当前阈值处理。"),
+    ZH_HANT("只有內建引擎會暫停，批次處理中從不暫停：這裡會直接依目前的閾值處理。"),
+    KO("내장 엔진만 멈추며, 일괄 처리에서는 멈추지 않습니다. 여기서는 "
+       "임계값이 그대로 적용됩니다."),
+    DE("Nur die eingebaute Engine hält an, und nie in einem Stapel: hier "
+       "wird die Schwelle so angewendet, wie sie steht."),
+    FR("Seul le moteur intégré se met en pause, et jamais dans un lot : "
+       "ici le seuil est appliqué tel quel."),
+    ES("Solo el motor integrado se pausa, y nunca en un lote: aquí el "
+       "umbral se aplica tal como está."),
+    PT("Só o motor integrado pausa, e nunca em um lote: aqui o limiar é "
+       "aplicado como está."),
+    IT("Solo il motore integrato va in pausa, e mai in un batch: qui la "
+       "soglia viene applicata così com’è."),
+    NL("Alleen de ingebouwde engine pauzeert, en nooit in een batch: hier "
+       "wordt de drempel toegepast zoals die staat."),
+    RU("Приостанавливается только встроенный движок, и никогда в пакете: "
+       "здесь порог применяется как есть."),
+    TR("Yalnızca yerleşik motor duraklar, toplu işte ise hiç duraklamaz: "
+       "burada eşik olduğu gibi uygulanır."));
+
+SS_MSG(keep_skipped,
+    EN("Keep the skipped frames"),
+    JA("除外したフレームを残す"),
+    ZH_HANS("保留被跳过的帧"),
+    ZH_HANT("保留被略過的影格"),
+    KO("건너뛴 프레임 보관"),
+    DE("Übersprungene Bilder aufbewahren"),
+    FR("Conserver les images ignorées"),
+    ES("Conservar los fotogramas omitidos"),
+    PT("Guardar os quadros ignorados"),
+    IT("Conserva i fotogrammi saltati"),
+    NL("Overgeslagen beelden bewaren"),
+    RU("Сохранять пропущенные кадры"),
+    TR("Atlanan kareleri sakla"));
+
+SS_MSG(keep_skipped_help,
+    EN("Keep the frames left out in an images_skipped folder beside "
+       "images, so they can be looked at and brought back by easing the "
+       "threshold. Unticked, they are deleted to save disk space, and a "
+       "looser threshold then means making the frames again. Frames sorted"
+       " in an existing dataset, and photographs moved into it, are always"
+       " kept."),
+    JA("除外したフレームを images の隣の images_skipped "
+       "フォルダーに残します。あとで確認でき、しきい値をゆるめれば戻せます。チェ"
+       "ックを外すとディスク容量を節約するために削除され、しきい値をゆるめるには"
+       "フレームを作り直すことになります。既存のデータセットで仕分けたフレームと"
+       "、データセットに移動した写真は常に残します。"),
+    ZH_HANS("把被剔除的帧保留在 images 旁边的 images_skipped "
+            "文件夹中，这样可以查看它们，放宽阈值时也能把它们放回来。取消勾选则会删除"
+            "它们以节省磁盘空间，之后放宽阈值就需要重新生成帧。在现有数据集中整理出的"
+            "帧，以及移动到数据集中的照片，始终会保留。"),
+    ZH_HANT("把被剔除的影格保留在 images 旁邊的 images_skipped"
+            " 資料夾中，這樣可以查看它們，放寬閾值時也能把它們放回來。取消勾選則會刪"
+            "除它們以節省磁碟空間，之後放寬閾值就需要重新產生影格。在現有資料集中整理"
+            "出的影格，以及移動到資料集中的照片，一律會保留。"),
+    KO("빠진 프레임을 images 옆의 images_skipped 폴더에"
+       " 보관합니다. 나중에 볼 수 있고, 임계값을 느슨하게 하면 되돌릴"
+       " 수 있습니다. 해제하면 디스크 공간을 아끼려고 삭제하며, 그 뒤"
+       " 임계값을 느슨하게 하려면 프레임을 다시 만들어야 합니다. 기존 "
+       "데이터셋에서 정리한 프레임과 데이터셋으로 옮긴 사진은 항상 보관합"
+       "니다."),
+    DE("Bewahrt die ausgelassenen Bilder in einem Ordner images_skipped "
+       "neben images auf, sodass man sie ansehen und durch Lockern der "
+       "Schwelle zurückholen kann. Ohne Häkchen werden sie gelöscht, um "
+       "Speicherplatz zu sparen, und eine lockerere Schwelle bedeutet "
+       "dann, die Bilder neu zu erstellen. Bilder, die in einem "
+       "vorhandenen Datensatz sortiert wurden, und Fotos, die in ihn "
+       "verschoben wurden, bleiben immer erhalten."),
+    FR("Conserve les images écartées dans un dossier images_skipped à côté"
+       " de images, pour pouvoir les regarder et les faire revenir en "
+       "assouplissant le seuil. Décoché, elles sont supprimées pour "
+       "économiser de l’espace disque, et un seuil plus souple oblige "
+       "alors à refaire les images. Les images triées dans un jeu de "
+       "données existant et les photos qui y ont été déplacées sont "
+       "toujours conservées."),
+    ES("Conserva los fotogramas descartados en una carpeta images_skipped "
+       "junto a images, para poder verlos y recuperarlos relajando el "
+       "umbral. Sin marcar, se eliminan para ahorrar espacio en disco, y "
+       "un umbral más laxo obliga entonces a rehacer los fotogramas. Los "
+       "fotogramas ordenados en un conjunto de datos existente y las "
+       "fotografías movidas a él se conservan siempre."),
+    PT("Guarda os quadros deixados de fora em uma pasta images_skipped ao "
+       "lado de images, para que possam ser vistos e trazidos de volta "
+       "afrouxando o limiar. Desmarcado, eles são apagados para economizar"
+       " espaço em disco, e um limiar mais frouxo passa a exigir refazer "
+       "os quadros. Quadros organizados em um conjunto de dados existente "
+       "e fotografias movidas para ele são sempre guardados."),
+    IT("Conserva i fotogrammi scartati in una cartella images_skipped "
+       "accanto a images, così si possono guardare e recuperare allentando"
+       " la soglia. Senza spunta vengono eliminati per risparmiare spazio "
+       "su disco, e una soglia più larga richiede allora di rifare i "
+       "fotogrammi. I fotogrammi riordinati in un set di dati esistente e "
+       "le fotografie spostate al suo interno vengono sempre conservati."),
+    NL("Bewaart de weggelaten beelden in een map images_skipped naast "
+       "images, zodat je ze kunt bekijken en terughalen door de drempel te"
+       " versoepelen. Uitgevinkt worden ze verwijderd om schijfruimte te "
+       "sparen, en een soepelere drempel betekent dan dat de beelden "
+       "opnieuw gemaakt moeten worden. Beelden die in een bestaande "
+       "dataset zijn gesorteerd en foto’s die erin zijn verplaatst, worden"
+       " altijd bewaard."),
+    RU("Сохраняет исключённые кадры в папке images_skipped рядом с images,"
+       " чтобы их можно было посмотреть и вернуть, ослабив порог. Если "
+       "флажок снят, они удаляются ради экономии места на диске, и тогда "
+       "более мягкий порог потребует создать кадры заново. Кадры, "
+       "отсортированные в существующем наборе данных, и фотографии, "
+       "перемещённые в него, сохраняются всегда."),
+    TR("Dışarıda bırakılan kareleri images klasörünün yanındaki "
+       "images_skipped klasöründe saklar; böylece bunlara bakılabilir ve "
+       "eşik gevşetilerek geri getirilebilir. İşaret kaldırılırsa disk "
+       "alanından kazanmak için silinirler ve daha gevşek bir eşik o zaman"
+       " kareleri yeniden üretmeyi gerektirir. Mevcut bir veri kümesinde "
+       "ayıklanan kareler ve içine taşınan fotoğraflar her zaman saklanır."));
+
+SS_MSG(blur_px,
+    EN("Blur threshold"),
+    JA("ぶれのしきい値"),
+    ZH_HANS("模糊阈值"),
+    ZH_HANT("模糊閾值"),
+    KO("흐림 임계값"),
+    DE("Unschärfeschwelle"),
+    FR("Seuil de flou"),
+    ES("Umbral de desenfoque"),
+    PT("Limiar de borrão"),
+    IT("Soglia di sfocatura"),
+    NL("Onscherptedrempel"),
+    RU("Порог размытия"),
+    TR("Bulanıklık eşiği"));
+
+SS_MSG(blur_px_help,
+    EN("Leave out a frame blurred across more pixels than this. The blur "
+       "is read off the frame itself: how wide its sharpest edges are, "
+       "less what the sharpest frames of the same capture manage. A lower "
+       "value skips more."),
+    JA("このピクセル数を超えてぶれたフレームを除外します。ぶれはフレームそのもの"
+       "から読み取ります。最もシャープなエッジの幅から、同じ撮影の最もシャープな"
+       "フレームが出せる幅を引いた値です。小さくするほど多く除外されます。"),
+    ZH_HANS("剔除模糊超过此像素数的帧。模糊直接从帧本身读出：其最清晰边缘的宽度，减去"
+            "同一次拍摄中最清晰的帧所能达到的宽度。数值越低，跳过的帧越多。"),
+    ZH_HANT("剔除模糊超過此像素數的影格。模糊直接從影格本身讀出：其最清晰邊緣的寬度，"
+            "減去同一次拍攝中最清晰的影格所能達到的寬度。數值越低，略過的影格越多。"),
+    KO("이 픽셀 수보다 더 흐린 프레임을 뺍니다. 흐림은 프레임 자체에서"
+       " 읽습니다. 가장 선명한 가장자리의 폭에서, 같은 촬영의 가장 선"
+       "명한 프레임이 내는 폭을 뺀 값입니다. 값이 낮을수록 더 많이 건"
+       "너뜁니다."),
+    DE("Lässt ein Bild aus, das über mehr Pixel als diesen Wert verwischt "
+       "ist. Die Unschärfe wird am Bild selbst abgelesen: die Breite "
+       "seiner schärfsten Kanten, abzüglich dessen, was die schärfsten "
+       "Bilder derselben Aufnahme erreichen. Ein kleinerer Wert "
+       "überspringt mehr."),
+    FR("Écarte une image floue sur plus de pixels que cette valeur. Le "
+       "flou est lu sur l’image elle-même : la largeur de ses contours les"
+       " plus nets, moins ce qu’atteignent les images les plus nettes de "
+       "la même prise de vue. Une valeur plus basse en ignore davantage."),
+    ES("Descarta el fotograma desenfocado en más píxeles que este valor. "
+       "El desenfoque se lee en el propio fotograma: el ancho de sus "
+       "bordes más nítidos, menos lo que logran los fotogramas más nítidos"
+       " de la misma captura. Un valor más bajo omite más."),
+    PT("Deixa de fora o quadro borrado em mais pixels do que este valor. O"
+       " borrão é lido no próprio quadro: a largura das suas bordas mais "
+       "nítidas, menos o que os quadros mais nítidos da mesma captura "
+       "conseguem. Um valor mais baixo ignora mais."),
+    IT("Scarta il fotogramma sfocato per più pixel di questo valore. La "
+       "sfocatura si legge sul fotogramma stesso: la larghezza dei suoi "
+       "bordi più nitidi, meno quanto riescono a fare i fotogrammi più "
+       "nitidi della stessa ripresa. Un valore più basso ne salta di più."),
+    NL("Laat een beeld weg dat over meer pixels dan deze waarde vervaagd "
+       "is. De onscherpte wordt van het beeld zelf afgelezen: de breedte "
+       "van de scherpste randen, min wat de scherpste beelden van dezelfde"
+       " opname halen. Een lagere waarde slaat meer over."),
+    RU("Исключает кадр, размытый более чем на столько пикселей. Размытие "
+       "считывается с самого кадра: ширина его самых резких границ за "
+       "вычетом того, чего достигают самые резкие кадры той же съёмки. Чем"
+       " меньше значение, тем больше пропускается."),
+    TR("Bu değerden fazla piksel boyunca bulanık olan kareyi dışarıda "
+       "bırakır. Bulanıklık karenin kendisinden okunur: en keskin "
+       "kenarlarının genişliği, eksi aynı çekimin en keskin karelerinin "
+       "ulaştığı değer. Daha düşük bir değer daha çok kare atlar."));
+
+SS_MSG(blur_neighbour,
+    EN("Keep a neighbour of every skipped frame"),
+    JA("除外した各フレームの隣を残す"),
+    ZH_HANS("为每个被跳过的帧保留相邻帧"),
+    ZH_HANT("為每個被略過的影格保留相鄰影格"),
+    KO("건너뛴 프레임마다 이웃 프레임 유지"),
+    DE("Zu jedem übersprungenen Bild einen Nachbarn behalten"),
+    FR("Garder une voisine de chaque image ignorée"),
+    ES("Conservar un vecino de cada fotograma omitido"),
+    PT("Manter um vizinho de cada quadro ignorado"),
+    IT("Tieni un vicino di ogni fotogramma saltato"),
+    NL("Van elk overgeslagen beeld een buur behouden"),
+    RU("Оставлять соседа каждого пропущенного кадра"),
+    TR("Atlanan her karenin bir komşusunu tut"));
+
+SS_MSG(blur_neighbour_help,
+    EN("Never skip more than two frames in a row, so every skipped frame "
+       "still has a kept one beside it and a shaky stretch is thinned "
+       "rather than cut out."),
+    JA("連続して 3 枚以上は除外しません。除外した各フレームの隣には必ず残した"
+       "フレームがあり、ぶれた区間は切り捨てられずに間引かれます。"),
+    ZH_HANS("连续跳过不超过两帧，这样每个被跳过的帧旁边仍有保留的帧，抖动的片段只是被"
+            "抽稀而不是被整段剪掉。"),
+    ZH_HANT("連續略過不超過兩個影格，這樣每個被略過的影格旁邊仍有保留的影格，晃動的片"
+            "段只是被抽稀而不是被整段剪掉。"),
+    KO("연속으로 두 장 넘게는 건너뛰지 않습니다. 그래서 건너뛴 프레임 "
+       "옆에는 늘 남긴 프레임이 있고, 흔들린 구간은 통째로 잘리지 않고"
+       " 솎아집니다."),
+    DE("Nie mehr als zwei Bilder in Folge überspringen, sodass neben jedem"
+       " übersprungenen Bild noch ein behaltenes steht und eine "
+       "verwackelte Strecke ausgedünnt statt herausgeschnitten wird."),
+    FR("Ne jamais ignorer plus de deux images de suite : chaque image "
+       "ignorée garde ainsi une voisine conservée, et un passage tremblé "
+       "est éclairci plutôt que coupé."),
+    ES("No omitir nunca más de dos fotogramas seguidos, de modo que cada "
+       "fotograma omitido tenga uno conservado al lado y un tramo movido "
+       "se aclare en vez de cortarse."),
+    PT("Nunca ignorar mais de dois quadros seguidos, para que cada quadro "
+       "ignorado ainda tenha um mantido ao lado e um trecho tremido seja "
+       "rareado em vez de cortado."),
+    IT("Non saltare mai più di due fotogrammi di seguito, così ogni "
+       "fotogramma saltato ne ha accanto uno tenuto e un tratto mosso "
+       "viene sfoltito anziché tagliato via."),
+    NL("Nooit meer dan twee beelden achter elkaar overslaan, zodat elk "
+       "overgeslagen beeld nog een behouden buur heeft en een schokkerig "
+       "stuk wordt uitgedund in plaats van weggeknipt."),
+    RU("Никогда не пропускать более двух кадров подряд, чтобы рядом с "
+       "каждым пропущенным кадром оставался сохранённый, а дрожащий "
+       "участок прореживался, а не вырезался."),
+    TR("Art arda ikiden fazla kareyi asla atlamaz; böylece atlanan her "
+       "karenin yanında tutulan bir kare kalır ve sarsıntılı bir bölüm "
+       "kesilip atılmak yerine seyreltilir."));
+
+SS_MSG(similar_bits,
+    EN("Skip similar frames"),
+    JA("似たフレームを除外"),
+    ZH_HANS("跳过相似帧"),
+    ZH_HANT("略過相似影格"),
+    KO("비슷한 프레임 건너뛰기"),
+    DE("Ähnliche Bilder überspringen"),
+    FR("Ignorer les images semblables"),
+    ES("Omitir fotogramas parecidos"),
+    PT("Ignorar quadros parecidos"),
+    IT("Salta i fotogrammi simili"),
+    NL("Gelijkende beelden overslaan"),
+    RU("Пропускать похожие кадры"),
+    TR("Benzer kareleri atla"));
+
+SS_MSG(similar_bits_help,
+    EN("Skip a frame that looks too much like the last one kept, as when "
+       "the camera stood still. Each frame gets a 64-bit fingerprint; this"
+       " is how many bits must differ. 0 keeps every frame, a higher value"
+       " skips more."),
+    JA("直前に残したフレームに似すぎたフレームを除外します。カメラが止まっていた"
+       "ときなどです。各フレームに 64 ビットの指紋を付け、ここで何ビット違え"
+       "ば別のフレームとみなすかを決めます。0 ならすべて残し、大きくするほど多"
+       "く除外します。"),
+    ZH_HANS("跳过与上一个保留帧过于相似的帧，例如相机静止时。每一帧都有一个 64 位"
+            "指纹；这里设置必须有多少位不同。0 表示保留所有帧，数值越高跳过越多。"),
+    ZH_HANT("略過與上一個保留影格過於相似的影格，例如相機靜止時。每個影格都有一個 6"
+            "4 位元指紋；這裡設定必須有多少位元不同。0 表示保留所有影格，數值越高"
+            "略過越多。"),
+    KO("마지막으로 남긴 프레임과 너무 비슷한 프레임을 건너뜁니다. 카메라"
+       "가 멈춰 있었을 때 등입니다. 프레임마다 64비트 지문이 있으며,"
+       " 여기서는 몇 비트가 달라야 하는지 정합니다. 0이면 모든 프레임"
+       "을 남기고, 값이 클수록 더 많이 건너뜁니다."),
+    DE("Überspringt ein Bild, das dem zuletzt behaltenen zu sehr gleicht, "
+       "etwa wenn die Kamera stillstand. Jedes Bild bekommt einen "
+       "64-Bit-Fingerabdruck; hier steht, wie viele Bits sich "
+       "unterscheiden müssen. 0 behält jedes Bild, ein höherer Wert "
+       "überspringt mehr."),
+    FR("Ignore une image qui ressemble trop à la dernière gardée, comme "
+       "quand la caméra était immobile. Chaque image reçoit une empreinte "
+       "de 64 bits ; ce réglage dit combien de bits doivent différer. 0 "
+       "garde toutes les images, une valeur plus haute en ignore "
+       "davantage."),
+    ES("Omite el fotograma que se parece demasiado al último conservado, "
+       "como cuando la cámara estaba quieta. Cada fotograma recibe una "
+       "huella de 64 bits; aquí se indica cuántos bits deben diferir. 0 "
+       "conserva todos los fotogramas, un valor más alto omite más."),
+    PT("Ignora o quadro que se parece demais com o último mantido, como "
+       "quando a câmera estava parada. Cada quadro recebe uma impressão "
+       "digital de 64 bits; aqui se define quantos bits devem diferir. 0 "
+       "mantém todos os quadros, um valor mais alto ignora mais."),
+    IT("Salta il fotogramma troppo simile all’ultimo tenuto, come quando "
+       "la fotocamera era ferma. Ogni fotogramma riceve un’impronta a 64 "
+       "bit; qui si indica quanti bit devono differire. 0 tiene tutti i "
+       "fotogrammi, un valore più alto ne salta di più."),
+    NL("Slaat een beeld over dat te veel lijkt op het laatst behouden "
+       "beeld, zoals wanneer de camera stilstond. Elk beeld krijgt een "
+       "64-bits vingerafdruk; hier staat hoeveel bits moeten verschillen. "
+       "0 behoudt elk beeld, een hogere waarde slaat meer over."),
+    RU("Пропускает кадр, слишком похожий на последний оставленный, "
+       "например когда камера стояла на месте. У каждого кадра есть "
+       "64-битный отпечаток; здесь задаётся, сколько бит должно "
+       "отличаться. 0 оставляет все кадры, большее значение пропускает "
+       "больше."),
+    TR("Son tutulan kareye fazla benzeyen kareyi atlar; örneğin kamera "
+       "sabit durduğunda. Her kare 64 bitlik bir parmak izi alır; burada "
+       "kaç bitin farklı olması gerektiği belirlenir. 0 her kareyi tutar, "
+       "daha yüksek bir değer daha çok kare atlar."));
+
 SS_MSG(sharpness_window,
     EN("Sharpness window"),
     JA("シャープさの判定窓"),
@@ -2944,11 +4494,96 @@ SS_MSG(mask_enable_help,
        "en çok artıran tek şey budur. Kendi maskeleriyle gelen girdiler "
        "onları korur; bu ayar geri kalanlar içindir."));
 
+SS_MSG(mask_objects_need_segmentation,
+    EN("Removing objects needs a build with the segmentation module, and this "
+       "one has none. Removing fixed areas of the frame still works."),
+    JA("物体を取り除くには分割モジュール入りのビルドが必要ですが、このビルドには"
+       "入っていません。画面の決まった位置を取り除くことはできます。"),
+    ZH_HANS("移除物体需要包含分割模块的版本，而此版本没有。去掉画面中固定的区域"
+            "仍然可用。"),
+    ZH_HANT("移除物體需要包含分割模組的版本，而此版本沒有。去掉畫面中固定的區域"
+            "仍然可用。"),
+    KO("물체를 제거하려면 분할 모듈이 포함된 빌드가 필요한데, 이 빌드에는 "
+       "없습니다. 화면에서 늘 같은 자리를 없애는 기능은 그대로 쓸 수 있습니다."),
+    DE("Objekte entfernen braucht einen Build mit Segmentierungsmodul, und "
+       "dieser hat keines. Feste Bereiche des Bildes lassen sich weiterhin "
+       "entfernen."),
+    FR("Retirer des objets demande une version avec le module de segmentation, "
+       "et celle-ci ne l'a pas. Retirer les zones fixes de l'image reste "
+       "possible."),
+    ES("Quitar objetos requiere una compilación con el módulo de segmentación, "
+       "y esta no lo tiene. Quitar las zonas fijas del fotograma sigue "
+       "funcionando."),
+    PT("Remover objetos exige uma versão com o módulo de segmentação, e esta "
+       "não o tem. Tirar as áreas fixas do quadro continua funcionando."),
+    IT("Rimuovere oggetti richiede una build con il modulo di segmentazione, e "
+       "questa non ce l'ha. Togliere le zone fisse del fotogramma funziona "
+       "comunque."),
+    NL("Objecten verwijderen vraagt een build met de segmentatiemodule, en deze "
+       "heeft er geen. Vaste gebieden van het beeld weghalen werkt nog steeds."),
+    RU("Чтобы убирать объекты, нужна сборка с модулем сегментации, а в этой его "
+       "нет. Убирать постоянные участки кадра по-прежнему можно."),
+    TR("Nesneleri kaldırmak için bölütleme modülü içeren bir sürüm gerekir; bu "
+       "sürümde yok. Karenin sabit alanlarını çıkarmak yine de çalışır."));
+
 SS_MSG(mask_model,
     EN("Model"),         JA("モデル"),        ZH_HANS("模型"),     ZH_HANT("模型"),
     KO("모델"),           DE("Modell"),       FR("Modèle"),       ES("Modelo"),
     PT("Modelo"),        IT("Modello"),      NL("Model"),        RU("Модель"),
     TR("Model"));
+
+// The second combo under a SAM 2.1 pick: the model that reads its words.
+SS_MSG(mask_text_detector,
+    EN("Text detector"),
+    JA("テキスト検出器"),
+    ZH_HANS("文字检测器"),
+    ZH_HANT("文字偵測器"),
+    KO("텍스트 검출기"),
+    DE("Textdetektor"),
+    FR("Détecteur de texte"),
+    ES("Detector de texto"),
+    PT("Detector de texto"),
+    IT("Rilevatore di testo"),
+    NL("Tekstdetector"),
+    RU("Текстовый детектор"),
+    TR("Metin algılayıcı"));
+
+SS_MSG(mask_text_detector_help,
+    EN("SAM 2.1 cannot read words, so a second model finds what the text prompt "
+       "names and SAM 2.1 cuts it out. Clicks still go straight to SAM 2.1."),
+    JA("SAM 2.1 は単語を読めないため、別のモデルがテキストのプロンプトの指す"
+       "ものを見つけ、SAM 2.1 がそれを切り抜きます。クリックはこれまでどおり"
+       " SAM 2.1 に直接渡ります。"),
+    ZH_HANS("SAM 2.1 读不懂文字，所以由另一个模型找出文字提示所指的目标，再由 S"
+            "AM 2.1 把它分割出来。点击仍然直接交给 SAM 2.1。"),
+    ZH_HANT("SAM 2.1 讀不懂文字，所以由另一個模型找出文字提示所指的目標，再由 S"
+            "AM 2.1 把它分割出來。點擊仍然直接交給 SAM 2.1。"),
+    KO("SAM 2.1은 단어를 읽지 못하므로, 다른 모델이 텍스트 프롬프트가 가리키는 것을 찾고 SAM 2.1이 그것을 잘라 냅니다. "
+       "클릭은 여전히 SAM 2.1로 바로 갑니다."),
+    DE("SAM 2.1 kann keine Wörter lesen. Deshalb findet ein zweites Modell, was "
+       "die Texteingabe nennt, und SAM 2.1 schneidet es aus. Klicks gehen "
+       "weiterhin direkt an SAM 2.1."),
+    FR("SAM 2.1 ne lit pas les mots : un second modèle trouve ce que nomme "
+       "l'invite textuelle, et SAM 2.1 le découpe. Les clics vont toujours "
+       "directement à SAM 2.1."),
+    ES("SAM 2.1 no sabe leer palabras, así que un segundo modelo encuentra lo "
+       "que nombra la indicación de texto y SAM 2.1 lo recorta. Los clics siguen "
+       "yendo directamente a SAM 2.1."),
+    PT("O SAM 2.1 não lê palavras, então um segundo modelo encontra o que o "
+       "comando de texto nomeia e o SAM 2.1 o recorta. Os cliques continuam indo "
+       "direto para o SAM 2.1."),
+    IT("SAM 2.1 non sa leggere le parole: un secondo modello trova ciò che il "
+       "testo nomina e SAM 2.1 lo ritaglia. I clic vanno sempre direttamente a "
+       "SAM 2.1."),
+    NL("SAM 2.1 kan geen woorden lezen, dus een tweede model vindt wat de "
+       "tekstprompt noemt en SAM 2.1 knipt het uit. Klikken gaan nog steeds "
+       "rechtstreeks naar SAM 2.1."),
+    RU("SAM 2.1 не читает слова, поэтому вторая модель находит то, что названо в "
+       "текстовом запросе, а SAM 2.1 вырезает это. Щелчки по-прежнему идут прямо "
+       "в SAM 2.1."),
+    TR("SAM 2.1 kelime okuyamaz; bu yüzden ikinci bir model metin isteminin "
+       "adını verdiği şeyi bulur, SAM 2.1 de onu keser. Tıklamalar yine doğrudan "
+       "SAM 2.1'e gider."));
 
 SS_MSG(mask_model_needs_download,
     EN("{0}  (download)"),
@@ -3395,6 +5030,82 @@ SS_MSG(mask_negative_help_remove,
        "Необязательно."),
     TR("Yukarıdaki satıra uysa bile kalacak istisnalar. İsteğe bağlı."));
 
+SS_MSG(mask_features_only,
+    EN("Hide from the reconstruction only"),
+    JA("再構成からだけ隠す"),
+    ZH_HANS("只在重建时避开"),
+    ZH_HANT("只在重建時避開"),
+    KO("재구성에서만 빼기"),
+    DE("Nur vor der Rekonstruktion verbergen"),
+    FR("Cacher à la reconstruction seulement"),
+    ES("Ocultar solo a la reconstrucción"),
+    PT("Esconder só da reconstrução"),
+    IT("Nascondere solo alla ricostruzione"),
+    NL("Alleen voor de reconstructie verbergen"),
+    RU("Скрывать только от реконструкции"),
+    TR("Yalnızca yeniden kurmadan gizle"));
+
+SS_MSG(mask_features_only_help,
+    EN("What the reconstruction takes no feature point from, though training "
+       "still uses it: the sky, whose clouds drift and whose points are too far "
+       "off to place a camera by. Written to feature_masks/ beside masks/, from "
+       "the same pass over each frame. \"Try the mask...\" shows it hatched in "
+       "amber."),
+    JA("再構成は特徴点を取らず、学習はそのまま使うものです。雲が流れ、点が遠すぎて"
+       "カメラの位置決めの手がかりにならない空などです。各フレームを処理する同じ"
+       "パスの中で求め、masks/ の隣の feature_masks/ に書き出します。「マスクを"
+       "試す…」では琥珀色の斜線で表示されます。"),
+    ZH_HANS("重建时不从中取特征点、训练却照样使用的东西，比如天空——云在飘，点又"
+            "太远，定不了相机的位置。在处理每一帧的同一遍里求出，写到 masks/ 旁边"
+            "的 feature_masks/。在“试一下蒙版…”里以琥珀色斜线显示。"),
+    ZH_HANT("重建時不從中取特徵點、訓練卻照樣使用的東西，比如天空——雲在飄，點又"
+            "太遠，定不了相機的位置。在處理每一影格的同一遍裡求出，寫到 masks/ 旁邊"
+            "的 feature_masks/。在「試一下遮罩…」裡以琥珀色斜線顯示。"),
+    KO("재구성은 특징점을 뽑지 않지만 학습은 그대로 쓰는 것입니다. 구름이 흘러가고 "
+       "점이 너무 멀어 카메라 위치를 잡는 근거가 되지 못하는 하늘 같은 것입니다. "
+       "각 프레임을 처리하는 같은 패스에서 구해 masks/ 옆의 feature_masks/ 에 "
+       "씁니다. \"마스크 시험해 보기…\"에서는 호박색 빗금으로 보입니다."),
+    DE("Woraus die Rekonstruktion keinen Merkmalspunkt nimmt, was das Training "
+       "aber weiter nutzt: den Himmel, dessen Wolken ziehen und dessen Punkte zu "
+       "fern sind, um eine Kamera daran auszurichten. Landet in feature_masks/ "
+       "neben masks/, im selben Durchgang über jedes Bild ermittelt. „Maske "
+       "ausprobieren …“ zeigt es bernsteinfarben schraffiert."),
+    FR("Ce dont la reconstruction ne tire aucun point d'intérêt mais que "
+       "l'entraînement utilise quand même : le ciel, dont les nuages dérivent et "
+       "dont les points sont trop lointains pour situer une caméra. Écrit dans "
+       "feature_masks/ à côté de masks/, lors du même passage sur chaque image. "
+       "« Essayer le masque… » le montre hachuré d'ambre."),
+    ES("Lo que la reconstrucción no usa para ningún punto característico pero el "
+       "entrenamiento sí: el cielo, cuyas nubes se desplazan y cuyos puntos están "
+       "demasiado lejos para situar una cámara. Se escribe en feature_masks/ "
+       "junto a masks/, en la misma pasada por cada fotograma. «Probar la "
+       "máscara…» lo muestra rayado en ámbar."),
+    PT("O que a reconstrução não usa para nenhum ponto de característica, mas o "
+       "treino usa: o céu, cujas nuvens se movem e cujos pontos estão longe "
+       "demais para situar uma câmera. Gravado em feature_masks/ ao lado de "
+       "masks/, na mesma passagem por cada quadro. “Testar a máscara…” mostra "
+       "isso hachurado em âmbar."),
+    IT("Ciò da cui la ricostruzione non prende alcun punto caratteristico ma che "
+       "l'addestramento usa comunque: il cielo, le cui nuvole si spostano e i cui "
+       "punti sono troppo lontani per collocare una fotocamera. Scritto in "
+       "feature_masks/ accanto a masks/, nello stesso passaggio su ogni "
+       "fotogramma. «Prova la maschera…» lo mostra tratteggiato in ambra."),
+    NL("Waar de reconstructie geen kenmerkpunt uit haalt, maar wat de training "
+       "wel gebruikt: de lucht, waarvan de wolken drijven en de punten te ver weg "
+       "liggen om een camera op te plaatsen. Komt in feature_masks/ naast masks/, "
+       "uit dezelfde doorgang over elk beeld. \"Masker uitproberen…\" toont het "
+       "amberkleurig gearceerd."),
+    RU("То, из чего реконструкция не берёт ни одной особой точки, а обучение всё "
+       "равно использует: небо, где плывут облака, а точки слишком далеко, чтобы "
+       "по ним ставить камеру. Пишется в feature_masks/ рядом с masks/, за тот же "
+       "проход по каждому кадру. «Проверить маску…» показывает это янтарной "
+       "штриховкой."),
+    TR("Yeniden kurmanın hiçbir öznitelik noktası almadığı ama eğitimin yine de "
+       "kullandığı şeyler: bulutları kayan, noktaları bir kamerayı yerleştirmeye "
+       "yaramayacak kadar uzak olan gökyüzü gibi. Her karenin aynı geçişinde "
+       "bulunur ve masks/ yanındaki feature_masks/ klasörüne yazılır. \"Maskeyi "
+       "dene…\" bunu kehribar renkli taramayla gösterir."));
+
 SS_MSG(mask_advanced,
     EN("Advanced masking"),
     JA("マスクの詳細設定"),
@@ -3549,19 +5260,124 @@ SS_MSG(mask_dilate_remove,
     TR("Kaldırılanın çevresinde ek pay"));
 
 SS_MSG(mask_dilate_keep,
-    EN("Extra margin around what's kept"),
-    JA("残すものの周りの余白"),
-    ZH_HANS("保留对象周围的额外边距"),
-    ZH_HANT("保留對象周圍的額外邊距"),
-    KO("남길 대상 주변 여백"),
-    DE("Zusätzlicher Rand um das Behaltene"),
-    FR("Marge autour de ce qui est gardé"),
-    ES("Margen alrededor de lo que se conserva"),
-    PT("Margem à volta do que é mantido"),
-    IT("Margine attorno a ciò che viene mantenuto"),
-    NL("Extra marge rond wat wordt behouden"),
-    RU("Отступ вокруг сохраняемого"),
-    TR("Korunanın çevresinde ek pay"));
+    EN("Trim in from the edge of what's kept"),
+    JA("残すものの縁を内側へ削る"),
+    ZH_HANS("从保留对象的边缘向内收"),
+    ZH_HANT("從保留對象的邊緣向內收"),
+    KO("남길 대상의 가장자리를 안쪽으로 깎기"),
+    DE("Vom Rand des Behaltenen nach innen abtragen"),
+    FR("Rogner vers l'intérieur du bord de ce qui est gardé"),
+    ES("Recortar hacia dentro desde el borde de lo que se conserva"),
+    PT("Aparar para dentro a partir da borda do que é mantido"),
+    IT("Rifilare verso l'interno dal bordo di ciò che viene mantenuto"),
+    NL("Vanaf de rand van wat behouden blijft naar binnen bijsnijden"),
+    RU("Срезать внутрь от края сохраняемого"),
+    TR("Korunanın kenarından içeri doğru kırp"));
+
+SS_MSG(mask_shrink_help,
+    EN("Pulls the outline of every detected object inward before the mask is "
+       "written, by this share of the object's own size -- an object 400 "
+       "pixels across loses about 20 pixels at 5%. 0%, the default, writes the "
+       "outline exactly as the model drew it, which is usually where the "
+       "subject ends; raise it when a rim of background is coming through with "
+       "the subject. Because it is a share and not a number of pixels, "
+       "something far away is trimmed proportionally less than something "
+       "close. Where the subject runs off the edge of the frame nothing is "
+       "trimmed: that edge is the picture ending, not the subject."),
+    JA("マスクを書き出す前に、検出した対象の輪郭をそれぞれ自身の大きさのこの割合"
+       "だけ内側へ引き込みます。差し渡し400ピクセルの対象なら5%で約20ピクセル"
+       "です。既定の0%はモデルが引いた輪郭のまま書き出します。通常はそこが被写体"
+       "の端です。背景の縁が被写体と一緒に残る場合に上げてください。ピクセル数"
+       "ではなく割合なので、遠くのものほど削る量も小さくなります。被写体が画面の"
+       "外へ続いている縁では削りません。そこは画像の端であって被写体の端では"
+       "ないからです。"),
+    ZH_HANS("在写出蒙版之前，把每个检测到的对象的轮廓按自身尺寸的这个比例向内收："
+            "一个 400 像素宽的对象，在 5% 时约收进 20 像素。默认的 0% 就按模型画"
+            "的轮廓原样写出，那通常就是被摄物的边界；如果有一圈背景跟着被摄物一起"
+            "留下来，再往上调。因为是比例而不是固定像素数，远处的东西收得也按比例"
+            "更少。被摄物延伸到画面之外的那一边不收：那里是画面的边，不是被摄物"
+            "的边。"),
+    ZH_HANT("在寫出遮罩之前，把每個偵測到的對象的輪廓按自身尺寸的這個比例向內收："
+            "一個 400 像素寬的對象，在 5% 時約收進 20 像素。預設的 0% 就按模型畫"
+            "的輪廓原樣寫出，那通常就是被攝物的邊界；如果有一圈背景跟著被攝物一起"
+            "留下來，再往上調。因為是比例而不是固定像素數，遠處的東西收得也按比例"
+            "更少。被攝物延伸到畫面之外的那一邊不收：那裡是畫面的邊，不是被攝物"
+            "的邊。"),
+    KO("마스크를 쓰기 전에 검출된 대상의 윤곽선을 각각 자기 크기의 이 비율만큼 "
+       "안쪽으로 당깁니다. 너비가 400픽셀인 대상이라면 5%에서 약 20픽셀입니다. "
+       "기본값 0%는 모델이 그린 윤곽선 그대로 쓰며, 보통 거기가 피사체의 끝입니다. "
+       "배경의 테두리가 피사체와 함께 남을 때 올리세요. 픽셀 수가 아니라 비율이므로 "
+       "멀리 있는 것은 그만큼 적게 깎입니다. 피사체가 화면 밖으로 이어지는 쪽은 "
+       "깎지 않습니다. 거기는 그림이 끝나는 자리이지 피사체가 끝나는 자리가 "
+       "아닙니다."),
+    DE("Zieht die Kontur jedes erkannten Objekts nach innen, bevor die Maske "
+       "geschrieben wird, um diesen Anteil seiner eigenen Größe -- ein 400 "
+       "Pixel breites Objekt verliert bei 5% etwa 20 Pixel. 0%, die Vorgabe, "
+       "schreibt die Kontur genau so, wie das Modell sie gezogen hat; dort "
+       "endet das Motiv meist. Erhöhen Sie sie, wenn ein Saum Hintergrund mit "
+       "dem Motiv durchkommt. Weil es ein Anteil ist und keine Pixelzahl, wird "
+       "etwas Fernes entsprechend weniger abgetragen als etwas Nahes. Wo das "
+       "Motiv aus dem Bild läuft, wird nichts abgetragen: dort endet das Bild, "
+       "nicht das Motiv."),
+    FR("Rentre le contour de chaque objet détecté avant que le masque ne soit "
+       "écrit, de cette fraction de sa propre taille : un objet large de 400 "
+       "pixels en perd environ 20 à 5%. 0%, la valeur par défaut, écrit le "
+       "contour exactement comme le modèle l'a tracé, là où le sujet s'arrête "
+       "en général ; augmentez-la si un liseré de fond passe avec le sujet. "
+       "Comme c'est une fraction et non un nombre de pixels, un objet lointain "
+       "est rogné proportionnellement moins qu'un objet proche. Là où le sujet "
+       "sort du cadre, rien n'est rogné : c'est l'image qui s'arrête, pas le "
+       "sujet."),
+    ES("Mete hacia dentro el contorno de cada objeto detectado antes de "
+       "escribir la máscara, en esta fracción de su propio tamaño: un objeto "
+       "de 400 píxeles de ancho pierde unos 20 al 5%. El 0% por defecto "
+       "escribe el contorno tal como lo dibujó el modelo, que suele ser donde "
+       "acaba el motivo; súbelo si se cuela un ribete de fondo con el motivo. "
+       "Como es una fracción y no un número de píxeles, algo lejano se recorta "
+       "proporcionalmente menos que algo cercano. Donde el motivo se sale del "
+       "encuadre no se recorta nada: ahí acaba la imagen, no el motivo."),
+    PT("Puxa para dentro o contorno de cada objeto detectado antes de a "
+       "máscara ser escrita, nesta fração do seu próprio tamanho: um objeto "
+       "com 400 pixels de largura perde cerca de 20 a 5%. Os 0% predefinidos "
+       "escrevem o contorno tal como o modelo o desenhou, que é onde o objeto "
+       "costuma acabar; aumente quando uma orla de fundo vem junto com ele. "
+       "Por ser uma fração e não um número de pixels, algo distante é aparado "
+       "proporcionalmente menos do que algo próximo. Onde o objeto sai do "
+       "quadro não se apara nada: ali acaba a imagem, não o objeto."),
+    IT("Ritira verso l'interno il contorno di ogni oggetto rilevato prima che "
+       "la maschera venga scritta, di questa frazione della sua stessa "
+       "dimensione: un oggetto largo 400 pixel ne perde circa 20 al 5%. Lo 0% "
+       "predefinito scrive il contorno esattamente come l'ha tracciato il "
+       "modello, che di solito è dove il soggetto finisce; lo alzi quando un "
+       "orlo di sfondo passa insieme al soggetto. Essendo una frazione e non "
+       "un numero di pixel, una cosa lontana viene rifilata proporzionalmente "
+       "meno di una vicina. Dove il soggetto esce dall'inquadratura non si "
+       "rifila nulla: lì finisce l'immagine, non il soggetto."),
+    NL("Trekt de omtrek van elk gevonden object naar binnen voordat het masker "
+       "wordt geschreven, met dit aandeel van zijn eigen grootte: een object "
+       "van 400 pixels breed verliest er bij 5% ongeveer 20. De standaard 0% "
+       "schrijft de omtrek precies zoals het model die tekende, en daar houdt "
+       "het onderwerp meestal op; zet hem hoger als er een randje achtergrond "
+       "met het onderwerp meekomt. Omdat het een aandeel is en geen aantal "
+       "pixels, wordt iets ver weg naar verhouding minder bijgesneden dan iets "
+       "dichtbij. Waar het onderwerp buiten beeld loopt wordt niets "
+       "bijgesneden: daar houdt de foto op, niet het onderwerp."),
+    RU("Втягивает контур каждого найденного объекта внутрь перед записью "
+       "маски, на эту долю его собственного размера: объект шириной 400 "
+       "пикселей теряет около 20 при 5%. По умолчанию 0% — контур пишется "
+       "ровно так, как его провела модель, а это обычно и есть край предмета; "
+       "поднимите, если вместе с предметом проходит каёмка фона. Это доля, а "
+       "не число пикселей, поэтому у далёкого срезается пропорционально "
+       "меньше, чем у близкого. Там, где предмет уходит за край кадра, не "
+       "срезается ничего: там кончается снимок, а не предмет."),
+    TR("Maske yazılmadan önce her bulunan nesnenin dış çizgisini kendi "
+       "boyutunun bu oranı kadar içeri çeker: 400 piksel genişliğindeki bir "
+       "nesne %5'te yaklaşık 20 piksel kaybeder. Varsayılan %0, dış çizgiyi "
+       "modelin çizdiği gibi yazar; özne genelde orada biter. Özneyle birlikte "
+       "bir şerit arka plan geçiyorsa yükseltin. Piksel sayısı değil oran "
+       "olduğu için uzaktaki bir şey yakındakine göre orantılı olarak daha az "
+       "kırpılır. Öznenin kare dışına taştığı yerde hiçbir şey kırpılmaz: "
+       "orada biten resimdir, özne değil."));
 
 SS_MSG(mask_dilate_help,
     EN("Grows every detected object outward before the mask is written, by this "
@@ -4659,6 +6475,84 @@ SS_MSG(subj_person,
     PT("Pessoa"),       IT("Persona"),    NL("Persoon"),     RU("Человек"),
     TR("İnsan"));
 
+SS_MSG(subj_tourist,
+    EN("Tourist"),      JA("観光客"),      ZH_HANS("游客"),    ZH_HANT("遊客"),
+    KO("관광객"),        DE("Tourist"),    FR("Touriste"),    ES("Turista"),
+    PT("Turista"),      IT("Turista"),    NL("Toerist"),     RU("Турист"),
+    TR("Turist"));
+
+SS_MSG(subj_visitor,
+    EN("Visitor"),      JA("来場者"),      ZH_HANS("参观者"),  ZH_HANT("參觀者"),
+    KO("방문객"),        DE("Besucher"),   FR("Visiteur"),    ES("Visitante"),
+    PT("Visitante"),    IT("Visitatore"), NL("Bezoeker"),    RU("Посетитель"),
+    TR("Ziyaretçi"));
+
+SS_MSG(subj_photographer,
+    EN("Photographer"), JA("撮影者"),      ZH_HANS("摄影师"),  ZH_HANT("攝影師"),
+    KO("사진가"),        DE("Fotograf"),   FR("Photographe"), ES("Fotógrafo"),
+    PT("Fotógrafo"),    IT("Fotografo"),  NL("Fotograaf"),   RU("Фотограф"),
+    TR("Fotoğrafçı"));
+
+SS_MSG(subj_pedestrian,
+    EN("Pedestrian"), JA("歩行者"), ZH_HANS("行人"), ZH_HANT("行人"),
+    KO("보행자"), DE("Fußgänger"), FR("Piéton"), ES("Peatón"),
+    PT("Pedestre"), IT("Pedone"), NL("Voetganger"), RU("Пешеход"),
+    TR("Yaya"));
+
+SS_MSG(subj_child,
+    EN("Child"), JA("子ども"), ZH_HANS("儿童"), ZH_HANT("兒童"),
+    KO("어린이"), DE("Kind"), FR("Enfant"), ES("Niño"),
+    PT("Criança"), IT("Bambino"), NL("Kind"), RU("Ребёнок"),
+    TR("Çocuk"));
+
+SS_MSG(subj_guard,
+    EN("Security guard"), JA("警備員"), ZH_HANS("保安"), ZH_HANT("保全"),
+    KO("경비원"), DE("Wachpersonal"), FR("Agent de sécurité"), ES("Guardia de seguridad"),
+    PT("Segurança"), IT("Guardia di sicurezza"), NL("Beveiliger"), RU("Охранник"),
+    TR("Güvenlik görevlisi"));
+
+SS_MSG(subj_worker,
+    EN("Worker / staff"), JA("作業員・スタッフ"), ZH_HANS("工作人员"), ZH_HANT("工作人員"),
+    KO("작업자·직원"), DE("Personal"), FR("Personnel"), ES("Personal"),
+    PT("Funcionário"), IT("Personale"), NL("Personeel"), RU("Сотрудник"),
+    TR("Görevli"));
+
+SS_MSG(subj_cyclist,
+    EN("Cyclist"), JA("自転車に乗る人"), ZH_HANS("骑车人"), ZH_HANT("騎車人"),
+    KO("자전거 탄 사람"), DE("Radfahrer"), FR("Cycliste"), ES("Ciclista"),
+    PT("Ciclista"), IT("Ciclista"), NL("Fietser"), RU("Велосипедист"),
+    TR("Bisikletli"));
+
+SS_MSG(subj_handbag,
+    EN("Handbag"), JA("ハンドバッグ"), ZH_HANS("手提包"), ZH_HANT("手提包"),
+    KO("핸드백"), DE("Handtasche"), FR("Sac à main"), ES("Bolso"),
+    PT("Bolsa"), IT("Borsa"), NL("Handtas"), RU("Сумка"),
+    TR("El çantası"));
+
+SS_MSG(subj_umbrella,
+    EN("Umbrella"), JA("傘"), ZH_HANS("雨伞"), ZH_HANT("雨傘"),
+    KO("우산"), DE("Regenschirm"), FR("Parapluie"), ES("Paraguas"),
+    PT("Guarda-chuva"), IT("Ombrello"), NL("Paraplu"), RU("Зонт"),
+    TR("Şemsiye"));
+
+SS_MSG(subj_stroller,
+    EN("Stroller"), JA("ベビーカー"), ZH_HANS("婴儿车"), ZH_HANT("嬰兒車"),
+    KO("유모차"), DE("Kinderwagen"), FR("Poussette"), ES("Cochecito"),
+    PT("Carrinho de bebê"), IT("Passeggino"), NL("Kinderwagen"), RU("Коляска"),
+    TR("Bebek arabası"));
+
+SS_MSG(subj_selfie_stick,
+    EN("Selfie stick"), JA("自撮り棒"), ZH_HANS("自拍杆"), ZH_HANT("自拍棒"),
+    KO("셀카봉"), DE("Selfie-Stick"), FR("Perche à selfie"), ES("Palo selfie"),
+    PT("Pau de selfie"), IT("Bastone per selfie"), NL("Selfiestick"), RU("Селфи-палка"),
+    TR("Selfie çubuğu"));
+
+SS_MSG(subj_phone,
+    EN("Phone held up"), JA("掲げたスマホ"), ZH_HANS("举起的手机"), ZH_HANT("舉起的手機"),
+    KO("들고 있는 휴대폰"), DE("Hochgehaltenes Handy"), FR("Téléphone brandi"), ES("Móvil en alto"),
+    PT("Celular erguido"), IT("Telefono alzato"), NL("Opgeheven telefoon"), RU("Поднятый телефон"),
+    TR("Kaldırılmış telefon"));
+
 SS_MSG(subj_hand,
     EN("Hand"),         JA("手"),          ZH_HANS("手"),      ZH_HANT("手"),
     KO("손"),            DE("Hand"),       FR("Main"),        ES("Mano"),
@@ -4778,6 +6672,24 @@ SS_MSG(subj_watermark,
     NL("Watermerk of tijdstempel"),
     RU("Водяной знак или дата"),
     TR("Filigran veya zaman damgası"));
+
+SS_MSG(subj_painting,
+    EN("Painting"), JA("絵画"), ZH_HANS("绘画"), ZH_HANT("繪畫"),
+    KO("그림"), DE("Gemälde"), FR("Tableau"), ES("Cuadro"),
+    PT("Quadro"), IT("Dipinto"), NL("Schilderij"), RU("Картина"),
+    TR("Tablo"));
+
+SS_MSG(subj_poster,
+    EN("Poster"), JA("ポスター"), ZH_HANS("海报"), ZH_HANT("海報"),
+    KO("포스터"), DE("Plakat"), FR("Affiche"), ES("Póster"),
+    PT("Cartaz"), IT("Poster"), NL("Poster"), RU("Плакат"),
+    TR("Afiş"));
+
+SS_MSG(subj_screen,
+    EN("Screen"), JA("画面"), ZH_HANS("屏幕"), ZH_HANT("螢幕"),
+    KO("화면"), DE("Bildschirm"), FR("Écran"), ES("Pantalla"),
+    PT("Ecrã"), IT("Schermo"), NL("Scherm"), RU("Экран"),
+    TR("Ekran"));
 
 SS_MSG(subj_person_painting,
     EN("Person in a painting"),
@@ -4913,6 +6825,33 @@ SS_MSG(preview_what_kept,
     NL("Wat moet blijven?"),
     RU("Что оставить?"),
     TR("Ne tutulsun?"));
+
+// Try the mask, for a pick with no text prompt: the clicks are all there is.
+SS_MSG(preview_clicks_only,
+    EN("This model reads no text. Click the image to pick objects: left click on "
+       "the object, right click on what is not it."),
+    JA("このモデルはテキストを読みません。画像をクリックして物体を選んでください。対"
+       "象は左クリック、対象でないところは右クリックです。"),
+    ZH_HANS("这个模型不读文字。请在图像上点击来选物体：左键点目标，右键点不属于它的地方。"),
+    ZH_HANT("這個模型不讀文字。請在影像上點擊來選物件：左鍵點目標，右鍵點不屬於它的地方。"),
+    KO("이 모델은 텍스트를 읽지 않습니다. 이미지를 클릭해 물체를 고르세요. 물체는 왼쪽 클릭, 그 물체가 아닌 곳은 오른쪽 클릭입니다."),
+    DE("Dieses Modell liest keinen Text. Objekte durch Klicken ins Bild wählen: "
+       "Linksklick auf das Objekt, Rechtsklick auf das, was nicht dazugehört."),
+    FR("Ce modèle ne lit pas de texte. Cliquez sur l'image pour choisir des "
+       "objets : clic gauche sur l'objet, clic droit sur ce qui n'en fait pas "
+       "partie."),
+    ES("Este modelo no lee texto. Haga clic en la imagen para elegir objetos: "
+       "clic izquierdo sobre el objeto, clic derecho sobre lo que no lo es."),
+    PT("Este modelo não lê texto. Clique na imagem para escolher objetos: clique "
+       "esquerdo no objeto, clique direito no que não faz parte dele."),
+    IT("Questo modello non legge testo. Clicchi sull'immagine per scegliere gli "
+       "oggetti: clic sinistro sull'oggetto, clic destro su ciò che non lo è."),
+    NL("Dit model leest geen tekst. Klik in het beeld om objecten te kiezen: "
+       "linksklik op het object, rechtsklik op wat er niet bij hoort."),
+    RU("Эта модель не читает текст. Выбирайте объекты щелчками по изображению: "
+       "левой кнопкой по объекту, правой — по тому, что к нему не относится."),
+    TR("Bu model metin okumaz. Nesne seçmek için görüntüye tıklayın: nesneye sol "
+       "tık, ona ait olmayana sağ tık."));
 
 SS_MSG(preview_what_removed,
     EN("What should be removed?"),
@@ -5354,30 +7293,75 @@ SS_MSG(stencil_shrink,
     TR("Daralt"));
 
 SS_MSG(stencil_shrink_help,
-    EN("Pulls the circle in a little. The outermost ring of a lens circle is "
-       "dark and smeared, and it costs nothing to lose."),
-    JA("円を少しだけ内側に寄せます。レンズ円のいちばん外側は暗くにじんでおり、"
-       "捨てても損はありません。"),
-    ZH_HANS("把圆稍微往里收一点。镜头圆最外的一圈又暗又糊，丢掉不可惜。"),
-    ZH_HANT("把圓稍微往裡收一點。鏡頭圓最外的一圈又暗又糊，丟掉不可惜。"),
-    KO("원을 조금 안쪽으로 당깁니다. 렌즈 원의 가장 바깥 테는 어둡고 번져 있어 "
-       "버려도 아깝지 않습니다."),
-    DE("Zieht den Kreis ein Stück nach innen. Der äußerste Ring eines "
-       "Objektivkreises ist dunkel und verschmiert und kostet nichts."),
-    FR("Resserre un peu le cercle. L'anneau le plus extérieur d'un "
-       "cercle-image est sombre et étalé : le perdre ne coûte rien."),
-    ES("Mete un poco el círculo. El anillo más externo del círculo del "
-       "objetivo es oscuro y borroso, y perderlo no cuesta nada."),
-    PT("Puxa o círculo um pouco para dentro. O anel mais externo do círculo da "
-       "lente é escuro e borrado, e perdê-lo não custa nada."),
-    IT("Stringe un poco il cerchio. L'anello più esterno del cerchio "
-       "dell'obiettivo è scuro e sbavato, e perderlo non costa nulla."),
-    NL("Haalt de cirkel een stukje naar binnen. De buitenste ring van een "
-       "lenscirkel is donker en uitgesmeerd, en kost niets om kwijt te raken."),
-    RU("Немного поджимает круг. Самое внешнее кольцо круга изображения тусклое "
-       "и смазанное, потерять его не жалко."),
-    TR("Daireyi biraz içeri çeker. Mercek dairesinin en dış halkası sönük ve "
-       "bulaşıktır, gitmesi bir şey kaybettirmez."));
+    EN("Shrinks the detected radius by this percentage. Ctrl+click to enter a value. For an offset or uneven border, edit the border ellipse."),
+    JA("検出した半径をこの割合だけ縮めます。Ctrl+クリックで数値を入力できます。境界がずれている場合は楕円を編集してください。"),
+    ZH_HANS("按此百分比缩小检测出的半径。Ctrl+单击可输入数值。边界偏心或不均匀时，可编辑边界椭圆。"),
+    ZH_HANT("按此百分比縮小偵測出的半徑。Ctrl+點擊可輸入數值。邊界偏心或不均勻時，可編輯邊界橢圓。"),
+    KO("감지된 반지름을 이 비율만큼 줄입니다. Ctrl+클릭으로 값을 입력합니다. 경계가 치우치거나 고르지 않으면 경계 타원을 편집하세요."),
+    DE("Verkleinert den erkannten Radius um diesen Prozentsatz. Strg+Klick zur Werteingabe. Bei versetztem oder ungleichmäßigem Rand die Randellipse bearbeiten."),
+    FR("Réduit le rayon détecté de ce pourcentage. Ctrl+clic pour saisir une valeur. Si le bord est décentré ou irrégulier, modifiez son ellipse."),
+    ES("Reduce el radio detectado en este porcentaje. Ctrl+clic para introducir un valor. Si el borde está desplazado o es irregular, edita su elipse."),
+    PT("Reduz o raio detectado nesta porcentagem. Ctrl+clique para inserir um valor. Se a borda estiver deslocada ou irregular, edite sua elipse."),
+    IT("Riduce il raggio rilevato di questa percentuale. Ctrl+clic per inserire un valore. Se il bordo è decentrato o irregolare, modifica la sua ellisse."),
+    NL("Verkleint de gedetecteerde straal met dit percentage. Ctrl+klik om een waarde in te voeren. Bewerk de randellips bij een verschoven of onregelmatige rand."),
+    RU("Уменьшает найденный радиус на указанный процент. Ctrl+щелчок для ввода значения. Если граница смещена или неровная, измените её эллипс."),
+    TR("Algılanan yarıçapı bu yüzde kadar küçültür. Değer girmek için Ctrl+tıklayın. Sınır kaymış veya düzensizse sınır elipsini düzenleyin."));
+
+SS_MSG(stencil_edit_border,
+    EN("Edit border ellipse"), JA("境界の楕円を編集"),
+    ZH_HANS("编辑边界椭圆"), ZH_HANT("編輯邊界橢圓"),
+    KO("경계 타원 편집"), DE("Randellipse bearbeiten"),
+    FR("Modifier l'ellipse du bord"), ES("Editar elipse del borde"),
+    PT("Editar elipse da borda"), IT("Modifica ellisse del bordo"),
+    NL("Randellips bewerken"), RU("Изменить эллипс границы"),
+    TR("Sınır elipsini düzenle"));
+
+SS_MSG(stencil_edit_border_help,
+    EN("Use the current border as a fixed ellipse you can move and resize, and turn off "
+       "automatic detection. On an input with several cameras the ellipse is this camera's "
+       "only: separate areas for each camera are turned on, and the other lenses keep their "
+       "own borders."),
+    JA("現在の境界を、移動や大きさの変更ができる固定の楕円にし、自動検出を無効にします。複数の"
+       "カメラを持つ入力では、カメラごとの範囲が有効になり、楕円はこのカメラだけのものに"
+       "なります。ほかのレンズは自分の境界のままです。"),
+    ZH_HANS("将当前边界转为可移动、可改变大小的固定椭圆，并关闭自动检测。对有多台相机的输入，"
+            "会开启每台相机单独设置区域，椭圆只属于这台相机，其他镜头保留各自的边界。"),
+    ZH_HANT("將目前邊界轉為可移動、可改變大小的固定橢圓，並關閉自動偵測。對有多台相機的輸入，"
+            "會開啟每台相機分別設定區域，橢圓只屬於這台相機，其他鏡頭保留各自的邊界。"),
+    KO("현재 경계를 옮기고 크기를 바꿀 수 있는 고정 타원으로 만들고 자동 감지를 끕니다. "
+       "카메라가 여럿인 입력에서는 카메라마다 따로 영역 지정이 켜져 타원은 이 카메라에만 "
+       "적용되고, 다른 렌즈는 각자의 경계를 유지합니다."),
+    DE("Macht den aktuellen Rand zu einer festen Ellipse, die sich verschieben und skalieren "
+       "lässt, und schaltet die automatische Erkennung aus. Bei einer Eingabe mit mehreren "
+       "Kameras werden eigene Bereiche je Kamera eingeschaltet: Die Ellipse gilt nur für "
+       "diese Kamera, die anderen Objektive behalten ihren eigenen Rand."),
+    FR("Fait du bord actuel une ellipse fixe que l'on peut déplacer et redimensionner, et "
+       "désactive la détection automatique. Sur une entrée à plusieurs caméras, les zones "
+       "distinctes par caméra sont activées : l'ellipse ne vaut que pour cette caméra, et les "
+       "autres objectifs gardent leur propre bord."),
+    ES("Convierte el borde actual en una elipse fija que se puede mover y redimensionar, y "
+       "desactiva la detección automática. En una entrada con varias cámaras se activan las "
+       "zonas distintas para cada cámara: la elipse es solo de esta cámara y los demás "
+       "objetivos conservan su propio borde."),
+    PT("Transforma a borda atual numa elipse fixa que pode ser movida e redimensionada, e "
+       "desativa a detecção automática. Numa entrada com várias câmeras, as áreas separadas "
+       "para cada câmera são ativadas: a elipse é só desta câmera, e as outras lentes mantêm "
+       "sua própria borda."),
+    IT("Trasforma il bordo attuale in un'ellisse fissa che si può spostare e ridimensionare, e "
+       "disattiva il rilevamento automatico. Su un ingresso con più fotocamere si attivano le "
+       "aree separate per ogni fotocamera: l'ellisse vale solo per questa, e gli altri "
+       "obiettivi mantengono il proprio bordo."),
+    NL("Maakt van de huidige rand een vaste ellips die kan worden verplaatst en geschaald, en "
+       "schakelt automatische detectie uit. Bij een invoer met meerdere camera's worden aparte "
+       "gebieden per camera ingeschakeld: de ellips geldt alleen voor deze camera en de andere "
+       "lenzen houden hun eigen rand."),
+    RU("Превращает текущую границу в фиксированный эллипс, который можно двигать и менять в "
+       "размере, и отключает автоопределение. Для входа с несколькими камерами включаются "
+       "отдельные области для каждой камеры: эллипс относится только к этой камере, а другие "
+       "объективы сохраняют свои границы."),
+    TR("Geçerli sınırı taşınabilen ve boyutlandırılabilen sabit bir elipse çevirir ve otomatik "
+       "algılamayı kapatır. Birden çok kameralı bir girdide her kamera için ayrı alanlar "
+       "açılır: elips yalnızca bu kameranındır, diğer mercekler kendi sınırlarını korur."));
 
 SS_MSG(stencil_looking,
     EN("Looking for the border..."),
@@ -5448,81 +7432,55 @@ SS_MSG(stencil_shapes,
     TR("Bir alanı kapat"));
 
 SS_MSG(stencil_shapes_help,
-    EN("Add a box or a circle and drag it over what should go -- a watermark, "
-       "a timestamp, the operator at the bottom of the frame. Each one can "
-       "instead keep what is inside it, which is how you draw a lens circle by "
-       "hand."),
-    JA("四角か円を足して、消したいものの上にドラッグしてください。透かし、日時"
-       "表示、画面の下に写り込んだ撮影者などです。逆に内側を残す設定にもでき、"
-       "レンズの円を手で描くときはこちらを使います。"),
-    ZH_HANS("加一个方框或圆，拖到要去掉的东西上——水印、时间戳、画面下方的拍摄者。"
-            "每个也可以反过来只保留内部，手工画镜头圆时就这么用。"),
-    ZH_HANT("加一個方框或圓，拖到要去掉的東西上——浮水印、時間戳、畫面下方的拍攝者。"
-            "每個也可以反過來只保留內部，手工畫鏡頭圓時就這麼用。"),
-    KO("상자나 원을 더해 없앨 것 위로 끌어다 놓으세요. 워터마크, 날짜 표시, 화면 "
-       "아래에 든 촬영자 같은 것들입니다. 반대로 안쪽만 남기게도 할 수 있는데, "
-       "렌즈 원을 손으로 그릴 때 그렇게 씁니다."),
-    DE("Fügen Sie ein Rechteck oder einen Kreis hinzu und ziehen Sie es über "
-       "das, was weg soll -- ein Wasserzeichen, eine Zeitangabe, den Filmenden "
-       "am unteren Bildrand. Jede Form kann stattdessen behalten, was in ihr "
-       "liegt; so zeichnet man einen Objektivkreis von Hand."),
-    FR("Ajoutez un rectangle ou un cercle et faites-le glisser sur ce qui doit "
-       "disparaître : un filigrane, un horodatage, l'opérateur en bas de "
-       "l'image. Chaque forme peut au contraire garder son intérieur, ce qui "
-       "permet de tracer un cercle-image à la main."),
-    ES("Añada un rectángulo o un círculo y arrástrelo sobre lo que debe "
-       "irse: una marca de agua, una fecha, el operador al pie del "
-       "fotograma. Cada forma puede en cambio conservar su interior, que es "
-       "como se dibuja a mano un círculo de objetivo."),
-    PT("Acrescente um retângulo ou um círculo e arraste-o sobre o que deve "
-       "sair: uma marca d'água, uma data, o operador no pé do quadro. Cada "
-       "forma pode, ao contrário, manter o seu interior, e é assim que se "
-       "desenha um círculo de lente à mão."),
-    IT("Aggiunga un rettangolo o un cerchio e lo trascini su ciò che deve "
-       "sparire: una filigrana, una data, l'operatore in fondo al fotogramma. "
-       "Ogni forma può invece tenere il proprio interno, ed è così che si "
-       "disegna a mano un cerchio dell'obiettivo."),
-    NL("Voeg een rechthoek of cirkel toe en sleep die over wat weg moet: een "
-       "watermerk, een datumstempel, de filmer onderaan het beeld. Elke vorm "
-       "kan juist ook houden wat erbinnen ligt; zo teken je een lenscirkel met "
-       "de hand."),
-    RU("Добавьте прямоугольник или круг и перетащите его на то, что должно "
-       "уйти: водяной знак, дату, оператора внизу кадра. Любую фигуру можно "
-       "наоборот заставить сохранять своё нутро -- так круг объектива рисуют "
-       "вручную."),
-    TR("Bir dikdörtgen ya da daire ekleyip gitmesi gerekenin üstüne sürükleyin: "
-       "bir filigran, bir tarih damgası, karenin altındaki çekimci. Her biri "
-       "tersine içini tutabilir de; mercek dairesi elle böyle çizilir."));
-
-SS_MSG(stencil_add_box,
-    EN("Add a box"),
-    JA("四角を足す"),
-    ZH_HANS("加方框"),
-    ZH_HANT("加方框"),
-    KO("상자 더하기"),
-    DE("Rechteck"),
-    FR("Rectangle"),
-    ES("Rectángulo"),
-    PT("Retângulo"),
-    IT("Rettangolo"),
-    NL("Rechthoek"),
-    RU("Прямоугольник"),
-    TR("Dikdörtgen ekle"));
-
-SS_MSG(stencil_add_circle,
-    EN("Add a circle"),
-    JA("円を足す"),
-    ZH_HANS("加圆"),
-    ZH_HANT("加圓"),
-    KO("원 더하기"),
-    DE("Kreis"),
-    FR("Cercle"),
-    ES("Círculo"),
-    PT("Círculo"),
-    IT("Cerchio"),
-    NL("Cirkel"),
-    RU("Круг"),
-    TR("Daire ekle"));
+    EN("Draw over what should go -- a watermark, a timestamp, the operator at "
+       "the bottom of the frame -- with the tools above the picture. Subtract, "
+       "or Ctrl, draws what to keep instead, which is how you draw a lens "
+       "circle by hand. Ctrl+Z undoes."),
+    JA("消したいもの（透かし、日時表示、画面の下に写り込んだ撮影者など）を、"
+       "画像の上のツールで塗ってください。削除または Ctrl で描くと、逆に残す"
+       "範囲になります。レンズの円を手で描くときはこちらを使います。Ctrl+Z で"
+       "元に戻します。"),
+    ZH_HANS("用图片上方的工具画出要去掉的东西——水印、时间戳、画面下方的拍摄者。"
+            "选择减去或按住 Ctrl 画的则是要保留的部分，手工画镜头圆时就这么用。"
+            "Ctrl+Z 撤销。"),
+    ZH_HANT("用圖片上方的工具畫出要去掉的東西——浮水印、時間戳、畫面下方的拍攝者。"
+            "選擇減去或按住 Ctrl 畫的則是要保留的部分，手工畫鏡頭圓時就這麼用。"
+            "Ctrl+Z 復原。"),
+    KO("사진 위의 도구로 없앨 것을 그리세요. 워터마크, 날짜 표시, 화면 아래에 "
+       "든 촬영자 같은 것들입니다. 빼기나 Ctrl로 그리면 반대로 남길 부분이 "
+       "되는데, 렌즈 원을 손으로 그릴 때 그렇게 씁니다. Ctrl+Z로 되돌립니다."),
+    DE("Mit den Werkzeugen über dem Bild übermalen, was weg soll -- ein "
+       "Wasserzeichen, eine Zeitangabe, den Filmenden am unteren Bildrand. "
+       "Abziehen oder Strg zeichnet stattdessen, was bleibt; so zeichnet man "
+       "einen Objektivkreis von Hand. Strg+Z macht rückgängig."),
+    FR("Dessinez sur ce qui doit disparaître -- un filigrane, un horodatage, "
+       "l'opérateur en bas de l'image -- avec les outils au-dessus de l'image. "
+       "Soustraire, ou Ctrl, dessine au contraire ce qui reste ; c'est ainsi "
+       "qu'on trace un cercle-image à la main. Ctrl+Z annule."),
+    ES("Dibuje sobre lo que debe irse -- una marca de agua, una fecha, el "
+       "operador al pie del fotograma -- con las herramientas sobre la imagen. "
+       "Restar, o Ctrl, dibuja en cambio lo que se conserva; así se dibuja a "
+       "mano un círculo de objetivo. Ctrl+Z deshace."),
+    PT("Desenhe sobre o que deve sair -- uma marca d'água, uma data, o "
+       "operador no pé do quadro -- com as ferramentas acima da imagem. "
+       "Subtrair, ou Ctrl, desenha ao contrário o que fica; é assim que se "
+       "desenha um círculo de lente à mão. Ctrl+Z desfaz."),
+    IT("Disegna sopra ciò che deve sparire -- una filigrana, una data, "
+       "l'operatore in fondo al fotogramma -- con gli strumenti sopra "
+       "l'immagine. Sottrai, o Ctrl, disegna invece ciò che resta; è così che "
+       "si disegna a mano un cerchio dell'obiettivo. Ctrl+Z annulla."),
+    NL("Teken met het gereedschap boven de afbeelding over wat weg moet -- een "
+       "watermerk, een datumstempel, de filmer onderaan het beeld. Aftrekken, "
+       "of Ctrl, tekent juist wat blijft; zo teken je een lenscirkel met de "
+       "hand. Ctrl+Z maakt ongedaan."),
+    RU("Закрасьте инструментами над картинкой то, что должно уйти: водяной "
+       "знак, дату, оператора внизу кадра. «Вычесть» или Ctrl рисует, наоборот, "
+       "то, что остаётся, -- так круг объектива рисуют вручную. Ctrl+Z "
+       "отменяет."),
+    TR("Gitmesi gerekeni -- bir filigran, bir tarih damgası, karenin altındaki "
+       "çekimci -- resmin üstündeki araçlarla boyayın. Çıkar veya Ctrl ise "
+       "tersine kalacak yeri çizer; mercek dairesi elle böyle çizilir. Ctrl+Z "
+       "geri alır."));
 
 SS_MSG(stencil_shape_box,
     EN("Box {0}"),       JA("四角 {0}"),      ZH_HANS("方框 {0}"),  ZH_HANT("方框 {0}"),
@@ -5535,6 +7493,366 @@ SS_MSG(stencil_shape_circle,
     KO("원 {0}"),         DE("Kreis {0}"),    FR("Cercle {0}"),   ES("Círculo {0}"),
     PT("Círculo {0}"),   IT("Cerchio {0}"),  NL("Cirkel {0}"),   RU("Круг {0}"),
     TR("Daire {0}"));
+
+SS_MSG(stencil_shape_path,
+    EN("Path {0}"),       JA("パス {0}"),       ZH_HANS("路径 {0}"),  ZH_HANT("路徑 {0}"),
+    KO("패스 {0}"),        DE("Pfad {0}"),       FR("Tracé {0}"),
+    ES("Trazado {0}"),    PT("Traçado {0}"),    IT("Tracciato {0}"),
+    NL("Pad {0}"),        RU("Контур {0}"),     TR("Yol {0}"));
+
+SS_MSG(stencil_shape_stroke,
+    EN("Brush stroke {0}"), JA("ブラシ {0}"),   ZH_HANS("笔刷 {0}"),  ZH_HANT("筆刷 {0}"),
+    KO("브러시 {0}"),       DE("Pinselstrich {0}"), FR("Trait de pinceau {0}"),
+    ES("Trazo de pincel {0}"), PT("Pincelada {0}"), IT("Pennellata {0}"),
+    NL("Penseelstreek {0}"), RU("Мазок кисти {0}"), TR("Fırça darbesi {0}"));
+
+SS_MSG(stencil_tool_select,
+    EN("Select"),        JA("選択"),          ZH_HANS("选择"),     ZH_HANT("選取"),
+    KO("선택"),           DE("Auswahl"),       FR("Sélection"),
+    ES("Seleccionar"),   PT("Selecionar"),    IT("Seleziona"),
+    NL("Selecteren"),    RU("Выбор"),         TR("Seç"));
+
+SS_MSG(stencil_tool_select_help,
+    EN("Clicks on the picture prompt the model, as without a tool. Pick a shape "
+       "in the list to move or resize it."),
+    JA("画像のクリックはツールなしのときと同じくモデルへの指示になります。一覧で図形を"
+       "選ぶと、移動や大きさの変更ができます。"),
+    ZH_HANS("在图片上单击会像不用工具时一样提示模型。在列表中选中一个图形即可移动或"
+            "改变大小。"),
+    ZH_HANT("在圖片上點一下會像不用工具時一樣提示模型。在清單中選取一個圖形即可移動或"
+            "改變大小。"),
+    KO("사진을 클릭하면 도구가 없을 때처럼 모델에 지시합니다. 목록에서 도형을 고르면 "
+       "옮기거나 크기를 바꿀 수 있습니다."),
+    DE("Klicks ins Bild geben dem Modell Hinweise, wie ohne Werkzeug. Eine Form in "
+       "der Liste wählen, um sie zu verschieben oder ihre Größe zu ändern."),
+    FR("Les clics sur l'image guident le modèle, comme sans outil. Choisissez une "
+       "forme dans la liste pour la déplacer ou la redimensionner."),
+    ES("Los clics en la imagen guían al modelo, como sin herramienta. Elija una "
+       "forma en la lista para moverla o cambiar su tamaño."),
+    PT("Os cliques na imagem orientam o modelo, como sem ferramenta. Escolha uma "
+       "forma na lista para movê-la ou redimensioná-la."),
+    IT("I clic sull'immagine guidano il modello, come senza strumento. Scegli una "
+       "forma nell'elenco per spostarla o ridimensionarla."),
+    NL("Klikken op de afbeelding sturen het model, zoals zonder gereedschap. Kies "
+       "een vorm in de lijst om hem te verplaatsen of te vergroten."),
+    RU("Щелчки по картинке подсказывают модели, как и без инструмента. Выберите "
+       "фигуру в списке, чтобы сдвинуть её или изменить размер."),
+    TR("Resme tıklamak, araç yokken olduğu gibi modele ipucu verir. Taşımak veya "
+       "boyutlandırmak için listeden bir biçim seçin."));
+
+SS_MSG(stencil_brush_size,
+    EN("Brush: {0}%"),   JA("ブラシ: {0}%"),  ZH_HANS("笔刷：{0}%"), ZH_HANT("筆刷：{0}%"),
+    KO("브러시: {0}%"),   DE("Pinsel: {0} %"), FR("Pinceau : {0} %"),
+    ES("Pincel: {0} %"), PT("Pincel: {0}%"),  IT("Pennello: {0}%"),
+    NL("Penseel: {0}%"), RU("Кисть: {0}%"),   TR("Fırça: %{0}"));
+
+SS_MSG(stencil_brush_size_help,
+    EN("The brush and eraser radius, as a share of the picture's shorter side, so "
+       "it means the same at any resolution. [ and ] step it."),
+    JA("ブラシと消しゴムの半径で、画像の短い辺に対する割合です。解像度が違っても"
+       "同じ意味になります。[ と ] で変わります。"),
+    ZH_HANS("画笔和橡皮擦的半径，按图片短边的比例计，所以在任何分辨率下含义相同。"
+            "[ 和 ] 可调整。"),
+    ZH_HANT("筆刷和橡皮擦的半徑，按圖片短邊的比例計，所以在任何解析度下含義相同。"
+            "[ 和 ] 可調整。"),
+    KO("브러시와 지우개의 반지름으로, 사진 짧은 변에 대한 비율이라 어떤 해상도에서도 "
+       "같은 뜻입니다. [ 와 ] 로 바꿉니다."),
+    DE("Radius von Pinsel und Radierer als Anteil der kürzeren Bildseite, also bei "
+       "jeder Auflösung gleich. [ und ] ändern ihn."),
+    FR("Le rayon du pinceau et de la gomme, en part du petit côté de l'image, donc "
+       "identique à toute résolution. [ et ] le modifient."),
+    ES("El radio del pincel y del borrador, como parte del lado corto de la imagen, "
+       "así que significa lo mismo a cualquier resolución. [ y ] lo cambian."),
+    PT("O raio do pincel e da borracha, como fração do lado menor da imagem, por "
+       "isso vale o mesmo em qualquer resolução. [ e ] o alteram."),
+    IT("Il raggio di pennello e gomma, come quota del lato corto dell'immagine, "
+       "quindi uguale a ogni risoluzione. [ e ] lo cambiano."),
+    NL("De straal van penseel en gum, als deel van de korte zijde van de afbeelding, "
+       "dus gelijk bij elke resolutie. [ en ] veranderen hem."),
+    RU("Радиус кисти и ластика как доля короткой стороны картинки, поэтому он "
+       "одинаков при любом разрешении. [ и ] меняют его."),
+    TR("Fırça ve silginin yarıçapı, resmin kısa kenarının bir payı olarak; bu yüzden "
+       "her çözünürlükte aynıdır. [ ve ] değiştirir."));
+
+SS_MSG(stencil_saved_areas,
+    EN("Saved drawn areas"),
+    JA("保存した描画範囲"),
+    ZH_HANS("已保存的绘制区域"),
+    ZH_HANT("已儲存的繪製區域"),
+    KO("저장한 그린 영역"),
+    DE("Gespeicherte Zeichnungen"),
+    FR("Zones dessinées enregistrées"),
+    ES("Áreas dibujadas guardadas"),
+    PT("Áreas desenhadas salvas"),
+    IT("Aree disegnate salvate"),
+    NL("Opgeslagen getekende gebieden"),
+    RU("Сохранённые области"),
+    TR("Kayıtlı çizili alanlar"));
+
+SS_MSG(stencil_load,
+    EN("Load..."),       JA("読み込む..."),   ZH_HANS("载入..."),   ZH_HANT("載入..."),
+    KO("불러오기..."),    DE("Laden..."),      FR("Charger..."),
+    ES("Cargar..."),     PT("Carregar..."),   IT("Carica..."),
+    NL("Laden..."),      RU("Загрузить..."),  TR("Yükle..."));
+
+SS_MSG(stencil_save,
+    EN("Save..."),       JA("保存..."),       ZH_HANS("保存..."),   ZH_HANT("儲存..."),
+    KO("저장..."),        DE("Speichern..."),  FR("Enregistrer..."),
+    ES("Guardar..."),    PT("Salvar..."),     IT("Salva..."),
+    NL("Opslaan..."),    RU("Сохранить..."),  TR("Kaydet..."));
+
+SS_MSG(stencil_save_help,
+    EN("Keep what is drawn here, without the fitted lens circle, as an SVG file in "
+       "normalized coordinates. With separate areas for each camera and cameras that "
+       "differ, each camera gets its own file, and loading the set puts each back on "
+       "its camera. A saved set can be loaded onto another input, and picked on the "
+       "dataset screen for every input and for dataset presets."),
+    JA("ここで描いたもの（検出したレンズの円は含みません）を、正規化座標の SVG "
+       "ファイルとして保存します。カメラごとに別の範囲を使い、カメラで内容が違うときは"
+       "カメラごとにファイルを分け、読み込むとそれぞれのカメラに戻ります。保存したものは"
+       "別の入力に読み込めるほか、データセット画面で全入力とデータセットのプリセットに"
+       "使えます。"),
+    ZH_HANS("把这里画的内容（不含检测到的镜头圆）保存为归一化坐标的 SVG 文件。"
+            "每台相机单独设置区域且各相机不同时，每台相机各存一个文件，载入时各自回到"
+            "对应的相机。保存后可以载入到其他输入，也可以在数据集界面中用于所有输入和"
+            "数据集预设。"),
+    ZH_HANT("把這裡畫的內容（不含偵測到的鏡頭圓）儲存為正規化座標的 SVG 檔案。"
+            "每台相機分別設定區域且各相機不同時，每台相機各存一個檔案，載入時各自回到"
+            "對應的相機。儲存後可以載入到其他輸入，也可以在資料集畫面中用於所有輸入和"
+            "資料集預設。"),
+    KO("여기서 그린 것을(찾아낸 렌즈 원은 빼고) 정규화 좌표의 SVG 파일로 저장합니다. "
+       "카메라마다 따로 영역을 지정했고 카메라끼리 다르면 카메라마다 파일을 따로 두고, "
+       "불러오면 각자의 카메라로 돌아갑니다. 저장한 것은 다른 입력에 불러올 수 있고, "
+       "데이터셋 화면에서 모든 입력과 데이터셋 프리셋에 쓸 수 있습니다."),
+    DE("Das hier Gezeichnete ohne den erkannten Objektivkreis als SVG-Datei in "
+       "normierten Koordinaten speichern. Mit eigenen Bereichen je Kamera und "
+       "unterschiedlichen Kameras bekommt jede Kamera eine eigene Datei, und beim Laden "
+       "kommt jede wieder auf ihre Kamera. Gespeichertes lässt sich auf eine andere "
+       "Eingabe laden und im Datensatz-Bildschirm für alle Eingaben und für "
+       "Datensatz-Voreinstellungen wählen."),
+    FR("Garder ce qui est dessiné ici, sans le cercle d'objectif détecté, dans un "
+       "fichier SVG en coordonnées normalisées. Avec des zones distinctes par caméra et "
+       "des caméras qui diffèrent, chaque caméra a son propre fichier, et le chargement "
+       "remet chacun sur sa caméra. Un ensemble enregistré se charge sur une autre "
+       "entrée et se choisit dans l'écran du jeu de données pour toutes les entrées et "
+       "pour les préréglages."),
+    ES("Guardar lo dibujado aquí, sin el círculo de objetivo detectado, como archivo "
+       "SVG en coordenadas normalizadas. Con zonas distintas para cada cámara y cámaras "
+       "que difieren, cada cámara tiene su propio archivo, y al cargar el juego cada uno "
+       "vuelve a su cámara. Lo guardado se puede cargar en otra entrada y elegir en la "
+       "pantalla del conjunto de datos para todas las entradas y los ajustes "
+       "predefinidos."),
+    PT("Guardar o que foi desenhado aqui, sem o círculo de lente detectado, como "
+       "arquivo SVG em coordenadas normalizadas. Com áreas separadas para cada câmera e "
+       "câmeras diferentes, cada câmera tem seu próprio arquivo, e ao carregar o "
+       "conjunto cada um volta à sua câmera. O que foi salvo pode ser carregado em outra "
+       "entrada e escolhido na tela do conjunto de dados para todas as entradas e para "
+       "as predefinições."),
+    IT("Salva ciò che è disegnato qui, senza il cerchio dell'obiettivo rilevato, "
+       "come file SVG in coordinate normalizzate. Con aree separate per ogni fotocamera "
+       "e fotocamere diverse, ogni fotocamera ha il suo file, e caricando l'insieme "
+       "ognuno torna sulla sua fotocamera. Un insieme salvato si carica su un altro "
+       "input e si sceglie nella schermata del dataset per tutti gli input e per i "
+       "preset."),
+    NL("Bewaar wat hier getekend is, zonder de gevonden lenscirkel, als SVG-bestand "
+       "in genormaliseerde coördinaten. Met aparte gebieden per camera en camera's die "
+       "verschillen krijgt elke camera een eigen bestand, en bij het laden gaat elk "
+       "terug naar zijn camera. Een opgeslagen set kan op een andere invoer worden "
+       "geladen en op het datasetscherm worden gekozen voor alle invoer en voor "
+       "datasetvoorinstellingen."),
+    RU("Сохранить нарисованное здесь, без найденного круга объектива, в файл SVG в "
+       "нормированных координатах. При отдельных областях для каждой камеры и разных "
+       "камерах у каждой камеры свой файл, и при загрузке набора каждый возвращается на "
+       "свою камеру. Сохранённое можно загрузить на другой вход и выбрать на экране "
+       "набора данных для всех входов и для пресетов."),
+    TR("Burada çizileni, bulunan mercek dairesi olmadan, normalize koordinatlarda "
+       "bir SVG dosyası olarak sakla. Her kamera için ayrı alanlar açıkken kameralar "
+       "farklıysa her kameranın kendi dosyası olur ve takım yüklenince her biri kendi "
+       "kamerasına döner. Kaydedilen, başka bir girdiye yüklenebilir ve veri kümesi "
+       "ekranında tüm girdiler ve ön ayarlar için seçilebilir."));
+
+SS_MSG(stencil_set_no_camera,
+    EN("These areas are for the cameras {0}, and this input has none of them."),
+    JA("この範囲はカメラ {0} 用ですが、この入力にはそのどれもありません。"),
+    ZH_HANS("这些区域是为相机 {0} 设置的，而此输入没有其中任何一台。"),
+    ZH_HANT("這些區域是為相機 {0} 設定的，而此輸入沒有其中任何一台。"),
+    KO("이 영역은 카메라 {0} 용인데, 이 입력에는 그중 어느 것도 없습니다."),
+    DE("Diese Bereiche gehören zu den Kameras {0}, und diese Eingabe hat keine davon."),
+    FR("Ces zones sont pour les caméras {0}, et cette entrée n'en a aucune."),
+    ES("Estas zonas son para las cámaras {0}, y esta entrada no tiene ninguna."),
+    PT("Estas áreas são para as câmeras {0}, e esta entrada não tem nenhuma delas."),
+    IT("Queste aree sono per le fotocamere {0}, e questo input non ne ha nessuna."),
+    NL("Deze gebieden zijn voor de camera's {0}, en deze invoer heeft er geen van."),
+    RU("Эти области — для камер {0}, а у этого входа нет ни одной из них."),
+    TR("Bu alanlar {0} kameraları için ve bu girdide bunların hiçbiri yok."));
+
+SS_MSG(stencil_saved_as,
+    EN("Saved: {0}"),    JA("保存しました: {0}"), ZH_HANS("已保存：{0}"), ZH_HANT("已儲存：{0}"),
+    KO("저장함: {0}"),    DE("Gespeichert: {0}"), FR("Enregistré : {0}"),
+    ES("Guardado: {0}"), PT("Salvo: {0}"),     IT("Salvato: {0}"),
+    NL("Opgeslagen: {0}"), RU("Сохранено: {0}"), TR("Kaydedildi: {0}"));
+
+SS_MSG(stencil_save_failed,
+    EN("Could not save: {0}"),     JA("保存できませんでした: {0}"),
+    ZH_HANS("无法保存：{0}"),       ZH_HANT("無法儲存：{0}"),
+    KO("저장할 수 없습니다: {0}"), DE("Speichern fehlgeschlagen: {0}"),
+    FR("Enregistrement impossible : {0}"), ES("No se pudo guardar: {0}"),
+    PT("Não foi possível salvar: {0}"), IT("Impossibile salvare: {0}"),
+    NL("Opslaan mislukt: {0}"),    RU("Не удалось сохранить: {0}"),
+    TR("Kaydedilemedi: {0}"));
+
+SS_MSG(stencil_load_failed,
+    EN("Could not read drawn areas: {0}"),   JA("描画範囲を読み込めません: {0}"),
+    ZH_HANS("无法读取绘制区域：{0}"),         ZH_HANT("無法讀取繪製區域：{0}"),
+    KO("그린 영역을 읽을 수 없습니다: {0}"),  DE("Zeichnung nicht lesbar: {0}"),
+    FR("Zones dessinées illisibles : {0}"),  ES("No se pudieron leer las áreas: {0}"),
+    PT("Não foi possível ler as áreas: {0}"), IT("Impossibile leggere le aree: {0}"),
+    NL("Getekende gebieden onleesbaar: {0}"), RU("Не удалось прочитать области: {0}"),
+    TR("Çizili alanlar okunamadı: {0}"));
+
+SS_MSG(stencil_in_dataset,
+    EN("In this dataset"),     JA("このデータセット内"),   ZH_HANS("此数据集中"),
+    ZH_HANT("此資料集中"),      KO("이 데이터셋 안"),       DE("In diesem Datensatz"),
+    FR("Dans ce jeu de données"), ES("En este conjunto de datos"),
+    PT("Neste conjunto de dados"), IT("In questo dataset"), NL("In deze dataset"),
+    RU("В этом наборе данных"), TR("Bu veri kümesinde"));
+
+SS_MSG(stencil_other_file,
+    EN("Other file..."),       JA("ほかのファイル..."),    ZH_HANS("其他文件..."),
+    ZH_HANT("其他檔案..."),     KO("다른 파일..."),         DE("Andere Datei..."),
+    FR("Autre fichier..."),    ES("Otro archivo..."),      PT("Outro arquivo..."),
+    IT("Altro file..."),       NL("Ander bestand..."),     RU("Другой файл..."),
+    TR("Başka dosya..."));
+
+SS_MSG(stencil_pick_file,
+    EN("Load drawn areas"),    JA("描画範囲を読み込む"),   ZH_HANS("载入绘制区域"),
+    ZH_HANT("載入繪製區域"),    KO("그린 영역 불러오기"),   DE("Zeichnung laden"),
+    FR("Charger des zones dessinées"), ES("Cargar áreas dibujadas"),
+    PT("Carregar áreas desenhadas"), IT("Carica aree disegnate"),
+    NL("Getekende gebieden laden"), RU("Загрузить области"), TR("Çizili alanları yükle"));
+
+SS_MSG(stencil_autosaved,
+    EN("Drawn areas kept with the dataset: {0}"),
+    JA("描画範囲をデータセットと一緒に保存しました: {0}"),
+    ZH_HANS("绘制区域已随数据集保存：{0}"),
+    ZH_HANT("繪製區域已隨資料集儲存：{0}"),
+    KO("그린 영역을 데이터셋과 함께 저장했습니다: {0}"),
+    DE("Zeichnung beim Datensatz gespeichert: {0}"),
+    FR("Zones dessinées conservées avec le jeu de données : {0}"),
+    ES("Áreas dibujadas guardadas con el conjunto de datos: {0}"),
+    PT("Áreas desenhadas guardadas com o conjunto de dados: {0}"),
+    IT("Aree disegnate salvate con il dataset: {0}"),
+    NL("Getekende gebieden bij de dataset bewaard: {0}"),
+    RU("Области сохранены вместе с набором данных: {0}"),
+    TR("Çizili alanlar veri kümesiyle birlikte saklandı: {0}"));
+
+SS_MSG(stencil_areas_preset,
+    EN("Drawn areas"),   JA("描画範囲"),      ZH_HANS("绘制区域"),  ZH_HANT("繪製區域"),
+    KO("그린 영역"),      DE("Zeichnung"),     FR("Zones dessinées"),
+    ES("Áreas dibujadas"), PT("Áreas desenhadas"), IT("Aree disegnate"),
+    NL("Getekende gebieden"), RU("Области"),   TR("Çizili alanlar"));
+
+SS_MSG(stencil_areas_per_input,
+    EN("As drawn on each input"),  JA("入力ごとに描いたとおり"),
+    ZH_HANS("按每个输入各自绘制"),  ZH_HANT("按每個輸入各自繪製"),
+    KO("입력마다 그린 대로"),       DE("Wie je Eingabe gezeichnet"),
+    FR("Tel que dessiné sur chaque entrée"), ES("Como se dibujó en cada entrada"),
+    PT("Como desenhado em cada entrada"), IT("Come disegnato su ogni input"),
+    NL("Zoals per invoer getekend"), RU("Как нарисовано на каждом входе"),
+    TR("Her girdide çizildiği gibi"));
+
+SS_MSG(stencil_areas_preset_help,
+    EN("A saved set of drawn areas, drawn on every input in place of what each "
+       "has, and kept in a dataset preset so a batch run gets it too. Save one "
+       "from Try the mask..."),
+    JA("保存した描画範囲を、各入力のものに代えてすべての入力に描きます。データ"
+       "セットのプリセットにも保存されるので、バッチ処理でも使われます。保存は"
+       "「マスクを試す…」から行います。"),
+    ZH_HANS("一组已保存的绘制区域，会替换每个输入原有的内容画到所有输入上，并随数据集"
+            "预设一起保存，批处理也会用到。在“试一下蒙版…”中保存。"),
+    ZH_HANT("一組已儲存的繪製區域，會取代每個輸入原有的內容畫到所有輸入上，並隨資料集"
+            "預設一起儲存，批次處理也會用到。在「試一下遮罩…」中儲存。"),
+    KO("저장한 그린 영역을 각 입력에 있던 것 대신 모든 입력에 그립니다. 데이터셋 "
+       "프리셋에도 저장되어 일괄 처리에도 쓰입니다. '마스크 시험해 보기…'에서 "
+       "저장합니다."),
+    DE("Eine gespeicherte Zeichnung, auf jede Eingabe statt deren eigener gezeichnet "
+       "und in einer Datensatz-Voreinstellung mitgespeichert, damit auch ein "
+       "Stapellauf sie bekommt. Gespeichert wird unter „Maske ausprobieren …“."),
+    FR("Un ensemble enregistré de zones dessinées, tracé sur chaque entrée à la "
+       "place du sien, et conservé dans le préréglage du jeu de données pour qu'un "
+       "traitement par lots l'ait aussi. On l'enregistre depuis « Essayer le masque… »."),
+    ES("Un conjunto guardado de áreas dibujadas, trazado en cada entrada en lugar "
+       "del suyo y guardado en el ajuste predefinido para que un lote también lo "
+       "use. Se guarda desde «Probar la máscara…»."),
+    PT("Um conjunto salvo de áreas desenhadas, traçado em cada entrada no lugar do "
+       "seu e guardado na predefinição do conjunto de dados, para que um lote "
+       "também o use. Salve-o em «Testar a máscara…»."),
+    IT("Un insieme salvato di aree disegnate, tracciato su ogni input al posto del "
+       "suo e conservato nel preset del dataset, così anche un'elaborazione in "
+       "batch lo usa. Si salva da «Prova la maschera…»."),
+    NL("Een opgeslagen set getekende gebieden, op elke invoer getekend in plaats "
+       "van de eigen, en bewaard in een datasetvoorinstelling zodat een batch hem "
+       "ook krijgt. Opslaan doe je via ‘Masker uitproberen…’."),
+    RU("Сохранённые области, нарисованные на каждом входе вместо его собственных и "
+       "хранящиеся в пресете набора данных, чтобы их получил и пакетный запуск. "
+       "Сохраняются в окне «Проверить маску…»."),
+    TR("Kayıtlı bir çizili alan seti; her girdiye kendi çiziminin yerine çizilir ve "
+       "veri kümesi ön ayarında saklanır, böylece toplu işlem de onu alır. “Maskeyi "
+       "dene…” penceresinden kaydedilir."));
+
+SS_MSG(stencil_add_path_help,
+    EN("Click along an edge on the picture to drop anchors; the path snaps to the edge "
+       "between them. Click the first anchor, press Enter or right-click to close it. "
+       "Ctrl+Z takes the last anchor back; Esc cancels."),
+    JA("画像の輪郭に沿ってクリックすると点が置かれ、点と点の間はその輪郭に沿って結ばれます。"
+       "最初の点をクリックするか、Enter または右クリックで閉じます。Ctrl+Z で最後の点を"
+       "取り消し、Esc で中止します。"),
+    ZH_HANS("沿着图上的边缘点击放下锚点，锚点之间的路径会贴合边缘。点击第一个锚点、按 Enter "
+            "或右键即可闭合。Ctrl+Z 撤回最后一个锚点，Esc 取消。"),
+    ZH_HANT("沿著圖上的邊緣點擊放下錨點，錨點之間的路徑會貼合邊緣。點擊第一個錨點、按 Enter "
+            "或右鍵即可閉合。Ctrl+Z 收回最後一個錨點，Esc 取消。"),
+    KO("사진의 윤곽을 따라 클릭해 앵커를 놓으면 앵커 사이의 경로가 윤곽에 붙습니다. 첫 앵커를 "
+       "클릭하거나 Enter 또는 오른쪽 클릭으로 닫습니다. Ctrl+Z는 마지막 앵커를 되돌리고 "
+       "Esc는 취소합니다."),
+    DE("Entlang einer Kante im Bild klicken, um Ankerpunkte zu setzen; der Pfad legt sich "
+       "dazwischen an die Kante. Den ersten Anker anklicken, Eingabe drücken oder rechts "
+       "klicken schließt ihn. Strg+Z nimmt den letzten Anker zurück, Esc bricht ab."),
+    FR("Cliquez le long d'un contour de l'image pour poser des ancres ; le chemin épouse "
+       "le contour entre elles. Cliquez la première ancre, appuyez sur Entrée ou faites un "
+       "clic droit pour le fermer. Ctrl+Z retire la dernière ancre, Échap annule."),
+    ES("Haga clic a lo largo de un borde de la imagen para poner anclas; el trazado se "
+       "ajusta al borde entre ellas. Haga clic en la primera ancla, pulse Intro o haga clic "
+       "derecho para cerrarlo. Ctrl+Z quita la última ancla; Esc cancela."),
+    PT("Clique ao longo de um contorno da imagem para pôr âncoras; o traçado cola-se ao "
+       "contorno entre elas. Clique na primeira âncora, prima Enter ou clique com o botão "
+       "direito para fechar. Ctrl+Z retira a última âncora; Esc cancela."),
+    IT("Fai clic lungo un bordo dell'immagine per posare degli ancoraggi; il tracciato "
+       "segue il bordo tra l'uno e l'altro. Fai clic sul primo ancoraggio, premi Invio o "
+       "fai clic destro per chiuderlo. Ctrl+Z toglie l'ultimo ancoraggio; Esc annulla."),
+    NL("Klik langs een rand in het beeld om ankers te zetten; het pad volgt de rand "
+       "ertussen. Klik op het eerste anker, druk op Enter of klik rechts om het te "
+       "sluiten. Ctrl+Z neemt het laatste anker terug; Esc breekt af."),
+    RU("Щёлкайте вдоль края на снимке, чтобы ставить опорные точки; контур между ними "
+       "прилипает к краю. Щёлкните первую точку, нажмите Enter или правую кнопку, чтобы "
+       "замкнуть. Ctrl+Z убирает последнюю точку, Esc отменяет."),
+    TR("Resimde bir kenar boyunca tıklayarak çapa noktaları bırakın; yol aralarında kenara "
+       "yapışır. İlk çapaya tıklayın, Enter'a basın veya sağ tıklayarak kapatın. Ctrl+Z son "
+       "çapayı geri alır; Esc iptal eder."));
+
+SS_MSG(stencil_path_anchors,
+    EN("Path anchors: {0}"),
+    JA("パスの点: {0}"),
+    ZH_HANS("路径锚点：{0}"),
+    ZH_HANT("路徑錨點：{0}"),
+    KO("패스 앵커: {0}"),
+    DE("Pfadanker: {0}"),
+    FR("Ancres du chemin : {0}"),
+    ES("Anclas del trazado: {0}"),
+    PT("Âncoras do traçado: {0}"),
+    IT("Ancoraggi del tracciato: {0}"),
+    NL("Padankers: {0}"),
+    RU("Точек контура: {0}"),
+    TR("Yol çapaları: {0}"));
 
 SS_MSG(stencil_removes_inside,
     EN("removes the inside"),
@@ -5634,6 +7952,299 @@ SS_MSG(stencil_drag_hint,
     TR("Taşımak için resimde sürükleyin, boyutlandırmak için beyaz noktalarını "
        "sürükleyin."));
 
+SS_MSG(stencil_shape_curve,
+    EN("Pen shape {0}"),  JA("ペン図形 {0}"),   ZH_HANS("钢笔形状 {0}"), ZH_HANT("鋼筆形狀 {0}"),
+    KO("펜 도형 {0}"),     DE("Zeichenstift-Form {0}"), FR("Forme à la plume {0}"),
+    ES("Forma de pluma {0}"), PT("Forma da caneta {0}"), IT("Forma a penna {0}"),
+    NL("Penvorm {0}"),    RU("Фигура пером {0}"), TR("Kalem şekli {0}"));
+
+SS_MSG(stencil_tool_points,
+    EN("Points"),        JA("ポイント"),      ZH_HANS("锚点"),     ZH_HANT("錨點"),
+    KO("포인트"),         DE("Punkte"),        FR("Points"),
+    ES("Puntos"),        PT("Pontos"),        IT("Punti"),
+    NL("Punten"),        RU("Точки"),         TR("Noktalar"));
+
+SS_MSG(stencil_tool_points_help,
+    EN("Direct selection: drag a pen shape's anchors (squares) and handles (circles). A "
+       "handle of a smooth anchor turns the other with it; Alt+drag moves it alone, Shift "
+       "keeps 45-degree steps, Delete removes the picked anchor. Click inside a shape to "
+       "pick it; other shapes move and resize as under Select."),
+    JA("ダイレクト選択: ペン図形の点（四角）とハンドル（丸）をドラッグします。なめらかな点の"
+       "ハンドルは反対側も一緒に回り、Alt+ドラッグで片方だけ、Shift で 45 度刻みになります。"
+       "Delete で選んだ点を削除します。図形の内側をクリックすると選べます。ほかの図形は"
+       "「選択」と同じく移動と大きさの変更ができます。"),
+    ZH_HANS("直接选择：拖动钢笔形状的锚点（方块）和手柄（圆点）。平滑锚点的一侧手柄会带着"
+            "另一侧转动；Alt+拖动只移动一侧，Shift 以 45 度为步长，Delete 删除选中的锚点。"
+            "在形状内部单击即可选中；其他形状与“选择”一样可移动和改变大小。"),
+    ZH_HANT("直接選取：拖曳鋼筆形狀的錨點（方塊）和控制把手（圓點）。平滑錨點的一側把手會"
+            "帶著另一側轉動；Alt+拖曳只移動一側，Shift 以 45 度為步長，Delete 刪除選取的"
+            "錨點。在形狀內部點一下即可選取；其他形狀與「選取」一樣可移動和改變大小。"),
+    KO("직접 선택: 펜 도형의 앵커(네모)와 핸들(동그라미)을 드래그합니다. 부드러운 앵커의 "
+       "핸들은 반대쪽도 함께 돌고, Alt+드래그는 한쪽만 옮기며, Shift는 45도 단위로 맞춥니다. "
+       "Delete는 고른 앵커를 지웁니다. 도형 안쪽을 클릭하면 고를 수 있고, 다른 도형은 "
+       "선택 도구처럼 옮기거나 크기를 바꿉니다."),
+    DE("Direktauswahl: die Anker (Quadrate) und Griffe (Kreise) einer Zeichenstift-Form "
+       "ziehen. Der Griff eines glatten Ankers dreht den anderen mit; Alt+Ziehen bewegt ihn "
+       "allein, Umschalt rastet in 45-Grad-Schritten ein, Entf löscht den gewählten Anker. "
+       "Ein Klick in eine Form wählt sie; andere Formen werden wie unter Auswählen "
+       "verschoben und skaliert."),
+    FR("Sélection directe : faites glisser les ancres (carrés) et poignées (cercles) d'une "
+       "forme à la plume. La poignée d'une ancre lisse fait tourner l'autre ; Alt+glisser la "
+       "déplace seule, Maj force des pas de 45 degrés, Suppr retire l'ancre choisie. Un clic "
+       "dans une forme la choisit ; les autres formes se déplacent et se redimensionnent "
+       "comme avec Sélectionner."),
+    ES("Selección directa: arrastre las anclas (cuadrados) y tiradores (círculos) de una "
+       "forma de pluma. El tirador de un ancla suave gira el otro con él; Alt+arrastrar lo "
+       "mueve solo, Mayús fija pasos de 45 grados y Supr quita el ancla elegida. Un clic "
+       "dentro de una forma la elige; las demás se mueven y redimensionan como con "
+       "Seleccionar."),
+    PT("Seleção direta: arraste as âncoras (quadrados) e alças (círculos) de uma forma da "
+       "caneta. A alça de uma âncora suave gira a outra junto; Alt+arrastar a move sozinha, "
+       "Shift fixa passos de 45 graus e Delete remove a âncora escolhida. Um clique dentro "
+       "de uma forma a escolhe; as outras se movem e redimensionam como em Selecionar."),
+    IT("Selezione diretta: trascini gli ancoraggi (quadrati) e le maniglie (cerchi) di una "
+       "forma a penna. La maniglia di un ancoraggio morbido fa ruotare l'altra; Alt+trascina "
+       "la sposta da sola, Maiusc blocca a passi di 45 gradi, Canc toglie l'ancoraggio "
+       "scelto. Un clic dentro una forma la sceglie; le altre si spostano e ridimensionano "
+       "come con Seleziona."),
+    NL("Directe selectie: sleep de ankers (vierkantjes) en grepen (rondjes) van een penvorm. "
+       "De greep van een glad anker draait de andere mee; Alt+slepen beweegt hem alleen, "
+       "Shift houdt stappen van 45 graden aan, Delete verwijdert het gekozen anker. Klik in "
+       "een vorm om hem te kiezen; andere vormen verschuiven en schalen zoals bij Selecteren."),
+    RU("Прямое выделение: перетаскивайте опорные точки (квадраты) и ручки (кружки) фигуры, "
+       "нарисованной пером. Ручка гладкой точки поворачивает и вторую; Alt+перетаскивание "
+       "двигает её одну, Shift держит шаг 45 градусов, Delete удаляет выбранную точку. "
+       "Щелчок внутри фигуры выбирает её; остальные фигуры двигаются и меняют размер, как "
+       "в «Выделении»."),
+    TR("Doğrudan seçim: bir kalem şeklinin çapalarını (kareler) ve tutamaçlarını (daireler) "
+       "sürükleyin. Düzgün bir çapanın tutamacı diğerini de döndürür; Alt+sürükleme onu tek "
+       "başına taşır, Shift 45 derecelik adımlar tutar, Delete seçilen çapayı siler. Bir "
+       "şeklin içine tıklamak onu seçer; diğer şekiller Seç aracındaki gibi taşınır ve "
+       "boyutlanır."));
+
+SS_MSG(stencil_tool_pen_help,
+    EN("Click for a corner, drag for a curve, as in a vector editor. Shift keeps 45-degree "
+       "steps; Alt while dragging moves one handle alone; Space while dragging moves the "
+       "anchor; Ctrl+drag moves a point already placed. Click the first anchor, press Enter "
+       "or right-click to close it; Backspace or Ctrl+Z takes an anchor back, Esc cancels. "
+       "With a pen shape picked, click its outline to add an anchor, click an anchor to "
+       "delete it, and Alt+click an anchor to make it a corner or Alt+drag it to pull new "
+       "handles."),
+    JA("ベクター編集ソフトと同じく、クリックで角、ドラッグで曲線の点を置きます。Shift で "
+       "45 度刻み、ドラッグ中の Alt で片方のハンドルだけ、ドラッグ中の Space で点そのものを"
+       "動かし、Ctrl+ドラッグで置いた点を動かせます。最初の点をクリックするか Enter か右"
+       "クリックで閉じます。Backspace か Ctrl+Z で点を戻し、Esc で中止します。ペン図形を"
+       "選んでいるときは、輪郭のクリックで点を追加、点のクリックで削除、点の Alt+クリックで"
+       "角に、Alt+ドラッグで新しいハンドルを引き出します。"),
+    ZH_HANS("与矢量绘图软件一样：点击放下角点，拖动放下曲线点。Shift 以 45 度为步长；拖动时按 "
+            "Alt 只移动一侧手柄；拖动时按 Space 移动锚点本身；Ctrl+拖动移动已放下的点。点击"
+            "第一个锚点、按 Enter 或右键闭合；Backspace 或 Ctrl+Z 撤回一个锚点，Esc 取消。"
+            "选中钢笔形状时，点击轮廓添加锚点，点击锚点将其删除，Alt+点击锚点将其变为角点，"
+            "Alt+拖动则拉出新手柄。"),
+    ZH_HANT("與向量繪圖軟體一樣：點擊放下角點，拖曳放下曲線點。Shift 以 45 度為步長；拖曳時"
+            "按 Alt 只移動一側控制把手；拖曳時按 Space 移動錨點本身；Ctrl+拖曳移動已放下的"
+            "點。點擊第一個錨點、按 Enter 或右鍵閉合；Backspace 或 Ctrl+Z 收回一個錨點，Esc "
+            "取消。選取鋼筆形狀時，點擊輪廓新增錨點，點擊錨點將其刪除，Alt+點擊錨點將其變為"
+            "角點，Alt+拖曳則拉出新的控制把手。"),
+    KO("벡터 편집기처럼 클릭하면 모서리, 드래그하면 곡선 앵커를 놓습니다. Shift는 45도 단위로 "
+       "맞추고, 드래그 중 Alt는 핸들 한쪽만, 드래그 중 Space는 앵커 자체를 옮기며, Ctrl+"
+       "드래그는 이미 놓은 점을 옮깁니다. 첫 앵커 클릭, Enter 또는 오른쪽 클릭으로 닫고, "
+       "Backspace나 Ctrl+Z는 앵커를 되돌리며 Esc는 취소합니다. 펜 도형을 고른 상태에서는 "
+       "윤곽을 클릭해 앵커를 더하고, 앵커를 클릭해 지우고, 앵커를 Alt+클릭해 모서리로 "
+       "만들거나 Alt+드래그해 새 핸들을 뽑습니다."),
+    DE("Klick setzt eine Ecke, Ziehen eine Kurve, wie in einem Vektorprogramm. Umschalt "
+       "rastet in 45-Grad-Schritten ein; Alt beim Ziehen bewegt nur einen Griff, Leertaste "
+       "beim Ziehen den Anker selbst; Strg+Ziehen verschiebt einen schon gesetzten Punkt. "
+       "Erster Anker, Eingabe oder Rechtsklick schließt den Pfad; Rücktaste oder Strg+Z "
+       "nimmt einen Anker zurück, Esc bricht ab. Ist eine Zeichenstift-Form gewählt, fügt "
+       "ein Klick auf ihre Kontur einen Anker hinzu, ein Klick auf einen Anker löscht ihn, "
+       "Alt+Klick macht ihn zur Ecke und Alt+Ziehen zieht neue Griffe heraus."),
+    FR("Un clic pose un angle, un glissé une courbe, comme dans un logiciel vectoriel. Maj "
+       "force des pas de 45 degrés ; Alt pendant le glissé déplace une seule poignée, Espace "
+       "l'ancre elle-même ; Ctrl+glisser déplace un point déjà posé. La première ancre, "
+       "Entrée ou un clic droit ferme le tracé ; Retour arrière ou Ctrl+Z retire une ancre, "
+       "Échap annule. Une forme à la plume choisie, un clic sur son contour ajoute une ancre, "
+       "un clic sur une ancre la supprime, Alt+clic en fait un angle et Alt+glisser en tire "
+       "de nouvelles poignées."),
+    ES("Un clic pone una esquina y un arrastre una curva, como en un editor vectorial. Mayús "
+       "fija pasos de 45 grados; Alt al arrastrar mueve un solo tirador y Espacio el ancla; "
+       "Ctrl+arrastrar mueve un punto ya puesto. La primera ancla, Intro o clic derecho cierra "
+       "el trazado; Retroceso o Ctrl+Z quita un ancla, Esc cancela. Con una forma de pluma "
+       "elegida, un clic en su contorno añade un ancla, un clic en un ancla la borra, Alt+clic "
+       "la vuelve esquina y Alt+arrastrar saca tiradores nuevos."),
+    PT("Um clique põe um canto e um arraste uma curva, como num editor vetorial. Shift fixa "
+       "passos de 45 graus; Alt ao arrastar move uma só alça e Espaço a própria âncora; "
+       "Ctrl+arrastar move um ponto já posto. A primeira âncora, Enter ou clique direito fecha "
+       "o traçado; Backspace ou Ctrl+Z tira uma âncora, Esc cancela. Com uma forma da caneta "
+       "escolhida, um clique no contorno acrescenta uma âncora, um clique numa âncora a "
+       "apaga, Alt+clique a torna canto e Alt+arrastar puxa alças novas."),
+    IT("Un clic mette un angolo, un trascinamento una curva, come in un editor vettoriale. "
+       "Maiusc blocca a passi di 45 gradi; Alt durante il trascinamento muove una sola "
+       "maniglia, Spazio l'ancoraggio stesso; Ctrl+trascina sposta un punto già messo. Il "
+       "primo ancoraggio, Invio o il clic destro chiude il tracciato; Backspace o Ctrl+Z "
+       "toglie un ancoraggio, Esc annulla. Con una forma a penna scelta, un clic sul contorno "
+       "aggiunge un ancoraggio, un clic su un ancoraggio lo elimina, Alt+clic lo rende un "
+       "angolo e Alt+trascina estrae nuove maniglie."),
+    NL("Klik zet een hoek, slepen een kromme, zoals in een vectorprogramma. Shift houdt "
+       "stappen van 45 graden aan; Alt tijdens het slepen beweegt één greep, Spatie het anker "
+       "zelf; Ctrl+slepen verplaatst een al gezet punt. Het eerste anker, Enter of rechtsklik "
+       "sluit het pad; Backspace of Ctrl+Z neemt een anker terug, Esc breekt af. Met een "
+       "penvorm gekozen voegt een klik op de omtrek een anker toe, verwijdert een klik op een "
+       "anker het, maakt Alt+klik er een hoek van en trekt Alt+slepen nieuwe grepen uit."),
+    RU("Щелчок ставит угол, перетаскивание — кривую, как в векторном редакторе. Shift держит "
+       "шаг 45 градусов; Alt при перетаскивании двигает одну ручку, пробел — саму точку; "
+       "Ctrl+перетаскивание двигает уже поставленную точку. Первая точка, Enter или правая "
+       "кнопка замыкают контур; Backspace или Ctrl+Z убирает точку, Esc отменяет. Когда "
+       "выбрана фигура пером, щелчок по контуру добавляет точку, щелчок по точке удаляет её, "
+       "Alt+щелчок делает её угловой, а Alt+перетаскивание вытягивает новые ручки."),
+    TR("Bir vektör düzenleyicideki gibi tıklama bir köşe, sürükleme bir eğri bırakır. Shift "
+       "45 derecelik adımlar tutar; sürüklerken Alt tek bir tutamacı, Boşluk çapanın "
+       "kendisini taşır; Ctrl+sürükleme önceden konmuş bir noktayı taşır. İlk çapa, Enter "
+       "veya sağ tık yolu kapatır; Backspace veya Ctrl+Z bir çapayı geri alır, Esc iptal "
+       "eder. Bir kalem şekli seçiliyken dış hattına tıklamak çapa ekler, bir çapaya "
+       "tıklamak onu siler, Alt+tıklama onu köşe yapar, Alt+sürükleme yeni tutamaçlar çeker."));
+
+SS_MSG(stencil_per_camera,
+    EN("Separate areas for each camera"),
+    JA("カメラごとに別の範囲"),
+    ZH_HANS("每台相机单独设置区域"),
+    ZH_HANT("每台相機分別設定區域"),
+    KO("카메라마다 따로 영역 지정"),
+    DE("Eigene Bereiche je Kamera"),
+    FR("Zones distinctes par caméra"),
+    ES("Zonas distintas para cada cámara"),
+    PT("Áreas separadas para cada câmera"),
+    IT("Aree separate per ogni fotocamera"),
+    NL("Aparte gebieden per camera"),
+    RU("Отдельные области для каждой камеры"),
+    TR("Her kamera için ayrı alanlar"));
+
+SS_MSG(stencil_per_camera_help,
+    EN("This input writes several cameras: the two lenses of a dual-fisheye file, the "
+       "views of a 360 video, or subfolders of photos. Tick this to give each its own border "
+       "setting and shapes. Every camera starts from the shared ones, and the camera picker "
+       "(or the frame slider) chooses which one the tools edit. Untick to go back to one "
+       "set, keeping the camera shown."),
+    JA("この入力は複数のカメラを書き出します（デュアル魚眼ファイルの 2 つのレンズ、360 度"
+       "動画の各ビュー、写真のサブフォルダーなど）。チェックすると、カメラごとに境界の設定と"
+       "図形を持てます。どのカメラも共通の設定から始まり、カメラの選択（またはフレームの"
+       "スライダー）でツールが編集するカメラを選びます。外すと、表示中のカメラの設定を"
+       "残して 1 組に戻ります。"),
+    ZH_HANS("这个输入会写出多台相机：双鱼眼文件的两个镜头、360 视频的各个视图，或照片的子"
+            "文件夹。勾选后每台相机都有自己的边界设置和形状。每台相机都从共用的设置开始，"
+            "相机选择（或帧滑块）决定工具编辑哪一台。取消勾选则回到一组设置，保留当前显示"
+            "的相机的。"),
+    ZH_HANT("這個輸入會寫出多台相機：雙魚眼檔案的兩個鏡頭、360 影片的各個視角，或照片的子"
+            "資料夾。勾選後每台相機都有自己的邊界設定和形狀。每台相機都從共用的設定開始，"
+            "相機選擇（或影格滑桿）決定工具編輯哪一台。取消勾選則回到一組設定，保留目前"
+            "顯示的相機的。"),
+    KO("이 입력은 여러 카메라를 씁니다. 듀얼 어안 파일의 두 렌즈, 360 영상의 각 뷰, 사진의 "
+       "하위 폴더 같은 경우입니다. 체크하면 카메라마다 경계 설정과 도형을 따로 둡니다. 모든 "
+       "카메라는 공통 설정에서 시작하고, 카메라 선택(또는 프레임 슬라이더)으로 도구가 편집할 "
+       "카메라를 고릅니다. 체크를 풀면 보이는 카메라의 설정을 남기고 한 벌로 돌아갑니다."),
+    DE("Diese Eingabe schreibt mehrere Kameras: die zwei Objektive einer Dual-Fisheye-Datei, "
+       "die Ansichten eines 360-Videos oder Unterordner mit Fotos. Angehakt bekommt jede "
+       "ihre eigene Randeinstellung und eigene Formen. Jede Kamera beginnt mit den "
+       "gemeinsamen, und die Kameraauswahl (oder der Bildregler) bestimmt, welche die "
+       "Werkzeuge bearbeiten. Abgewählt gilt wieder ein Satz, der der gezeigten Kamera."),
+    FR("Cette entrée écrit plusieurs caméras : les deux objectifs d'un fichier double "
+       "fisheye, les vues d'une vidéo 360 ou des sous-dossiers de photos. Cochez pour donner "
+       "à chacune son propre réglage de bord et ses formes. Chaque caméra part des réglages "
+       "communs, et le choix de caméra (ou le curseur d'image) désigne celle que les outils "
+       "modifient. Décochez pour revenir à un seul jeu, celui de la caméra affichée."),
+    ES("Esta entrada escribe varias cámaras: los dos objetivos de un archivo de doble ojo de "
+       "pez, las vistas de un video 360 o subcarpetas de fotos. Márquelo para dar a cada una "
+       "su propio ajuste de borde y sus formas. Cada cámara parte de las comunes, y el "
+       "selector de cámara (o el deslizador de fotogramas) elige cuál editan las "
+       "herramientas. Desmárquelo para volver a un solo juego, el de la cámara mostrada."),
+    PT("Esta entrada grava várias câmeras: as duas lentes de um arquivo olho de peixe "
+       "duplo, as vistas de um vídeo 360 ou subpastas de fotos. Marque para dar a cada uma "
+       "sua própria configuração de borda e suas formas. Cada câmera parte das comuns, e o "
+       "seletor de câmera (ou o controle de quadros) escolhe qual as ferramentas editam. "
+       "Desmarque para voltar a um só conjunto, o da câmera mostrada."),
+    IT("Questo ingresso scrive più fotocamere: i due obiettivi di un file doppio fisheye, le "
+       "viste di un video 360 o sottocartelle di foto. Selezionandolo, ognuna ha la propria "
+       "impostazione del bordo e le proprie forme. Ogni fotocamera parte da quelle comuni, "
+       "e la scelta della fotocamera (o il cursore dei fotogrammi) indica quale modificano "
+       "gli strumenti. Deselezionandolo si torna a un solo insieme, quello della fotocamera "
+       "mostrata."),
+    NL("Deze invoer schrijft meerdere camera's: de twee lenzen van een dubbel-fisheyebestand, "
+       "de aanzichten van een 360-video of submappen met foto's. Aangevinkt krijgt elke "
+       "camera een eigen randinstelling en eigen vormen. Elke camera begint met de gedeelde, "
+       "en de camerakeuze (of de beeldschuif) bepaalt welke de gereedschappen bewerken. "
+       "Uitgevinkt geldt weer één set: die van de getoonde camera."),
+    RU("Этот вход даёт несколько камер: два объектива файла с двойным «рыбьим глазом», виды "
+       "360-градусного видео или подпапки с фотографиями. Отметьте, чтобы у каждой были свои "
+       "настройка границы и фигуры. Каждая камера начинает с общих, а выбор камеры (или "
+       "ползунок кадров) определяет, какую правят инструменты. Снимите отметку, чтобы "
+       "вернуться к одному набору — набору показанной камеры."),
+    TR("Bu girdi birden çok kamera yazar: çift balıkgözü bir dosyanın iki merceği, 360 "
+       "videonun görünümleri ya da fotoğraf alt klasörleri. İşaretlerseniz her birinin kendi "
+       "sınır ayarı ve şekilleri olur. Her kamera ortak olanlardan başlar; kamera seçimi (ya "
+       "da kare kaydırıcısı) araçların hangisini düzenleyeceğini seçer. İşareti kaldırınca, "
+       "gösterilen kameranınki kalarak tek bir takıma dönülür."));
+
+SS_MSG(stencil_per_camera_editing,
+    EN("Editing camera: {0}"),
+    JA("編集中のカメラ: {0}"),
+    ZH_HANS("正在编辑的相机：{0}"),
+    ZH_HANT("正在編輯的相機：{0}"),
+    KO("편집 중인 카메라: {0}"),
+    DE("Bearbeitete Kamera: {0}"),
+    FR("Caméra modifiée : {0}"),
+    ES("Cámara en edición: {0}"),
+    PT("Câmera em edição: {0}"),
+    IT("Fotocamera in modifica: {0}"),
+    NL("Bewerkte camera: {0}"),
+    RU("Редактируемая камера: {0}"),
+    TR("Düzenlenen kamera: {0}"));
+
+SS_MSG(stencil_drag_hint_pen,
+    EN("Drag it on the picture to move it; Points (A) edits its anchors and handles."),
+    JA("画像上でドラッグすると移動します。点とハンドルは「ポイント」（A）で編集します。"),
+    ZH_HANS("在图片上拖动即可移动；锚点和手柄用“锚点”（A）编辑。"),
+    ZH_HANT("在圖片上拖曳即可移動；錨點和控制把手用「錨點」（A）編輯。"),
+    KO("사진 위에서 드래그하면 옮겨집니다. 앵커와 핸들은 포인트(A)로 편집합니다."),
+    DE("Auf dem Bild ziehen, um sie zu verschieben; Punkte (A) bearbeitet Anker und Griffe."),
+    FR("Faites-la glisser sur l'image pour la déplacer ; Points (A) modifie ses ancres et "
+       "poignées."),
+    ES("Arrástrela sobre la imagen para moverla; Puntos (A) edita sus anclas y tiradores."),
+    PT("Arraste-a sobre a imagem para movê-la; Pontos (A) edita suas âncoras e alças."),
+    IT("La trascini sull'immagine per spostarla; Punti (A) ne modifica ancoraggi e maniglie."),
+    NL("Sleep hem op de afbeelding om hem te verplaatsen; Punten (A) bewerkt ankers en grepen."),
+    RU("Перетащите её на изображении, чтобы сдвинуть; «Точки» (A) правят опорные точки и "
+       "ручки."),
+    TR("Taşımak için resim üzerinde sürükleyin; çapaları ve tutamaçları Noktalar (A) "
+       "düzenler."));
+
+SS_MSG(stencil_points_hint,
+    EN("Drag its squares (anchors) and circles (handles); Alt+drag a handle to move it "
+       "alone. Delete removes the picked anchor."),
+    JA("四角（点）と丸（ハンドル）をドラッグします。Alt+ドラッグでハンドルを片方だけ動かし、"
+       "Delete で選んだ点を削除します。"),
+    ZH_HANS("拖动方块（锚点）和圆点（手柄）；Alt+拖动手柄只移动这一侧。Delete 删除选中的"
+            "锚点。"),
+    ZH_HANT("拖曳方塊（錨點）和圓點（控制把手）；Alt+拖曳把手只移動這一側。Delete 刪除選取"
+            "的錨點。"),
+    KO("네모(앵커)와 동그라미(핸들)를 드래그하세요. 핸들을 Alt+드래그하면 그쪽만 옮겨지고, "
+       "Delete는 고른 앵커를 지웁니다."),
+    DE("Quadrate (Anker) und Kreise (Griffe) ziehen; Alt+Ziehen bewegt einen Griff allein. "
+       "Entf löscht den gewählten Anker."),
+    FR("Faites glisser ses carrés (ancres) et cercles (poignées) ; Alt+glisser déplace une "
+       "poignée seule. Suppr retire l'ancre choisie."),
+    ES("Arrastre sus cuadrados (anclas) y círculos (tiradores); Alt+arrastrar mueve un "
+       "tirador solo. Supr quita el ancla elegida."),
+    PT("Arraste seus quadrados (âncoras) e círculos (alças); Alt+arrastar move uma alça "
+       "sozinha. Delete remove a âncora escolhida."),
+    IT("Trascini i quadrati (ancoraggi) e i cerchi (maniglie); Alt+trascina sposta una "
+       "maniglia da sola. Canc toglie l'ancoraggio scelto."),
+    NL("Sleep de vierkantjes (ankers) en rondjes (grepen); Alt+slepen beweegt één greep "
+       "alleen. Delete verwijdert het gekozen anker."),
+    RU("Перетаскивайте квадраты (опорные точки) и кружки (ручки); Alt+перетаскивание "
+       "двигает одну ручку. Delete удаляет выбранную точку."),
+    TR("Karelerini (çapalar) ve dairelerini (tutamaçlar) sürükleyin; Alt+sürükleme bir "
+       "tutamacı tek başına taşır. Delete seçilen çapayı siler."));
+
 SS_MSG(mask_border_enable,
     EN("Remove fixed areas of the frame"),
     JA("画面の決まった位置を取り除く"),
@@ -5690,6 +8301,93 @@ SS_MSG(mask_border_enable_help,
     TR("Balıkgözünün siyah kenarı, bir filigran, kameranın takılı olduğu çubuk "
        "-- her çekimde aynı yerde duran ne varsa. \"Maskeyi dene\" içinden "
        "ayarlanır; model de indirme de gerekmez."));
+
+SS_MSG(mask_for_features,
+    EN("Hide masked areas from the reconstruction too"),
+    JA("マスクした部分を再構成からも隠す"),
+    ZH_HANS("重建时也避开被蒙住的区域"),
+    ZH_HANT("重建時也避開被遮住的區域"),
+    KO("가린 부분을 재구성에서도 빼기"),
+    DE("Maskierte Bereiche auch vor der Rekonstruktion verbergen"),
+    FR("Cacher aussi les zones masquées à la reconstruction"),
+    ES("Ocultar también a la reconstrucción las zonas enmascaradas"),
+    PT("Esconder as áreas mascaradas também da reconstrução"),
+    IT("Nascondere le zone mascherate anche alla ricostruzione"),
+    NL("Gemaskeerde gebieden ook voor de reconstructie verbergen"),
+    RU("Скрывать закрытые маской участки и от реконструкции"),
+    TR("Maskelenen alanları yeniden kurmadan da gizle"));
+
+SS_MSG(mask_for_features_help,
+    EN("On, no feature point is taken from a masked area, so a passer-by or a "
+       "reflection cannot pull the cameras about. Off, the masks are written "
+       "and handed to training all the same while the reconstruction sees the "
+       "whole frame -- worth it when what they cover holds still and carries "
+       "finer detail than the subject, since that is what the cameras "
+       "converge on."),
+    JA("オンにすると、マスクした部分から特徴点を取らないので、通行人や映り込み"
+       "がカメラを引っぱることがありません。オフでもマスクは書き出され学習には"
+       "渡りますが、再構成は画面全体を見ます。マスクした側が止まっていて、"
+       "被写体より細かい模様を持つ場合に有効です。カメラはそれを頼りに"
+       "収束します。"),
+    ZH_HANS("打开时，被蒙住的区域里不取特征点，路人或反光就拉不动相机。关掉时"
+            "蒙版照样写出来、照样交给训练，只是重建会看整幅画面——如果被蒙住的"
+            "部分是不动的，而且纹理比被摄物更细，那就值得，因为相机正是靠它"
+            "收敛的。"),
+    ZH_HANT("打開時，被遮住的區域裡不取特徵點，路人或反光就拉不動相機。關掉時"
+            "遮罩照樣寫出來、照樣交給訓練，只是重建會看整幅畫面——如果被遮住的"
+            "部分是不動的，而且紋理比被攝物更細，那就值得，因為相機正是靠它"
+            "收斂的。"),
+    KO("켜면 가린 부분에서 특징점을 뽑지 않아 지나가는 사람이나 비친 상이 "
+       "카메라를 끌고 다니지 못합니다. 꺼도 마스크는 그대로 쓰여 학습에 "
+       "넘어가고, 재구성만 화면 전체를 봅니다. 가린 쪽이 가만히 있고 피사체보다 "
+       "무늬가 고울 때 쓸모가 있습니다. 카메라는 바로 그것을 근거로 수렴합니다."),
+    DE("An wird aus maskierten Bereichen kein Merkmalspunkt genommen, ein "
+       "Passant oder eine Spiegelung kann die Kameras also nicht verziehen. "
+       "Aus werden die Masken trotzdem geschrieben und ans Training gegeben, "
+       "während die Rekonstruktion das ganze Bild sieht -- lohnend, wenn das "
+       "Verdeckte stillsteht und feinere Struktur trägt als das Motiv, denn "
+       "darauf konvergieren die Kameras."),
+    FR("Activé, aucun point d'intérêt n'est pris dans une zone masquée : un "
+       "passant ou un reflet ne peut donc pas tirer les caméras. Désactivé, "
+       "les masques sont quand même écrits et transmis à l'entraînement "
+       "tandis que la reconstruction voit toute l'image -- utile quand ce "
+       "qu'ils couvrent reste immobile et porte un détail plus fin que le "
+       "sujet, car c'est là-dessus que les caméras convergent."),
+    ES("Activado, no se toma ningún punto característico de una zona "
+       "enmascarada, así que un transeúnte o un reflejo no pueden arrastrar "
+       "las cámaras. Desactivado, las máscaras se escriben y se entregan al "
+       "entrenamiento igualmente mientras la reconstrucción ve el fotograma "
+       "entero: conviene cuando lo que tapan está quieto y tiene un detalle "
+       "más fino que el motivo, porque es ahí donde convergen las cámaras."),
+    PT("Ligado, nenhum ponto de característica sai de uma área mascarada, "
+       "então um transeunte ou um reflexo não consegue puxar as câmeras. "
+       "Desligado, as máscaras são escritas e entregues ao treino do mesmo "
+       "jeito enquanto a reconstrução vê o quadro inteiro -- vale a pena "
+       "quando o que elas cobrem fica parado e tem um detalhe mais fino que o "
+       "objeto, pois é nisso que as câmeras convergem."),
+    IT("Acceso, nessun punto caratteristico viene preso da una zona "
+       "mascherata, così un passante o un riflesso non possono tirare le "
+       "fotocamere. Spento, le maschere vengono scritte e passate "
+       "all'addestramento lo stesso mentre la ricostruzione vede tutto il "
+       "fotogramma: conviene quando ciò che coprono sta fermo e porta un "
+       "dettaglio più fine del soggetto, perché è lì che le fotocamere "
+       "convergono."),
+    NL("Aan wordt uit een gemaskeerd gebied geen kenmerkpunt genomen, dus een "
+       "voorbijganger of een weerspiegeling kan de camera's niet meetrekken. "
+       "Uit worden de maskers toch geschreven en aan de training gegeven "
+       "terwijl de reconstructie het hele beeld ziet -- de moeite waard "
+       "wanneer wat ze afdekken stilstaat en fijner detail draagt dan het "
+       "onderwerp, want daarop convergeren de camera's."),
+    RU("Включено — из закрытой маской области не берётся ни одна особая точка, "
+       "так что прохожий или отражение не утянут камеры. Выключено — маски всё "
+       "равно записываются и передаются обучению, а реконструкция видит кадр "
+       "целиком: это выгодно, когда закрытое маской неподвижно и держит более "
+       "мелкие детали, чем сам объект, ведь именно на них сходятся камеры."),
+    TR("Açıkken maskelenen alandan hiç öznitelik noktası alınmaz, yani bir "
+       "yoldan geçen ya da bir yansıma kameraları çekiştiremez. Kapalıyken "
+       "maskeler yine yazılır ve eğitime verilir, yeniden kurma ise karenin "
+       "tamamını görür -- maskelenen şey yerinde duruyorsa ve özneden daha "
+       "ince ayrıntı taşıyorsa buna değer, çünkü kameralar ona yakınsar."));
 
 // {0} is the object number under the cursor.
 SS_MSG(click_tooltip,
@@ -5838,6 +8536,56 @@ SS_MSG(preview_frame_help,
        "düzeltmek için buraya tıklayın: çizdikleriniz bu kareden itibaren "
        "geçerlidir."));
 
+SS_MSG(preview_camera,
+    EN("Which camera"),  JA("どのカメラ"),    ZH_HANS("哪台相机"),  ZH_HANT("哪台相機"),
+    KO("어느 카메라"),     DE("Welche Kamera"), FR("Quelle caméra"), ES("Qué cámara"),
+    PT("Qual câmera"),   IT("Quale camera"),  NL("Welke camera"),  RU("Какая камера"),
+    TR("Hangi kamera"));
+
+SS_MSG(preview_camera_help,
+    EN("This capture becomes several folders of images -- the lenses of the "
+       "camera, or the views a 360 file is unwrapped into. Each is its own "
+       "picture, so a prompt drawn on one says nothing about the others."),
+    JA("この撮影は複数の画像フォルダーになります。カメラの各レンズ、または 360 "
+       "ファイルを展開した各ビューです。それぞれ別の画像なので、片方に描いた指示は"
+       "もう片方には効きません。"),
+    ZH_HANS("这段素材会变成好几个图像文件夹——相机的各个镜头，或者 360 文件展开后的"
+            "各个视角。每个都是独立的画面，在一个上面画的提示对其他的不起作用。"),
+    ZH_HANT("這段素材會變成好幾個影像資料夾——相機的各個鏡頭，或者 360 檔案展開後的"
+            "各個視角。每個都是獨立的畫面，在一個上面畫的提示對其他的不起作用。"),
+    KO("이 촬영은 여러 개의 이미지 폴더가 됩니다. 카메라의 각 렌즈이거나, 360 "
+       "파일을 펼친 각 시점입니다. 서로 다른 그림이므로 한쪽에 표시한 지시는 "
+       "다른 쪽에는 적용되지 않습니다."),
+    DE("Diese Aufnahme wird zu mehreren Bildordnern -- den Objektiven der "
+       "Kamera oder den Ansichten, in die eine 360-Datei entfaltet wird. Jede "
+       "ist ein eigenes Bild, eine Eingabe auf der einen gilt der anderen "
+       "nicht."),
+    FR("Cette prise devient plusieurs dossiers d'images : les objectifs de la "
+       "caméra, ou les vues issues du dépliage d'un fichier 360. Chacune est "
+       "une image à part, et une invite tracée sur l'une ne dit rien des "
+       "autres."),
+    ES("Esta toma se convierte en varias carpetas de imágenes: los objetivos "
+       "de la cámara, o las vistas en que se despliega un archivo 360. Cada "
+       "una es su propia imagen, así que una indicación marcada en una no dice "
+       "nada de las demás."),
+    PT("Esta captura vira várias pastas de imagens: as lentes da câmera, ou as "
+       "vistas em que um arquivo 360 é desdobrado. Cada uma é uma imagem "
+       "própria, então um comando marcado numa não vale para as outras."),
+    IT("Questa ripresa diventa più cartelle di immagini: gli obiettivi della "
+       "camera, oppure le viste in cui un file 360 viene aperto. Ognuna è "
+       "un'immagine a sé, quindi un testo tracciato su una non dice nulla "
+       "delle altre."),
+    NL("Deze opname wordt meerdere beeldmappen -- de lenzen van de camera, of "
+       "de aanzichten waarin een 360-bestand wordt uitgevouwen. Elk is een "
+       "eigen beeld, dus een prompt op de ene zegt niets over de andere."),
+    RU("Эта съёмка становится несколькими папками снимков -- объективами "
+       "камеры или видами, на которые разворачивается файл 360. Каждый из них "
+       "-- отдельный снимок, и запрос, отмеченный на одном, ничего не говорит "
+       "об остальных."),
+    TR("Bu çekim birkaç görüntü klasörüne dönüşür: kameranın objektifleri ya "
+       "da bir 360 dosyasının açıldığı görünümler. Her biri ayrı bir resimdir, "
+       "birine çizilen istem ötekiler için bir şey söylemez."));
+
 SS_MSG(preview_try_it,
     EN("Try it"),        JA("試す"),          ZH_HANS("试一下"),   ZH_HANT("試一下"),
     KO("해 보기"),        DE("Ausprobieren"), FR("Essayer"),      ES("Probar"),
@@ -5914,6 +8662,70 @@ SS_MSG(preview_kept_fraction,
     NL("{0}% van het beeld blijft over"),
     RU("остаётся {0}% кадра"),
     TR("karenin %{0}'i tutuluyor"));
+
+SS_MSG(preview_features_only_help,
+    EN("What the reconstruction takes no feature point from, though training "
+       "still uses it -- the sky, say. Hatched in amber on the picture."),
+    JA("再構成は特徴点を取らず、学習はそのまま使うもの（空など）です。画像上では"
+       "琥珀色の斜線で表示されます。"),
+    ZH_HANS("重建时不从中取特征点、训练却照样使用的东西，比如天空。画面上以琥珀色"
+            "斜线显示。"),
+    ZH_HANT("重建時不從中取特徵點、訓練卻照樣使用的東西，比如天空。畫面上以琥珀色"
+            "斜線顯示。"),
+    KO("재구성은 특징점을 뽑지 않지만 학습은 그대로 쓰는 것(하늘 등)입니다. "
+       "그림에서는 호박색 빗금으로 보입니다."),
+    DE("Woraus die Rekonstruktion keinen Merkmalspunkt nimmt, was das Training "
+       "aber weiter nutzt, etwa der Himmel. Im Bild bernsteinfarben schraffiert."),
+    FR("Ce dont la reconstruction ne tire aucun point d'intérêt mais que "
+       "l'entraînement utilise quand même, comme le ciel. Hachuré d'ambre sur "
+       "l'image."),
+    ES("Lo que la reconstrucción no usa para ningún punto característico pero el "
+       "entrenamiento sí, como el cielo. Rayado en ámbar sobre la imagen."),
+    PT("O que a reconstrução não usa para nenhum ponto de característica, mas o "
+       "treino usa, como o céu. Hachurado em âmbar na imagem."),
+    IT("Ciò da cui la ricostruzione non prende alcun punto caratteristico ma che "
+       "l'addestramento usa comunque, come il cielo. Tratteggiato in ambra "
+       "sull'immagine."),
+    NL("Waar de reconstructie geen kenmerkpunt uit haalt, maar wat de training "
+       "wel gebruikt, zoals de lucht. Amberkleurig gearceerd op het beeld."),
+    RU("То, из чего реконструкция не берёт ни одной особой точки, а обучение всё "
+       "равно использует, например небо. На снимке — янтарная штриховка."),
+    TR("Yeniden kurmanın hiçbir öznitelik noktası almadığı ama eğitimin yine de "
+       "kullandığı şeyler, örneğin gökyüzü. Görüntüde kehribar renkli taramayla "
+       "gösterilir."));
+
+SS_MSG(preview_legend_features,
+    EN("Hatched amber = trained on, but hidden from the reconstruction."),
+    JA("琥珀色の斜線 = 学習には使うが、再構成からは隠す部分です。"),
+    ZH_HANS("琥珀色斜线 = 训练照用，但重建时避开。"),
+    ZH_HANT("琥珀色斜線 = 訓練照用，但重建時避開。"),
+    KO("호박색 빗금 = 학습에는 쓰지만 재구성에서는 뺍니다."),
+    DE("Bernsteinfarben schraffiert = wird trainiert, aber vor der "
+       "Rekonstruktion verborgen."),
+    FR("Hachuré d'ambre = entraîné, mais caché à la reconstruction."),
+    ES("Rayado en ámbar = se entrena, pero se oculta a la reconstrucción."),
+    PT("Hachurado em âmbar = treinado, mas escondido da reconstrução."),
+    IT("Tratteggio ambra = addestrato, ma nascosto alla ricostruzione."),
+    NL("Amberkleurig gearceerd = wordt getraind, maar voor de reconstructie "
+       "verborgen."),
+    RU("Янтарная штриховка — используется в обучении, но скрыто от "
+       "реконструкции."),
+    TR("Kehribar tarama = eğitimde kullanılır ama yeniden kurmadan gizlenir."));
+
+SS_MSG(preview_features_kept_fraction,
+    EN("{0}% of the frame is left for feature points"),
+    JA("特徴点に使えるのはフレームの {0}% です"),
+    ZH_HANS("这一帧有 {0}% 可以取特征点"),
+    ZH_HANT("這一影格有 {0}% 可以取特徵點"),
+    KO("특징점을 뽑을 수 있는 부분: 프레임의 {0}%"),
+    DE("{0} % des Bildes bleiben für Merkmalspunkte"),
+    FR("{0} % de l'image reste pour les points d'intérêt"),
+    ES("queda el {0} % del fotograma para puntos característicos"),
+    PT("{0}% do quadro fica para pontos de característica"),
+    IT("resta il {0}% del fotogramma per i punti caratteristici"),
+    NL("{0}% van het beeld blijft over voor kenmerkpunten"),
+    RU("для особых точек остаётся {0}% кадра"),
+    TR("karenin %{0}'i öznitelik noktalarına kalıyor"));
 
 SS_MSG(preview_almost_nothing_kept,
     EN("Almost nothing is left -- the prompt matched very little of the "
@@ -6001,36 +8813,40 @@ SS_MSG(capture_internet,
 
 SS_MSG(capture_type_help,
     EN("What the input is, which sets the pairing strategy and how forgiving "
-       "the mapper is. Set from the input type when you picked it."),
+       "the mapper is. Video frames follows the first input's Sequential "
+       "switch."),
     JA("入力が何であるかです。ペアの作り方と、マッパーがどれだけ寛容かが"
-       "これで決まります。入力を選んだ時点で種類から設定されます。"),
-    ZH_HANS("输入是什么，它决定了配对策略以及建图器有多宽容。选择输入时会按"
-            "输入类型自动设定。"),
-    ZH_HANT("輸入是什麼，它決定了配對策略以及建圖器有多寬容。選擇輸入時會按"
-            "輸入類型自動設定。"),
+       "これで決まります。「動画のフレーム」は先頭の入力の「撮影順」に従います。"),
+    ZH_HANS("输入是什么，它决定了配对策略以及建图器有多宽容。“视频帧”跟随第一个"
+            "输入的“按顺序”开关。"),
+    ZH_HANT("輸入是什麼，它決定了配對策略以及建圖器有多寬容。「影片影格」跟隨第一個"
+            "輸入的「按順序」開關。"),
     KO("입력이 무엇인지입니다. 짝짓기 전략과 매퍼가 얼마나 관대한지가 여기서 "
-       "정해집니다. 입력을 고를 때 그 종류에서 자동으로 설정됩니다."),
+       "정해집니다. '동영상 프레임'은 첫 입력의 '순서대로' 스위치를 따릅니다."),
     DE("Was die Eingabe ist; davon hängen die Paarungsstrategie und die "
-       "Nachsicht des Mappers ab. Wird beim Auswählen aus der Eingabeart "
-       "gesetzt."),
+       "Nachsicht des Mappers ab. „Videobilder“ folgt dem Schalter "
+       "„Sequenziell“ der ersten Eingabe."),
     FR("Ce qu'est l'entrée, ce qui fixe la stratégie d'appariement et la "
-       "tolérance du mapper. Défini d'après le type d'entrée au moment du "
-       "choix."),
+       "tolérance du mapper. « Images de vidéo » suit l'interrupteur "
+       "« Séquentiel » de la première entrée."),
     ES("Qué es la entrada, lo que fija la estrategia de emparejamiento y la "
-       "tolerancia del mapeador. Se establece según el tipo de entrada al "
-       "elegirla."),
+       "tolerancia del mapeador. «Fotogramas de vídeo» sigue el interruptor "
+       "«Secuencial» de la primera entrada."),
     PT("O que é a entrada, o que define a estratégia de pareamento e a "
-       "tolerância do mapeador. Definido pelo tipo de entrada ao escolhê-la."),
+       "tolerância do mapeador. “Quadros de vídeo” segue o interruptor "
+       "“Sequencial” da primeira entrada."),
     IT("Che cosa è l'ingresso: da questo dipendono la strategia di "
-       "accoppiamento e quanto è tollerante il mapper. Impostato dal tipo di "
-       "ingresso al momento della scelta."),
+       "accoppiamento e quanto è tollerante il mapper. «Fotogrammi video» segue "
+       "l'interruttore «Sequenziale» del primo ingresso."),
     NL("Wat de invoer is; dat bepaalt de koppelstrategie en hoe mild de mapper "
-       "is. Wordt bij het kiezen uit het invoertype ingesteld."),
+       "is. ‘Videobeelden’ volgt de schakelaar ‘Sequentieel’ van de eerste "
+       "invoer."),
     RU("Чем является вход; от этого зависят стратегия составления пар и "
-       "снисходительность маппера. Задаётся по типу входа при его выборе."),
+       "снисходительность маппера. «Кадры видео» следует переключателю «По "
+       "порядку» первого входа."),
     TR("Girdinin ne olduğu; eşleştirme stratejisini ve haritalayıcının ne "
-       "kadar hoşgörülü olduğunu bu belirler. Girdiyi seçerken türünden "
-       "ayarlanır."));
+       "kadar hoşgörülü olduğunu bu belirler. “Video kareleri”, ilk girdinin "
+       "“Sıralı” anahtarını izler."));
 
 SS_MSG(features,
     EN("Features"),      JA("特徴"),          ZH_HANS("特征"),     ZH_HANT("特徵"),
@@ -6400,6 +9216,127 @@ SS_MSG(mapper_schedule_help,
        "yukarı plan görünüm çizgesini küçük öbeklere böler, her birini ayrı "
        "yeniden oluşturur ve yukarı doğru birleştirir."));
 
+SS_MSG(prefilter_sequential,
+    EN("Also match neighbouring frames"),
+    JA("隣り合うフレームもマッチングする"),
+    ZH_HANS("同时匹配相邻帧"),
+    ZH_HANT("同時比對相鄰影格"),
+    KO("이웃 프레임도 매칭"),
+    DE("Auch benachbarte Bilder zuordnen"),
+    FR("Apparier aussi les images voisines"),
+    ES("Emparejar también los fotogramas vecinos"),
+    PT("Comparar também os quadros vizinhos"),
+    IT("Abbinare anche i fotogrammi vicini"),
+    NL("Ook naburige beelden matchen"),
+    RU("Сопоставлять и соседние кадры"),
+    TR("Komşu kareleri de eşleştir"));
+
+SS_MSG(prefilter_sequential_help,
+    EN("GPU pre-selection keeps each image's best partners by content, and a "
+       "real but weak link can fall just outside them -- one such gap is enough "
+       "to split a 360 walk into models stacked on top of each other. This also "
+       "matches each image with its neighbours in file order within its folder "
+       "(the next few, then 16, 32, 64 ... apart), which costs some extra "
+       "matching. Photos named in shooting order benefit as much as video. "
+       "Under \"Automatic\" it applies from 100 images, where pre-selection "
+       "takes over."),
+    JA("GPU による事前選択は内容から各画像の最良の相手だけを残すため、本物でも"
+       "弱いつながりはそのすぐ外にこぼれることがあります。そうした穴が1つある"
+       "だけで、360 の歩き撮りが上下に重なった複数のモデルに割れてしまいます。"
+       "これを有効にすると、同じフォルダー内でファイル順に隣り合う画像（直後の"
+       "数枚と、16、32、64 … 枚離れた画像）ともマッチングします。マッチングは"
+       "少し増えます。撮影順の名前の写真にも動画と同じく効きます。「自動」では"
+       "事前選択に切り替わる 100 枚以上のときに適用されます。"),
+    ZH_HANS("GPU 预筛选只按内容为每张图像保留最好的几个配对，真实但较弱的连接可能"
+            "刚好落在外面——只要有一处这样的缺口，360 的步行拍摄就会碎成上下叠在"
+            "一起的多个模型。开启后还会把每张图像与同一文件夹内按文件顺序相邻的"
+            "图像（紧接的几张，以及相隔 16、32、64 … 张的）做匹配，匹配量会稍有"
+            "增加。按拍摄顺序命名的照片和视频一样受益。在“自动”下，从 100 张起"
+            "（改用预筛选时）生效。"),
+    ZH_HANT("GPU 預篩選只按內容為每張影像保留最好的幾個配對，真實但較弱的連結可能"
+            "剛好落在外面——只要有一處這樣的缺口，360 的步行拍攝就會碎成上下疊在"
+            "一起的多個模型。開啟後還會把每張影像與同一資料夾內按檔案順序相鄰的"
+            "影像（緊接的幾張，以及相隔 16、32、64 … 張的）做比對，比對量會稍有"
+            "增加。依拍攝順序命名的相片和影片一樣受益。在「自動」下，從 100 張起"
+            "（改用預篩選時）生效。"),
+    KO("GPU 사전 선별은 내용으로 각 이미지의 가장 좋은 짝만 남기므로, 진짜지만 "
+       "약한 연결이 그 바로 밖으로 빠질 수 있습니다. 그런 틈이 하나만 있어도 "
+       "360 걷기 촬영이 위아래로 겹친 여러 모델로 갈라집니다. 이 옵션은 각 "
+       "이미지를 같은 폴더 안 파일 순서상의 이웃(바로 다음 몇 장, 그리고 16, "
+       "32, 64 … 장 떨어진 것)과도 매칭하며, 매칭이 조금 늘어납니다. 촬영 "
+       "순서대로 이름 붙은 사진도 동영상만큼 효과를 봅니다. '자동'에서는 사전 "
+       "선별로 바뀌는 100장부터 적용됩니다."),
+    DE("Die GPU-Vorauswahl behält für jedes Bild nur die inhaltlich besten "
+       "Partner, und eine echte, aber schwache Verbindung kann knapp "
+       "herausfallen -- eine einzige solche Lücke genügt, um einen 360-Rundgang "
+       "in übereinanderliegende Modelle zu zerlegen. Dies ordnet jedes Bild "
+       "zusätzlich seinen Nachbarn in Dateireihenfolge innerhalb seines Ordners "
+       "zu (die nächsten paar, dann 16, 32, 64 ... entfernt), was etwas mehr "
+       "Zuordnung kostet. Fotos, die in Aufnahmereihenfolge benannt sind, "
+       "profitieren wie Video. Unter „Automatisch“ gilt es ab 100 Bildern, wo die "
+       "Vorauswahl übernimmt."),
+    FR("La présélection GPU ne garde pour chaque image que ses meilleurs "
+       "partenaires par le contenu, et un lien réel mais faible peut tomber "
+       "juste à côté -- un seul trou de ce genre suffit à découper une "
+       "promenade à 360 en modèles empilés les uns sur les autres. Ceci apparie "
+       "aussi chaque image avec ses voisines dans l'ordre des fichiers de son "
+       "dossier (les quelques suivantes, puis à 16, 32, 64 ...), au prix d'un "
+       "peu plus d'appariement. Des photos nommées dans l'ordre de prise en "
+       "profitent autant qu'une vidéo. Sous « Automatique », cela s'applique à "
+       "partir de 100 images, quand la présélection prend le relais."),
+    ES("La preselección en GPU conserva para cada imagen solo sus mejores "
+       "parejas por contenido, y un enlace real pero débil puede quedar justo "
+       "fuera; basta un hueco así para partir un recorrido 360 en modelos "
+       "apilados unos sobre otros. Esto empareja además cada imagen con sus "
+       "vecinas en el orden de archivos de su carpeta (las siguientes, y luego "
+       "a 16, 32, 64 ...), a cambio de algo más de emparejamiento. Las fotos "
+       "nombradas en orden de toma se benefician igual que el vídeo. En "
+       "«Automático» se aplica desde 100 imágenes, cuando entra la "
+       "preselección."),
+    PT("A pré-seleção na GPU guarda para cada imagem só os melhores parceiros "
+       "por conteúdo, e uma ligação real mas fraca pode ficar logo de fora; "
+       "basta uma lacuna assim para partir uma caminhada 360 em modelos "
+       "empilhados uns sobre os outros. Isto também compara cada imagem com as "
+       "vizinhas na ordem dos arquivos da sua pasta (as próximas, e depois a "
+       "16, 32, 64 ...), ao custo de um pouco mais de correspondência. Fotos "
+       "nomeadas na ordem da captura se beneficiam tanto quanto vídeo. Em "
+       "\"Automático\" vale a partir de 100 imagens, quando entra a "
+       "pré-seleção."),
+    IT("La preselezione su GPU tiene per ogni immagine solo i partner migliori "
+       "per contenuto, e un legame reale ma debole può restare appena fuori: "
+       "basta un buco così per spezzare una camminata a 360 in modelli "
+       "impilati uno sull'altro. Questo abbina anche ogni immagine alle vicine "
+       "nell'ordine dei file della sua cartella (le successive, poi a 16, 32, "
+       "64 ...), al costo di un po' più di abbinamento. Le foto nominate "
+       "nell'ordine di scatto ne beneficiano quanto un video. Con "
+       "\"Automatico\" vale da 100 immagini, quando subentra la "
+       "preselezione."),
+    NL("GPU-voorselectie houdt per beeld alleen de inhoudelijk beste partners "
+       "over, en een echte maar zwakke verbinding kan er net buiten vallen -- "
+       "één zo'n gat is genoeg om een 360-wandeling in op elkaar gestapelde "
+       "modellen te breken. Dit matcht elk beeld ook met zijn buren in "
+       "bestandsvolgorde binnen zijn map (de volgende paar, daarna 16, 32, "
+       "64 ... verder), wat wat extra matchen kost. Foto's die in opnamevolgorde "
+       "heten, hebben er net zoveel aan als video. Onder \"Automatisch\" geldt "
+       "het vanaf 100 beelden, waar de voorselectie het overneemt."),
+    RU("Предварительный отбор на GPU оставляет каждому снимку только лучших "
+       "партнёров по содержанию, и настоящая, но слабая связь может оказаться "
+       "сразу за чертой -- одной такой прорехи хватает, чтобы 360-прогулка "
+       "распалась на модели, лежащие друг на друге. Этот флажок сопоставляет "
+       "каждый снимок и с соседями по порядку файлов в его папке (несколько "
+       "следующих, затем через 16, 32, 64 ...), что немного добавляет "
+       "сопоставлений. Фото, названные в порядке съёмки, выигрывают так же, "
+       "как видео. В режиме «Автоматически» действует от 100 снимков, когда "
+       "включается предварительный отбор."),
+    TR("GPU ön seçimi her görüntü için içerikçe en iyi eşleri tutar ve gerçek "
+       "ama zayıf bir bağ hemen dışarıda kalabilir; böyle tek bir boşluk bir 360 "
+       "yürüyüşünü üst üste binmiş modellere bölmeye yeter. Bu seçenek her "
+       "görüntüyü klasöründeki dosya sırasına göre komşularıyla da (sonraki "
+       "birkaç, ardından 16, 32, 64 ... uzaktakiler) eşleştirir; biraz daha "
+       "eşleştirme gerektirir. Çekim sırasıyla adlandırılmış fotoğraflar da "
+       "video kadar yararlanır. \"Otomatik\" altında ön seçimin devreye girdiği "
+       "100 görüntüden itibaren geçerlidir."));
+
 SS_MSG(sequential_overlap,
     EN("Sequential overlap"),
     JA("逐次マッチングの重なり"),
@@ -6759,6 +9696,21 @@ SS_MSG(sfm_metric_gps_full,
     RU("С высотой"),
     TR("Yükseklikle"));
 
+SS_MSG(sfm_metric_gps_auto,
+    EN("Automatic"),
+    JA("自動"),
+    ZH_HANS("自动"),
+    ZH_HANT("自動"),
+    KO("자동"),
+    DE("Automatisch"),
+    FR("Automatique"),
+    ES("Automático"),
+    PT("Automático"),
+    IT("Automatico"),
+    NL("Automatisch"),
+    RU("Автоматически"),
+    TR("Otomatik"));
+
 SS_MSG(section_sensors,
     EN("Sensors"),       JA("センサー"),      ZH_HANS("传感器"),    ZH_HANT("感測器"),
     KO("센서"),           DE("Sensoren"),     FR("Capteurs"),      ES("Sensores"),
@@ -6877,6 +9829,120 @@ SS_MSG(sfm_sensor_gauge_help,
        "da sensörsüz çekimde yalnızca daha azı kalır. Kapalı, telemetrisi "
        "yanlış olduğu bilinen bir dosya içindir."));
 
+SS_MSG(sfm_exif_attitude,
+    EN("Photo attitude"),
+    JA("写真の姿勢"),
+    ZH_HANS("照片姿态"),
+    ZH_HANT("相片姿態"),
+    KO("사진의 자세"),
+    DE("Lage der Fotos"),
+    FR("Attitude des photos"),
+    ES("Actitud de las fotos"),
+    PT("Atitude das fotos"),
+    IT("Assetto delle foto"),
+    NL("Stand van de foto's"),
+    RU("Ориентация фотографий"),
+    TR("Fotoğrafların duruşu"));
+
+SS_MSG(sfm_exif_attitude_auto,
+    EN("Up and north"),
+    JA("上方向と北"),
+    ZH_HANS("上方向与北向"),
+    ZH_HANT("上方向與北向"),
+    KO("위쪽 방향과 북쪽"),
+    DE("Oben und Norden"),
+    FR("Haut et nord"),
+    ES("Vertical y norte"),
+    PT("Vertical e norte"),
+    IT("Verticale e nord"),
+    NL("Boven en noord"),
+    RU("Верх и север"),
+    TR("Yukarı yönü ve kuzey"));
+
+SS_MSG(sfm_exif_attitude_help,
+    EN("Use the camera attitude a drone writes into each photo -- its gimbal's "
+       "yaw, pitch and roll -- to decide which way is up, and where north is. "
+       "Without it, up is guessed from how the cameras were held, which fails "
+       "for a camera looking down or one its gimbal turned upside down. Photos "
+       "that disagree with the reconstruction are outvoted, and a set it "
+       "contradicts is not used. Ignore is for a camera known to write wrong "
+       "angles."),
+    JA("ドローンが写真ごとに書き込むカメラ姿勢 (ジンバルのヨー・ピッチ・ロール) を"
+       "使い、上方向と北を決めます。これがないと上方向はカメラの構え方から推測"
+       "しますが、真下を向いたカメラやジンバルで上下逆になったカメラでは外れます。"
+       "再構成と食い違う写真は多数決で除かれ、全体が矛盾する場合は使いません。"
+       "「使わない」は角度を誤って書くカメラ向けです。"),
+    ZH_HANS("使用无人机写入每张照片的相机姿态 (云台的偏航、俯仰、横滚) 来确定上方向"
+            "和北向。没有它时，上方向要根据相机的持握方式推测，而相机朝正下方、或被"
+            "云台翻转过来时这种推测会失效。与重建不符的照片会在投票中被排除，整体"
+            "矛盾时则不使用。“不使用”适用于已知会写错角度的相机。"),
+    ZH_HANT("使用無人機寫入每張相片的相機姿態 (雲台的偏航、俯仰、橫滾) 來確定上方向"
+            "和北向。沒有它時，上方向要依相機的持握方式推測，而相機朝正下方、或被"
+            "雲台翻轉過來時這種推測會失效。與重建不符的相片會在投票中被排除，整體"
+            "矛盾時則不使用。「不使用」適用於已知會寫錯角度的相機。"),
+    KO("드론이 사진마다 기록하는 카메라 자세 (짐벌의 요·피치·롤) 로 위 방향과 "
+       "북쪽을 정합니다. 이것이 없으면 위 방향은 카메라를 든 방식으로 추측하는데, "
+       "바로 아래를 보는 카메라나 짐벌이 위아래로 뒤집은 카메라에서는 틀립니다. "
+       "재구성과 맞지 않는 사진은 다수결로 빠지고, 전체가 모순되면 쓰지 않습니다. "
+       "사용 안 함은 각도를 잘못 기록하는 카메라를 위한 것입니다."),
+    DE("Nutzt die Kameralage, die eine Drohne in jedes Foto schreibt -- Gier-, "
+       "Nick- und Rollwinkel des Gimbals --, um oben und Norden zu bestimmen. "
+       "Ohne sie wird oben aus der Haltung der Kameras geschätzt, was bei einer "
+       "senkrecht nach unten blickenden Kamera oder einer vom Gimbal auf den Kopf "
+       "gedrehten versagt. Fotos, die der Rekonstruktion widersprechen, werden "
+       "überstimmt, und ein Satz, dem sie widerspricht, wird nicht verwendet. "
+       "Ignorieren ist für eine Kamera, die bekanntermaßen falsche Winkel "
+       "schreibt."),
+    FR("Utilise l'attitude de caméra qu'un drone écrit dans chaque photo -- "
+       "lacet, tangage et roulis de la nacelle -- pour fixer le haut et le nord. "
+       "Sans elle, le haut est deviné d'après la tenue des caméras, ce qui échoue "
+       "pour une caméra tournée vers le sol ou retournée par sa nacelle. Les "
+       "photos en désaccord avec la reconstruction sont mises en minorité, et un "
+       "ensemble qu'elle contredit n'est pas utilisé. Ignorer convient à une "
+       "caméra connue pour écrire de faux angles."),
+    ES("Usa la actitud de cámara que un dron escribe en cada foto -- guiñada, "
+       "cabeceo y alabeo del gimbal -- para fijar la vertical y el norte. Sin "
+       "ella, la vertical se adivina por cómo se sostuvieron las cámaras, lo que "
+       "falla con una cámara que mira hacia abajo o que su gimbal puso boca "
+       "abajo. Las fotos que no concuerdan con la reconstrucción quedan en "
+       "minoría, y un conjunto que ella contradice no se usa. Ignorar es para una "
+       "cámara que se sabe que escribe ángulos erróneos."),
+    PT("Usa a atitude de câmera que um drone escreve em cada foto -- guinada, "
+       "arfagem e rolamento do gimbal -- para fixar a vertical e o norte. Sem "
+       "ela, a vertical é adivinhada pela forma como as câmeras foram seguras, o "
+       "que falha com uma câmera virada para baixo ou que o gimbal pôs de cabeça "
+       "para baixo. As fotos que não concordam com a reconstrução ficam em "
+       "minoria, e um conjunto que ela contradiz não é usado. Ignorar é para uma "
+       "câmera que se sabe escrever ângulos errados."),
+    IT("Usa l'assetto della fotocamera che un drone scrive in ogni foto -- "
+       "imbardata, beccheggio e rollio del gimbal -- per stabilire la verticale "
+       "e il nord. Senza, la verticale si indovina da come erano tenute le "
+       "fotocamere, il che fallisce con una fotocamera rivolta verso il basso o "
+       "capovolta dal gimbal. Le foto in disaccordo con la ricostruzione vengono "
+       "messe in minoranza, e un insieme che essa contraddice non viene usato. "
+       "Ignora serve per una fotocamera nota per scrivere angoli sbagliati."),
+    NL("Gebruikt de camerastand die een drone in elke foto schrijft -- gier-, "
+       "stamp- en rolhoek van de gimbal -- om boven en noord te bepalen. Zonder "
+       "die wordt boven geraden uit hoe de camera's werden vastgehouden, wat "
+       "mislukt bij een camera die recht naar beneden kijkt of die de gimbal op "
+       "z'n kop heeft gedraaid. Foto's die de reconstructie tegenspreken worden "
+       "weggestemd, en een set die zij tegenspreekt wordt niet gebruikt. Negeren "
+       "is voor een camera waarvan bekend is dat hij foute hoeken schrijft."),
+    RU("Использует ориентацию камеры, которую дрон записывает в каждый снимок, "
+       "— рыскание, тангаж и крен подвеса, — чтобы задать верх и север. Без неё "
+       "верх угадывается по тому, как держали камеры, а это не срабатывает для "
+       "камеры, смотрящей вниз, или перевёрнутой подвесом. Снимки, расходящиеся "
+       "с реконструкцией, остаются в меньшинстве, а набор, которому она "
+       "противоречит, не используется. «Не использовать» — для камеры, которая "
+       "заведомо пишет неверные углы."),
+    TR("Bir dronun her fotoğrafa yazdığı kamera duruşunu -- gimbalın sapma, "
+       "yunuslama ve yatış açılarını -- kullanarak yukarıyı ve kuzeyi belirler. "
+       "Bu olmadan yukarı, kameraların nasıl tutulduğundan tahmin edilir; bu da "
+       "aşağı bakan ya da gimbalın ters çevirdiği bir kamerada başarısız olur. "
+       "Yeniden yapılandırmayla çelişen fotoğraflar oylamada azınlıkta kalır ve "
+       "onun çeliştiği bir küme kullanılmaz. Yok say, açıları yanlış yazdığı "
+       "bilinen bir kamera içindir."));
+
 SS_MSG(sensors_reading,
     EN("reading sensors..."),
     JA("センサーを読み取り中..."),
@@ -6907,12 +9973,6 @@ SS_MSG(sensors_none,
     RU("нет данных датчиков"),
     TR("sensör verisi yok"));
 
-SS_MSG(sensors_imu_gps,
-    EN("IMU + GPS"),     JA("IMU + GPS"),    ZH_HANS("IMU + GPS"), ZH_HANT("IMU + GPS"),
-    KO("IMU + GPS"),     DE("IMU + GPS"),    FR("IMU + GPS"),     ES("IMU + GPS"),
-    PT("IMU + GPS"),     IT("IMU + GPS"),    NL("IMU + gps"),     RU("IMU + GPS"),
-    TR("IMU + GPS"));
-
 SS_MSG(sensors_imu,
     EN("IMU"),           JA("IMU"),          ZH_HANS("IMU"),      ZH_HANT("IMU"),
     KO("IMU"),           DE("IMU"),          FR("IMU"),           ES("IMU"),
@@ -6936,9 +9996,72 @@ SS_MSG(sensors_photo_gps,
     ES("GPS en {0}/{1}"),
     PT("GPS em {0}/{1}"),
     IT("GPS in {0}/{1}"),
-    NL("gps in {0}/{1}"),
+    NL("Gps in {0}/{1}"),
     RU("GPS в {0}/{1}"),
     TR("{0}/{1} dosyada GPS"));
+
+SS_MSG(sensors_photo_attitude,
+    EN("Attitude in {0}/{1}"),
+    JA("姿勢あり {0}/{1}"),
+    ZH_HANS("{0}/{1} 张有姿态"),
+    ZH_HANT("{0}/{1} 張有姿態"),
+    KO("자세 {0}/{1}장"),
+    DE("Lage in {0}/{1}"),
+    FR("Attitude dans {0}/{1}"),
+    ES("Actitud en {0}/{1}"),
+    PT("Atitude em {0}/{1}"),
+    IT("Assetto in {0}/{1}"),
+    NL("Stand in {0}/{1}"),
+    RU("Ориентация в {0}/{1}"),
+    TR("{0}/{1} dosyada duruş"));
+
+SS_MSG(sensors_photo_attitude_help,
+    EN("Attitude is which way the camera pointed -- the yaw, pitch and roll a "
+       "drone records with each photo. The reconstruction takes which way is "
+       "up, and north, from it. Off ignores it entirely; Advanced > Sensors "
+       "sets how it is used when on."),
+    JA("姿勢とは、ドローンが写真ごとに記録するカメラの向き (ヨー・ピッチ・ロール) "
+       "です。再構成はここから上方向と北を決めます。オフにすると完全に無視します。"
+       "オンのときの使い方は 詳細設定 > センサー で決めます。"),
+    ZH_HANS("姿态是无人机随每张照片记录的相机朝向 (偏航、俯仰、横滚)。重建由它确定"
+            "上方向和北向。关闭则完全忽略；开启时如何使用由 高级 > 传感器 决定。"),
+    ZH_HANT("姿態是無人機隨每張相片記錄的相機朝向 (偏航、俯仰、橫滾)。重建由它確定"
+            "上方向和北向。關閉則完全忽略；開啟時如何使用由 進階 > 感測器 決定。"),
+    KO("자세는 드론이 사진마다 기록하는 카메라의 방향 (요·피치·롤) 입니다. 재구성은 "
+       "이것으로 위 방향과 북쪽을 정합니다. 끄면 완전히 무시합니다. 켰을 때 어떻게 "
+       "쓸지는 고급 > 센서에서 정합니다."),
+    DE("Die Lage ist, wohin die Kamera zeigte -- Gier-, Nick- und Rollwinkel, wie "
+       "eine Drohne sie zu jedem Foto aufzeichnet. Die Rekonstruktion nimmt "
+       "daraus, wo oben und wo Norden ist. Aus ignoriert sie ganz; wie sie "
+       "eingeschaltet genutzt wird, legt Erweitert > Sensoren fest."),
+    FR("L'attitude est l'orientation de la caméra -- lacet, tangage et roulis -- "
+       "telle qu'un drone l'enregistre avec chaque photo. La reconstruction en "
+       "tire le haut et le nord. Désactivée, elle est entièrement ignorée ; "
+       "Avancé > Capteurs règle son usage quand elle est activée."),
+    ES("La actitud es hacia dónde apuntaba la cámara -- guiñada, cabeceo y "
+       "alabeo -- tal como un dron la registra con cada foto. La reconstrucción "
+       "toma de ella la vertical y el norte. Desactivada, se ignora por "
+       "completo; Avanzado > Sensores decide cómo se usa cuando está activada."),
+    PT("A atitude é para onde a câmera apontava -- guinada, arfagem e rolamento "
+       "-- tal como um drone a regista com cada foto. A reconstrução tira dela a "
+       "vertical e o norte. Desligada, é totalmente ignorada; Avançado > "
+       "Sensores define como é usada quando ligada."),
+    IT("L'assetto è dove puntava la fotocamera -- imbardata, beccheggio e rollio "
+       "-- come un drone lo registra con ogni foto. La ricostruzione ne ricava la "
+       "verticale e il nord. Disattivato, viene ignorato del tutto; Avanzate > "
+       "Sensori stabilisce come usarlo quando è attivo."),
+    NL("De stand is waar de camera heen wees -- gier-, stamp- en rolhoek, zoals "
+       "een drone die bij elke foto vastlegt. De reconstructie haalt er boven en "
+       "noord uit. Uit negeert hem volledig; Geavanceerd > Sensoren bepaalt hoe "
+       "hij aan wordt gebruikt."),
+    RU("Ориентация — куда смотрела камера: рыскание, тангаж и крен, как дрон "
+       "записывает их с каждым снимком. Реконструкция берёт из неё верх и север. "
+       "Выключено — полностью игнорируется; как она используется во включённом "
+       "виде, задаёт Дополнительно > Датчики."),
+    TR("Duruş, kameranın nereye baktığıdır -- bir dronun her fotoğrafla kaydettiği "
+       "sapma, yunuslama ve yatış açıları. Yeniden yapılandırma yukarıyı ve "
+       "kuzeyi buradan alır. Kapalıyken tamamen yok sayılır; açıkken nasıl "
+       "kullanılacağını Gelişmiş > Sensörler belirler."));
 
 SS_MSG(sensors_carrier_tooltip,
     EN("Telemetry format: {0}"),
@@ -6955,6 +10078,251 @@ SS_MSG(sensors_carrier_tooltip,
     RU("Формат телеметрии: {0}"),
     TR("Telemetri biçimi: {0}"));
 
+SS_MSG(sensors_video_imu_help,
+    EN("This video's IMU -- gyro, accelerometer and recorded orientation. The "
+       "reconstruction takes which way is up and the metric scale from it, and "
+       "checks its matches against it. Off ignores it entirely; Advanced > "
+       "Sensors sets how it is used when on."),
+    JA("この動画のIMU (ジャイロ、加速度計、記録された姿勢) です。再構成はここから"
+       "上方向と実寸を求め、マッチの検証にも使います。オフにすると完全に無視します。"
+       "オンのときの使い方は 詳細設定 > センサー で決めます。"),
+    ZH_HANS("这个视频的 IMU (陀螺仪、加速度计和记录的姿态)。重建由它确定上方向和"
+            "实际尺度，并用它检验匹配。关闭则完全忽略；开启时如何使用由 高级 > "
+            "传感器 决定。"),
+    ZH_HANT("這個影片的 IMU (陀螺儀、加速度計和記錄的姿態)。重建由它確定上方向和"
+            "實際尺度，並用它檢驗匹配。關閉則完全忽略；開啟時如何使用由 進階 > "
+            "感測器 決定。"),
+    KO("이 동영상의 IMU (자이로, 가속도계, 기록된 자세) 입니다. 재구성은 이것으로 "
+       "위쪽 방향과 실척을 정하고, 매칭 검증에도 씁니다. 끄면 완전히 무시합니다. "
+       "켰을 때 어떻게 쓸지는 고급 > 센서에서 정합니다."),
+    DE("Die IMU dieses Videos -- Gyroskop, Beschleunigungsmesser und "
+       "aufgezeichnete Lage. Die Rekonstruktion nimmt daraus, wo oben ist, und "
+       "den metrischen Maßstab, und prüft ihre Zuordnungen daran. Aus ignoriert "
+       "sie ganz; wie sie eingeschaltet genutzt wird, legt Erweitert > Sensoren "
+       "fest."),
+    FR("L'IMU de cette vidéo -- gyroscope, accéléromètre et orientation "
+       "enregistrée. La reconstruction en tire le haut et l'échelle métrique, et "
+       "y vérifie ses appariements. Désactivée, elle est entièrement ignorée ; "
+       "Avancé > Capteurs règle son usage quand elle est activée."),
+    ES("La IMU de este vídeo: giroscopio, acelerómetro y orientación "
+       "registrada. La reconstrucción toma de ella la vertical y la escala "
+       "métrica, y comprueba con ella sus correspondencias. Desactivada, se "
+       "ignora por completo; Avanzado > Sensores decide cómo se usa cuando está "
+       "activada."),
+    PT("A IMU deste vídeo: giroscópio, acelerómetro e orientação registada. A "
+       "reconstrução tira dela a vertical e a escala métrica, e verifica com ela "
+       "as correspondências. Desligada, é totalmente ignorada; Avançado > "
+       "Sensores define como é usada quando ligada."),
+    IT("L'IMU di questo video: giroscopio, accelerometro e orientamento "
+       "registrato. La ricostruzione ne ricava la verticale e la scala metrica, "
+       "e vi verifica le corrispondenze. Disattivata, viene ignorata del tutto; "
+       "Avanzate > Sensori stabilisce come usarla quando è attiva."),
+    NL("De IMU van deze video: gyroscoop, versnellingsmeter en vastgelegde "
+       "stand. De reconstructie haalt er boven en de metrische schaal uit, en "
+       "toetst er haar overeenkomsten aan. Uit negeert hem volledig; Geavanceerd "
+       "> Sensoren bepaalt hoe hij aan wordt gebruikt."),
+    RU("IMU этого видео — гироскоп, акселерометр и записанная ориентация. "
+       "Реконструкция берёт из неё направление вверх и масштаб в метрах и "
+       "проверяет по ней сопоставления. Выключено — полностью игнорируется; как "
+       "она используется во включённом виде, задаёт Дополнительно > Датчики."),
+    TR("Bu videonun IMU'su: jiroskop, ivmeölçer ve kaydedilen duruş. Yeniden "
+       "oluşturma yukarı yönünü ve metrik ölçeği bundan alır ve eşleşmelerini "
+       "buna göre denetler. Kapalıyken tamamen yok sayılır; açıkken nasıl "
+       "kullanılacağını Gelişmiş > Sensörler belirler."));
+
+SS_MSG(sensors_video_gps_help,
+    EN("This video's GPS track, used for the metric scale, the compass heading "
+       "and the model's place on the map. Keep it on outdoors when the capture "
+       "spans tens of metres or more. Turn it off for a small or indoor scene: "
+       "GPS there is off by metres, more than the scene's own size, and only "
+       "misleads the reconstruction."),
+    JA("この動画のGPSトラックです。"
+       "実寸、方位、地図上の位置に使います。"
+       "屋外で数十メートル以上にわたる撮影ではオンのままに。"
+       "狭いシーンや屋内ではオフにします。"
+       "そこでは GPS の誤差がシーン自体より大きい数メートルにもなり、再構成を誤らせるだけです。"),
+    ZH_HANS("这个视频的 GPS 轨迹，用于确定实际尺度、罗盘方位和模型在地图上的位置。"
+            "户外拍摄范围达数十米以上时保持开启。"
+            "小场景或室内请关闭：那里的 GPS 误差有好几米，比场景本身还大，只会误导重建。"),
+    ZH_HANT("這個影片的 GPS 軌跡，用於確定實際尺度、羅盤方位和模型在地圖上的位置。"
+            "戶外拍攝範圍達數十公尺以上時保持開啟。"
+            "小場景或室內請關閉：那裡的 GPS 誤差有好幾公尺，比場景本身還大，只會誤導重建。"),
+    KO("이 동영상의 GPS 경로로, 실척, 나침반 방위, 지도 위 모델의 위치에 씁니다. "
+       "야외에서 수십 미터 이상을 촬영했다면 켜 두세요. "
+       "작은 장면이나 실내라면 끄세요. "
+       "그런 곳의 GPS는 장면 자체보다 큰 몇 미터씩 틀려서 재구성을 오도할 뿐입니다."),
+    DE("Die GPS-Spur dieses Videos, genutzt für den metrischen Maßstab, die "
+       "Kompassrichtung und den Platz des Modells auf der Karte. Draußen "
+       "anlassen, wenn die Aufnahme zig Meter oder mehr umfasst. Bei einer "
+       "kleinen Szene oder drinnen ausschalten: GPS liegt dort um Meter daneben,"
+       " mehr als die Szene groß ist, und führt die Rekonstruktion nur in die "
+       "Irre."),
+    FR("La trace GPS de cette vidéo, utilisée pour l'échelle métrique, le cap et"
+       " la place du modèle sur la carte. Laissez-le actif en extérieur quand la"
+       " prise couvre des dizaines de mètres ou plus. Désactivez-le pour une "
+       "petite scène ou en intérieur : le GPS s'y trompe de plusieurs mètres, "
+       "plus que la taille de la scène, et ne fait qu'égarer la reconstruction."),
+    ES("La traza GPS de este vídeo, usada para la escala métrica, el rumbo y el "
+       "lugar del modelo en el mapa. Déjalo activado en exteriores cuando la "
+       "captura abarca decenas de metros o más. Desactívalo en una escena "
+       "pequeña o en interiores: allí el GPS se equivoca en metros, más que el "
+       "tamaño de la escena, y solo confunde a la reconstrucción."),
+    PT("O trajeto GPS deste vídeo, usado para a escala métrica, o rumo e o lugar"
+       " do modelo no mapa. Deixe-o ligado no exterior quando a captura abrange "
+       "dezenas de metros ou mais. Desligue-o numa cena pequena ou no interior: "
+       "aí o GPS erra por metros, mais do que o tamanho da cena, e só engana a "
+       "reconstrução."),
+    IT("La traccia GPS di questo video, usata per la scala metrica, la direzione"
+       " della bussola e il posto del modello sulla mappa. Lascialo attivo "
+       "all'aperto quando la ripresa copre decine di metri o più. Spegnilo per "
+       "una scena piccola o al chiuso: lì il GPS sbaglia di metri, più della "
+       "scena stessa, e non fa che fuorviare la ricostruzione."),
+    NL("Het gps-spoor van deze video, gebruikt voor de metrische schaal, de "
+       "kompasrichting en de plaats van het model op de kaart. Laat het buiten "
+       "aan als de opname tientallen meters of meer beslaat. Zet het uit bij een"
+       " kleine scène of binnen: gps zit er meters naast, meer dan de scène "
+       "groot is, en misleidt de reconstructie alleen."),
+    RU("GPS-трек этого видео: по нему задаются масштаб в метрах, курс по компасу"
+       " и место модели на карте. Оставьте включённым на улице, если съёмка "
+       "охватывает десятки метров и больше. Выключите для небольшой сцены или в "
+       "помещении: там GPS ошибается на метры, больше размера самой сцены, и "
+       "только сбивает реконструкцию."),
+    TR("Bu videonun GPS izi; metrik ölçek, pusula yönü ve modelin haritadaki "
+       "yeri için kullanılır. Açık havada çekim onlarca metre ya da daha "
+       "fazlasını kapsıyorsa açık tutun. Küçük ya da iç mekân sahnesinde "
+       "kapatın: oradaki GPS sahnenin kendisinden büyük, metrelerce hatalıdır ve"
+       " yeniden oluşturmayı yalnızca yanıltır."));
+
+SS_MSG(sensors_photo_gps_help,
+    EN("The GPS position in these photos' EXIF, used for the metric scale, the "
+       "compass heading and the model's place on the map. Keep it on outdoors "
+       "when the capture spans tens of metres or more. Turn it off for a small "
+       "or indoor scene: GPS there is off by metres, more than the scene's own "
+       "size, and only misleads the reconstruction."),
+    JA("これらの写真の EXIF にある GPS 位置です。"
+       "実寸、方位、地図上の位置に使います。"
+       "屋外で数十メートル以上にわたる撮影ではオンのままに。"
+       "狭いシーンや屋内ではオフにします。"
+       "そこでは GPS の誤差がシーン自体より大きい数メートルにもなり、再構成を誤らせるだけです。"),
+    ZH_HANS("这些照片 EXIF 中的 GPS 位置，用于确定实际尺度、罗盘方位和模型在地图上的位置。"
+            "户外拍摄范围达数十米以上时保持开启。"
+            "小场景或室内请关闭：那里的 GPS 误差有好几米，比场景本身还大，只会误导重建。"),
+    ZH_HANT("這些相片 EXIF 中的 GPS 位置，用於確定實際尺度、羅盤方位和模型在地圖上的位置。"
+            "戶外拍攝範圍達數十公尺以上時保持開啟。"
+            "小場景或室內請關閉：那裡的 GPS 誤差有好幾公尺，比場景本身還大，只會誤導重建。"),
+    KO("이 사진들의 EXIF에 있는 GPS 위치로, 실척, 나침반 방위, 지도 위 모델의 위치에 씁니다. "
+       "야외에서 수십 미터 이상을 촬영했다면 켜 두세요. "
+       "작은 장면이나 실내라면 끄세요. "
+       "그런 곳의 GPS는 장면 자체보다 큰 몇 미터씩 틀려서 재구성을 오도할 뿐입니다."),
+    DE("Die GPS-Position im EXIF dieser Fotos, genutzt für den metrischen "
+       "Maßstab, die Kompassrichtung und den Platz des Modells auf der Karte. "
+       "Draußen anlassen, wenn die Aufnahme zig Meter oder mehr umfasst. Bei "
+       "einer kleinen Szene oder drinnen ausschalten: GPS liegt dort um Meter "
+       "daneben, mehr als die Szene groß ist, und führt die Rekonstruktion nur "
+       "in die Irre."),
+    FR("La position GPS dans l'EXIF de ces photos, utilisée pour l'échelle "
+       "métrique, le cap et la place du modèle sur la carte. Laissez-le actif en"
+       " extérieur quand la prise couvre des dizaines de mètres ou plus. "
+       "Désactivez-le pour une petite scène ou en intérieur : le GPS s'y trompe "
+       "de plusieurs mètres, plus que la taille de la scène, et ne fait "
+       "qu'égarer la reconstruction."),
+    ES("La posición GPS en el EXIF de estas fotos, usada para la escala métrica,"
+       " el rumbo y el lugar del modelo en el mapa. Déjalo activado en "
+       "exteriores cuando la captura abarca decenas de metros o más. Desactívalo"
+       " en una escena pequeña o en interiores: allí el GPS se equivoca en "
+       "metros, más que el tamaño de la escena, y solo confunde a la "
+       "reconstrucción."),
+    PT("A posição GPS no EXIF destas fotos, usada para a escala métrica, o rumo "
+       "e o lugar do modelo no mapa. Deixe-o ligado no exterior quando a captura"
+       " abrange dezenas de metros ou mais. Desligue-o numa cena pequena ou no "
+       "interior: aí o GPS erra por metros, mais do que o tamanho da cena, e só "
+       "engana a reconstrução."),
+    IT("La posizione GPS nell'EXIF di queste foto, usata per la scala metrica, "
+       "la direzione della bussola e il posto del modello sulla mappa. Lascialo "
+       "attivo all'aperto quando la ripresa copre decine di metri o più. "
+       "Spegnilo per una scena piccola o al chiuso: lì il GPS sbaglia di metri, "
+       "più della scena stessa, e non fa che fuorviare la ricostruzione."),
+    NL("De gps-positie in de EXIF van deze foto's, gebruikt voor de metrische "
+       "schaal, de kompasrichting en de plaats van het model op de kaart. Laat "
+       "het buiten aan als de opname tientallen meters of meer beslaat. Zet het "
+       "uit bij een kleine scène of binnen: gps zit er meters naast, meer dan de"
+       " scène groot is, en misleidt de reconstructie alleen."),
+    RU("Положение GPS в EXIF этих фотографий: по нему задаются масштаб в метрах,"
+       " курс по компасу и место модели на карте. Оставьте включённым на улице, "
+       "если съёмка охватывает десятки метров и больше. Выключите для небольшой "
+       "сцены или в помещении: там GPS ошибается на метры, больше размера самой "
+       "сцены, и только сбивает реконструкцию."),
+    TR("Bu fotoğrafların EXIF'indeki GPS konumu; metrik ölçek, pusula yönü ve "
+       "modelin haritadaki yeri için kullanılır. Açık havada çekim onlarca metre"
+       " ya da daha fazlasını kapsıyorsa açık tutun. Küçük ya da iç mekân "
+       "sahnesinde kapatın: oradaki GPS sahnenin kendisinden büyük, metrelerce "
+       "hatalıdır ve yeniden oluşturmayı yalnızca yanıltır."));
+
+SS_MSG(sensors_off_in_advanced,
+    EN("Turned off for every input under Advanced > Sensors: {0}."),
+    JA("詳細設定 > センサー の「{0}」で、すべての入力に対してオフになっています。"),
+    ZH_HANS("已在 高级 > 传感器 的“{0}”中对所有输入关闭。"),
+    ZH_HANT("已在 進階 > 感測器 的「{0}」中對所有輸入關閉。"),
+    KO("고급 > 센서의 '{0}'에서 모든 입력에 대해 꺼져 있습니다."),
+    DE("Unter Erweitert > Sensoren für alle Eingaben ausgeschaltet: {0}."),
+    FR("Désactivé pour toutes les entrées dans Avancé > Capteurs : {0}."),
+    ES("Desactivado para todas las entradas en Avanzado > Sensores: {0}."),
+    PT("Desligado para todas as entradas em Avançado > Sensores: {0}."),
+    IT("Disattivato per tutti gli ingressi in Avanzate > Sensori: {0}."),
+    NL("Voor alle invoer uitgeschakeld onder Geavanceerd > Sensoren: {0}."),
+    RU("Выключено для всех входов в разделе Дополнительно > Датчики: {0}."),
+    TR("Gelişmiş > Sensörler altında tüm girdiler için kapalı: {0}."));
+
+SS_MSG(sensors_unused_colmap,
+    EN("COLMAP reads no sensor data; only the built-in reconstruction uses it."),
+    JA("COLMAP はセンサーデータを読みません。使うのは内蔵の再構成だけです。"),
+    ZH_HANS("COLMAP 不读取传感器数据，只有内置重建会使用。"),
+    ZH_HANT("COLMAP 不讀取感測器資料，只有內建重建會使用。"),
+    KO("COLMAP은 센서 데이터를 읽지 않습니다. 내장 재구성만 사용합니다."),
+    DE("COLMAP liest keine Sensordaten; nur die eingebaute Rekonstruktion nutzt "
+       "sie."),
+    FR("COLMAP ne lit aucune donnée de capteur ; seule la reconstruction "
+       "intégrée les utilise."),
+    ES("COLMAP no lee datos de sensores; solo la reconstrucción integrada los "
+       "usa."),
+    PT("O COLMAP não lê dados de sensores; só a reconstrução integrada os usa."),
+    IT("COLMAP non legge i dati dei sensori; li usa solo la ricostruzione "
+       "integrata."),
+    NL("COLMAP leest geen sensordata; alleen de ingebouwde reconstructie "
+       "gebruikt ze."),
+    RU("COLMAP не читает данные датчиков; их использует только встроенная "
+       "реконструкция."),
+    TR("COLMAP sensör verisi okumaz; onu yalnızca yerleşik yeniden oluşturma "
+       "kullanır."));
+
+SS_MSG(sensors_section_caption,
+    EN("How the sensors left on in the input rows are used. Off here turns that "
+       "sensor off for every input."),
+    JA("入力の各行でオンのままのセンサーをどう使うかです。ここでオフにすると、"
+       "そのセンサーはすべての入力でオフになります。"),
+    ZH_HANS("在各输入行中保持开启的传感器如何使用。在这里关闭，则该传感器对所有"
+            "输入都关闭。"),
+    ZH_HANT("在各輸入列中保持開啟的感測器如何使用。在這裡關閉，則該感測器對所有"
+            "輸入都關閉。"),
+    KO("입력 행에서 켜 둔 센서를 어떻게 쓸지입니다. 여기서 끄면 그 센서는 모든 "
+       "입력에서 꺼집니다."),
+    DE("Wie die in den Eingabezeilen eingeschalteten Sensoren genutzt werden. "
+       "Aus schaltet den Sensor hier für alle Eingaben ab."),
+    FR("Comment sont utilisés les capteurs laissés actifs dans les lignes "
+       "d'entrée. Désactiver ici coupe ce capteur pour toutes les entrées."),
+    ES("Cómo se usan los sensores que quedan activados en las filas de entrada. "
+       "Desactivarlo aquí lo apaga para todas las entradas."),
+    PT("Como são usados os sensores deixados ligados nas linhas de entrada. "
+       "Desligar aqui desliga esse sensor para todas as entradas."),
+    IT("Come si usano i sensori lasciati attivi nelle righe degli ingressi. "
+       "Disattivarlo qui lo spegne per tutti gli ingressi."),
+    NL("Hoe de sensoren die in de invoerrijen aan staan worden gebruikt. Hier "
+       "uitzetten schakelt die sensor voor alle invoer uit."),
+    RU("Как используются датчики, оставленные включёнными в строках входов. "
+       "Выключение здесь отключает датчик для всех входов."),
+    TR("Girdi satırlarında açık bırakılan sensörlerin nasıl kullanılacağı. "
+       "Burada kapatmak o sensörü tüm girdiler için kapatır."));
+
 SS_MSG(sfm_metric_gps_help,
     EN("Write the model in metres, sized and turned to the GPS in the photos' "
        "EXIF. Latitude and longitude alone is the safe choice: it takes the "
@@ -6964,33 +10332,42 @@ SS_MSG(sfm_metric_gps_help,
        "model by degrees. Either way the capture must be tens of metres across. "
        "Photographs carrying no position are passed over, and a model that "
        "cannot be fitted is written unscaled and says so; a video's own sensors "
-       "are the setting above."),
+       "are the setting above."
+       " Automatic, the default, decides per capture: with altitude for a DJI drone's own "
+       "GPS or photos whose GPS carries an altitude, latitude and longitude for a phone, an "
+       "action camera or fixes without an altitude, and off where nothing carries GPS."),
     JA("写真の EXIF にある GPS に合わせて、寸法と向きを決めたメートル単位の"
        "モデルを書き出します。緯度と経度だけを使うのが安全です。位置から寸法と"
        "方位だけを取り、どちらが上かはカメラ自身に任せます。高度も使うと傾きまで"
        "GPS で決めますが、スマートフォンの高度は誤差が大きく、市街地ではモデル"
        "全体が数度傾くことがあります。いずれの場合も撮影範囲は数十メートル必要です。"
        "位置を持たない写真は対象外となり、当てはめられないモデルは寸法なしで"
-       "書き出してその旨を伝えます。動画自身のセンサーは上の設定です。"),
+       "書き出してその旨を伝えます。動画自身のセンサーは上の設定です。"
+       "自動 (既定) は撮影ごとに決めます。DJI の機体自身の GPS や高度付きの写真なら高度も使い、スマートフォン、アクションカメラ、高度のない位置なら緯度と経度だけ、"
+       "GPS がなければ使いません。"),
     ZH_HANS("按照片 EXIF 中的 GPS 确定尺度和朝向，以米为单位写出模型。只用经纬度"
             "更稳妥：只从定位取尺度和方位角，哪边朝上仍交给相机自身判断。连高度"
             "一起用则连倾斜也由 GPS 决定，而手机测得的高度误差很大——在城市里可能"
             "让整个模型倾斜几度。两种方式都要求采集范围有几十米。不带定位的照片会"
             "被略过；拟合不成功时按未定尺度写出并给出说明。视频自身的传感器由上面"
-            "的选项管。"),
+            "的选项管。"
+            "自动 (默认) 按每次采集决定：DJI 设备自身的 GPS 或带高度的照片连高度一起用，手机、运动相机或没有高度的定位只用经纬度，没有 GPS 则不使用。"),
     ZH_HANT("按照片 EXIF 中的 GPS 確定尺度和朝向，以公尺為單位寫出模型。只用經緯度"
             "更穩妥：只從定位取尺度和方位角，哪邊朝上仍交給相機自身判斷。連高度"
             "一起用則連傾斜也由 GPS 決定，而手機測得的高度誤差很大——在城市裡可能"
             "讓整個模型傾斜幾度。兩種方式都要求拍攝範圍有數十公尺。不帶定位的照片會"
             "被略過；擬合不成功時按未定尺度寫出並給出說明。影片自身的感測器由上面"
-            "的選項管。"),
+            "的選項管。"
+            "自動 (預設) 按每次拍攝決定：DJI 裝置自身的 GPS 或帶高度的照片連高度一起用，手機、運動相機或沒有高度的定位只用經緯度，沒有 GPS 則不使用。"),
     KO("사진 EXIF 의 GPS 에 맞춰 크기와 방향을 정한 미터 단위 모델을 씁니다. "
        "위도와 경도만 쓰는 쪽이 안전합니다. 위치에서 크기와 방위만 가져오고, "
        "어느 쪽이 위인지는 카메라 자신에게 맡깁니다. 고도까지 쓰면 기울기도 GPS 로 "
        "정하는데, 휴대전화의 고도는 오차가 커서 도심에서는 모델 전체가 몇 도 기울 "
        "수 있습니다. 어느 쪽이든 촬영 범위가 수십 미터는 되어야 합니다. 위치가 없는 "
        "사진은 건너뛰고, 맞추지 못한 모델은 크기 없이 쓰며 그 사실을 알립니다. "
-       "동영상 자체의 센서는 위의 설정입니다."),
+       "동영상 자체의 센서는 위의 설정입니다."
+       " 자동 (기본값) 은 촬영마다 정합니다. DJI 기체 자체의 GPS 나 고도가 있는 사진은 고도까지, 휴대전화나 액션캠, 고도 없는 위치는 위도와 "
+       "경도만 쓰고, GPS 가 없으면 쓰지 않습니다."),
     DE("Das Modell in Metern schreiben, in Größe und Richtung an das GPS in den "
        "EXIF-Daten der Fotos angepasst. Breite und Länge allein ist die sichere "
        "Wahl: sie nehmen Maßstab und Himmelsrichtung aus den Positionen und "
@@ -6999,7 +10376,10 @@ SS_MSG(sfm_metric_gps_help,
        "das das ganze Modell um Grade kippen. In beiden Fällen muss die Aufnahme "
        "zehner Meter groß sein. Fotos ohne Position werden übergangen; ein "
        "Modell, das nicht passt, wird unskaliert geschrieben und sagt das. Die "
-       "Sensoren eines Videos sind die Einstellung darüber."),
+       "Sensoren eines Videos sind die Einstellung darüber."
+       " Automatisch, die Vorgabe, entscheidet je Aufnahme: mit Höhe für das eigene GPS "
+       "einer DJI-Drohne oder Fotos, deren GPS eine Höhe trägt, Breite und Länge für ein "
+       "Telefon, eine Actionkamera oder Positionen ohne Höhe, und aus, wo nichts GPS trägt."),
     FR("Écrire le modèle en mètres, dimensionné et orienté d'après le GPS des "
        "EXIF des photos. La latitude et la longitude seules sont le choix sûr : "
        "elles prennent l'échelle et le cap dans les positions et laissent le "
@@ -7008,7 +10388,11 @@ SS_MSG(sfm_metric_gps_help,
        "le modèle de plusieurs degrés. Dans les deux cas la prise doit faire des "
        "dizaines de mètres. Les photos sans position sont ignorées ; un modèle "
        "qui ne s'ajuste pas est écrit sans échelle et le signale. Les capteurs "
-       "d'une vidéo sont le réglage au-dessus."),
+       "d'une vidéo sont le réglage au-dessus."
+       " Automatique, le défaut, décide par prise : avec l'altitude pour le GPS propre d'un "
+       "drone DJI ou des photos dont le GPS porte une altitude, latitude et longitude pour "
+       "un téléphone, une caméra d'action ou des points sans altitude, et désactivé quand "
+       "rien ne porte de GPS."),
     ES("Escribir el modelo en metros, con el tamaño y el giro que da el GPS de "
        "los EXIF de las fotos. Solo latitud y longitud es la opción segura: toma "
        "la escala y el rumbo de las posiciones y deja el arriba a las propias "
@@ -7016,7 +10400,11 @@ SS_MSG(sfm_metric_gps_help,
        "la mide mal: en ciudad puede inclinar el modelo entero varios grados. En "
        "ambos casos la toma debe medir decenas de metros. Las fotos sin posición "
        "se pasan por alto; un modelo que no se puede ajustar se escribe sin "
-       "escalar y lo dice. Los sensores de un vídeo son el ajuste de arriba."),
+       "escalar y lo dice. Los sensores de un vídeo son el ajuste de arriba."
+       " Automático, el valor por defecto, decide en cada toma: con la altitud para el GPS "
+       "propio de un dron DJI o fotos cuyo GPS trae altitud, latitud y longitud para un "
+       "teléfono, una cámara de acción o posiciones sin altitud, y desactivado cuando nada "
+       "trae GPS."),
     PT("Escrever o modelo em metros, dimensionado e virado conforme o GPS dos "
        "EXIF das fotos. Só latitude e longitude é a escolha segura: tira a "
        "escala e o rumo das posições e deixa o para cima às próprias câmeras. "
@@ -7024,7 +10412,11 @@ SS_MSG(sfm_metric_gps_help,
        "na cidade pode inclinar o modelo inteiro em graus. Em qualquer dos casos "
        "a captura tem de ter dezenas de metros. As fotos sem posição são "
        "ignoradas; um modelo que não se ajusta é escrito sem escala e avisa "
-       "disso. Os sensores de um vídeo são a opção acima."),
+       "disso. Os sensores de um vídeo são a opção acima."
+       " Automático, o padrão, decide em cada captura: com a altitude para o GPS próprio de "
+       "um drone DJI ou fotos cujo GPS traz altitude, latitude e longitude para um "
+       "telemóvel, uma câmara de ação ou posições sem altitude, e desligado quando nada "
+       "traz GPS."),
     IT("Scrivere il modello in metri, dimensionato e ruotato in base al GPS "
        "negli EXIF delle foto. Solo latitudine e longitudine è la scelta sicura: "
        "prende scala e direzione dalle posizioni e lascia l'alto alle camere "
@@ -7033,7 +10425,10 @@ SS_MSG(sfm_metric_gps_help,
        "entrambi i casi la ripresa deve misurare decine di metri. Le foto senza "
        "posizione vengono ignorate; un modello che non si stima viene scritto "
        "senza scala e lo segnala. I sensori di un video sono l'impostazione "
-       "qui sopra."),
+       "qui sopra."
+       " Automatico, il predefinito, decide per ogni ripresa: con la quota per il GPS di un "
+       "drone DJI o per foto il cui GPS porta la quota, latitudine e longitudine per un "
+       "telefono, una action cam o punti senza quota, e disattivato quando nulla porta GPS."),
     NL("Het model in meters schrijven, op maat en gedraaid volgens de GPS in de "
        "EXIF van de foto's. Alleen breedte en lengte is de veilige keuze: die "
        "halen de schaal en de kompasrichting uit de posities en laten het boven "
@@ -7042,7 +10437,11 @@ SS_MSG(sfm_metric_gps_help,
        "graden doen kantelen. In beide gevallen moet de opname tientallen meters "
        "groot zijn. Foto's zonder positie worden overgeslagen; een model dat "
        "niet past wordt ongeschaald geschreven en meldt dat. De sensoren van een "
-       "video zijn de instelling hierboven."),
+       "video zijn de instelling hierboven."
+       " Automatisch, de standaard, beslist per opname: met hoogte voor de eigen gps van "
+       "een DJI-drone of foto's waarvan de gps een hoogte draagt, breedte en lengte voor "
+       "een telefoon, een actiecamera of posities zonder hoogte, en uit waar niets gps "
+       "draagt."),
     RU("Записать модель в метрах, с размером и поворотом по GPS из EXIF снимков. "
        "Только широта и долгота — безопасный выбор: масштаб и направление берутся "
        "из координат, а где верх, решают сами камеры. С высотой по GPS задаётся и "
@@ -7050,7 +10449,10 @@ SS_MSG(sfm_metric_gps_help,
        "модель на градусы. В обоих случаях съёмка должна быть десятки метров. "
        "Снимки без координат пропускаются; модель, которую подобрать не удалось, "
        "пишется без масштаба и сообщает об этом. Датчики самого видео — "
-       "настройка выше."),
+       "настройка выше."
+       " Автоматически (по умолчанию) — решение для каждой съёмки: с высотой для "
+       "собственного GPS дрона DJI или снимков, чей GPS несёт высоту, широта и долгота для "
+       "телефона, экшн-камеры или отсчётов без высоты, и выключено, если GPS нигде нет."),
     TR("Modeli, fotoğrafların EXIF'indeki GPS'e göre ölçeklenmiş ve döndürülmüş "
        "olarak metre biriminde yaz. Yalnızca enlem ve boylam güvenli seçimdir: "
        "ölçeği ve pusula yönünü konumlardan alır, yukarının neresi olduğunu "
@@ -7058,7 +10460,10 @@ SS_MSG(sfm_metric_gps_help,
        "yükseklik ölçümü kötüdür ve şehirde tüm modeli derecelerce yatırabilir. "
        "Her iki durumda da çekim onlarca metre olmalı. Konumu olmayan "
        "fotoğraflar atlanır; oturtulamayan model ölçeksiz yazılır ve bunu "
-       "bildirir. Videonun kendi sensörleri yukarıdaki ayardır."));
+       "bildirir. Videonun kendi sensörleri yukarıdaki ayardır."
+       " Varsayılan Otomatik, her çekim için karar verir: bir DJI dronun kendi GPS'i ya da "
+       "GPS'i yükseklik taşıyan fotoğraflar için yükseklikle, telefon, aksiyon kamerası ya "
+       "da yüksekliksiz konumlar için enlem ve boylamla, hiçbir şey GPS taşımıyorsa kapalı."));
 
 SS_MSG(rig_none,
     EN("No rig"), JA("リグなし"), ZH_HANS("无装置"), ZH_HANT("無裝置"), KO("리그 없음"),
@@ -7071,6 +10476,115 @@ SS_MSG(rig_own,
     FR("Les objectifs de cette entrée"), ES("Las lentes de esta entrada"),
     PT("As lentes desta entrada"), IT("Gli obiettivi di questo ingresso"),
     NL("De lenzen van deze invoer"), RU("Объективы этого входа"), TR("Bu girdinin lensleri"));
+
+SS_MSG(rig_dual_fisheye,
+    EN("Rig {0}: {1} and {2} are the two lenses of one dual-fisheye camera"),
+    JA("リグ {0}: {1} と {2} は 1 台のデュアル魚眼カメラの 2 つのレンズ"),
+    ZH_HANS("装置 {0}：{1} 和 {2} 是同一台双鱼眼相机的两个镜头"),
+    ZH_HANT("裝置 {0}：{1} 和 {2} 是同一台雙魚眼相機的兩個鏡頭"),
+    KO("리그 {0}: {1} 와 {2} 는 한 듀얼 어안 카메라의 두 렌즈"),
+    DE("Rig {0}: {1} und {2} sind die zwei Objektive einer Dual-Fisheye-Kamera"),
+    FR("Rig {0} : {1} et {2} sont les deux objectifs d'une caméra double fisheye"),
+    ES("Rig {0}: {1} y {2} son las dos lentes de una cámara de doble ojo de pez"),
+    PT("Rig {0}: {1} e {2} são as duas lentes de uma câmera olho de peixe dupla"),
+    IT("Rig {0}: {1} e {2} sono i due obiettivi di una fotocamera doppio fisheye"),
+    NL("Rig {0}: {1} en {2} zijn de twee lenzen van één dual-fisheyecamera"),
+    RU("Риг {0}: {1} и {2} -- два объектива одной камеры с двумя «рыбьими глазами»"),
+    TR("Düzenek {0}: {1} ve {2}, tek bir çift balıkgözü kameranın iki merceği"));
+
+SS_MSG(rig_dual_fisheye_help,
+    EN("For frames taken from a dual-fisheye 360 camera (Insta360, DJI Osmo "
+       "360 and similar) whose two lenses were written to two folders, one "
+       "image per lens with the same file names. The reconstruction then "
+       "starts from the lenses looking in opposite directions instead of "
+       "waiting to measure it, and lets them differ only by a small rotation "
+       "and the distance between them along their shared axis. Leave it off "
+       "if the frames of the two folders were not taken at the same instants. "
+       "A video from such a camera is recognised without this."),
+    JA("デュアル魚眼の 360 カメラ（Insta360、DJI Osmo 360 など）のフレームで、"
+       "2 つのレンズが 2 つのフォルダーに、レンズごとに同じファイル名で書き出されて"
+       "いる場合に使います。再構成は、測定を待たずにレンズが正反対を向いている状態"
+       "から始め、両者の違いを小さな回転と共通の軸に沿った距離だけに制限します。"
+       "2 つのフォルダーのフレームが同じ瞬間に撮られていない場合はオフのままに"
+       "してください。こうしたカメラの動画はこれがなくても認識されます。"),
+    ZH_HANS("用于双鱼眼 360 相机（Insta360、大疆 Osmo 360 等）的帧：两个镜头分别写入"
+            "两个文件夹，每个镜头一张图、文件名相同。重建会直接从两个镜头朝向相反"
+            "开始，而不是等着测量，并且只允许两者相差一个小旋转和沿公共轴的距离。"
+            "如果两个文件夹的帧不是同一时刻拍的，请不要勾选。这类相机的视频无需"
+            "勾选也会被识别。"),
+    ZH_HANT("用於雙魚眼 360 相機（Insta360、DJI Osmo 360 等）的影格：兩個鏡頭分別寫入"
+            "兩個資料夾，每個鏡頭一張圖、檔名相同。重建會直接從兩個鏡頭朝向相反"
+            "開始，而不是等著測量，並且只允許兩者相差一個小旋轉和沿共同軸的距離。"
+            "如果兩個資料夾的影格不是同一時刻拍的，請不要勾選。這類相機的影片無需"
+            "勾選也會被辨識。"),
+    KO("듀얼 어안 360 카메라(Insta360, DJI Osmo 360 등)의 프레임으로, 두 렌즈가 두 "
+       "폴더에 렌즈마다 같은 파일 이름으로 저장된 경우에 씁니다. 재구성은 측정을 "
+       "기다리지 않고 렌즈가 서로 반대를 향한 상태에서 시작하며, 둘의 차이를 작은 "
+       "회전과 공통 축을 따른 거리로만 제한합니다. 두 폴더의 프레임이 같은 순간에 "
+       "찍히지 않았다면 끄세요. 이런 카메라의 동영상은 이것 없이도 인식됩니다."),
+    DE("Für Bilder einer Dual-Fisheye-360-Kamera (Insta360, DJI Osmo 360 und "
+       "ähnliche), deren zwei Objektive in zwei Ordner geschrieben wurden, ein "
+       "Bild pro Objektiv mit gleichen Dateinamen. Die Rekonstruktion beginnt "
+       "dann mit entgegengesetzt blickenden Objektiven, statt das erst zu "
+       "messen, und erlaubt nur eine kleine Drehung und den Abstand entlang der "
+       "gemeinsamen Achse zwischen ihnen. Aus lassen, wenn die Bilder der beiden "
+       "Ordner nicht zu denselben Zeitpunkten entstanden. Ein Video einer "
+       "solchen Kamera wird auch ohne dies erkannt."),
+    FR("Pour des images d'une caméra 360 double fisheye (Insta360, DJI Osmo "
+       "360 et semblables) dont les deux objectifs ont été écrits dans deux "
+       "dossiers, une image par objectif avec les mêmes noms de fichiers. La "
+       "reconstruction part alors d'objectifs regardant en sens opposé au lieu "
+       "d'attendre de le mesurer, et ne leur laisse qu'une petite rotation et "
+       "la distance le long de leur axe commun. Laisser décoché si les images "
+       "des deux dossiers n'ont pas été prises aux mêmes instants. Une vidéo "
+       "d'une telle caméra est reconnue sans cela."),
+    ES("Para fotogramas de una cámara 360 de doble ojo de pez (Insta360, DJI "
+       "Osmo 360 y similares) cuyas dos lentes se escribieron en dos carpetas, "
+       "una imagen por lente con los mismos nombres de archivo. La "
+       "reconstrucción parte entonces de lentes que miran en sentidos opuestos "
+       "en lugar de esperar a medirlo, y solo les deja una pequeña rotación y "
+       "la distancia a lo largo de su eje común. Déjelo desactivado si los "
+       "fotogramas de las dos carpetas no se tomaron en los mismos instantes. "
+       "Un vídeo de esa cámara se reconoce sin esto."),
+    PT("Para quadros de uma câmera 360 olho de peixe dupla (Insta360, DJI Osmo "
+       "360 e semelhantes) cujas duas lentes foram gravadas em duas pastas, uma "
+       "imagem por lente com os mesmos nomes de arquivo. A reconstrução parte "
+       "então de lentes olhando em sentidos opostos em vez de esperar para "
+       "medir isso, e só lhes deixa uma pequena rotação e a distância ao longo "
+       "do eixo comum. Deixe desligado se os quadros das duas pastas não foram "
+       "tirados nos mesmos instantes. Um vídeo de uma câmera assim é "
+       "reconhecido sem isto."),
+    IT("Per fotogrammi di una fotocamera 360 doppio fisheye (Insta360, DJI "
+       "Osmo 360 e simili) i cui due obiettivi sono stati scritti in due "
+       "cartelle, un'immagine per obiettivo con gli stessi nomi di file. La "
+       "ricostruzione parte allora da obiettivi rivolti in versi opposti invece "
+       "di aspettare di misurarlo, e lascia loro solo una piccola rotazione e "
+       "la distanza lungo l'asse comune. Lasciare spento se i fotogrammi delle "
+       "due cartelle non sono stati presi negli stessi istanti. Un video di una "
+       "tale fotocamera è riconosciuto anche senza."),
+    NL("Voor beelden van een dual-fisheye-360-camera (Insta360, DJI Osmo 360 "
+       "en dergelijke) waarvan de twee lenzen naar twee mappen zijn geschreven, "
+       "één beeld per lens met dezelfde bestandsnamen. De reconstructie begint "
+       "dan met lenzen die tegengesteld kijken in plaats van dat eerst te "
+       "meten, en staat alleen een kleine draaiing en de afstand langs hun "
+       "gemeenschappelijke as toe. Uit laten als de beelden van de twee mappen "
+       "niet op dezelfde momenten zijn gemaakt. Een video van zo'n camera "
+       "wordt ook zonder dit herkend."),
+    RU("Для кадров двухобъективной 360-камеры с «рыбьими глазами» (Insta360, "
+       "DJI Osmo 360 и подобные), у которой два объектива записаны в две "
+       "папки, по снимку на объектив с одинаковыми именами файлов. "
+       "Реконструкция тогда сразу исходит из того, что объективы смотрят в "
+       "противоположные стороны, а не ждёт, пока это будет измерено, и "
+       "допускает между ними лишь небольшой поворот и расстояние вдоль общей "
+       "оси. Не включайте, если кадры двух папок сняты не в одни и те же "
+       "моменты. Видео с такой камеры распознаётся и без этого."),
+    TR("Çift balıkgözü bir 360 kameranın (Insta360, DJI Osmo 360 ve benzerleri) "
+       "iki merceği iki klasöre, mercek başına aynı dosya adlarıyla bir "
+       "görüntü olarak yazılmış kareleri için. Yeniden oluşturma bunu ölçmeyi "
+       "beklemek yerine merceklerin zıt yönlere baktığı durumdan başlar ve "
+       "aralarında yalnızca küçük bir dönmeye ve ortak eksen boyunca mesafeye "
+       "izin verir. İki klasörün kareleri aynı anlarda çekilmediyse kapalı "
+       "bırakın. Böyle bir kameranın videosu bu olmadan da tanınır."));
 
 SS_MSG(rig_help,
     EN("Lenses on one rig keep a fixed relative pose, and the reconstruction "
@@ -7136,6 +10650,76 @@ SS_MSG(rig_help,
        "yerleştirilir. Çok lensli bir dosya kendi rigidir; aynı harfi paylaşan "
        "satırlar dosya adına göre tek rig olur -- her girdi aynı lensleri "
        "veriyorsa girdiler arasında birkaç videonun ardındaki tek rig olarak."));
+
+SS_MSG(rig_guess,
+    EN("Guess rigs from folder names"), JA("フォルダ名からリグを推定"),
+    ZH_HANS("按文件夹名推断装置"), ZH_HANT("按資料夾名稱推斷裝置"),
+    KO("폴더 이름으로 리그 추정"), DE("Rigs aus Ordnernamen erraten"),
+    FR("Deviner les rigs d'après les noms de dossier"),
+    ES("Deducir los rigs por el nombre de las carpetas"),
+    PT("Deduzir os rigs pelos nomes das pastas"),
+    IT("Dedurre i rig dai nomi delle cartelle"),
+    NL("Rigs afleiden uit mapnamen"), RU("Определить риги по именам папок"),
+    TR("Düzenekleri klasör adlarından tahmin et"));
+
+SS_MSG(rig_guess_help,
+    EN("Puts photo folders whose names differ in one part only (left and "
+       "right, cam0 and cam1) and whose images share file names on one rig, "
+       "a letter per rig, and takes every other folder off its rig. Done "
+       "once by itself when folders are added and none is on a rig yet."),
+    JA("名前が 1 か所だけ異なり（left と right、cam0 と cam1）、画像のファイル名が"
+       "共通する写真フォルダを 1 つのリグにまとめ、リグごとに文字を割り当てます。"
+       "それ以外のフォルダはリグから外します。フォルダを追加したとき、まだどれも"
+       "リグに入っていなければ自動で 1 回行われます。"),
+    ZH_HANS("把名称只有一处不同（left 与 right、cam0 与 cam1）且图像文件名相同的"
+            "照片文件夹归入同一装置，每个装置一个字母，其余文件夹移出装置。添加"
+            "文件夹时若还没有任何文件夹属于装置，会自动执行一次。"),
+    ZH_HANT("把名稱只有一處不同（left 與 right、cam0 與 cam1）且影像檔名相同的"
+            "照片資料夾歸入同一裝置，每個裝置一個字母，其餘資料夾移出裝置。新增"
+            "資料夾時若還沒有任何資料夾屬於裝置，會自動執行一次。"),
+    KO("이름이 한 부분만 다르고(left 와 right, cam0 와 cam1) 이미지 파일 이름이 "
+       "같은 사진 폴더들을 한 리그로 묶고 리그마다 글자를 붙이며, 나머지 폴더는 "
+       "리그에서 뺍니다. 폴더를 추가했을 때 아직 리그에 든 폴더가 없으면 한 번 "
+       "자동으로 실행됩니다."),
+    DE("Legt Fotoordner, deren Namen sich nur in einem Teil unterscheiden (left "
+       "und right, cam0 und cam1) und deren Bilder dieselben Dateinamen tragen, "
+       "auf ein Rig, einen Buchstaben je Rig, und nimmt alle anderen Ordner von "
+       "ihrem Rig. Geschieht einmal von selbst, wenn Ordner hinzukommen und noch "
+       "keiner auf einem Rig liegt."),
+    FR("Place sur un même rig les dossiers de photos dont les noms ne diffèrent "
+       "que d'une partie (left et right, cam0 et cam1) et dont les images portent "
+       "les mêmes noms de fichier, une lettre par rig, et retire les autres "
+       "dossiers de leur rig. Fait automatiquement une fois quand des dossiers "
+       "sont ajoutés et qu'aucun n'est encore sur un rig."),
+    ES("Pone en un mismo rig las carpetas de fotos cuyos nombres difieren en una "
+       "sola parte (left y right, cam0 y cam1) y cuyas imágenes comparten nombre "
+       "de archivo, una letra por rig, y saca del rig a las demás carpetas. Se "
+       "hace solo una vez al añadir carpetas si ninguna está aún en un rig."),
+    PT("Coloca num mesmo rig as pastas de fotos cujos nomes diferem numa só "
+       "parte (left e right, cam0 e cam1) e cujas imagens partilham nomes de "
+       "ficheiro, uma letra por rig, e tira as restantes pastas do seu rig. É "
+       "feito sozinho uma vez ao adicionar pastas, se nenhuma estiver ainda num "
+       "rig."),
+    IT("Mette su uno stesso rig le cartelle di foto i cui nomi differiscono in "
+       "una sola parte (left e right, cam0 e cam1) e le cui immagini hanno gli "
+       "stessi nomi di file, una lettera per rig, e toglie le altre cartelle dal "
+       "loro rig. Avviene da solo una volta quando si aggiungono cartelle e "
+       "nessuna è ancora su un rig."),
+    NL("Zet fotomappen waarvan de namen in één deel verschillen (left en right, "
+       "cam0 en cam1) en waarvan de beelden dezelfde bestandsnamen hebben op één "
+       "rig, een letter per rig, en haalt alle andere mappen van hun rig. Gebeurt "
+       "één keer vanzelf wanneer mappen worden toegevoegd en er nog geen op een "
+       "rig staat."),
+    RU("Объединяет в один риг папки с фото, имена которых отличаются только "
+       "одной частью (left и right, cam0 и cam1), а снимки имеют одинаковые "
+       "имена файлов, по букве на риг, и снимает остальные папки с их ригов. "
+       "Выполняется само один раз при добавлении папок, если ни одна ещё не "
+       "на риге."),
+    TR("Adları yalnızca bir kısımda farklı olan (left ve right, cam0 ve cam1) "
+       "ve görüntüleri aynı dosya adlarını taşıyan fotoğraf klasörlerini tek bir "
+       "düzeneğe koyar, her düzeneğe bir harf verir ve diğer klasörleri "
+       "düzeneklerinden çıkarır. Klasörler eklendiğinde henüz hiçbiri bir "
+       "düzenekte değilse bir kez kendiliğinden yapılır."));
 
 SS_MSG(sync_lenses,
     EN("Synchronize lenses"), JA("レンズを同期"), ZH_HANS("同步镜头"), ZH_HANT("同步鏡頭"),
@@ -8289,49 +11873,6 @@ SS_MSG(use_ffmpeg_always,
     NL("Deze build gebruikt voor video altijd ffmpeg."),
     RU("Эта сборка всегда использует ffmpeg для видео."),
     TR("Bu sürüm video için her zaman ffmpeg kullanır."));
-
-SS_MSG(use_python_masking,
-    EN("Mask with the external Python script"),
-    JA("外部の Python スクリプトでマスクする"),
-    ZH_HANS("用外部 Python 脚本做蒙版"),
-    ZH_HANT("用外部 Python 指令稿做遮罩"),
-    KO("외부 Python 스크립트로 마스킹"),
-    DE("Mit dem externen Python-Skript maskieren"),
-    FR("Masquer avec le script Python externe"),
-    ES("Enmascarar con el script externo de Python"),
-    PT("Mascarar com o script externo em Python"),
-    IT("Mascherare con lo script Python esterno"),
-    NL("Maskeren met het externe Python-script"),
-    RU("Маскировать внешним скриптом Python"),
-    TR("Harici Python betiğiyle maskele"));
-
-SS_MSG(use_python_masking_help,
-    EN("Use reference/scripts/mask.py through an external Python with "
-       "lang-segment-anything, instead of the built-in segmentation."),
-    JA("内蔵のセグメンテーションの代わりに、lang-segment-anything を入れた"
-       "外部の Python で reference/scripts/mask.py を使います。"),
-    ZH_HANS("不用内置分割，而是通过装有 lang-segment-anything 的外部 Python "
-            "运行 reference/scripts/mask.py。"),
-    ZH_HANT("不用內建分割，而是透過裝有 lang-segment-anything 的外部 Python "
-            "執行 reference/scripts/mask.py。"),
-    KO("내장 분할 대신, lang-segment-anything이 설치된 외부 Python으로 "
-       "reference/scripts/mask.py를 실행합니다."),
-    DE("reference/scripts/mask.py über ein externes Python mit "
-       "lang-segment-anything benutzen statt der eingebauten Segmentierung."),
-    FR("Utiliser reference/scripts/mask.py via un Python externe doté de "
-       "lang-segment-anything, au lieu de la segmentation intégrée."),
-    ES("Usar reference/scripts/mask.py mediante un Python externo con "
-       "lang-segment-anything, en lugar de la segmentación integrada."),
-    PT("Usar reference/scripts/mask.py por meio de um Python externo com "
-       "lang-segment-anything, em vez da segmentação integrada."),
-    IT("Usare reference/scripts/mask.py tramite un Python esterno con "
-       "lang-segment-anything, invece della segmentazione integrata."),
-    NL("reference/scripts/mask.py gebruiken via een externe Python met "
-       "lang-segment-anything, in plaats van de ingebouwde segmentatie."),
-    RU("Использовать reference/scripts/mask.py через внешний Python с "
-       "lang-segment-anything вместо встроенной сегментации."),
-    TR("Yerleşik bölütleme yerine, lang-segment-anything kurulu harici bir "
-       "Python üzerinden reference/scripts/mask.py kullanır."));
 
 // ===========================================================================
 // Advanced: external COLMAP
@@ -9663,91 +13204,78 @@ SS_MSG(ffmpeg_executable_help_always,
     RU("Используется для извлечения кадров из видео."),
     TR("Videodan kare çıkarmak için kullanılır."));
 
-SS_MSG(python_executable,
-    EN("python executable"),
-    JA("python の実行ファイル"),
-    ZH_HANS("python 可执行文件"),
-    ZH_HANT("python 執行檔"),
-    KO("python 실행 파일"),
-    DE("python-Programmdatei"),
-    FR("exécutable python"),
-    ES("ejecutable de python"),
-    PT("executável do python"),
-    IT("eseguibile python"),
-    NL("python-programma"),
-    RU("исполняемый файл python"),
-    TR("python çalıştırılabiliri"));
-
-SS_MSG(python_executable_help,
-    EN("Only used by the external masking script."),
-    JA("外部のマスキングスクリプトだけが使います。"),
-    ZH_HANS("只有外部的蒙版脚本会用到。"),
-    ZH_HANT("只有外部的遮罩指令稿會用到。"),
-    KO("외부 마스킹 스크립트만 사용합니다."),
-    DE("Wird nur vom externen Maskierungsskript benutzt."),
-    FR("Utilisé uniquement par le script de masquage externe."),
-    ES("Solo lo usa el script externo de enmascarado."),
-    PT("Usado apenas pelo script externo de mascaramento."),
-    IT("Usato solo dallo script esterno di mascheratura."),
-    NL("Wordt alleen gebruikt door het externe maskeerscript."),
-    RU("Используется только внешним скриптом маскирования."),
-    TR("Yalnızca harici maskeleme betiği kullanır."));
-
 // ===========================================================================
 // The segmentation checkpoints (src/app/gui/ModelCache.cpp)
 //
-// The blurbs all quote the same measurement -- one instance, 1080p frames,
-// laptop GPU -- so that they can actually be compared. Keep that parallel
-// structure when translating; it is the only thing that makes the choice
-// makeable.
+// Blurbs compare speeds rather than quote one machine's milliseconds; keep
+// the ratios intact when translating.
 // ===========================================================================
 
 SS_MSG(model_sam3_label,
-    EN("SAM 3 (recommended)"),
-    JA("SAM 3（推奨）"),  ZH_HANS("SAM 3（推荐）"), ZH_HANT("SAM 3（建議）"),
-    KO("SAM 3(권장)"),   DE("SAM 3 (empfohlen)"), FR("SAM 3 (recommandé)"),
-    ES("SAM 3 (recomendado)"), PT("SAM 3 (recomendado)"), IT("SAM 3 (consigliato)"),
-    NL("SAM 3 (aanbevolen)"), RU("SAM 3 (рекомендуется)"), TR("SAM 3 (önerilen)"));
+    EN("SAM 3 (most accurate for text prompts)"),
+    JA("SAM 3（テキスト指定で最も正確）"),
+    ZH_HANS("SAM 3（文字提示最准确）"),
+    ZH_HANT("SAM 3（文字提示最準確）"),
+    KO("SAM 3(텍스트 프롬프트에 가장 정확)"),
+    DE("SAM 3 (am genauesten bei Texteingaben)"),
+    FR("SAM 3 (le plus précis pour les invites textuelles)"),
+    ES("SAM 3 (el más preciso con indicaciones de texto)"),
+    PT("SAM 3 (o mais preciso com comandos de texto)"),
+    IT("SAM 3 (il più preciso con il testo)"),
+    NL("SAM 3 (nauwkeurigst voor tekstprompts)"),
+    RU("SAM 3 (точнее всех по текстовым запросам)"),
+    TR("SAM 3 (metin istemlerinde en doğru)"));
 
 SS_MSG(model_sam3_blurb,
-    EN("Understands text prompts -- type what to mask out. 707 MB, ~2 GB "
-       "VRAM, about 1 s per frame on a laptop GPU -- 3x slower than any "
-       "SAM 2.1 below."),
-    JA("テキストのプロンプトを理解します。消したいものを入力してください。"
-       "707 MB、VRAM 約 2 GB、ノート PC の GPU で 1 フレームおよそ 1 秒。"
-       "下の SAM 2.1 のどれよりも 3 倍遅くなります。"),
-    ZH_HANS("能理解文字提示——直接输入要遮掉什么。707 MB，约 2 GB 显存，"
-            "笔记本 GPU 上每帧约 1 秒——比下面任何一个 SAM 2.1 都慢 3 倍。"),
-    ZH_HANT("能理解文字提示——直接輸入要遮掉什麼。707 MB，約 2 GB 顯示記憶體，"
-            "筆電 GPU 上每格約 1 秒——比下面任何一個 SAM 2.1 都慢 3 倍。"),
-    KO("텍스트 프롬프트를 이해합니다. 가릴 것을 입력하세요. 707 MB, VRAM 약 "
-       "2 GB, 노트북 GPU에서 프레임당 약 1초 — 아래 어떤 SAM 2.1보다도 3배 "
-       "느립니다."),
-    DE("Versteht Texteingaben -- schreiben Sie hinein, was maskiert werden "
-       "soll. 707 MB, etwa 2 GB VRAM, rund 1 s je Bild auf einer Laptop-GPU "
-       "-- dreimal langsamer als jedes SAM 2.1 darunter."),
-    FR("Comprend les invites textuelles -- écrivez ce qu'il faut masquer. "
-       "707 Mo, environ 2 Go de VRAM, à peu près 1 s par image sur un GPU "
-       "d'ordinateur portable -- 3 fois plus lent que n'importe quel SAM 2.1 "
-       "ci-dessous."),
-    ES("Entiende indicaciones de texto: escriba qué enmascarar. 707 MB, unos "
-       "2 GB de VRAM, alrededor de 1 s por fotograma en una GPU de portátil: "
-       "3 veces más lento que cualquier SAM 2.1 de abajo."),
-    PT("Entende comandos de texto -- escreva o que mascarar. 707 MB, cerca de "
-       "2 GB de VRAM, aproximadamente 1 s por quadro numa GPU de notebook -- "
-       "3 vezes mais lento que qualquer SAM 2.1 abaixo."),
-    IT("Capisce il testo: scriva che cosa mascherare. 707 MB, circa 2 GB di "
-       "VRAM, all'incirca 1 s per fotogramma su una GPU da portatile: 3 volte "
-       "più lento di qualsiasi SAM 2.1 qui sotto."),
-    NL("Begrijpt tekstprompts -- typ wat gemaskeerd moet worden. 707 MB, "
-       "ongeveer 2 GB VRAM, zo'n 1 s per beeld op een laptop-GPU -- 3 keer "
-       "trager dan elke SAM 2.1 hieronder."),
-    RU("Понимает текстовые запросы — напишите, что замаскировать. 707 МБ, "
-       "около 2 ГБ видеопамяти, примерно 1 с на кадр на ноутбучной "
-       "видеокарте — втрое медленнее любой SAM 2.1 ниже."),
-    TR("Metin istemlerini anlar -- neyin maskeleneceğini yazın. 707 MB, ~2 GB "
-       "VRAM, dizüstü GPU'da kare başına yaklaşık 1 sn -- aşağıdaki her "
-       "SAM 2.1'den 3 kat yavaş."));
+    EN("Understands text prompts on its own and finds the most of what they "
+       "name. 707 MB, ~2 GB VRAM. The slowest: about 3x the time of SAM 2.1 with "
+       "Grounding DINO for one prompt, and about as much again for each further "
+       "thing named."),
+    JA("テキストのプロンプトを単独で理解し、指定したものをいちばん多く見つけます。7"
+       "07 MB、VRAM 約 2 GB。いちばん遅く、プロンプト 1 つで SA"
+       "M 2.1 と Grounding DINO の組み合わせのおよそ 3 倍の"
+       "時間がかかり、指定するものが 1 つ増えるごとにほぼ同じだけ増えます。"),
+    ZH_HANS("自己就能理解文字提示，找到的目标最多。707 MB，约 2 GB 显存。速度"
+            "最慢：一个提示词约为 SAM 2.1 加 Grounding DINO 的 "
+            "3 倍时间，每多指定一样东西，时间大约再增加同样多。"),
+    ZH_HANT("自己就能理解文字提示，找到的目標最多。707 MB，約 2 GB 顯示記憶體"
+            "。速度最慢：一個提示詞約為 SAM 2.1 加 Grounding DINO"
+            " 的 3 倍時間，每多指定一樣東西，時間大約再增加同樣多。"),
+    KO("텍스트 프롬프트를 스스로 이해하며, 지정한 것을 가장 많이 찾아냅니다. 707 MB, VRAM 약 2 GB. 가장 느립니다. "
+       "프롬프트 하나에 SAM 2.1 + Grounding DINO의 약 3배 시간이 걸리고, 지정하는 대상이 하나 늘 때마다 거의 "
+       "그만큼 더 걸립니다."),
+    DE("Versteht Texteingaben selbst und findet am meisten von dem, was sie "
+       "nennen. 707 MB, etwa 2 GB VRAM. Das langsamste: bei einer Eingabe etwa "
+       "die dreifache Zeit von SAM 2.1 mit Grounding DINO, und für jedes weitere "
+       "genannte Ding etwa noch einmal so viel."),
+    FR("Comprend seul les invites textuelles et trouve le plus de ce qu'elles "
+       "nomment. 707 Mo, environ 2 Go de VRAM. Le plus lent : environ 3 fois le "
+       "temps de SAM 2.1 avec Grounding DINO pour une invite, et à peu près "
+       "autant en plus pour chaque chose nommée en plus."),
+    ES("Entiende por sí solo las indicaciones de texto y encuentra la mayor "
+       "parte de lo que nombran. 707 MB, unos 2 GB de VRAM. El más lento: unas 3 "
+       "veces el tiempo de SAM 2.1 con Grounding DINO para una indicación, y "
+       "casi otro tanto por cada cosa más que se nombre."),
+    PT("Entende sozinho comandos de texto e encontra a maior parte do que eles "
+       "nomeiam. 707 MB, cerca de 2 GB de VRAM. O mais lento: cerca de 3 vezes o "
+       "tempo do SAM 2.1 com Grounding DINO para um comando, e quase outro tanto "
+       "para cada coisa a mais nomeada."),
+    IT("Capisce da solo il testo e trova la maggior parte di ciò che nomina. 707 "
+       "MB, circa 2 GB di VRAM. Il più lento: circa 3 volte il tempo di SAM 2.1 "
+       "con Grounding DINO per una richiesta, e quasi altrettanto per ogni cosa "
+       "in più nominata."),
+    NL("Begrijpt tekstprompts zelf en vindt het meeste van wat ze noemen. 707 "
+       "MB, ongeveer 2 GB VRAM. Het traagst: ongeveer 3 keer de tijd van SAM 2.1 "
+       "met Grounding DINO voor één prompt, en ongeveer evenveel extra voor elk "
+       "volgend genoemd ding."),
+    RU("Сама понимает текстовые запросы и находит больше всего из названного. "
+       "707 МБ, около 2 ГБ видеопамяти. Самая медленная: на один запрос примерно "
+       "втрое дольше SAM 2.1 с Grounding DINO, и примерно столько же сверху за "
+       "каждый следующий названный предмет."),
+    TR("Metin istemlerini kendi başına anlar ve adı geçenlerin en çoğunu bulur. "
+       "707 MB, ~2 GB VRAM. En yavaşı: tek istemde SAM 2.1 ile Grounding "
+       "DINO'nun yaklaşık 3 katı süre, adı geçen her ek şey için de yaklaşık bir "
+       "o kadar daha."));
 
 SS_MSG(model_sam3_f16_label,
     EN("SAM 3, full precision"),
@@ -9792,48 +13320,40 @@ SS_MSG(model_sam21_large_label,
     TR("SAM 2.1 Large"));
 
 SS_MSG(model_sam21_large_blurb,
-    EN("Click or draw a box to select an object; no text prompts. The most "
-       "accurate of the four and the one to pick for thin structure -- "
-       "railings, wires and cables, foliage. ~470 ms per frame. Apache-2.0."),
-    JA("クリックまたは矩形で対象を選びます。テキストのプロンプトはありません。"
-       "4つの中でいちばん正確で、手すり、電線やケーブル、葉のような細い構造には"
-       "これを選んでください。1 フレームおよそ 470 ms。Apache-2.0。"),
-    ZH_HANS("用点击或拉框来选对象；不支持文字提示。四者中最准确，栏杆、电线电缆、"
-            "枝叶这类细结构就选它。每帧约 470 毫秒。Apache-2.0。"),
-    ZH_HANT("用點擊或拉框來選物件；不支援文字提示。四者中最準確，欄杆、電線電纜、"
-            "枝葉這類細結構就選它。每格約 470 毫秒。Apache-2.0。"),
-    KO("클릭하거나 상자를 그려 물체를 고릅니다. 텍스트 프롬프트는 없습니다. "
-       "넷 중 가장 정확하며 난간, 전선과 케이블, 잎사귀 같은 가느다란 구조에는 "
-       "이것을 고르세요. 프레임당 약 470 ms. Apache-2.0."),
-    DE("Zum Auswählen anklicken oder einen Rahmen ziehen; keine Texteingaben. "
-       "Das genaueste der vier und die Wahl für feine Strukturen -- Geländer, "
-       "Drähte und Kabel, Laub. Etwa 470 ms je Bild. Apache-2.0."),
-    FR("Cliquez ou tracez un cadre pour sélectionner un objet ; pas d'invite "
-       "textuelle. Le plus précis des quatre et celui à prendre pour les "
-       "structures fines -- garde-corps, fils et câbles, feuillage. Environ "
-       "470 ms par image. Apache-2.0."),
-    ES("Haga clic o dibuje un recuadro para elegir un objeto; sin "
-       "indicaciones de texto. El más preciso de los cuatro y el indicado "
-       "para estructuras finas: barandillas, cables y tendidos, follaje. Unos "
-       "470 ms por fotograma. Apache-2.0."),
-    PT("Clique ou desenhe uma caixa para escolher um objeto; sem comandos de "
-       "texto. O mais preciso dos quatro e o indicado para estruturas finas: "
-       "corrimãos, fios e cabos, folhagem. Cerca de 470 ms por quadro. "
+    EN("The most accurate SAM 2.1, and the one to pick for thin structure -- "
+       "railings, wires and cables, foliage. About 1.8x the time of Small. "
        "Apache-2.0."),
-    IT("Clicchi o tracci un rettangolo per scegliere un oggetto; niente "
-       "testo. Il più preciso dei quattro e quello da prendere per le "
-       "strutture sottili: ringhiere, fili e cavi, fogliame. Circa 470 ms per "
-       "fotogramma. Apache-2.0."),
-    NL("Klik of trek een kader om een object te kiezen; geen tekstprompts. Het "
-       "nauwkeurigste van de vier en de keuze voor fijne structuur -- "
-       "leuningen, draden en kabels, gebladerte. Ongeveer 470 ms per beeld. "
+    JA("SAM 2.1 の中でいちばん正確で、手すり、電線やケーブル、葉のような細い"
+       "構造にはこれを選んでください。Small のおよそ 1.8 倍の時間がかかり"
+       "ます。Apache-2.0。"),
+    ZH_HANS("SAM 2.1 中最准确的，栏杆、电线电缆、枝叶这类细结构就选它。耗时约为 "
+            "Small 的 1.8 倍。Apache-2.0。"),
+    ZH_HANT("SAM 2.1 中最準確的，欄杆、電線電纜、枝葉這類細結構就選它。耗時約為 "
+            "Small 的 1.8 倍。Apache-2.0。"),
+    KO("SAM 2.1 중 가장 정확하며 난간, 전선과 케이블, 잎사귀 같은 가느다란 구조에는 이것을 고르세요. Small의 약 1.8배 "
+       "시간이 걸립니다. Apache-2.0."),
+    DE("Das genaueste SAM 2.1 und die Wahl für feine Strukturen -- Geländer, "
+       "Drähte und Kabel, Laub. Braucht etwa 1,8-mal so lange wie Small. "
        "Apache-2.0."),
-    RU("Щелчок или рамка выбирают объект; текстовых запросов нет. Самая точная "
-       "из четырёх и та, что нужна для тонких структур — перил, проводов и "
-       "кабелей, листвы. Около 470 мс на кадр. Apache-2.0."),
-    TR("Nesne seçmek için tıklayın veya kutu çizin; metin istemi yok. Dördü "
-       "arasında en doğru olanı ve ince yapılar için seçilecek olanı -- "
-       "korkuluk, tel ve kablo, yaprak. Kare başına ~470 ms. Apache-2.0."));
+    FR("Le plus précis des SAM 2.1 et celui à prendre pour les structures fines "
+       "-- garde-corps, fils et câbles, feuillage. Environ 1,8 fois le temps de "
+       "Small. Apache-2.0."),
+    ES("El SAM 2.1 más preciso y el indicado para estructuras finas: "
+       "barandillas, cables y tendidos, follaje. Unas 1,8 veces el tiempo de "
+       "Small. Apache-2.0."),
+    PT("O SAM 2.1 mais preciso e o indicado para estruturas finas: corrimãos, "
+       "fios e cabos, folhagem. Cerca de 1,8 vez o tempo do Small. Apache-2.0."),
+    IT("Il SAM 2.1 più preciso e quello da prendere per le strutture sottili: "
+       "ringhiere, fili e cavi, fogliame. Circa 1,8 volte il tempo di Small. "
+       "Apache-2.0."),
+    NL("De nauwkeurigste SAM 2.1 en de keuze voor fijne structuur -- leuningen, "
+       "draden en kabels, gebladerte. Ongeveer 1,8 keer de tijd van Small. "
+       "Apache-2.0."),
+    RU("Самая точная из SAM 2.1 и та, что нужна для тонких структур — перил, "
+       "проводов и кабелей, листвы. Примерно в 1,8 раза дольше Small. "
+       "Apache-2.0."),
+    TR("En doğru SAM 2.1 ve ince yapılar için seçilecek olanı -- korkuluk, tel "
+       "ve kablo, yaprak. Small'ın yaklaşık 1,8 katı süre. Apache-2.0."));
 
 SS_MSG(model_sam21_baseplus_label,
     EN("SAM 2.1 Base+"),  JA("SAM 2.1 Base+"), ZH_HANS("SAM 2.1 Base+"),
@@ -9843,32 +13363,27 @@ SS_MSG(model_sam21_baseplus_label,
     TR("SAM 2.1 Base+"));
 
 SS_MSG(model_sam21_baseplus_blurb,
-    EN("Clicks and boxes only. Close to Large on most subjects at two thirds "
-       "the time, ~320 ms per frame. Apache-2.0."),
-    JA("クリックと矩形のみです。ほとんどの被写体で Large に近い結果を3分の2の"
-       "時間で出します。1 フレームおよそ 320 ms。Apache-2.0。"),
-    ZH_HANS("只支持点击和拉框。在多数对象上接近 Large，耗时只有三分之二，"
-            "每帧约 320 毫秒。Apache-2.0。"),
-    ZH_HANT("只支援點擊和拉框。在多數物件上接近 Large，耗時只有三分之二，"
-            "每格約 320 毫秒。Apache-2.0。"),
-    KO("클릭과 상자만 됩니다. 대부분의 피사체에서 Large에 가까운 결과를 3분의 2 "
-       "시간에 냅니다. 프레임당 약 320 ms. Apache-2.0."),
-    DE("Nur Klicks und Rahmen. Bei den meisten Motiven nah an Large, in zwei "
-       "Dritteln der Zeit, etwa 320 ms je Bild. Apache-2.0."),
-    FR("Clics et cadres seulement. Proche de Large sur la plupart des sujets "
-       "en deux tiers du temps, environ 320 ms par image. Apache-2.0."),
-    ES("Solo clics y recuadros. Cerca de Large en la mayoría de sujetos en dos "
-       "tercios del tiempo, unos 320 ms por fotograma. Apache-2.0."),
-    PT("Só cliques e caixas. Perto do Large na maioria dos sujeitos em dois "
-       "terços do tempo, cerca de 320 ms por quadro. Apache-2.0."),
-    IT("Solo clic e rettangoli. Vicino a Large su quasi tutti i soggetti in "
-       "due terzi del tempo, circa 320 ms per fotogramma. Apache-2.0."),
-    NL("Alleen klikken en kaders. Dicht bij Large op de meeste onderwerpen in "
-       "twee derde van de tijd, ongeveer 320 ms per beeld. Apache-2.0."),
-    RU("Только щелчки и рамки. На большинстве объектов близко к Large за две "
-       "трети времени, около 320 мс на кадр. Apache-2.0."),
-    TR("Yalnızca tıklama ve kutu. Çoğu öznede Large'a yakın, sürenin üçte "
-       "ikisinde, kare başına ~320 ms. Apache-2.0."));
+    EN("Close to Large on most subjects in two thirds of its time. Apache-2.0."),
+    JA("ほとんどの被写体で Large に近い結果を、その 3 分の 2 の時間で出"
+       "します。Apache-2.0。"),
+    ZH_HANS("在多数对象上接近 Large，耗时只有它的三分之二。Apache-2.0。"),
+    ZH_HANT("在多數物件上接近 Large，耗時只有它的三分之二。Apache-2.0。"),
+    KO("대부분의 피사체에서 Large에 가까운 결과를 그 3분의 2 시간에 냅니다. Apache-2.0."),
+    DE("Bei den meisten Motiven nah an Large, in zwei Dritteln seiner Zeit. "
+       "Apache-2.0."),
+    FR("Proche de Large sur la plupart des sujets, en deux tiers de son temps. "
+       "Apache-2.0."),
+    ES("Cerca de Large en la mayoría de sujetos, en dos tercios de su tiempo. "
+       "Apache-2.0."),
+    PT("Perto do Large na maioria dos sujeitos, em dois terços do tempo dele. "
+       "Apache-2.0."),
+    IT("Vicino a Large su quasi tutti i soggetti, in due terzi del suo tempo. "
+       "Apache-2.0."),
+    NL("Dicht bij Large op de meeste onderwerpen, in twee derde van de tijd. "
+       "Apache-2.0."),
+    RU("На большинстве объектов близко к Large за две трети его времени. "
+       "Apache-2.0."),
+    TR("Çoğu öznede Large'a yakın, onun süresinin üçte ikisinde. Apache-2.0."));
 
 SS_MSG(model_sam21_small_label,
     EN("SAM 2.1 Small"),  JA("SAM 2.1 Small"), ZH_HANS("SAM 2.1 Small"),
@@ -9878,103 +13393,91 @@ SS_MSG(model_sam21_small_label,
     TR("SAM 2.1 Small"));
 
 SS_MSG(model_sam21_small_blurb,
-    EN("Clicks and boxes only, ~255 ms per frame. The best speed-for-quality "
-       "of the four: below Large the frame is mostly tracking, which does not "
-       "care how big the backbone is. Apache-2.0."),
-    JA("クリックと矩形のみ、1 フレームおよそ 255 ms。4つの中で速度対品質が"
-       "いちばん良い選択です。Large 未満ではフレームの処理はほとんど追跡で、"
-       "バックボーンの大きさはあまり効きません。Apache-2.0。"),
-    ZH_HANS("只支持点击和拉框，每帧约 255 毫秒。四者中速度与质量的平衡最好："
-            "在 Large 以下，每帧的工作主要是跟踪，而跟踪并不在乎主干有多大。"
-            "Apache-2.0。"),
-    ZH_HANT("只支援點擊和拉框，每格約 255 毫秒。四者中速度與品質的平衡最好："
-            "在 Large 以下，每格的工作主要是追蹤，而追蹤並不在乎骨幹有多大。"
-            "Apache-2.0。"),
-    KO("클릭과 상자만 되며 프레임당 약 255 ms. 넷 중 속도 대비 품질이 가장 "
-       "좋습니다. Large 아래에서는 프레임 처리의 대부분이 추적이고, 추적은 "
-       "백본 크기에 크게 좌우되지 않습니다. Apache-2.0."),
-    DE("Nur Klicks und Rahmen, etwa 255 ms je Bild. Das beste Verhältnis von "
-       "Tempo zu Qualität der vier: unterhalb von Large ist ein Bild vor allem "
-       "Nachverfolgung, und der ist die Größe des Rückgrats fast egal. "
-       "Apache-2.0."),
-    FR("Clics et cadres seulement, environ 255 ms par image. Le meilleur "
-       "rapport vitesse/qualité des quatre : en dessous de Large, le travail "
-       "par image est surtout du suivi, qui se moque de la taille du réseau. "
-       "Apache-2.0."),
-    ES("Solo clics y recuadros, unos 255 ms por fotograma. La mejor relación "
-       "velocidad-calidad de los cuatro: por debajo de Large, el trabajo por "
-       "fotograma es sobre todo seguimiento, al que le da igual el tamaño de "
-       "la red. Apache-2.0."),
-    PT("Só cliques e caixas, cerca de 255 ms por quadro. A melhor relação "
-       "velocidade/qualidade dos quatro: abaixo do Large, o trabalho por "
-       "quadro é sobretudo rastreamento, que não liga para o tamanho da rede. "
-       "Apache-2.0."),
-    IT("Solo clic e rettangoli, circa 255 ms per fotogramma. Il miglior "
-       "rapporto velocità/qualità dei quattro: sotto Large il lavoro per "
-       "fotogramma è soprattutto inseguimento, a cui la dimensione della rete "
-       "importa poco. Apache-2.0."),
-    NL("Alleen klikken en kaders, ongeveer 255 ms per beeld. De beste "
-       "verhouding snelheid/kwaliteit van de vier: onder Large is het werk per "
-       "beeld vooral volgen, en dat maalt niet om de grootte van het netwerk. "
-       "Apache-2.0."),
-    RU("Только щелчки и рамки, около 255 мс на кадр. Лучшее соотношение "
-       "скорости и качества из четырёх: ниже Large работа над кадром — это в "
-       "основном отслеживание, которому размер сети почти безразличен. "
-       "Apache-2.0."),
-    TR("Yalnızca tıklama ve kutu, kare başına ~255 ms. Dördü arasında hız/"
-       "kalite dengesi en iyi olanı: Large'ın altında kare başına iş çoğunlukla "
-       "izlemedir ve izleme omurganın büyüklüğüne pek aldırmaz. Apache-2.0."));
+    EN("The best speed-for-quality of the four: below Large a frame is mostly "
+       "tracking, which does not care how big the backbone is. Apache-2.0."),
+    JA("4つの中で速度対品質がいちばん良い選択です。Large 未満ではフレームの処"
+       "理はほとんど追跡で、バックボーンの大きさはあまり効きません。Apache-2"
+       ".0。"),
+    ZH_HANS("四者中速度与质量的平衡最好：在 Large 以下，每帧的工作主要是跟踪，而跟"
+            "踪并不在乎主干有多大。Apache-2.0。"),
+    ZH_HANT("四者中速度與品質的平衡最好：在 Large 以下，每格的工作主要是追蹤，而追"
+            "蹤並不在乎骨幹有多大。Apache-2.0。"),
+    KO("넷 중 속도 대비 품질이 가장 좋습니다. Large 아래에서는 프레임 처리의 대부분이 추적이고, 추적은 백본 크기에 크게 좌우되지 "
+       "않습니다. Apache-2.0."),
+    DE("Das beste Verhältnis von Tempo zu Qualität der vier: unterhalb von Large "
+       "ist ein Bild vor allem Nachverfolgung, und der ist die Größe des "
+       "Rückgrats fast egal. Apache-2.0."),
+    FR("Le meilleur rapport vitesse/qualité des quatre : en dessous de Large, le "
+       "travail par image est surtout du suivi, qui se moque de la taille du "
+       "réseau. Apache-2.0."),
+    ES("La mejor relación velocidad-calidad de los cuatro: por debajo de Large, "
+       "el trabajo por fotograma es sobre todo seguimiento, al que le da igual "
+       "el tamaño de la red. Apache-2.0."),
+    PT("A melhor relação velocidade/qualidade dos quatro: abaixo do Large, o "
+       "trabalho por quadro é sobretudo rastreamento, que não liga para o "
+       "tamanho da rede. Apache-2.0."),
+    IT("Il miglior rapporto velocità/qualità dei quattro: sotto Large il lavoro "
+       "per fotogramma è soprattutto inseguimento, a cui la dimensione della "
+       "rete importa poco. Apache-2.0."),
+    NL("De beste verhouding snelheid/kwaliteit van de vier: onder Large is het "
+       "werk per beeld vooral volgen, en dat maalt niet om de grootte van het "
+       "netwerk. Apache-2.0."),
+    RU("Лучшее соотношение скорости и качества из четырёх: ниже Large работа над "
+       "кадром — это в основном отслеживание, которому размер сети почти "
+       "безразличен. Apache-2.0."),
+    TR("Dördü arasında hız/kalite dengesi en iyi olanı: Large'ın altında kare "
+       "başına iş çoğunlukla izlemedir ve izleme omurganın büyüklüğüne pek "
+       "aldırmaz. Apache-2.0."));
 
 SS_MSG(model_sam21_tiny_label,
-    EN("SAM 2.1 Tiny (fastest)"),
-    JA("SAM 2.1 Tiny（最速）"), ZH_HANS("SAM 2.1 Tiny（最快）"),
-    ZH_HANT("SAM 2.1 Tiny（最快）"), KO("SAM 2.1 Tiny(가장 빠름)"),
-    DE("SAM 2.1 Tiny (am schnellsten)"), FR("SAM 2.1 Tiny (le plus rapide)"),
-    ES("SAM 2.1 Tiny (el más rápido)"), PT("SAM 2.1 Tiny (o mais rápido)"),
-    IT("SAM 2.1 Tiny (il più veloce)"), NL("SAM 2.1 Tiny (snelste)"),
-    RU("SAM 2.1 Tiny (самая быстрая)"), TR("SAM 2.1 Tiny (en hızlı)"));
+    EN("SAM 2.1 Tiny"),
+    JA("SAM 2.1 Tiny"),
+    ZH_HANS("SAM 2.1 Tiny"),
+    ZH_HANT("SAM 2.1 Tiny"),
+    KO("SAM 2.1 Tiny"),
+    DE("SAM 2.1 Tiny"),
+    FR("SAM 2.1 Tiny"),
+    ES("SAM 2.1 Tiny"),
+    PT("SAM 2.1 Tiny"),
+    IT("SAM 2.1 Tiny"),
+    NL("SAM 2.1 Tiny"),
+    RU("SAM 2.1 Tiny"),
+    TR("SAM 2.1 Tiny"));
 
 SS_MSG(model_sam21_tiny_blurb,
-    EN("Clicks and boxes only, 76 MB. Only 4% quicker than Small at ~245 ms "
-       "per frame, and it loses thin structure first -- take it for the "
-       "download size, not the speed. Apache-2.0."),
-    JA("クリックと矩形のみ、76 MB。1 フレームおよそ 245 ms で Small より 4% "
-       "速いだけですし、細い構造から先に失われます。速度ではなく"
-       "ダウンロードサイズのために選んでください。Apache-2.0。"),
-    ZH_HANS("只支持点击和拉框，76 MB。每帧约 245 毫秒，只比 Small 快 4%，"
-            "而且最先丢失细结构——选它是为了下载体积，不是速度。Apache-2.0。"),
-    ZH_HANT("只支援點擊和拉框，76 MB。每格約 245 毫秒，只比 Small 快 4%，"
-            "而且最先丟失細結構——選它是為了下載體積，不是速度。Apache-2.0。"),
-    KO("클릭과 상자만 되며 76 MB. 프레임당 약 245 ms로 Small보다 4% 빠를 뿐이고 "
-       "가느다란 구조를 가장 먼저 잃습니다. 속도가 아니라 내려받기 크기 때문에 "
+    EN("76 MB. Only about 4% quicker than Small, and it loses thin structure "
+       "first -- take it for the download size, not the speed. Apache-2.0."),
+    JA("76 MB。Small より 4% ほど速いだけですし、細い構造から先に失わ"
+       "れます。速度ではなくダウンロードサイズのために選んでください。Apache-"
+       "2.0。"),
+    ZH_HANS("76 MB。只比 Small 快 4% 左右，而且最先丢失细结构——选它是为"
+            "了下载体积，不是速度。Apache-2.0。"),
+    ZH_HANT("76 MB。只比 Small 快 4% 左右，而且最先丟失細結構——選它是為"
+            "了下載體積，不是速度。Apache-2.0。"),
+    KO("76 MB. Small보다 4% 정도 빠를 뿐이고 가느다란 구조를 가장 먼저 잃습니다. 속도가 아니라 내려받기 크기 때문에 "
        "고르세요. Apache-2.0."),
-    DE("Nur Klicks und Rahmen, 76 MB. Mit etwa 245 ms je Bild nur 4 % "
-       "schneller als Small, und feine Strukturen gehen zuerst verloren -- "
-       "wegen der Downloadgröße nehmen, nicht wegen des Tempos. Apache-2.0."),
-    FR("Clics et cadres seulement, 76 Mo. À environ 245 ms par image, à peine "
-       "4 % plus rapide que Small, et c'est lui qui perd les structures fines "
-       "en premier -- à prendre pour la taille du téléchargement, pas pour la "
-       "vitesse. Apache-2.0."),
-    ES("Solo clics y recuadros, 76 MB. Con unos 245 ms por fotograma, apenas "
-       "un 4 % más rápido que Small, y es el primero en perder las "
+    DE("76 MB. Nur etwa 4 % schneller als Small, und feine Strukturen gehen "
+       "zuerst verloren -- wegen der Downloadgröße nehmen, nicht wegen des "
+       "Tempos. Apache-2.0."),
+    FR("76 Mo. À peine 4 % plus rapide que Small, et c'est lui qui perd les "
+       "structures fines en premier -- à prendre pour la taille du "
+       "téléchargement, pas pour la vitesse. Apache-2.0."),
+    ES("76 MB. Apenas un 4 % más rápido que Small, y es el primero en perder las "
        "estructuras finas: tómelo por el tamaño de descarga, no por la "
        "velocidad. Apache-2.0."),
-    PT("Só cliques e caixas, 76 MB. Com cerca de 245 ms por quadro, apenas 4% "
-       "mais rápido que o Small, e é o primeiro a perder estruturas finas -- "
-       "escolha pelo tamanho do download, não pela velocidade. Apache-2.0."),
-    IT("Solo clic e rettangoli, 76 MB. A circa 245 ms per fotogramma è appena "
-       "il 4% più veloce di Small, ed è il primo a perdere le strutture "
-       "sottili: lo prenda per la dimensione del download, non per la "
+    PT("76 MB. Apenas 4% mais rápido que o Small, e é o primeiro a perder "
+       "estruturas finas -- escolha pelo tamanho do download, não pela "
+       "velocidade. Apache-2.0."),
+    IT("76 MB. Appena il 4% più veloce di Small, ed è il primo a perdere le "
+       "strutture sottili: lo prenda per la dimensione del download, non per la "
        "velocità. Apache-2.0."),
-    NL("Alleen klikken en kaders, 76 MB. Met ongeveer 245 ms per beeld maar "
-       "4% sneller dan Small, en het verliest fijne structuur het eerst -- "
-       "neem het om de downloadgrootte, niet om de snelheid. Apache-2.0."),
-    RU("Только щелчки и рамки, 76 МБ. При примерно 245 мс на кадр она быстрее "
-       "Small всего на 4 % и первой теряет тонкие структуры — берите её ради "
-       "размера загрузки, а не скорости. Apache-2.0."),
-    TR("Yalnızca tıklama ve kutu, 76 MB. Kare başına ~245 ms ile Small'dan "
-       "yalnızca %4 hızlı ve ince yapıyı ilk kaybeden o -- indirme boyutu "
-       "için alın, hız için değil. Apache-2.0."));
+    NL("76 MB. Maar 4% sneller dan Small, en het verliest fijne structuur het "
+       "eerst -- neem het om de downloadgrootte, niet om de snelheid. "
+       "Apache-2.0."),
+    RU("76 МБ. Быстрее Small всего на 4 % и первой теряет тонкие структуры — "
+       "берите её ради размера загрузки, а не скорости. Apache-2.0."),
+    TR("76 MB. Small'dan yalnızca %4 hızlı ve ince yapıyı ilk kaybeden o -- "
+       "indirme boyutu için alın, hız için değil. Apache-2.0."));
 
 // LEGAL -- human review in every language, see the block below.
 SS_MSG(license_sam3_title,
@@ -10172,20 +13675,66 @@ SS_MSG(license_download_size,
     RU("Загрузка: около {0}, сохраняется на будущее."),
     TR("İndirme: yaklaşık {0}, bir dahaki sefere saklanır."));
 
+// {0} is the licence's name, e.g. "SAM 3 License (Meta)". The tick every family
+// needs before Accept is enabled.
 SS_MSG(license_accept_tick,
-    EN("I have read and accept these terms"),
-    JA("これらの条件を読み、同意します"),
-    ZH_HANS("我已阅读并接受这些条款"),
-    ZH_HANT("我已閱讀並接受這些條款"),
-    KO("이 조건을 읽었고 이에 동의합니다"),
-    DE("Ich habe diese Bedingungen gelesen und nehme sie an"),
-    FR("J'ai lu et j'accepte ces conditions"),
-    ES("He leído y acepto estos términos"),
-    PT("Li e aceito estes termos"),
-    IT("Ho letto e accetto queste condizioni"),
-    NL("Ik heb deze voorwaarden gelezen en aanvaard ze"),
-    RU("Я прочитал эти условия и принимаю их"),
-    TR("Bu koşulları okudum ve kabul ediyorum"));
+    EN("I have read and accept the terms of {0}"),
+    JA("{0} の条件を読み、同意します"),
+    ZH_HANS("我已阅读并接受 {0} 的条款"),
+    ZH_HANT("我已閱讀並接受 {0} 的條款"),
+    KO("{0}의 조건을 읽었고 이에 동의합니다"),
+    DE("Ich habe die Bedingungen von {0} gelesen und nehme sie an"),
+    FR("J'ai lu et j'accepte les conditions de {0}"),
+    ES("He leído y acepto los términos de {0}"),
+    PT("Li e aceito os termos de {0}"),
+    IT("Ho letto e accetto i termini di {0}"),
+    NL("Ik heb de voorwaarden van {0} gelezen en aanvaard ze"),
+    RU("Я прочитал условия {0} и принимаю их"),
+    TR("{0} koşullarını okudum ve kabul ediyorum"));
+
+// What the user is told after cancelling a licence dialog that a download was
+// waiting on.
+SS_MSG(license_declined_download,
+    EN("The licence was not accepted, so nothing was downloaded."),
+    JA("ライセンスに同意していないため、何もダウンロードしていません。"),
+    ZH_HANS("未接受许可协议，因此没有下载任何内容。"),
+    ZH_HANT("未接受授權條款，因此沒有下載任何內容。"),
+    KO("라이선스에 동의하지 않았으므로 아무것도 내려받지 않았습니다."),
+    DE("Die Lizenz wurde nicht angenommen, deshalb wurde nichts heruntergeladen."),
+    FR("La licence n'a pas été acceptée ; rien n'a donc été téléchargé."),
+    ES("No se aceptó la licencia, así que no se descargó nada."),
+    PT("A licença não foi aceita, então nada foi baixado."),
+    IT("La licenza non è stata accettata, quindi non è stato scaricato nulla."),
+    NL("De licentie is niet aanvaard, dus er is niets gedownload."),
+    RU("Лицензия не принята, поэтому ничего не было загружено."),
+    TR("Lisans kabul edilmedi, bu yüzden hiçbir şey indirilmedi."));
+
+// The same, for a batch: it asks for every licence it needs before it starts.
+SS_MSG(batch_licence_declined,
+    EN("The batch was not started: a licence it needs was not accepted, so nothing "
+       "was downloaded."),
+    JA("バッチは開始されませんでした。必要なライセンスに同意していないため、"
+       "何もダウンロードしていません。"),
+    ZH_HANS("批处理未启动：未接受其所需的许可协议，因此没有下载任何内容。"),
+    ZH_HANT("批次未啟動：未接受其所需的授權條款，因此沒有下載任何內容。"),
+    KO("일괄 작업을 시작하지 않았습니다. 필요한 라이선스에 동의하지 않았으므로 "
+       "아무것도 내려받지 않았습니다."),
+    DE("Der Stapel wurde nicht gestartet: Eine benötigte Lizenz wurde nicht "
+       "angenommen, deshalb wurde nichts heruntergeladen."),
+    FR("Le lot n'a pas démarré : une licence requise n'a pas été acceptée ; "
+       "rien n'a donc été téléchargé."),
+    ES("No se inició el lote: no se aceptó una licencia que necesita, así que "
+       "no se descargó nada."),
+    PT("O lote não foi iniciado: uma licença necessária não foi aceita, então "
+       "nada foi baixado."),
+    IT("Il batch non è stato avviato: una licenza necessaria non è stata "
+       "accettata, quindi non è stato scaricato nulla."),
+    NL("De batch is niet gestart: een benodigde licentie is niet aanvaard, dus "
+       "er is niets gedownload."),
+    RU("Пакет не запущен: нужная лицензия не принята, поэтому ничего не было "
+       "загружено."),
+    TR("Toplu iş başlatılmadı: gereken bir lisans kabul edilmedi, bu yüzden "
+       "hiçbir şey indirilmedi."));
 
 SS_MSG(license_download,
     EN("Download"),      JA("ダウンロード"),  ZH_HANS("下载"),     ZH_HANT("下載"),
@@ -10223,23 +13772,45 @@ SS_MSG(license_no_browser,
 // Log lines this screen writes
 // ===========================================================================
 
-// The pictures are EXRs, so the colour space under Advanced was filled in from
-// their header; {0} is the gamut it found.
-SS_MSG(log_exr_color_space,
-    EN("These are EXR images: reading them as linear {0}, from the file."),
-    JA("EXR 画像です。ファイルの情報に従い、線形 {0} として読み込みます。"),
-    ZH_HANS("这些是 EXR 图像：按文件所记录的线性 {0} 读取。"),
-    ZH_HANT("這些是 EXR 影像：依檔案所記錄的線性 {0} 讀取。"),
-    KO("EXR 이미지입니다. 파일에 기록된 대로 선형 {0}(으)로 읽습니다."),
-    DE("Das sind EXR-Bilder: Sie werden laut Datei als lineares {0} gelesen."),
-    FR("Ce sont des images EXR : elles sont lues comme {0} linéaire, "
+// The pictures declare their colour space (an EXR's header, a TIFF's ICC
+// profile), so the one under Advanced was filled in from it; {0} is the
+// format, {1} the gamut it found.
+SS_MSG(log_file_color_linear,
+    EN("These are {0} images: reading them as linear {1}, from the file."),
+    JA("{0} 画像です。ファイルの情報に従い、線形 {1} として読み込みます。"),
+    ZH_HANS("这些是 {0} 图像：按文件所记录的线性 {1} 读取。"),
+    ZH_HANT("這些是 {0} 影像：依檔案所記錄的線性 {1} 讀取。"),
+    KO("{0} 이미지입니다. 파일에 기록된 대로 선형 {1}(으)로 읽습니다."),
+    DE("Das sind {0}-Bilder: Sie werden laut Datei als lineares {1} gelesen."),
+    FR("Ce sont des images {0} : elles sont lues comme {1} linéaire, "
        "d'après le fichier."),
-    ES("Son imágenes EXR: se leen como {0} lineal, según el archivo."),
-    PT("São imagens EXR: lidas como {0} linear, conforme o arquivo."),
-    IT("Sono immagini EXR: vengono lette come {0} lineare, dal file."),
-    NL("Dit zijn EXR-beelden: ze worden gelezen als lineair {0}, uit het bestand."),
-    RU("Это снимки EXR: они читаются как линейный {0}, по данным файла."),
-    TR("Bunlar EXR görüntüleri: dosyaya göre doğrusal {0} olarak okunuyor."));
+    ES("Son imágenes {0}: se leen como {1} lineal, según el archivo."),
+    PT("São imagens {0}: lidas como {1} linear, conforme o arquivo."),
+    IT("Sono immagini {0}: vengono lette come {1} lineare, dal file."),
+    NL("Dit zijn {0}-beelden: ze worden gelezen als lineair {1}, uit het bestand."),
+    RU("Это снимки {0}: они читаются как линейный {1}, по данным файла."),
+    TR("Bunlar {0} görüntüleri: dosyaya göre doğrusal {1} olarak okunuyor."));
+
+SS_MSG(log_file_color_display,
+    EN("These are {0} images: reading them as display-encoded {1}, from the file."),
+    JA("{0} 画像です。ファイルの情報に従い、表示用エンコードの {1} として読み込みます。"),
+    ZH_HANS("这些是 {0} 图像：按文件所记录的显示编码 {1} 读取。"),
+    ZH_HANT("這些是 {0} 影像：依檔案所記錄的顯示編碼 {1} 讀取。"),
+    KO("{0} 이미지입니다. 파일에 기록된 대로 디스플레이 인코딩된 {1}(으)로 읽습니다."),
+    DE("Das sind {0}-Bilder: Sie werden laut Datei als anzeigecodiertes {1} gelesen."),
+    FR("Ce sont des images {0} : elles sont lues comme {1} encodé pour "
+       "l'affichage, d'après le fichier."),
+    ES("Son imágenes {0}: se leen como {1} codificado para pantalla, según el "
+       "archivo."),
+    PT("São imagens {0}: lidas como {1} codificado para exibição, conforme o "
+       "arquivo."),
+    IT("Sono immagini {0}: vengono lette come {1} codificato per lo schermo, "
+       "dal file."),
+    NL("Dit zijn {0}-beelden: ze worden gelezen als weergavegecodeerd {1}, uit "
+       "het bestand."),
+    RU("Это снимки {0}: они читаются как экранно закодированный {1}, по данным "
+       "файла."),
+    TR("Bunlar {0} görüntüleri: dosyaya göre ekran kodlu {1} olarak okunuyor."));
 
 SS_MSG(log_masks_attached,
     EN("Using {0} as the masks for the images beside it."),
@@ -10397,49 +13968,6 @@ SS_MSG(view_geometry,
     NL("Diepte en normalen"), RU("Глубина и нормали"),
     TR("Derinlik ve normaller"));
 
-SS_MSG(model_found_reuse,
-    EN("This folder already holds a reconstruction. It is kept as it is, and "
-       "only the steps below are run over it."),
-    JA("このフォルダにはすでに再構成結果があります。そのまま残し、下の工程だけを"
-       "その上で実行します。"),
-    ZH_HANS("这个文件夹里已经有一份重建结果。它会原样保留，只在其之上运行下面的"
-            "步骤。"),
-    ZH_HANT("這個資料夾裡已經有一份重建結果。它會原樣保留，只在其之上執行下面的"
-            "步驟。"),
-    KO("이 폴더에는 이미 재구성 결과가 있습니다. 그대로 두고, 그 위에서 아래 "
-       "단계만 실행합니다."),
-    DE("In diesem Ordner liegt bereits eine Rekonstruktion. Sie bleibt, wie sie "
-       "ist; darüber laufen nur die Schritte unten."),
-    FR("Ce dossier contient déjà une reconstruction. Elle est conservée telle "
-       "quelle, et seules les étapes ci-dessous s'exécutent par-dessus."),
-    ES("Esta carpeta ya contiene una reconstrucción. Se conserva tal cual y "
-       "solo se ejecutan sobre ella los pasos de abajo."),
-    PT("Esta pasta já contém uma reconstrução. Fica como está, e só os passos "
-       "abaixo correm sobre ela."),
-    IT("Questa cartella contiene già una ricostruzione. Resta com'è, e sopra di "
-       "essa girano solo i passi qui sotto."),
-    NL("Deze map bevat al een reconstructie. Die blijft zoals hij is; alleen de "
-       "stappen hieronder draaien eroverheen."),
-    RU("В этой папке уже есть реконструкция. Она остаётся как есть, поверх неё "
-       "выполняются только шаги ниже."),
-    TR("Bu klasörde zaten bir yeniden kurma var. Olduğu gibi kalır ve üzerinde "
-       "yalnızca aşağıdaki adımlar çalışır."));
-
-SS_MSG(model_will_be_replaced,
-    EN("The reconstruction in this folder will be replaced by a new one."),
-    JA("このフォルダの再構成結果は、新しいものに置き換えられます。"),
-    ZH_HANS("这个文件夹里的重建结果会被新的替换掉。"),
-    ZH_HANT("這個資料夾裡的重建結果會被新的取代。"),
-    KO("이 폴더의 재구성 결과는 새것으로 바뀝니다."),
-    DE("Die Rekonstruktion in diesem Ordner wird durch eine neue ersetzt."),
-    FR("La reconstruction de ce dossier sera remplacée par une nouvelle."),
-    ES("La reconstrucción de esta carpeta será sustituida por una nueva."),
-    PT("A reconstrução desta pasta será substituída por uma nova."),
-    IT("La ricostruzione in questa cartella sarà sostituita da una nuova."),
-    NL("De reconstructie in deze map wordt door een nieuwe vervangen."),
-    RU("Реконструкция в этой папке будет заменена новой."),
-    TR("Bu klasördeki yeniden kurma yenisiyle değiştirilecek."));
-
 SS_MSG(recon_reuse_rebuild,
     EN("A reconstruction is already in the output folder. Change any of these "
        "and the run builds it again; leave them and it is kept."),
@@ -10577,6 +14105,658 @@ SS_MSG(update_dataset,
     PT("Atualizar o conjunto de dados"), IT("Aggiorna il set di dati"),
     NL("Dataset bijwerken"), RU("Дополнить набор данных"),
     TR("Veri kümesini güncelle"));
+
+// ---------------------------------------------------------------------------
+// What a run will reuse and redo, listed above the button (DatasetPlan.h).
+// Each state is a short verb phrase beside the step's own name.
+// ---------------------------------------------------------------------------
+
+SS_MSG(plan_step_model,
+    EN("Reconstruction"),
+    JA("再構成"),        ZH_HANS("重建"),      ZH_HANT("重建"),
+    KO("재구성"),         DE("Rekonstruktion"), FR("Reconstruction"),
+    ES("Reconstrucción"), PT("Reconstrução"), IT("Ricostruzione"),
+    NL("Reconstructie"), RU("Реконструкция"), TR("Yeniden kurma"));
+
+SS_MSG(plan_run,
+    EN("Run"),
+    JA("実行する"),      ZH_HANS("运行"),      ZH_HANT("執行"),
+    KO("실행"),           DE("Ausführen"),    FR("Exécuter"),
+    ES("Ejecutar"),      PT("Executar"),     IT("Eseguire"),
+    NL("Uitvoeren"),     RU("Выполнить"),    TR("Çalıştır"));
+
+SS_MSG(plan_finish,
+    EN("Finish the interrupted run"),
+    JA("中断した実行の続きをする"),
+    ZH_HANS("接着做完中断的运行"),
+    ZH_HANT("接著做完中斷的執行"),
+    KO("중단된 실행 마저 하기"),
+    DE("Den abgebrochenen Lauf zu Ende führen"),
+    FR("Terminer l'exécution interrompue"),
+    ES("Terminar la ejecución interrumpida"),
+    PT("Terminar a execução interrompida"),
+    IT("Finire l'esecuzione interrotta"),
+    NL("De onderbroken run afmaken"),
+    RU("Завершить прерванный запуск"),
+    TR("Yarıda kalan çalıştırmayı bitir"));
+
+SS_MSG(plan_add,
+    EN("Add what is missing"),
+    JA("足りない分を足す"),
+    ZH_HANS("补上缺少的部分"),
+    ZH_HANT("補上缺少的部分"),
+    KO("빠진 것 채우기"),
+    DE("Fehlendes ergänzen"),
+    FR("Ajouter ce qui manque"),
+    ES("Añadir lo que falta"),
+    PT("Acrescentar o que falta"),
+    IT("Aggiungere ciò che manca"),
+    NL("Aanvullen wat ontbreekt"),
+    RU("Добавить недостающее"),
+    TR("Eksik olanı ekle"));
+
+SS_MSG(plan_reuse,
+    EN("Reuse"),
+    JA("そのまま使う"),   ZH_HANS("沿用"),      ZH_HANT("沿用"),
+    KO("그대로 사용"),     DE("Weiterverwenden"), FR("Réutiliser"),
+    ES("Reutilizar"),    PT("Reutilizar"),   IT("Riutilizzare"),
+    NL("Hergebruiken"),  RU("Использовать как есть"), TR("Yeniden kullan"));
+
+SS_MSG(plan_reuse_masks_changed,
+    EN("Reuse (built before the current masks)"),
+    JA("そのまま使う（いまのマスクより前に作られたもの）"),
+    ZH_HANS("沿用（是在当前蒙版之前做的）"),
+    ZH_HANT("沿用（是在目前遮罩之前做的）"),
+    KO("그대로 사용 (지금 마스크보다 먼저 만든 것)"),
+    DE("Weiterverwenden (vor den jetzigen Masken gebaut)"),
+    FR("Réutiliser (construite avant les masques actuels)"),
+    ES("Reutilizar (construida antes de las máscaras actuales)"),
+    PT("Reutilizar (construída antes das máscaras atuais)"),
+    IT("Riutilizzare (costruita prima delle maschere attuali)"),
+    NL("Hergebruiken (gebouwd vóór de huidige maskers)"),
+    RU("Использовать как есть (построена до нынешних масок)"),
+    TR("Yeniden kullan (şimdiki maskelerden önce yapıldı)"));
+
+SS_MSG(plan_in_dataset,
+    EN("Already in the dataset"),
+    JA("すでにデータセットにある"),
+    ZH_HANS("已经在数据集里"),
+    ZH_HANT("已經在資料集裡"),
+    KO("이미 데이터셋에 있음"),
+    DE("Schon im Datensatz"),
+    FR("Déjà dans le jeu de données"),
+    ES("Ya está en el conjunto de datos"),
+    PT("Já está no conjunto de dados"),
+    IT("Già nel set di dati"),
+    NL("Staat al in de dataset"),
+    RU("Уже в наборе данных"),
+    TR("Zaten veri kümesinde"));
+
+SS_MSG(plan_unrecorded,
+    EN("Keep (no record of how it was made)"),
+    JA("残す（どう作られたかの記録がない）"),
+    ZH_HANS("保留（没有它是怎么做出来的记录）"),
+    ZH_HANT("保留（沒有它是怎麼做出來的紀錄）"),
+    KO("남겨 둠 (어떻게 만들었는지 기록이 없음)"),
+    DE("Behalten (kein Protokoll, wie es entstand)"),
+    FR("Garder (aucune trace de sa fabrication)"),
+    ES("Conservar (no consta cómo se hizo)"),
+    PT("Manter (não há registo de como foi feito)"),
+    IT("Tenere (nessuna traccia di come è stato fatto)"),
+    NL("Behouden (niet vastgelegd hoe het gemaakt is)"),
+    RU("Оставить (нет записи о том, как сделано)"),
+    TR("Koru (nasıl yapıldığına dair kayıt yok)"));
+
+SS_MSG(plan_keep,
+    EN("Keep, though made with other settings"),
+    JA("残す（別の設定で作られたもの）"),
+    ZH_HANS("保留（虽然是用别的设置做的）"),
+    ZH_HANT("保留（雖然是用別的設定做的）"),
+    KO("남겨 둠 (다른 설정으로 만든 것)"),
+    DE("Behalten, obwohl mit anderen Einstellungen gemacht"),
+    FR("Garder, bien que fait avec d'autres réglages"),
+    ES("Conservar, aunque se hizo con otros ajustes"),
+    PT("Manter, embora feito com outras definições"),
+    IT("Tenere, anche se fatto con altre impostazioni"),
+    NL("Behouden, al is het met andere instellingen gemaakt"),
+    RU("Оставить, хотя сделано с другими настройками"),
+    TR("Koru, başka ayarlarla yapılmış olsa da"));
+
+SS_MSG(plan_redo_requested,
+    EN("Redo, as asked"),
+    JA("指示どおりやり直す"),
+    ZH_HANS("按要求重做"),
+    ZH_HANT("按要求重做"),
+    KO("요청대로 다시 하기"),
+    DE("Neu machen, wie verlangt"),
+    FR("Refaire, comme demandé"),
+    ES("Rehacer, como se pidió"),
+    PT("Refazer, como pedido"),
+    IT("Rifare, come richiesto"),
+    NL("Opnieuw doen, zoals gevraagd"),
+    RU("Переделать, как просили"),
+    TR("İstendiği gibi yeniden yap"));
+
+SS_MSG(plan_redo_settings,
+    EN("Redo: made with other settings"),
+    JA("やり直す：別の設定で作られている"),
+    ZH_HANS("重做：是用别的设置做的"),
+    ZH_HANT("重做：是用別的設定做的"),
+    KO("다시 하기: 다른 설정으로 만든 것"),
+    DE("Neu machen: mit anderen Einstellungen gemacht"),
+    FR("Refaire : fait avec d'autres réglages"),
+    ES("Rehacer: se hizo con otros ajustes"),
+    PT("Refazer: feito com outras definições"),
+    IT("Rifare: fatto con altre impostazioni"),
+    NL("Opnieuw doen: met andere instellingen gemaakt"),
+    RU("Переделать: сделано с другими настройками"),
+    TR("Yeniden yap: başka ayarlarla yapılmış"));
+
+SS_MSG(plan_redo_frames,
+    EN("Redo: the frames change"),
+    JA("やり直す：フレームが変わる"),
+    ZH_HANS("重做：帧会变"),
+    ZH_HANT("重做：影格會變"),
+    KO("다시 하기: 프레임이 바뀜"),
+    DE("Neu machen: die Bilder ändern sich"),
+    FR("Refaire : les images changent"),
+    ES("Rehacer: cambian los fotogramas"),
+    PT("Refazer: os quadros mudam"),
+    IT("Rifare: cambiano i fotogrammi"),
+    NL("Opnieuw doen: de beelden veranderen"),
+    RU("Переделать: меняются кадры"),
+    TR("Yeniden yap: kareler değişiyor"));
+
+SS_MSG(plan_redo_model,
+    EN("Redo: the reconstruction changes"),
+    JA("やり直す：再構成が変わる"),
+    ZH_HANS("重做：重建会变"),
+    ZH_HANT("重做：重建會變"),
+    KO("다시 하기: 재구성이 바뀜"),
+    DE("Neu machen: die Rekonstruktion ändert sich"),
+    FR("Refaire : la reconstruction change"),
+    ES("Rehacer: cambia la reconstrucción"),
+    PT("Refazer: a reconstrução muda"),
+    IT("Rifare: cambia la ricostruzione"),
+    NL("Opnieuw doen: de reconstructie verandert"),
+    RU("Переделать: меняется реконструкция"),
+    TR("Yeniden yap: yeniden kurma değişiyor"));
+
+SS_MSG(plan_redo_stale,
+    EN("Redo: made from older results"),
+    JA("やり直す：古い結果から作られている"),
+    ZH_HANS("重做：是从旧的结果做出来的"),
+    ZH_HANT("重做：是從舊的結果做出來的"),
+    KO("다시 하기: 예전 결과로 만든 것"),
+    DE("Neu machen: aus älteren Ergebnissen gemacht"),
+    FR("Refaire : fait à partir de résultats plus anciens"),
+    ES("Rehacer: se hizo a partir de resultados anteriores"),
+    PT("Refazer: feito a partir de resultados anteriores"),
+    IT("Rifare: fatto da risultati precedenti"),
+    NL("Opnieuw doen: gemaakt uit oudere resultaten"),
+    RU("Переделать: сделано по более старым результатам"),
+    TR("Yeniden yap: daha eski sonuçlardan yapılmış"));
+
+SS_MSG(plan_redo_features,
+    EN("Redo: the feature points change"),
+    JA("やり直す：特徴点が変わる"),
+    ZH_HANS("重做：特征点会变"),
+    ZH_HANT("重做：特徵點會變"),
+    KO("다시 하기: 특징점이 바뀜"),
+    DE("Neu machen: die Merkmale ändern sich"),
+    FR("Refaire : les points changent"),
+    ES("Rehacer: cambian los puntos"),
+    PT("Refazer: os pontos mudam"),
+    IT("Rifare: cambiano i punti"),
+    NL("Opnieuw doen: de kenmerken veranderen"),
+    RU("Переделать: меняются признаки"),
+    TR("Yeniden yap: öznitelikler değişiyor"));
+
+SS_MSG(plan_redo_matches,
+    EN("Redo: the matches change"),
+    JA("やり直す：照合結果が変わる"),
+    ZH_HANS("重做：匹配结果会变"),
+    ZH_HANT("重做：比對結果會變"),
+    KO("다시 하기: 정합 결과가 바뀜"),
+    DE("Neu machen: die Zuordnungen ändern sich"),
+    FR("Refaire : les appariements changent"),
+    ES("Rehacer: cambian los emparejamientos"),
+    PT("Refazer: os pareamentos mudam"),
+    IT("Rifare: cambiano le corrispondenze"),
+    NL("Opnieuw doen: de koppelingen veranderen"),
+    RU("Переделать: меняются сопоставления"),
+    TR("Yeniden yap: eşleşmeler değişiyor"));
+
+SS_MSG(plan_redo_masked,
+    EN("Redo for the images whose masks change"),
+    JA("マスクが変わる画像だけやり直す"),
+    ZH_HANS("只重做蒙版有变的图像"),
+    ZH_HANT("只重做遮罩有變的影像"),
+    KO("마스크가 바뀌는 이미지만 다시 하기"),
+    DE("Neu machen für die Bilder, deren Masken sich ändern"),
+    FR("Refaire pour les images dont les masques changent"),
+    ES("Rehacer las imágenes cuyas máscaras cambian"),
+    PT("Refazer as imagens cujas máscaras mudam"),
+    IT("Rifare le immagini le cui maschere cambiano"),
+    NL("Opnieuw doen voor de beelden waarvan de maskers veranderen"),
+    RU("Переделать для снимков, у которых меняются маски"),
+    TR("Maskesi değişen görüntüler için yeniden yap"));
+
+SS_MSG(plan_redo_moved,
+    EN("Redo: made from the images in another folder"),
+    JA("やり直す：別のフォルダの画像から作られている"),
+    ZH_HANS("重做：是用另一个文件夹的图像做的"),
+    ZH_HANT("重做：是用另一個資料夾的影像做的"),
+    KO("다시 하기: 다른 폴더의 이미지로 만든 것"),
+    DE("Neu machen: aus den Bildern eines anderen Ordners gemacht"),
+    FR("Refaire : fait à partir des images d'un autre dossier"),
+    ES("Rehacer: se hizo con las imágenes de otra carpeta"),
+    PT("Refazer: feito com as imagens de outra pasta"),
+    IT("Rifare: fatto con le immagini di un'altra cartella"),
+    NL("Opnieuw doen: gemaakt van de beelden in een andere map"),
+    RU("Переделать: сделано по снимкам из другой папки"),
+    TR("Yeniden yap: başka bir klasördeki görüntülerden yapılmış"));
+
+SS_MSG(plan_reuse_if_same,
+    EN("Reuse if made with these settings"),
+    JA("この設定で作られていればそのまま使う"),
+    ZH_HANS("如果是用这些设置做的就沿用"),
+    ZH_HANT("如果是用這些設定做的就沿用"),
+    KO("이 설정으로 만든 것이면 그대로 사용"),
+    DE("Weiterverwenden, falls mit diesen Einstellungen gemacht"),
+    FR("Réutiliser si fait avec ces réglages"),
+    ES("Reutilizar si se hizo con estos ajustes"),
+    PT("Reutilizar se foi feito com estas definições"),
+    IT("Riutilizzare se fatto con queste impostazioni"),
+    NL("Hergebruiken als het met deze instellingen gemaakt is"),
+    RU("Использовать, если сделано с этими настройками"),
+    TR("Bu ayarlarla yapıldıysa yeniden kullan"));
+
+// The reconstruction's own stages, listed under it (DatasetPlan.h ModelPart).
+SS_MSG(plan_part_features,
+    EN("Feature extraction"),
+    JA("特徴点の抽出"),   ZH_HANS("特征点提取"), ZH_HANT("特徵點提取"),
+    KO("특징점 추출"),     DE("Merkmalsextraktion"), FR("Extraction des points"),
+    ES("Extracción de puntos"), PT("Extração de pontos"), IT("Estrazione dei punti"),
+    NL("Kenmerken extraheren"), RU("Извлечение признаков"), TR("Öznitelik çıkarma"));
+
+SS_MSG(plan_part_mapping,
+    EN("Mapping"),
+    JA("マッピング"),     ZH_HANS("建图"),      ZH_HANT("建圖"),
+    KO("매핑"),           DE("Kartierung"),   FR("Cartographie"),
+    ES("Mapeo"),         PT("Mapeamento"),   IT("Mappatura"),
+    NL("Kartering"),     RU("Картирование"), TR("Haritalama"));
+
+SS_MSG(plan_part_align,
+    EN("LiDAR alignment"),
+    JA("LiDAR との位置合わせ"), ZH_HANS("与 LiDAR 对齐"), ZH_HANT("與 LiDAR 對齊"),
+    KO("LiDAR 정렬"),      DE("LiDAR-Ausrichtung"), FR("Alignement LiDAR"),
+    ES("Alineación con LiDAR"), PT("Alinhamento com LiDAR"), IT("Allineamento LiDAR"),
+    NL("LiDAR-uitlijning"), RU("Совмещение с LiDAR"), TR("LiDAR hizalama"));
+
+SS_MSG(plan_part_toggle_help,
+    EN("Ticked, this stage runs. Untick it to keep what an earlier run left "
+       "instead, or tick one that would be reused to make it again; every stage "
+       "after one that runs runs too."),
+    JA("チェックするとこの段階を実行します。外すと前の実行が残したものをそのまま"
+       "使い、再利用される段階にチェックを入れると作り直します。実行する段階より"
+       "後の段階もすべて実行されます。"),
+    ZH_HANS("勾选则运行这一阶段。取消勾选会沿用之前运行留下的结果；给会被沿用的阶段"
+            "打勾则重做。运行的阶段之后的阶段也都会运行。"),
+    ZH_HANT("勾選則執行這一階段。取消勾選會沿用之前執行留下的結果；給會被沿用的階段"
+            "打勾則重做。執行的階段之後的階段也都會執行。"),
+    KO("체크하면 이 단계를 실행합니다. 해제하면 이전 실행이 남긴 것을 그대로 쓰고, "
+       "다시 쓰일 단계에 체크하면 다시 만듭니다. 실행되는 단계 다음의 단계도 모두 "
+       "실행됩니다."),
+    DE("Angehakt läuft dieser Schritt. Ohne Haken bleibt, was ein früherer Lauf "
+       "hinterlassen hat; ein Haken bei einem Schritt, der weiterverwendet würde, "
+       "macht ihn neu. Auf einen Schritt, der läuft, folgen alle weiteren."),
+    FR("Cochée, cette étape s'exécute. Décochez-la pour garder ce qu'une exécution "
+       "précédente a laissé, ou cochez une étape qui serait réutilisée pour la "
+       "refaire ; toute étape après une étape qui s'exécute s'exécute aussi."),
+    ES("Marcada, esta etapa se ejecuta. Desmárquela para conservar lo que dejó una "
+       "ejecución anterior, o marque una que se reutilizaría para rehacerla; toda "
+       "etapa posterior a una que se ejecuta también se ejecuta."),
+    PT("Marcada, esta etapa é executada. Desmarque-a para manter o que uma "
+       "execução anterior deixou, ou marque uma que seria reutilizada para a "
+       "refazer; todas as etapas depois de uma que é executada também o são."),
+    IT("Spuntata, questa fase viene eseguita. Togli la spunta per tenere ciò che "
+       "ha lasciato un'esecuzione precedente, o spunta una fase che verrebbe "
+       "riutilizzata per rifarla; ogni fase dopo una che viene eseguita viene "
+       "eseguita anch'essa."),
+    NL("Aangevinkt wordt deze stap uitgevoerd. Vink hem uit om te houden wat een "
+       "eerdere run achterliet, of vink een stap aan die hergebruikt zou worden om "
+       "hem opnieuw te doen; elke stap na een stap die loopt, loopt ook."),
+    RU("Отмеченный этап выполняется. Снимите отметку, чтобы оставить то, что "
+       "сделал прошлый запуск, или отметьте этап, который использовался бы как "
+       "есть, чтобы сделать его заново; все этапы после выполняемого тоже "
+       "выполняются."),
+    TR("İşaretliyse bu aşama çalışır. Önceki bir çalıştırmanın bıraktığını korumak "
+       "için işareti kaldırın ya da yeniden kullanılacak bir aşamayı yeniden yapmak "
+       "için işaretleyin; çalışan bir aşamadan sonraki her aşama da çalışır."));
+
+SS_MSG(plan_lock_nothing,
+    EN("Nothing finished is on disk for this stage, so it has to run."),
+    JA("この段階の完成した結果がディスクにないので、実行が必要です。"),
+    ZH_HANS("磁盘上没有这一阶段做完的结果，所以必须运行。"),
+    ZH_HANT("磁碟上沒有這一階段做完的結果，所以必須執行。"),
+    KO("이 단계의 끝난 결과가 디스크에 없어서 실행해야 합니다."),
+    DE("Für diesen Schritt liegt nichts Fertiges auf der Festplatte, also muss er laufen."),
+    FR("Rien de terminé n'est sur le disque pour cette étape : elle doit s'exécuter."),
+    ES("No hay nada terminado en disco para esta etapa, así que debe ejecutarse."),
+    PT("Não há nada terminado no disco para esta etapa, por isso tem de ser executada."),
+    IT("Su disco non c'è niente di finito per questa fase, quindi va eseguita."),
+    NL("Er staat voor deze stap niets afgerond op schijf, dus hij moet lopen."),
+    RU("Для этого этапа на диске нет готового результата, поэтому он выполняется."),
+    TR("Bu aşama için diskte bitmiş bir şey yok, bu yüzden çalışması gerekiyor."));
+
+SS_MSG(plan_lock_frames,
+    EN("The frames are made again, so the feature points of the old ones cannot "
+       "be kept."),
+    JA("フレームを作り直すので、古いフレームの特徴点は残せません。"),
+    ZH_HANS("帧会重做，所以旧帧的特征点不能保留。"),
+    ZH_HANT("影格會重做，所以舊影格的特徵點不能保留。"),
+    KO("프레임을 다시 만들기 때문에 예전 프레임의 특징점은 남겨 둘 수 없습니다."),
+    DE("Die Bilder werden neu gemacht, also lassen sich die Merkmale der alten "
+       "nicht behalten."),
+    FR("Les images sont refaites : les points des anciennes ne peuvent pas être "
+       "gardés."),
+    ES("Los fotogramas se rehacen, así que no se pueden conservar los puntos de "
+       "los anteriores."),
+    PT("Os quadros são refeitos, por isso os pontos dos antigos não podem ser "
+       "mantidos."),
+    IT("I fotogrammi vengono rifatti, quindi i punti di quelli vecchi non si "
+       "possono tenere."),
+    NL("De beelden worden opnieuw gemaakt, dus de kenmerken van de oude kunnen "
+       "niet blijven."),
+    RU("Кадры делаются заново, поэтому признаки старых кадров оставить нельзя."),
+    TR("Kareler yeniden yapılıyor, bu yüzden eskilerin öznitelikleri korunamaz."));
+
+SS_MSG(plan_lock_frontend,
+    EN("These feature points are of another type than the one chosen, and its "
+       "matcher cannot read them."),
+    JA("これらの特徴点は選んだものと種類が違い、その照合器では読めません。"),
+    ZH_HANS("这些特征点和所选的类型不同，它的匹配器读不了。"),
+    ZH_HANT("這些特徵點和所選的類型不同，它的比對器讀不了。"),
+    KO("이 특징점은 고른 것과 종류가 달라 그 정합기가 읽을 수 없습니다."),
+    DE("Diese Merkmale sind von einer anderen Art als der gewählten, und deren "
+       "Zuordnung kann sie nicht lesen."),
+    FR("Ces points sont d'un autre type que celui choisi, et son apparieur ne "
+       "peut pas les lire."),
+    ES("Estos puntos son de otro tipo que el elegido, y su emparejador no puede "
+       "leerlos."),
+    PT("Estes pontos são de outro tipo que o escolhido, e o seu emparelhador não "
+       "os consegue ler."),
+    IT("Questi punti sono di un tipo diverso da quello scelto, e il suo "
+       "abbinatore non li sa leggere."),
+    NL("Deze kenmerken zijn van een ander soort dan het gekozen, en de koppelaar "
+       "daarvan kan ze niet lezen."),
+    RU("Эти признаки другого типа, чем выбранный, и его сопоставитель не может "
+       "их прочитать."),
+    TR("Bu öznitelikler seçilenden farklı türde ve onun eşleştiricisi bunları "
+       "okuyamaz."));
+
+SS_MSG(plan_lock_before,
+    EN("The stage before it is made again, so this one has to run too."),
+    JA("前の段階を作り直すので、この段階も実行が必要です。"),
+    ZH_HANS("前一个阶段会重做，所以这一阶段也必须运行。"),
+    ZH_HANT("前一個階段會重做，所以這一階段也必須執行。"),
+    KO("앞 단계를 다시 만들기 때문에 이 단계도 실행해야 합니다."),
+    DE("Der Schritt davor wird neu gemacht, also muss auch dieser laufen."),
+    FR("L'étape d'avant est refaite : celle-ci doit donc s'exécuter aussi."),
+    ES("La etapa anterior se rehace, así que esta también debe ejecutarse."),
+    PT("A etapa anterior é refeita, por isso esta também tem de ser executada."),
+    IT("La fase precedente viene rifatta, quindi anche questa va eseguita."),
+    NL("De stap ervoor wordt opnieuw gedaan, dus deze moet ook lopen."),
+    RU("Предыдущий этап делается заново, поэтому этот тоже выполняется."),
+    TR("Önceki aşama yeniden yapılıyor, bu yüzden bu da çalışmalı."));
+
+SS_MSG(plan_lock_lens,
+    EN("A lens setting changed. The matches carry the lenses they were checked "
+       "with, so keeping them would leave the change unused."),
+    JA("レンズの設定が変わりました。照合結果は検証に使ったレンズを持っているので、"
+       "残すと変更が使われません。"),
+    ZH_HANS("镜头设置变了。匹配结果带着验证时用的镜头，保留它们就等于没用上这个改动。"),
+    ZH_HANT("鏡頭設定變了。匹配結果帶著驗證時用的鏡頭，保留它們就等於沒用上這個改動。"),
+    KO("렌즈 설정이 바뀌었습니다. 정합 결과는 검증에 쓴 렌즈를 담고 있어서, 남겨 "
+       "두면 바꾼 설정이 쓰이지 않습니다."),
+    DE("Eine Objektiveinstellung hat sich geändert. Die Paare tragen die Objektive, "
+       "mit denen sie geprüft wurden; behalten bliebe die Änderung ungenutzt."),
+    FR("Un réglage d'objectif a changé. Les appariements portent les objectifs avec "
+       "lesquels ils ont été vérifiés : les garder laisserait le changement sans "
+       "effet."),
+    ES("Cambió un ajuste de lente. Los emparejamientos llevan las lentes con que se "
+       "verificaron, así que conservarlos dejaría el cambio sin efecto."),
+    PT("Mudou uma definição de lente. Os pareamentos levam as lentes com que foram "
+       "verificados, por isso mantê-los deixaria a mudança sem efeito."),
+    IT("È cambiata un'impostazione dell'obiettivo. Gli abbinamenti portano gli "
+       "obiettivi con cui sono stati verificati: tenerli lascerebbe il cambiamento "
+       "senza effetto."),
+    NL("Een lensinstelling is veranderd. De koppelingen dragen de lenzen waarmee "
+       "ze gecontroleerd zijn, dus houden zou de wijziging ongebruikt laten."),
+    RU("Изменилась настройка объектива. Сопоставления хранят объективы, с которыми "
+       "их проверяли, поэтому, оставив их, изменение не будет использовано."),
+    TR("Bir lens ayarı değişti. Eşlemeler doğrulandıkları lensleri taşıyor; "
+       "korunurlarsa değişiklik kullanılmamış olur."));
+
+SS_MSG(plan_lock_mapping,
+    EN("Mapping is the reconstruction itself and runs whenever it is made. To "
+       "skip it, keep the reconstruction as it is."),
+    JA("マッピングは再構成そのもので、再構成を作るときは必ず実行します。省くには"
+       "再構成をそのまま残してください。"),
+    ZH_HANS("建图就是重建本身，只要做重建就会运行。要跳过它，请保留现有的重建。"),
+    ZH_HANT("建圖就是重建本身，只要做重建就會執行。要跳過它，請保留現有的重建。"),
+    KO("매핑은 재구성 그 자체라서 재구성을 만들 때마다 실행됩니다. 건너뛰려면 "
+       "재구성을 그대로 남겨 두세요."),
+    DE("Die Kartierung ist die Rekonstruktion selbst und läuft, wann immer sie "
+       "gemacht wird. Um sie zu überspringen, die Rekonstruktion behalten."),
+    FR("La cartographie est la reconstruction elle-même et s'exécute chaque fois "
+       "qu'elle est faite. Pour l'éviter, gardez la reconstruction telle quelle."),
+    ES("El mapeo es la reconstrucción misma y se ejecuta siempre que se hace. "
+       "Para saltarlo, conserve la reconstrucción tal como está."),
+    PT("O mapeamento é a própria reconstrução e é executado sempre que ela é "
+       "feita. Para o saltar, mantenha a reconstrução como está."),
+    IT("La mappatura è la ricostruzione stessa e viene eseguita ogni volta che "
+       "la si fa. Per saltarla, tieni la ricostruzione così com'è."),
+    NL("Kartering is de reconstructie zelf en loopt telkens als die gemaakt "
+       "wordt. Houd de reconstructie zoals ze is om haar over te slaan."),
+    RU("Картирование и есть реконструкция и выполняется всякий раз, когда она "
+       "делается. Чтобы пропустить его, оставьте реконструкцию как есть."),
+    TR("Haritalama yeniden kurmanın kendisidir ve her yapıldığında çalışır. "
+       "Atlamak için yeniden kurmayı olduğu gibi koruyun."));
+
+SS_MSG(plan_keep_built,
+    EN("Keep the existing frames and reconstruction"),
+    JA("いまあるフレームと再構成を残す"),
+    ZH_HANS("保留现有的帧和重建"),
+    ZH_HANT("保留現有的影格和重建"),
+    KO("지금 있는 프레임과 재구성 남겨 두기"),
+    DE("Vorhandene Bilder und Rekonstruktion behalten"),
+    FR("Garder les images et la reconstruction existantes"),
+    ES("Conservar los fotogramas y la reconstrucción existentes"),
+    PT("Manter os quadros e a reconstrução existentes"),
+    IT("Tenere i fotogrammi e la ricostruzione esistenti"),
+    NL("Bestaande beelden en reconstructie behouden"),
+    RU("Оставить имеющиеся кадры и реконструкцию"),
+    TR("Mevcut kareleri ve yeniden kurmayı koru"));
+
+SS_MSG(plan_keep_built_help,
+    EN("They were made with settings that differ from the ones on screen. "
+       "Kept, they stay exactly as they are and the run only adds masks, depth "
+       "and normals; otherwise they are made again from these settings, which "
+       "for the reconstruction is most of the run's time."),
+    JA("これらは画面の設定と違う設定で作られています。残すとそのまま使い、"
+       "実行はマスクと深度・法線を足すだけになります。残さなければこの設定で"
+       "作り直します。再構成のやり直しは実行時間の大半を占めます。"),
+    ZH_HANS("它们是用和屏幕上不同的设置做出来的。保留的话原样不动，这次运行只补"
+            "蒙版和深度、法线；否则会按这些设置重做，而重建要花掉大部分时间。"),
+    ZH_HANT("它們是用和螢幕上不同的設定做出來的。保留的話原樣不動，這次執行只補"
+            "遮罩和深度、法線；否則會按這些設定重做，而重建要花掉大部分時間。"),
+    KO("화면의 설정과 다른 설정으로 만든 것입니다. 남겨 두면 그대로 쓰고 이번 "
+       "실행은 마스크와 깊이·법선만 더합니다. 그렇지 않으면 이 설정으로 다시 "
+       "만드는데, 재구성이 실행 시간의 대부분을 차지합니다."),
+    DE("Sie wurden mit anderen Einstellungen gemacht als den angezeigten. "
+       "Behalten bleiben sie genau, wie sie sind, und der Lauf ergänzt nur "
+       "Masken, Tiefe und Normalen; sonst werden sie mit diesen Einstellungen "
+       "neu gemacht, was bei der Rekonstruktion den Großteil der Laufzeit "
+       "ausmacht."),
+    FR("Ils ont été faits avec des réglages différents de ceux affichés. "
+       "Gardés, ils restent tels quels et l'exécution n'ajoute que masques, "
+       "profondeur et normales ; sinon ils sont refaits avec ces réglages, ce "
+       "qui pour la reconstruction est l'essentiel du temps d'exécution."),
+    ES("Se hicieron con ajustes distintos de los que se ven en pantalla. Si se "
+       "conservan, quedan tal cual y la ejecución solo añade máscaras, "
+       "profundidad y normales; si no, se rehacen con estos ajustes, y la "
+       "reconstrucción es la mayor parte del tiempo."),
+    PT("Foram feitos com definições diferentes das que estão no ecrã. "
+       "Mantidos, ficam exatamente como estão e a execução só acrescenta "
+       "máscaras, profundidade e normais; caso contrário são refeitos com "
+       "estas definições, e a reconstrução é a maior parte do tempo."),
+    IT("Sono stati fatti con impostazioni diverse da quelle a schermo. Se li "
+       "tieni restano come sono e l'esecuzione aggiunge solo maschere, "
+       "profondità e normali; altrimenti vengono rifatti con queste "
+       "impostazioni, e la ricostruzione è la maggior parte del tempo."),
+    NL("Ze zijn gemaakt met andere instellingen dan die op het scherm. "
+       "Behouden blijven ze precies zoals ze zijn en voegt de run alleen "
+       "maskers, diepte en normalen toe; anders worden ze met deze "
+       "instellingen opnieuw gemaakt, en de reconstructie is het grootste deel "
+       "van de looptijd."),
+    RU("Они сделаны с настройками, отличными от тех, что на экране. Если их "
+       "оставить, они останутся как есть, а запуск лишь добавит маски, глубину "
+       "и нормали; иначе их сделают заново с этими настройками, и "
+       "реконструкция займёт большую часть времени."),
+    TR("Ekrandakilerden farklı ayarlarla yapıldılar. Korunursa oldukları gibi "
+       "kalırlar ve çalıştırma yalnızca maske, derinlik ve normalleri ekler; "
+       "aksi halde bu ayarlarla yeniden yapılırlar ve yeniden kurma sürenin "
+       "çoğunu alır."));
+
+SS_MSG(plan_use_record,
+    EN("Use the settings this dataset was made with"),
+    JA("このデータセットを作ったときの設定に戻す"),
+    ZH_HANS("改回做这个数据集时的设置"),
+    ZH_HANT("改回做這個資料集時的設定"),
+    KO("이 데이터셋을 만들 때의 설정으로 되돌리기"),
+    DE("Einstellungen verwenden, mit denen dieser Datensatz gemacht wurde"),
+    FR("Reprendre les réglages qui ont fait ce jeu de données"),
+    ES("Usar los ajustes con que se hizo este conjunto de datos"),
+    PT("Usar as definições com que este conjunto de dados foi feito"),
+    IT("Usare le impostazioni con cui è stato fatto questo set di dati"),
+    NL("De instellingen gebruiken waarmee deze dataset gemaakt is"),
+    RU("Вернуть настройки, с которыми сделан этот набор"),
+    TR("Bu veri kümesinin yapıldığı ayarları kullan"));
+
+SS_MSG(plan_use_record_help,
+    EN("Put back every setting the last run in this folder started with, so "
+       "nothing on screen differs from what is on disk."),
+    JA("このフォルダで最後に実行したときの設定をすべて戻し、画面とディスクの"
+       "中身を一致させます。"),
+    ZH_HANS("把这个文件夹上一次运行开始时的设置全部改回来，让屏幕上的设置和磁盘"
+            "上的内容一致。"),
+    ZH_HANT("把這個資料夾上一次執行開始時的設定全部改回來，讓螢幕上的設定和磁碟"
+            "上的內容一致。"),
+    KO("이 폴더에서 마지막으로 실행할 때의 설정을 모두 되돌려, 화면과 디스크의 "
+       "내용이 같아지게 합니다."),
+    DE("Stellt jede Einstellung wieder her, mit der der letzte Lauf in diesem "
+       "Ordner begann, sodass nichts auf dem Bildschirm vom Inhalt der "
+       "Festplatte abweicht."),
+    FR("Remet chaque réglage avec lequel la dernière exécution dans ce dossier "
+       "a commencé, pour que rien à l'écran ne diffère de ce qui est sur le "
+       "disque."),
+    ES("Restablece cada ajuste con el que empezó la última ejecución en esta "
+       "carpeta, para que nada en pantalla difiera de lo que hay en disco."),
+    PT("Repõe cada definição com que começou a última execução nesta pasta, "
+       "para que nada no ecrã difira do que está no disco."),
+    IT("Rimette ogni impostazione con cui è partita l'ultima esecuzione in "
+       "questa cartella, così nulla a schermo differisce da ciò che è su "
+       "disco."),
+    NL("Zet elke instelling terug waarmee de laatste run in deze map begon, "
+       "zodat niets op het scherm afwijkt van wat er op schijf staat."),
+    RU("Возвращает все настройки, с которыми начался последний запуск в этой "
+       "папке, чтобы на экране ничто не расходилось с тем, что на диске."),
+    TR("Bu klasördeki son çalıştırmanın başladığı her ayarı geri koyar; "
+       "böylece ekrandaki hiçbir şey diskteki içerikten farklı olmaz."));
+
+SS_MSG(rebuild_title,
+    EN("Redo finished steps?"),
+    JA("終わった工程をやり直しますか？"),
+    ZH_HANS("要重做已经完成的步骤吗？"),
+    ZH_HANT("要重做已經完成的步驟嗎？"),
+    KO("끝난 단계를 다시 할까요?"),
+    DE("Fertige Schritte neu machen?"),
+    FR("Refaire des étapes terminées ?"),
+    ES("¿Rehacer pasos ya terminados?"),
+    PT("Refazer passos já concluídos?"),
+    IT("Rifare passi già conclusi?"),
+    NL("Afgeronde stappen opnieuw doen?"),
+    RU("Переделать завершённые шаги?"),
+    TR("Biten adımlar yeniden yapılsın mı?"));
+
+// {0} is the output folder.
+SS_MSG(rebuild_confirm,
+    EN("Some of what is already in {0} was made with settings that differ from "
+       "the ones on screen, so this run would make it again:"),
+    JA("{0} にすでにあるものの一部は画面と違う設定で作られているため、この実行で"
+       "作り直すことになります。"),
+    ZH_HANS("{0} 里已有的部分内容是用和屏幕上不同的设置做出来的，所以这次运行会"
+            "重新做："),
+    ZH_HANT("{0} 裡已有的部分內容是用和螢幕上不同的設定做出來的，所以這次執行會"
+            "重新做："),
+    KO("{0} 에 이미 있는 것 가운데 일부는 화면과 다른 설정으로 만들어져서, 이번 "
+       "실행에서 다시 만듭니다:"),
+    DE("Manches, was schon in {0} liegt, wurde mit anderen Einstellungen als den "
+       "angezeigten gemacht; dieser Lauf würde es neu machen:"),
+    FR("Une partie de ce qui se trouve déjà dans {0} a été faite avec des "
+       "réglages différents de ceux affichés ; cette exécution la referait :"),
+    ES("Parte de lo que ya está en {0} se hizo con ajustes distintos de los de "
+       "la pantalla, así que esta ejecución lo rehará:"),
+    PT("Parte do que já está em {0} foi feito com definições diferentes das do "
+       "ecrã, por isso esta execução vai refazê-lo:"),
+    IT("Una parte di ciò che è già in {0} è stata fatta con impostazioni diverse "
+       "da quelle a schermo, quindi questa esecuzione la rifarebbe:"),
+    NL("Een deel van wat al in {0} staat is gemaakt met andere instellingen dan "
+       "die op het scherm, dus deze run zou het opnieuw maken:"),
+    RU("Часть того, что уже лежит в {0}, сделана с настройками, отличными от "
+       "тех, что на экране, поэтому этот запуск сделает это заново:"),
+    TR("{0} içinde zaten olanların bir kısmı ekrandakilerden farklı ayarlarla "
+       "yapıldı, bu yüzden bu çalıştırma onları yeniden yapacak:"));
+
+SS_MSG(rebuild_go,
+    EN("Redo them"),
+    JA("やり直す"),       ZH_HANS("重做"),      ZH_HANT("重做"),
+    KO("다시 하기"),       DE("Neu machen"),   FR("Les refaire"),
+    ES("Rehacerlos"),    PT("Refazê-los"),   IT("Rifarli"),
+    NL("Opnieuw doen"),  RU("Переделать"),   TR("Yeniden yap"));
+
+SS_MSG(rebuild_keep,
+    EN("Keep them, run the rest"),
+    JA("残して、残りだけ実行"),
+    ZH_HANS("保留它们，只跑其余的"),
+    ZH_HANT("保留它們，只跑其餘的"),
+    KO("남겨 두고 나머지만 실행"),
+    DE("Behalten, den Rest ausführen"),
+    FR("Les garder, exécuter le reste"),
+    ES("Conservarlos y ejecutar el resto"),
+    PT("Mantê-los e executar o resto"),
+    IT("Tenerli, eseguire il resto"),
+    NL("Behouden, de rest uitvoeren"),
+    RU("Оставить, выполнить остальное"),
+    TR("Koru, gerisini çalıştır"));
+
+// {0} is the output folder.
+SS_MSG(log_settings_restored,
+    EN("Settings restored from the dataset in {0}"),
+    JA("{0} のデータセットから設定を戻しました"),
+    ZH_HANS("已从 {0} 的数据集恢复设置"),
+    ZH_HANT("已從 {0} 的資料集恢復設定"),
+    KO("{0} 의 데이터셋에서 설정을 되돌렸습니다"),
+    DE("Einstellungen aus dem Datensatz in {0} übernommen"),
+    FR("Réglages repris du jeu de données de {0}"),
+    ES("Ajustes recuperados del conjunto de datos de {0}"),
+    PT("Definições recuperadas do conjunto de dados em {0}"),
+    IT("Impostazioni riprese dal set di dati in {0}"),
+    NL("Instellingen overgenomen van de dataset in {0}"),
+    RU("Настройки восстановлены из набора данных в {0}"),
+    TR("Ayarlar {0} içindeki veri kümesinden geri yüklendi"));
 
 SS_MSG(rerun_geometry,
     EN("Depth and normals again"),
@@ -10917,6 +15097,125 @@ SS_MSG(geom_model_giant_blurb,
     TR("2,6 GB indirme ve kartta 2,6 GB, görüntü başına yaklaşık 2 s; büyüğe "
        "göre kazanç ölçülüdür."));
 
+SS_MSG(geom_model_marigold,
+    EN("Marigold v2 (finest, slow)"),
+    JA("Marigold v2（最も精細・低速）"), ZH_HANS("Marigold v2（最精细，较慢）"),
+    ZH_HANT("Marigold v2（最精細，較慢）"), KO("Marigold v2 (가장 정밀, 느림)"),
+    DE("Marigold v2 (feinste, langsam)"), FR("Marigold v2 (le plus fin, lent)"),
+    ES("Marigold v2 (el más fino, lento)"), PT("Marigold v2 (o mais fino, lento)"),
+    IT("Marigold v2 (il più fine, lento)"), NL("Marigold v2 (fijnste, traag)"),
+    RU("Marigold v2 (самая детальная, медленная)"), TR("Marigold v2 (en ince, yavaş)"));
+
+SS_MSG(geom_model_marigold_blurb,
+    EN("A 20-billion-parameter diffusion model tuned for depth and normals: the "
+       "finest detail here and by far the slowest, about 10 s an image for both "
+       "maps on an RTX 5070. It also runs on 6 GB cards, streaming its weights. "
+       "MoGe-2 base sets its depth's scale and finds the sky. Built once from "
+       "45 GB streamed; keeps 11 GB."),
+    JA("深度と法線向けに調整された 200 億パラメータの拡散モデルです。ここで最も"
+       "精細で、ずば抜けて遅く、RTX 5070 で両方のマップに 1 枚約 10 秒かかります。"
+       "重みをストリーミングするので 6 GB のカードでも動きます。深度の尺度と空の"
+       "判定には MoGe-2 ベースを使います。45 GB をストリーミングして一度だけ組み立て、"
+       "11 GB を残します。"),
+    ZH_HANS("为深度和法线微调的 200 亿参数扩散模型：这里细节最精细，也远比其他慢，"
+            "在 RTX 5070 上两种图合计每张约 10 秒。它流式加载权重，6 GB 显卡也能运行。"
+            "深度的尺度和天空由 MoGe-2 中确定。只需流式读取 45 GB 构建一次，保留 11 GB。"),
+    ZH_HANT("為深度和法線微調的 200 億參數擴散模型：這裡細節最精細，也遠比其他慢，"
+            "在 RTX 5070 上兩種圖合計每張約 10 秒。它串流載入權重，6 GB 顯示卡也能執行。"
+            "深度的尺度和天空由 MoGe-2 中確定。只需串流讀取 45 GB 建置一次，保留 11 GB。"),
+    KO("깊이와 법선용으로 조정된 200억 매개변수 확산 모델입니다. 여기서 가장 정밀하고 "
+       "단연 가장 느려서, RTX 5070 에서 두 맵에 장당 약 10 초가 걸립니다. 가중치를 "
+       "스트리밍하므로 6 GB 카드에서도 돌아갑니다. 깊이의 축척과 하늘은 MoGe-2 "
+       "베이스가 정합니다. 45 GB 를 스트리밍해 한 번 만들고 11 GB 를 남깁니다."),
+    DE("Ein Diffusionsmodell mit 20 Milliarden Parametern, auf Tiefe und "
+       "Normalen abgestimmt: das feinste Detail hier und mit Abstand das "
+       "langsamste, etwa 10 s je Bild für beide Karten auf einer RTX 5070. Es "
+       "läuft auch auf 6-GB-Karten, indem es seine Gewichte streamt. MoGe-2 "
+       "mittel legt den Maßstab der Tiefe fest und findet den Himmel. Einmal aus "
+       "45 GB gestreamt gebaut; belegt 11 GB."),
+    FR("Un modèle de diffusion de 20 milliards de paramètres adapté à la "
+       "profondeur et aux normales : le détail le plus fin ici, et de loin le "
+       "plus lent, environ 10 s par image pour les deux cartes sur une RTX 5070. "
+       "Il tourne aussi sur des cartes de 6 Go en lisant ses poids en flux. "
+       "MoGe-2 moyen fixe l'échelle de sa profondeur et trouve le ciel. "
+       "Construit une fois à partir de 45 Go lus en flux ; en garde 11 Go."),
+    ES("Un modelo de difusión de 20 mil millones de parámetros ajustado para "
+       "profundidad y normales: el detalle más fino aquí y, con diferencia, el "
+       "más lento, unos 10 s por imagen para ambos mapas en una RTX 5070. "
+       "También funciona en tarjetas de 6 GB transmitiendo sus pesos. MoGe-2 "
+       "medio fija la escala de su profundidad y detecta el cielo. Se construye "
+       "una vez a partir de 45 GB transmitidos; ocupa 11 GB."),
+    PT("Um modelo de difusão de 20 mil milhões de parâmetros afinado para "
+       "profundidade e normais: o detalhe mais fino aqui e, de longe, o mais "
+       "lento, cerca de 10 s por imagem para os dois mapas numa RTX 5070. Também "
+       "funciona em placas de 6 GB, transmitindo os pesos. O MoGe-2 médio fixa a "
+       "escala da profundidade e encontra o céu. Construído uma vez a partir de "
+       "45 GB transmitidos; ocupa 11 GB."),
+    IT("Un modello di diffusione da 20 miliardi di parametri adattato a "
+       "profondità e normali: il dettaglio più fine qui e di gran lunga il più "
+       "lento, circa 10 s per immagine per entrambe le mappe su una RTX 5070. "
+       "Gira anche su schede da 6 GB trasmettendo i pesi. MoGe-2 medio fissa la "
+       "scala della profondità e trova il cielo. Costruito una volta da 45 GB "
+       "trasmessi; ne tiene 11 GB."),
+    NL("Een diffusiemodel met 20 miljard parameters, afgestemd op diepte en "
+       "normalen: het fijnste detail hier en verreweg het traagst, ongeveer 10 s "
+       "per afbeelding voor beide kaarten op een RTX 5070. Het draait ook op "
+       "kaarten van 6 GB door zijn gewichten te streamen. MoGe-2 middel bepaalt "
+       "de schaal van zijn diepte en vindt de lucht. Eenmalig gebouwd uit 45 GB "
+       "gestreamd; houdt 11 GB."),
+    RU("Диффузионная модель на 20 миллиардов параметров, настроенная на глубину "
+       "и нормали: самая детальная здесь и самая медленная — около 10 с на "
+       "изображение для обеих карт на RTX 5070. Работает и на картах с 6 ГБ, "
+       "подгружая веса потоком. Масштаб глубины и небо определяет MoGe-2 средняя. "
+       "Собирается один раз из 45 ГБ, загружаемых потоком; занимает 11 ГБ."),
+    TR("Derinlik ve normaller için ayarlanmış 20 milyar parametreli bir "
+       "difüzyon modeli: buradaki en ince ayrıntı ve açık ara en yavaşı; RTX "
+       "5070'te iki harita için görüntü başına yaklaşık 10 sn. Ağırlıklarını "
+       "akıtarak 6 GB'lık kartlarda da çalışır. Derinliğin ölçeğini ve gökyüzünü "
+       "MoGe-2 orta belirler. Akıtılan 45 GB'tan bir kez oluşturulur; 11 GB yer "
+       "kaplar."));
+
+SS_MSG(geom_install_disk,
+    EN("Keeps {0} under {1}; that disk has {2} free."),
+    JA("{1} に {0} を残します。そのディスクの空きは {2} です。"),
+    ZH_HANS("将在 {1} 下保留 {0}；该磁盘剩余 {2}。"),
+    ZH_HANT("將在 {1} 下保留 {0}；該磁碟剩餘 {2}。"),
+    KO("{1} 에 {0} 를 남깁니다. 그 디스크의 여유 공간은 {2} 입니다."),
+    DE("Belegt {0} unter {1}; dort sind {2} frei."),
+    FR("Garde {0} sous {1} ; ce disque a {2} de libre."),
+    ES("Ocupa {0} en {1}; ese disco tiene {2} libres."),
+    PT("Ocupa {0} em {1}; esse disco tem {2} livres."),
+    IT("Occupa {0} in {1}; quel disco ha {2} liberi."),
+    NL("Houdt {0} onder {1}; die schijf heeft {2} vrij."),
+    RU("Займёт {0} в {1}; на этом диске свободно {2}."),
+    TR("{1} altında {0} yer kaplar; o diskte {2} boş."));
+
+SS_MSG(geom_install_no_disk,
+    EN("Not enough disk space: it keeps {0} under {1}, plus {2} spare, and that "
+       "disk has {3} free."),
+    JA("ディスクの空きが足りません。{1} に {0} を残し、さらに {2} の予備が要りますが、"
+       "そのディスクの空きは {3} です。"),
+    ZH_HANS("磁盘空间不足：需在 {1} 下保留 {0}，另加 {2} 余量，而该磁盘只剩 {3}。"),
+    ZH_HANT("磁碟空間不足：需在 {1} 下保留 {0}，另加 {2} 餘量，而該磁碟只剩 {3}。"),
+    KO("디스크 공간이 부족합니다. {1} 에 {0} 와 여분 {2} 가 필요한데 그 디스크의 여유 "
+       "공간은 {3} 입니다."),
+    DE("Zu wenig Speicherplatz: Es belegt {0} unter {1}, dazu {2} Reserve, und "
+       "dort sind {3} frei."),
+    FR("Pas assez d'espace disque : il garde {0} sous {1}, plus {2} de réserve, "
+       "et ce disque a {3} de libre."),
+    ES("No hay espacio suficiente: ocupa {0} en {1}, más {2} de reserva, y ese "
+       "disco tiene {3} libres."),
+    PT("Espaço em disco insuficiente: ocupa {0} em {1}, mais {2} de reserva, e "
+       "esse disco tem {3} livres."),
+    IT("Spazio su disco insufficiente: occupa {0} in {1}, più {2} di riserva, e "
+       "quel disco ha {3} liberi."),
+    NL("Te weinig schijfruimte: het houdt {0} onder {1}, plus {2} reserve, en "
+       "die schijf heeft {3} vrij."),
+    RU("Недостаточно места: нужно {0} в {1} и ещё {2} в запасе, а на этом диске "
+       "свободно {3}."),
+    TR("Yeterli disk alanı yok: {1} altında {0} ve {2} yedek gerekiyor, o diskte "
+       "{3} boş."));
+
 SS_MSG(geom_get_model,
     EN("Get the geometry model"),
     JA("ジオメトリのモデルを取得"), ZH_HANS("获取几何模型"), ZH_HANT("取得幾何模型"),
@@ -11086,6 +15385,14 @@ SS_MSG(geom_split,
     PT("Dividir quadros largos"), IT("Dividi i fotogrammi ampi"),
     NL("Brede beelden splitsen"), RU("Разбивать широкие кадры"),
     TR("Geniş kareleri böl"));
+
+SS_MSG(geom_face_res,
+    EN("Face resolution"),
+    JA("面の解像度"),      ZH_HANS("拆分面分辨率"), ZH_HANT("拆分面解析度"),
+    KO("면 해상도"),       DE("Flächenauflösung"),
+    FR("Résolution des faces"), ES("Resolución de las caras"),
+    PT("Resolução das faces"), IT("Risoluzione delle facce"),
+    NL("Vlakresolutie"),   RU("Разрешение граней"), TR("Yüz çözünürlüğü"));
 
 SS_MSG(geom_ray_depth,
     EN("Store ray depth"),
@@ -11292,6 +15599,721 @@ SS_MSG(geom_view_depth,
     KO("깊이"),            DE("Tiefe"),        FR("Profondeur"),   ES("Profundidad"),
     PT("Profundidade"),   IT("Profondità"),   NL("Diepte"),       RU("Глубина"),
     TR("Derinlik"));
+
+SS_MSG(preset_ds_general,
+    EN("General"),
+    JA("汎用"),
+    ZH_HANS("通用"),
+    ZH_HANT("通用"),
+    KO("일반"),
+    DE("Allgemein"),
+    FR("Général"),
+    ES("General"),
+    PT("Geral"),
+    IT("Generale"),
+    NL("Algemeen"),
+    RU("Общий"),
+    TR("Genel"));
+
+SS_MSG(preset_ds_general_help,
+    EN("The settings a capture starts on. The reconstruction reads the inputs "
+       "and decides the rest for itself."),
+    JA("撮影を読み込んだときの既定の設定です。残りは入力を見て再構成が自分で決めます。"),
+    ZH_HANS("载入一次拍摄时的默认设置。其余的由重建读取输入后自行决定。"),
+    ZH_HANT("載入一次拍攝時的預設設定。其餘由重建讀取輸入後自行決定。"),
+    KO("촬영을 불러왔을 때의 기본 설정입니다. 나머지는 재구성이 입력을 보고 스스로 정합니다."),
+    DE("Die Einstellungen, mit denen eine Aufnahme startet. Den Rest "
+       "entscheidet die Rekonstruktion anhand der Eingaben selbst."),
+    FR("Les réglages avec lesquels une prise de vue démarre. La reconstruction "
+       "lit les entrées et décide du reste elle-même."),
+    ES("Los ajustes con los que empieza una captura. La reconstrucción lee las "
+       "entradas y decide el resto por sí misma."),
+    PT("As definições com que uma captura começa. A reconstrução lê as "
+       "entradas e decide o resto sozinha."),
+    IT("Le impostazioni con cui parte un'acquisizione. La ricostruzione legge "
+       "gli input e decide il resto da sé."),
+    NL("De instellingen waarmee een opname begint. De reconstructie leest de "
+       "invoer en bepaalt de rest zelf."),
+    RU("Настройки, с которых начинается съёмка. Остальное реконструкция решает "
+       "сама, посмотрев на входные данные."),
+    TR("Bir çekimin başladığı ayarlar. Gerisini yeniden oluşturma, girdilere "
+       "bakarak kendisi belirler."));
+
+SS_MSG(preset_ds_360,
+    EN("360 camera"),
+    JA("360 度カメラ"),
+    ZH_HANS("360 相机"),
+    ZH_HANT("360 相機"),
+    KO("360 카메라"),
+    DE("360-Kamera"),
+    FR("Caméra 360"),
+    ES("Cámara 360"),
+    PT("Câmara 360"),
+    IT("Fotocamera 360"),
+    NL("360-camera"),
+    RU("Камера 360"),
+    TR("360 kamera"));
+
+SS_MSG(preset_ds_360_help,
+    EN("For a consumer 360 camera: the fisheye lens those write, or the "
+       "panorama model when the frames measure 2:1, with people and bags "
+       "masked out -- whoever holds the camera is in every frame of it."),
+    JA("市販の 360 度カメラ向けです。そうしたカメラが書き出す魚眼レンズ、フレームが 2:1 "
+       "ならパノラマのモデルを使い、人と荷物をマスクします。カメラを持つ人はすべてのフレームに写るためです。"),
+    ZH_HANS("面向消费级 360 相机：用这类相机写出的鱼眼镜头，画面为 2:1 时改用全景模型，并把人和背包遮掉，因为拿相机的人出现在每一帧里。"),
+    ZH_HANT("面向消費級 360 相機：用這類相機寫出的魚眼鏡頭，畫面為 2:1 時改用全景模型，並把人和背包遮掉，因為拿相機的人出現在每一格裡。"),
+    KO("일반 소비자용 360 카메라를 위한 설정입니다. 그런 카메라가 쓰는 어안 렌즈, 프레임이 2:1이면 파노라마 모델을 쓰고 "
+       "사람과 가방을 가립니다. 카메라를 든 사람은 모든 프레임에 찍히기 때문입니다."),
+    DE("Für eine 360-Kamera aus dem Handel: das Fischauge, das solche Kameras "
+       "schreiben, oder das Panoramamodell bei Bildern im Verhältnis 2:1, mit "
+       "maskierten Personen und Taschen -- wer die Kamera hält, ist in jedem "
+       "ihrer Bilder."),
+    FR("Pour une caméra 360 grand public : l'objectif fisheye que ces caméras "
+       "écrivent, ou le modèle panoramique quand les images sont en 2:1, avec "
+       "les personnes et les sacs masqués -- qui tient la caméra est sur "
+       "toutes ses images."),
+    ES("Para una cámara 360 de consumo: el objetivo ojo de pez que estas "
+       "escriben, o el modelo panorámico cuando las imágenes son 2:1, con "
+       "personas y bolsas enmascaradas: quien sostiene la cámara sale en todos "
+       "sus fotogramas."),
+    PT("Para uma câmara 360 de consumo: a lente olho de peixe que estas "
+       "escrevem, ou o modelo panorâmico quando as imagens são 2:1, com "
+       "pessoas e sacos mascarados -- quem segura a câmara aparece em todos os "
+       "seus fotogramas."),
+    IT("Per una fotocamera 360 di consumo: l'obiettivo fisheye che queste "
+       "scrivono, o il modello panoramico quando i fotogrammi sono 2:1, con "
+       "persone e borse mascherate: chi tiene la fotocamera è in ogni suo "
+       "fotogramma."),
+    NL("Voor een consumenten-360-camera: de fisheyelens die deze schrijven, of "
+       "het panoramamodel als de beelden 2:1 zijn, met personen en tassen "
+       "gemaskeerd -- wie de camera vasthoudt, staat op elk beeld."),
+    RU("Для бытовой камеры 360: объектив рыбий глаз, который такие камеры "
+       "пишут, или панорамная модель, если кадр 2:1, с маскированием людей и "
+       "сумок — тот, кто держит камеру, попадает в каждый кадр."),
+    TR("Tüketici 360 kamerası için: bu kameraların yazdığı balıkgözü objektif, "
+       "kareler 2:1 ise panorama modeli, insanlar ve çantalar maskelenmiş "
+       "olarak -- kamerayı tutan kişi her karesinde vardır."));
+
+SS_MSG(preset_ds_internet,
+    EN("Photos from everywhere"),
+    JA("いろいろな出所の写真"),
+    ZH_HANS("来源各异的照片"),
+    ZH_HANT("來源各異的照片"),
+    KO("여기저기서 모은 사진"),
+    DE("Fotos aus aller Herkunft"),
+    FR("Photos d'origines diverses"),
+    ES("Fotos de procedencias diversas"),
+    PT("Fotos de origens diversas"),
+    IT("Foto di provenienze diverse"),
+    NL("Foto's van overal"),
+    RU("Фотографии из разных источников"),
+    TR("Çeşitli kaynaklardan fotoğraflar"));
+
+SS_MSG(preset_ds_internet_help,
+    EN("For photographs that share no camera: one lens per image, learned "
+       "features and matching for the wide baselines, distortion held until "
+       "the final pass, and depth and normal maps for what the photographs "
+       "only half cover."),
+    JA("同じカメラを共有しない写真向けです。画像ごとに 1 "
+       "つのレンズ、視点が大きく離れた組に効く学習ベースの特徴と照合、歪みは最終パスまで固定、そして写真が半分しか覆わない部分のための深度と法線のマップ。"),
+    ZH_HANS("面向不共用同一台相机的照片：每张图一个镜头，用学习到的特征与匹配来对付大基线，畸变留到最后一遍才拟合，并生成深度图和法线图来补照片只覆盖到一半的地方。"),
+    ZH_HANT("面向不共用同一台相機的照片：每張圖一個鏡頭，用學習到的特徵與比對來處理大基線，畸變留到最後一輪才擬合，並產生深度圖與法線圖補上照片只覆蓋一半的地方。"),
+    KO("같은 카메라를 공유하지 않는 사진용입니다. 이미지마다 렌즈 하나, 시점 차가 큰 짝을 위한 학습 기반 특징과 정합, 왜곡은 "
+       "마지막 패스까지 고정, 그리고 사진이 절반만 덮는 곳을 위한 깊이와 법선 맵."),
+    DE("Für Fotos ohne gemeinsame Kamera: ein Objektiv je Bild, gelernte "
+       "Merkmale und Zuordnung für die weiten Basislinien, Verzeichnung bis "
+       "zum letzten Durchgang festgehalten, dazu Tiefen- und Normalenkarten "
+       "für das, was die Fotos nur halb abdecken."),
+    FR("Pour des photos qui ne partagent aucun appareil : un objectif par "
+       "image, des caractéristiques et un appariement appris pour les grandes "
+       "bases, la distorsion maintenue jusqu'à la passe finale, et des cartes "
+       "de profondeur et de normales pour ce que les photos ne couvrent qu'à "
+       "moitié."),
+    ES("Para fotos que no comparten cámara: un objetivo por imagen, "
+       "características y emparejamiento aprendidos para las bases amplias, la "
+       "distorsión retenida hasta la pasada final, y mapas de profundidad y "
+       "normales para lo que las fotos solo cubren a medias."),
+    PT("Para fotos que não partilham câmara: uma lente por imagem, "
+       "características e correspondência aprendidas para as bases largas, a "
+       "distorção retida até à passagem final, e mapas de profundidade e "
+       "normais para o que as fotos só cobrem pela metade."),
+    IT("Per foto che non condividono una fotocamera: un obiettivo per "
+       "immagine, caratteristiche e corrispondenze apprese per le basi ampie, "
+       "la distorsione trattenuta fino alla passata finale, e mappe di "
+       "profondità e normali per ciò che le foto coprono solo a metà."),
+    NL("Voor foto's zonder gedeelde camera: één lens per beeld, geleerde "
+       "kenmerken en matching voor de brede basislijnen, vertekening "
+       "vastgehouden tot de laatste ronde, en diepte- en normaalkaarten voor "
+       "wat de foto's maar half bedekken."),
+    RU("Для фотографий без общей камеры: по объективу на снимок, обученные "
+       "признаки и сопоставление для широких базисов, дисторсия удерживается "
+       "до последнего прохода, плюс карты глубины и нормалей для того, что "
+       "снимки покрывают лишь наполовину."),
+    TR("Ortak bir kamerası olmayan fotoğraflar için: görüntü başına bir "
+       "objektif, geniş taban çizgileri için öğrenilmiş öznitelikler ve "
+       "eşleme, bozulma son geçişe kadar sabit, ve fotoğrafların ancak "
+       "yarısını kapladığı yerler için derinlik ve normal haritaları."));
+
+// ---------------------------------------------------------------------------
+// name -> text, for app/gui/DatasetPreset.h's kDatasetPresets. Same shape as
+// i18n/catalog/Train.h's table, and the picker static_asserts the two lists
+// are the same length.
+// ---------------------------------------------------------------------------
+
+struct DatasetPresetText {
+    const char* name;
+    const Msg* label;
+    const Msg* help;
+};
+
+inline constexpr DatasetPresetText kDatasetPresetText[] = {
+    {"general",         &preset_ds_general,  &preset_ds_general_help},
+    {"360-camera",      &preset_ds_360,      &preset_ds_360_help},
+    {"internet-photos", &preset_ds_internet, &preset_ds_internet_help},
+};
+inline constexpr size_t kNumDatasetPresetText =
+    sizeof(kDatasetPresetText) / sizeof(kDatasetPresetText[0]);
+
+// Null for a name with no entry -- callers fall back to the name itself, so a
+// preset added to DatasetPreset.h without text here still works.
+inline const DatasetPresetText* preset_text(const char* name) {
+    for (const DatasetPresetText& p : kDatasetPresetText)
+        if (std::strcmp(p.name, name) == 0) return &p;
+    return nullptr;
+}
+
+
+SS_MSG(source_sequential,
+    EN("Sequential"),    JA("撮影順"),       ZH_HANS("按顺序"),    ZH_HANT("按順序"),
+    KO("순서대로"),       DE("Sequenziell"),  FR("Séquentiel"),    ES("Secuencial"),
+    PT("Sequencial"),    IT("Sequenziale"),  NL("Sequentieel"),   RU("По порядку"),
+    TR("Sıralı"));
+
+SS_MSG(source_sequential_help,
+    EN("Use this input's frame order (a video's, or photos named in shooting "
+       "order) so neighbouring frames are placed first. Turn it on for a "
+       "repetitive scene -- stairs, corridors, rows of identical windows -- where "
+       "views from different places look alike and can be mixed up. Leave it off "
+       "otherwise: matching by image content alone is usually more accurate."),
+    JA("この入力のフレームの順序 (動画の順序、または撮影順に名前が付いた写真) を使い、"
+       "隣接フレームを先に配置します。階段、廊下、同じ窓の並びのように、別の場所からの"
+       "眺めがそっくりで取り違えやすい繰り返しの多いシーンではオンにします。それ以外は"
+       "オフのままに。画像の内容だけでマッチする方が通常は正確です。"),
+    ZH_HANS("利用这个输入的帧顺序 (视频的顺序，或按拍摄顺序命名的照片)，先放置相邻帧。"
+            "对重复性强的场景——楼梯、走廊、一排排相同的窗户——不同位置看到的画面相似、"
+            "容易混淆，应打开。其他情况保持关闭：仅凭图像内容匹配通常更准确。"),
+    ZH_HANT("利用這個輸入的影格順序 (影片的順序，或按拍攝順序命名的相片)，先放置相鄰影格。"
+            "對重複性強的場景——樓梯、走廊、一排排相同的窗戶——不同位置看到的畫面相似、"
+            "容易混淆，應打開。其他情況保持關閉：僅憑影像內容匹配通常更準確。"),
+    KO("이 입력의 프레임 순서 (동영상의 순서, 또는 촬영 순서대로 이름 붙은 사진) 를 써서 "
+       "이웃 프레임을 먼저 놓습니다. 계단, 복도, 똑같은 창문이 늘어선 곳처럼 다른 "
+       "위치에서 본 모습이 닮아 헷갈리기 쉬운 반복적인 장면이면 켭니다. 그 밖에는 꺼 "
+       "두세요. 이미지 내용만으로 매칭하는 쪽이 보통 더 정확합니다."),
+    DE("Nutzt die Bildreihenfolge dieser Eingabe (die eines Videos oder von Fotos, "
+       "die in Aufnahmereihenfolge benannt sind), sodass benachbarte Bilder zuerst "
+       "platziert werden. Einschalten bei einer sich wiederholenden Szene -- "
+       "Treppen, Flure, Reihen gleicher Fenster --, in der Ansichten von "
+       "verschiedenen Orten gleich aussehen und verwechselt werden können. Sonst "
+       "aus lassen: Zuordnung allein nach Bildinhalt ist meist genauer."),
+    FR("Utilise l'ordre des images de cette entrée (celui d'une vidéo, ou de photos "
+       "nommées dans l'ordre de prise de vue) pour placer d'abord les images "
+       "voisines. À activer pour une scène répétitive -- escaliers, couloirs, "
+       "rangées de fenêtres identiques -- où des vues prises à des endroits "
+       "différents se ressemblent et peuvent être confondues. Sinon, laissez-le "
+       "désactivé : apparier sur le seul contenu des images est généralement plus "
+       "précis."),
+    ES("Usa el orden de los fotogramas de esta entrada (el de un vídeo, o fotos "
+       "nombradas en orden de captura) para colocar primero los fotogramas "
+       "vecinos. Actívalo en una escena repetitiva -- escaleras, pasillos, filas "
+       "de ventanas idénticas -- donde vistas desde lugares distintos se parecen y "
+       "pueden confundirse. Si no, déjalo desactivado: emparejar solo por el "
+       "contenido de las imágenes suele ser más preciso."),
+    PT("Usa a ordem dos quadros desta entrada (a de um vídeo, ou fotos nomeadas por "
+       "ordem de captação) para colocar primeiro os quadros vizinhos. Ligue-o numa "
+       "cena repetitiva -- escadas, corredores, filas de janelas iguais -- onde "
+       "vistas de lugares diferentes se parecem e podem ser confundidas. Caso "
+       "contrário, deixe-o desligado: emparelhar só pelo conteúdo das imagens "
+       "costuma ser mais preciso."),
+    IT("Usa l'ordine dei fotogrammi di questo ingresso (quello di un video, o di "
+       "foto nominate in ordine di scatto) per collocare prima i fotogrammi "
+       "vicini. Attivalo per una scena ripetitiva -- scale, corridoi, file di "
+       "finestre identiche -- dove viste da punti diversi si somigliano e possono "
+       "essere confuse. Altrimenti lascialo spento: abbinare solo in base al "
+       "contenuto delle immagini è di solito più preciso."),
+    NL("Gebruikt de beeldvolgorde van deze invoer (die van een video, of van foto's "
+       "die in opnamevolgorde zijn benoemd), zodat naburige beelden eerst worden "
+       "geplaatst. Zet het aan bij een repetitieve scène -- trappen, gangen, rijen "
+       "gelijke ramen -- waar beelden van verschillende plekken op elkaar lijken "
+       "en verwisseld kunnen worden. Laat het anders uit: koppelen op alleen de "
+       "beeldinhoud is meestal nauwkeuriger."),
+    RU("Использует порядок кадров этого входа (видео или фотографий, названных в "
+       "порядке съёмки), чтобы соседние кадры ставились первыми. Включайте для "
+       "повторяющейся сцены — лестницы, коридоры, ряды одинаковых окон, — где виды "
+       "из разных мест похожи и их можно перепутать. В остальных случаях "
+       "оставьте выключенным: сопоставление только по содержимому изображений "
+       "обычно точнее."),
+    TR("Bu girdinin kare sırasını (bir videonunkini ya da çekim sırasına göre "
+       "adlandırılmış fotoğrafları) kullanarak komşu kareleri önce yerleştirir. "
+       "Merdivenler, koridorlar, aynı pencerelerden sıralar gibi farklı yerlerden "
+       "görünüşlerin birbirine benzediği ve karıştırılabildiği yinelenen bir "
+       "sahnede açın. Aksi halde kapalı bırakın: yalnızca görüntü içeriğine göre "
+       "eşleştirme genellikle daha doğrudur."));
+
+// ---- Grounding DINO (a TextDetector for SAM 2.1), and BiRefNet ----
+
+SS_MSG(model_gdino_tiny_label,
+    EN("Grounding DINO Tiny"),
+    JA("Grounding DINO Tiny"),
+    ZH_HANS("Grounding DINO Tiny"),
+    ZH_HANT("Grounding DINO Tiny"),
+    KO("Grounding DINO Tiny"),
+    DE("Grounding DINO Tiny"),
+    FR("Grounding DINO Tiny"),
+    ES("Grounding DINO Tiny"),
+    PT("Grounding DINO Tiny"),
+    IT("Grounding DINO Tiny"),
+    NL("Grounding DINO Tiny"),
+    RU("Grounding DINO Tiny"),
+    TR("Grounding DINO Tiny"));
+
+SS_MSG(model_gdino_tiny_blurb,
+    EN("Finds what the text prompt names and hands the boxes to SAM 2.1, the way "
+       "lang-segment-anything does; each frame is searched on its own. With SAM "
+       "2.1 Base+, about a third of SAM 3's time. 690 MB, Apache-2.0."),
+    JA("テキストのプロンプトが指すものを見つけ、その矩形を SAM 2.1 に渡しま"
+       "す（lang-segment-anything と同じやり方）。フレームごと"
+       "に個別に探します。SAM 2.1 Base+ と組み合わせて、SAM 3 の"
+       "およそ 3 分の 1 の時間です。690 MB、Apache-2.0。"),
+    ZH_HANS("找出文字提示所指的目标，把框交给 SAM 2.1 分割，做法与 lang-s"
+            "egment-anything 相同；每帧单独搜索。配 SAM 2.1 Ba"
+            "se+ 时，耗时约为 SAM 3 的三分之一。690 MB，Apache-2"
+            ".0。"),
+    ZH_HANT("找出文字提示所指的目標，把框交給 SAM 2.1 分割，做法與 lang-s"
+            "egment-anything 相同；每格單獨搜尋。配 SAM 2.1 Ba"
+            "se+ 時，耗時約為 SAM 3 的三分之一。690 MB，Apache-2"
+            ".0。"),
+    KO("텍스트 프롬프트가 가리키는 것을 찾아 그 상자를 SAM 2.1에 넘깁니다(lang-segment-anything과 같은 방식). "
+       "프레임마다 따로 찾습니다. SAM 2.1 Base+와 함께 쓰면 SAM 3의 약 3분의 1 시간입니다. 690 MB, "
+       "Apache-2.0."),
+    DE("Findet, was die Texteingabe nennt, und gibt die Rahmen an SAM 2.1 "
+       "weiter, wie lang-segment-anything es macht; jedes Bild wird für sich "
+       "durchsucht. Mit SAM 2.1 Base+ etwa ein Drittel der Zeit von SAM 3. 690 "
+       "MB, Apache-2.0."),
+    FR("Trouve ce que nomme l'invite textuelle et passe les cadres à SAM 2.1, "
+       "comme le fait lang-segment-anything ; chaque image est cherchée "
+       "séparément. Avec SAM 2.1 Base+, environ un tiers du temps de SAM 3. 690 "
+       "Mo, Apache-2.0."),
+    ES("Encuentra lo que nombra la indicación de texto y pasa los recuadros a "
+       "SAM 2.1, como hace lang-segment-anything; cada fotograma se busca por "
+       "separado. Con SAM 2.1 Base+, alrededor de un tercio del tiempo de SAM 3. "
+       "690 MB, Apache-2.0."),
+    PT("Encontra o que o comando de texto nomeia e passa as caixas ao SAM 2.1, "
+       "como faz o lang-segment-anything; cada quadro é buscado separadamente. "
+       "Com o SAM 2.1 Base+, cerca de um terço do tempo do SAM 3. 690 MB, "
+       "Apache-2.0."),
+    IT("Trova ciò che il testo nomina e passa i rettangoli a SAM 2.1, come fa "
+       "lang-segment-anything; ogni fotogramma è cercato a sé. Con SAM 2.1 "
+       "Base+, circa un terzo del tempo di SAM 3. 690 MB, Apache-2.0."),
+    NL("Vindt wat de tekstprompt noemt en geeft de kaders door aan SAM 2.1, "
+       "zoals lang-segment-anything dat doet; elk beeld wordt apart doorzocht. "
+       "Met SAM 2.1 Base+ ongeveer een derde van de tijd van SAM 3. 690 MB, "
+       "Apache-2.0."),
+    RU("Находит то, что названо в текстовом запросе, и передаёт рамки SAM 2.1 — "
+       "так же, как lang-segment-anything; каждый кадр ищется отдельно. С SAM "
+       "2.1 Base+ — примерно треть времени SAM 3. 690 МБ, Apache-2.0."),
+    TR("Metin isteminin adını verdiği şeyi bulur ve kutuları SAM 2.1'e verir, "
+       "lang-segment-anything'in yaptığı gibi; her kare ayrı aranır. SAM 2.1 "
+       "Base+ ile SAM 3'ün süresinin yaklaşık üçte biri. 690 MB, Apache-2.0."));
+
+SS_MSG(model_gdino_base_label,
+    EN("Grounding DINO Base"),
+    JA("Grounding DINO Base"),
+    ZH_HANS("Grounding DINO Base"),
+    ZH_HANT("Grounding DINO Base"),
+    KO("Grounding DINO Base"),
+    DE("Grounding DINO Base"),
+    FR("Grounding DINO Base"),
+    ES("Grounding DINO Base"),
+    PT("Grounding DINO Base"),
+    IT("Grounding DINO Base"),
+    NL("Grounding DINO Base"),
+    RU("Grounding DINO Base"),
+    TR("Grounding DINO Base"));
+
+SS_MSG(model_gdino_base_blurb,
+    EN("The larger detector, and lang-segment-anything's default: finds more, "
+       "and small things more reliably, for a little more time than Tiny. 933 "
+       "MB, Apache-2.0."),
+    JA("大きい方の検出器で、lang-segment-anything の既定です。"
+       "Tiny より少し時間がかかりますが、より多くを、小さなものもより確実に見つ"
+       "けます。933 MB、Apache-2.0。"),
+    ZH_HANS("较大的检测器，也是 lang-segment-anything 的默认选择："
+            "比 Tiny 稍慢一点，但找到的更多，小物体也更可靠。933 MB，Apac"
+            "he-2.0。"),
+    ZH_HANT("較大的偵測器，也是 lang-segment-anything 的預設選擇："
+            "比 Tiny 稍慢一點，但找到的更多，小物體也更可靠。933 MB，Apac"
+            "he-2.0。"),
+    KO("더 큰 검출기이며 lang-segment-anything의 기본값입니다. Tiny보다 조금 더 걸리지만 더 많이, 작은 것도 더 "
+       "확실하게 찾습니다. 933 MB, Apache-2.0."),
+    DE("Der größere Detektor und die Voreinstellung von lang-segment-anything: "
+       "findet mehr, auch Kleines zuverlässiger, bei etwas mehr Zeit als Tiny. "
+       "933 MB, Apache-2.0."),
+    FR("Le détecteur plus grand, celui de lang-segment-anything par défaut : "
+       "trouve davantage, et les petites choses plus sûrement, pour un peu plus "
+       "de temps que Tiny. 933 Mo, Apache-2.0."),
+    ES("El detector más grande, el predeterminado de lang-segment-anything: "
+       "encuentra más, y las cosas pequeñas con más fiabilidad, a cambio de algo "
+       "más de tiempo que Tiny. 933 MB, Apache-2.0."),
+    PT("O detector maior, o padrão do lang-segment-anything: encontra mais, e "
+       "coisas pequenas com mais confiança, por um pouco mais de tempo que o "
+       "Tiny. 933 MB, Apache-2.0."),
+    IT("Il rilevatore più grande, quello predefinito di lang-segment-anything: "
+       "trova di più, e le cose piccole in modo più affidabile, per un po' più "
+       "di tempo di Tiny. 933 MB, Apache-2.0."),
+    NL("De grotere detector, en de standaard van lang-segment-anything: vindt "
+       "meer, en kleine dingen betrouwbaarder, voor iets meer tijd dan Tiny. 933 "
+       "MB, Apache-2.0."),
+    RU("Более крупный детектор, выбор lang-segment-anything по умолчанию: "
+       "находит больше, а мелкое — надёжнее, ценой чуть большего времени, чем "
+       "Tiny. 933 МБ, Apache-2.0."),
+    TR("Daha büyük algılayıcı ve lang-segment-anything'in varsayılanı: Tiny'den "
+       "biraz daha uzun sürer ama daha çoğunu, küçük şeyleri de daha güvenilir "
+       "bulur. 933 MB, Apache-2.0."));
+
+SS_MSG(model_birefnet_label,
+    EN("BiRefNet (most accurate for main subject)"),
+    JA("BiRefNet（主な被写体で最も正確）"),
+    ZH_HANS("BiRefNet（主体分割最准确）"),
+    ZH_HANT("BiRefNet（主體分割最準確）"),
+    KO("BiRefNet(주 피사체에 가장 정확)"),
+    DE("BiRefNet (am genauesten für das Hauptmotiv)"),
+    FR("BiRefNet (le plus précis pour le sujet principal)"),
+    ES("BiRefNet (el más preciso para el sujeto principal)"),
+    PT("BiRefNet (o mais preciso para o objeto principal)"),
+    IT("BiRefNet (il più preciso per il soggetto principale)"),
+    NL("BiRefNet (nauwkeurigst voor het hoofdonderwerp)"),
+    RU("BiRefNet (точнее всех для главного объекта)"),
+    TR("BiRefNet (ana özne için en doğru)"));
+
+SS_MSG(model_birefnet_blurb,
+    EN("Finds the main subject of every frame by itself -- for object captures "
+       "on a turntable or held in hand. No text and no clicks; about twice the "
+       "time of BiRefNet Lite. 444 MB, MIT."),
+    JA("各フレームの主な被写体を自動で見つけます。ターンテーブルに載せたり手に持った"
+       "りして撮る物体向けです。テキストもクリックも不要、BiRefNet Lite"
+       " のおよそ 2 倍の時間がかかります。444 MB、MIT。"),
+    ZH_HANS("自动找出每一帧的主体——适合放在转台上或拿在手里拍摄的物体。不需要文字，也不"
+            "需要点击；耗时约为 BiRefNet Lite 的两倍。444 MB，MIT"
+            "。"),
+    ZH_HANT("自動找出每一格的主體——適合放在轉台上或拿在手裡拍攝的物體。不需要文字，也不"
+            "需要點擊；耗時約為 BiRefNet Lite 的兩倍。444 MB，MIT"
+            "。"),
+    KO("모든 프레임의 주 피사체를 스스로 찾습니다. 턴테이블에 올리거나 손에 들고 찍는 물체용입니다. 텍스트도 클릭도 필요 없고 "
+       "BiRefNet Lite의 약 두 배 시간이 걸립니다. 444 MB, MIT."),
+    DE("Findet das Hauptmotiv jedes Bildes von selbst -- für Objekte auf dem "
+       "Drehteller oder in der Hand. Kein Text, keine Klicks; etwa doppelt so "
+       "lange wie BiRefNet Lite. 444 MB, MIT."),
+    FR("Trouve seul le sujet principal de chaque image -- pour les objets filmés "
+       "sur un plateau tournant ou tenus en main. Ni texte ni clics ; environ "
+       "deux fois le temps de BiRefNet Lite. 444 Mo, MIT."),
+    ES("Encuentra por sí solo el sujeto principal de cada fotograma: para "
+       "objetos sobre una plataforma giratoria o sostenidos en la mano. Sin "
+       "texto ni clics; alrededor del doble de tiempo que BiRefNet Lite. 444 MB, "
+       "MIT."),
+    PT("Encontra sozinho o objeto principal de cada quadro -- para objetos numa "
+       "base giratória ou segurados na mão. Sem texto e sem cliques; cerca do "
+       "dobro do tempo do BiRefNet Lite. 444 MB, MIT."),
+    IT("Trova da solo il soggetto principale di ogni fotogramma: per oggetti su "
+       "un piatto girevole o tenuti in mano. Niente testo né clic; circa il "
+       "doppio del tempo di BiRefNet Lite. 444 MB, MIT."),
+    NL("Vindt uit zichzelf het hoofdonderwerp van elk beeld -- voor objecten op "
+       "een draaitafel of in de hand. Geen tekst en geen klikken; ongeveer twee "
+       "keer de tijd van BiRefNet Lite. 444 MB, MIT."),
+    RU("Сам находит главный объект каждого кадра — для предметов на поворотном "
+       "столе или в руке. Без текста и щелчков; примерно вдвое дольше BiRefNet "
+       "Lite. 444 МБ, MIT."),
+    TR("Her karenin ana öznesini kendiliğinden bulur: döner tablada ya da elde "
+       "çekilen nesneler için. Metin de tıklama da gerekmez; BiRefNet Lite'ın "
+       "yaklaşık iki katı süre. 444 MB, MIT."));
+
+SS_MSG(model_birefnet_lite_label,
+    EN("BiRefNet Lite (main subject, no prompt)"),
+    JA("BiRefNet Lite（主な被写体、プロンプト不要）"),
+    ZH_HANS("BiRefNet Lite（主体，无需提示）"),
+    ZH_HANT("BiRefNet Lite（主體，無需提示）"),
+    KO("BiRefNet Lite(주 피사체, 프롬프트 불필요)"),
+    DE("BiRefNet Lite (Hauptmotiv, ohne Prompt)"),
+    FR("BiRefNet Lite (sujet principal, sans consigne)"),
+    ES("BiRefNet Lite (sujeto principal, sin indicación)"),
+    PT("BiRefNet Lite (objeto principal, sem comando)"),
+    IT("BiRefNet Lite (soggetto principale, senza prompt)"),
+    NL("BiRefNet Lite (hoofdonderwerp, zonder prompt)"),
+    RU("BiRefNet Lite (главный объект, без запроса)"),
+    TR("BiRefNet Lite (ana özne, istem yok)"));
+
+SS_MSG(model_birefnet_lite_blurb,
+    EN("The smaller BiRefNet: twice as fast, with slightly less certain edges. "
+       "178 MB, MIT."),
+    JA("小さい BiRefNet。2 倍速く、輪郭はやや曖昧です。178 MB、MI"
+       "T。"),
+    ZH_HANS("较小的 BiRefNet：快一倍，边缘稍欠准确。178 MB，MIT。"),
+    ZH_HANT("較小的 BiRefNet：快一倍，邊緣稍欠準確。178 MB，MIT。"),
+    KO("작은 BiRefNet: 두 배 빠르고 윤곽은 조금 덜 확실합니다. 178 MB, MIT."),
+    DE("Das kleinere BiRefNet: doppelt so schnell, mit etwas unsichereren "
+       "Kanten. 178 MB, MIT."),
+    FR("Le BiRefNet plus petit : deux fois plus rapide, avec des bords un peu "
+       "moins sûrs. 178 Mo, MIT."),
+    ES("El BiRefNet pequeño: el doble de rápido, con bordes algo menos seguros. "
+       "178 MB, MIT."),
+    PT("O BiRefNet menor: duas vezes mais rápido, com bordas um pouco menos "
+       "precisas. 178 MB, MIT."),
+    IT("Il BiRefNet più piccolo: veloce il doppio, con bordi un po' meno sicuri. "
+       "178 MB, MIT."),
+    NL("De kleinere BiRefNet: twee keer zo snel, met iets minder zekere randen. "
+       "178 MB, MIT."),
+    RU("Меньший BiRefNet: вдвое быстрее, края чуть менее уверенные. 178 МБ, MIT."),
+    TR("Küçük BiRefNet: iki kat hızlı, kenarları biraz daha az kesin. 178 MB, "
+       "MIT."));
+
+SS_MSG(license_gdino_title,
+    EN("Grounding DINO licence (Apache-2.0)"),
+    JA("Grounding DINO のライセンス（Apache-2.0）"),
+    ZH_HANS("Grounding DINO 许可协议（Apache-2.0）"),
+    ZH_HANT("Grounding DINO 授權條款（Apache-2.0）"),
+    KO("Grounding DINO 라이선스(Apache-2.0)"),
+    DE("Lizenz von Grounding DINO (Apache-2.0)"),
+    FR("Licence de Grounding DINO (Apache-2.0)"),
+    ES("Licencia de Grounding DINO (Apache-2.0)"),
+    PT("Licença do Grounding DINO (Apache-2.0)"),
+    IT("Licenza di Grounding DINO (Apache-2.0)"),
+    NL("Licentie van Grounding DINO (Apache-2.0)"),
+    RU("Лицензия Grounding DINO (Apache-2.0)"),
+    TR("Grounding DINO lisansı (Apache-2.0)"));
+
+SS_MSG(license_gdino_summary,
+    EN("Grounding DINO (IDEA Research) is released under the Apache 2.0 licence. "
+       "Nothing unusual to agree to; it is downloaded rather than bundled only "
+       "to keep the app small."),
+    JA("Grounding DINO（IDEA Research）は Apache "
+       "2.0 ライセンスで公開されています。特別に同意が必要なことはありません。同"
+       "梱せずダウンロードにしているのは、アプリを小さく保つためだけです。"),
+    ZH_HANS("Grounding DINO（IDEA Research）以 Apache "
+            "2.0 许可协议发布。没有什么特别需要同意的；之所以下载而不是打包，只是为了"
+            "让应用保持小巧。"),
+    ZH_HANT("Grounding DINO（IDEA Research）以 Apache "
+            "2.0 授權條款發布。沒有什麼特別需要同意的；之所以下載而不是打包，只是為了"
+            "讓應用保持小巧。"),
+    KO("Grounding DINO(IDEA Research)는 Apache 2.0 라이선스로 공개되어 있습니다. 특별히 동의할 것은 "
+       "없습니다. 함께 담지 않고 내려받게 한 것은 앱을 작게 유지하기 위해서일 뿐입니다."),
+    DE("Grounding DINO (IDEA Research) steht unter der Apache-2.0-Lizenz. Es ist "
+       "nichts Ungewöhnliches zuzustimmen; heruntergeladen statt mitgeliefert "
+       "wird es nur, damit die Anwendung klein bleibt."),
+    FR("Grounding DINO (IDEA Research) est publié sous licence Apache 2.0. Rien "
+       "d'inhabituel à accepter ; il est téléchargé plutôt qu'intégré uniquement "
+       "pour garder l'application légère."),
+    ES("Grounding DINO (IDEA Research) se publica con licencia Apache 2.0. No "
+       "hay nada inusual que aceptar; se descarga en lugar de incluirse solo "
+       "para que la aplicación siga siendo pequeña."),
+    PT("O Grounding DINO (IDEA Research) é publicado sob a licença Apache 2.0. "
+       "Nada de incomum a aceitar; é baixado em vez de incluído só para manter o "
+       "aplicativo pequeno."),
+    IT("Grounding DINO (IDEA Research) è pubblicato con licenza Apache 2.0. "
+       "Niente di insolito da accettare; viene scaricato invece che incluso solo "
+       "per tenere piccola l'applicazione."),
+    NL("Grounding DINO (IDEA Research) is uitgebracht onder de Apache "
+       "2.0-licentie. Niets ongewoons om mee in te stemmen; het wordt gedownload "
+       "in plaats van meegeleverd, alleen om de app klein te houden."),
+    RU("Grounding DINO (IDEA Research) выпущен под лицензией Apache 2.0. Ничего "
+       "необычного соглашаться не нужно; он скачивается, а не входит в комплект, "
+       "только чтобы приложение оставалось небольшим."),
+    TR("Grounding DINO (IDEA Research) Apache 2.0 lisansıyla yayımlanır. "
+       "Onaylanacak olağandışı bir şey yok; uygulama küçük kalsın diye birlikte "
+       "gelmez, indirilir."));
+
+SS_MSG(license_birefnet_title,
+    EN("BiRefNet License (MIT)"),
+    JA("BiRefNet ライセンス（MIT）"),
+    ZH_HANS("BiRefNet 许可协议（MIT）"),
+    ZH_HANT("BiRefNet 授權條款（MIT）"),
+    KO("BiRefNet 라이선스(MIT)"),
+    DE("BiRefNet-Lizenz (MIT)"),
+    FR("Licence BiRefNet (MIT)"),
+    ES("Licencia de BiRefNet (MIT)"),
+    PT("Licença do BiRefNet (MIT)"),
+    IT("Licenza BiRefNet (MIT)"),
+    NL("BiRefNet-licentie (MIT)"),
+    RU("Лицензия BiRefNet (MIT)"),
+    TR("BiRefNet Lisansı (MIT)"));
+
+SS_MSG(license_birefnet_summary,
+    EN("BiRefNet (Peng Zheng et al.) is released under the MIT licence. Nothing "
+       "unusual to agree to; it is downloaded rather than bundled only to keep the app "
+       "small."),
+    JA("BiRefNet（Peng Zheng ほか）は MIT ライセンスで公開されています。特別に同意が"
+       "必要なことはありません。同梱せずダウンロードにしているのは、アプリを小さく"
+       "保つためだけです。"),
+    ZH_HANS("BiRefNet（Peng Zheng 等）以 MIT 许可协议发布。没有什么特别需要同意的；"
+            "之所以下载而不是打包，只是为了让应用保持小巧。"),
+    ZH_HANT("BiRefNet（Peng Zheng 等）以 MIT 授權條款發布。沒有什麼特別需要同意的；"
+            "之所以下載而不是打包，只是為了讓應用保持小巧。"),
+    KO("BiRefNet(Peng Zheng 외)은 MIT 라이선스로 공개되어 있습니다. 특별히 동의할 "
+       "것은 없습니다. 함께 담지 않고 내려받게 한 것은 앱을 작게 유지하기 위해서일 "
+       "뿐입니다."),
+    DE("BiRefNet (Peng Zheng u. a.) steht unter der MIT-Lizenz. Es ist nichts "
+       "Ungewöhnliches zuzustimmen; heruntergeladen statt mitgeliefert wird es nur, "
+       "damit die Anwendung klein bleibt."),
+    FR("BiRefNet (Peng Zheng et al.) est publié sous licence MIT. Rien d'inhabituel à "
+       "accepter ; il est téléchargé plutôt qu'intégré uniquement pour garder "
+       "l'application légère."),
+    ES("BiRefNet (Peng Zheng et al.) se publica con licencia MIT. No hay nada inusual "
+       "que aceptar; se descarga en lugar de incluirse solo para que la aplicación siga "
+       "siendo pequeña."),
+    PT("O BiRefNet (Peng Zheng et al.) é publicado sob a licença MIT. Nada de incomum a "
+       "aceitar; é baixado em vez de incluído só para manter o aplicativo pequeno."),
+    IT("BiRefNet (Peng Zheng et al.) è pubblicato con licenza MIT. Niente di insolito "
+       "da accettare; viene scaricato invece che incluso solo per tenere piccola "
+       "l'applicazione."),
+    NL("BiRefNet (Peng Zheng e.a.) is uitgebracht onder de MIT-licentie. Niets ongewoons "
+       "om mee in te stemmen; het wordt gedownload in plaats van meegeleverd, alleen om "
+       "de app klein te houden."),
+    RU("BiRefNet (Peng Zheng и др.) выпущен под лицензией MIT. Ничего необычного "
+       "соглашаться не нужно; он скачивается, а не входит в комплект, только чтобы "
+       "приложение оставалось небольшим."),
+    TR("BiRefNet (Peng Zheng ve ark.) MIT lisansıyla yayımlanır. Onaylanacak olağandışı "
+       "bir şey yok; uygulama küçük kalsın diye birlikte gelmez, indirilir."));
+
+// {0} is the settings file.
+SS_MSG(license_not_saved,
+    EN("Could not save your acceptance to {0}, so the licence is not accepted."),
+    JA("同意を {0} に保存できなかったため、ライセンスには同意していない扱いです。"),
+    ZH_HANS("无法把你的接受记录保存到 {0}，因此该许可协议尚未被接受。"),
+    ZH_HANT("無法把你的接受記錄儲存到 {0}，因此該授權條款尚未被接受。"),
+    KO("동의를 {0}에 저장하지 못해 라이선스에 동의하지 않은 것으로 처리됩니다."),
+    DE("Die Zustimmung ließ sich nicht in {0} speichern, die Lizenz gilt daher "
+       "nicht als angenommen."),
+    FR("Impossible d'enregistrer votre acceptation dans {0} ; la licence n'est "
+       "donc pas acceptée."),
+    ES("No se pudo guardar tu aceptación en {0}, así que la licencia no está "
+       "aceptada."),
+    PT("Não foi possível salvar sua aceitação em {0}, então a licença não está "
+       "aceita."),
+    IT("Impossibile salvare la tua accettazione in {0}, quindi la licenza non "
+       "risulta accettata."),
+    NL("Je aanvaarding kon niet worden opgeslagen in {0}, dus de licentie is niet "
+       "aanvaard."),
+    RU("Не удалось сохранить ваше согласие в {0}, поэтому лицензия не считается "
+       "принятой."),
+    TR("Kabulünüz {0} dosyasına kaydedilemedi, bu yüzden lisans kabul edilmiş "
+       "sayılmaz."));
+
+// {0} is the licence family, e.g. "sam3".
+SS_MSG(license_not_accepted_download,
+    EN("The {0} licence has not been accepted, so nothing was downloaded."),
+    JA("{0} のライセンスに同意していないため、何もダウンロードしていません。"),
+    ZH_HANS("尚未接受 {0} 许可协议，因此没有下载任何内容。"),
+    ZH_HANT("尚未接受 {0} 授權條款，因此沒有下載任何內容。"),
+    KO("{0} 라이선스에 동의하지 않았으므로 아무것도 내려받지 않았습니다."),
+    DE("Die Lizenz {0} wurde nicht angenommen, deshalb wurde nichts heruntergeladen."),
+    FR("La licence {0} n'a pas été acceptée ; rien n'a donc été téléchargé."),
+    ES("No se ha aceptado la licencia {0}, así que no se descargó nada."),
+    PT("A licença {0} não foi aceita, então nada foi baixado."),
+    IT("La licenza {0} non è stata accettata, quindi non è stato scaricato nulla."),
+    NL("De licentie {0} is niet aanvaard, dus er is niets gedownload."),
+    RU("Лицензия {0} не принята, поэтому ничего не было загружено."),
+    TR("{0} lisansı kabul edilmedi, bu yüzden hiçbir şey indirilmedi."));
+
+SS_MSG(license_accept,
+    EN("Accept"), JA("同意する"), ZH_HANS("接受"), ZH_HANT("接受"), KO("동의"),
+    DE("Annehmen"), FR("Accepter"), ES("Aceptar"), PT("Aceitar"), IT("Accetta"),
+    NL("Aanvaarden"), RU("Принять"), TR("Kabul et"));
+
+SS_MSG(license_full_text,
+    EN("Full text"), JA("全文"), ZH_HANS("全文"), ZH_HANT("全文"), KO("전문"),
+    DE("Vollständiger Text"), FR("Texte intégral"), ES("Texto completo"),
+    PT("Texto completo"), IT("Testo completo"), NL("Volledige tekst"),
+    RU("Полный текст"), TR("Tam metin"));
+
+SS_MSG(mask_subject_note,
+    EN("This model finds the main subject of each frame by itself: no prompt and no "
+       "clicks are needed."),
+    JA("このモデルは各フレームの主な被写体を自動で見つけます。プロンプトもクリックも"
+       "不要です。"),
+    ZH_HANS("这个模型会自动找出每一帧的主体：不需要提示词，也不需要点击。"),
+    ZH_HANT("這個模型會自動找出每一格的主體：不需要提示詞，也不需要點擊。"),
+    KO("이 모델은 각 프레임의 주 피사체를 스스로 찾습니다. 프롬프트도 클릭도 필요 "
+       "없습니다."),
+    DE("Dieses Modell findet das Hauptmotiv jedes Bildes von selbst: kein Prompt und "
+       "keine Klicks nötig."),
+    FR("Ce modèle trouve seul le sujet principal de chaque image : ni consigne ni clic "
+       "ne sont nécessaires."),
+    ES("Este modelo encuentra por sí solo el sujeto principal de cada fotograma: no "
+       "hacen falta indicaciones ni clics."),
+    PT("Este modelo encontra sozinho o objeto principal de cada quadro: não precisa de "
+       "comando nem de cliques."),
+    IT("Questo modello trova da solo il soggetto principale di ogni fotogramma: non "
+       "servono prompt né clic."),
+    NL("Dit model vindt uit zichzelf het hoofdonderwerp van elk beeld: geen prompt en "
+       "geen klikken nodig."),
+    RU("Эта модель сама находит главный объект каждого кадра: ни запрос, ни щелчки не "
+       "нужны."),
+    TR("Bu model her karenin ana öznesini kendiliğinden bulur: istem de tıklama da "
+       "gerekmez."));
+
+SS_MSG(mask_subject_keep,
+    EN("Keep the subject"),
+    JA("被写体を残す"),
+    ZH_HANS("保留主体"),
+    ZH_HANT("保留主體"),
+    KO("피사체 남기기"),
+    DE("Motiv behalten"),
+    FR("Garder le sujet"),
+    ES("Conservar el sujeto"),
+    PT("Manter o objeto"),
+    IT("Tenere il soggetto"),
+    NL("Onderwerp behouden"),
+    RU("Оставить объект"),
+    TR("Özneyi koru"));
+
+SS_MSG(mask_subject_remove,
+    EN("Remove the subject"),
+    JA("被写体を取り除く"),
+    ZH_HANS("移除主体"),
+    ZH_HANT("移除主體"),
+    KO("피사체 제거"),
+    DE("Motiv entfernen"),
+    FR("Retirer le sujet"),
+    ES("Quitar el sujeto"),
+    PT("Remover o objeto"),
+    IT("Togliere il soggetto"),
+    NL("Onderwerp verwijderen"),
+    RU("Убрать объект"),
+    TR("Özneyi kaldır"));
+
+SS_MSG(mask_subject_polarity_help,
+    EN("Keep the subject for an object capture: everything around it is ignored. "
+       "Remove it when it is the thing in the way."),
+    JA("物体の撮影では被写体を残します。周りはすべて無視されます。被写体が邪魔物の"
+       "ときは取り除きます。"),
+    ZH_HANS("拍摄物体时保留主体：周围的一切都会被忽略。主体本身碍事时就把它移除。"),
+    ZH_HANT("拍攝物體時保留主體：周圍的一切都會被忽略。主體本身礙事時就把它移除。"),
+    KO("물체 촬영에서는 피사체를 남깁니다. 주변은 모두 무시됩니다. 피사체가 방해물일 "
+       "때는 제거합니다."),
+    DE("Für eine Objektaufnahme das Motiv behalten: alles darum herum wird ignoriert. "
+       "Entfernen, wenn es selbst im Weg ist."),
+    FR("Gardez le sujet pour la capture d'un objet : tout ce qui l'entoure est ignoré. "
+       "Retirez-le quand c'est lui qui gêne."),
+    ES("Conserve el sujeto al capturar un objeto: todo lo que lo rodea se ignora. "
+       "Quítelo cuando sea él lo que estorba."),
+    PT("Mantenha o objeto ao capturar um objeto: tudo ao redor é ignorado. Remova-o "
+       "quando ele é o que atrapalha."),
+    IT("Tenete il soggetto per la ripresa di un oggetto: tutto ciò che lo circonda "
+       "viene ignorato. Toglietelo quando è lui a dare fastidio."),
+    NL("Behoud het onderwerp bij een objectopname: alles eromheen wordt genegeerd. "
+       "Verwijder het als het zelf in de weg zit."),
+    RU("Оставьте объект при съёмке предмета: всё вокруг будет проигнорировано. "
+       "Уберите его, когда мешает он сам."),
+    TR("Nesne çekiminde özneyi koruyun: çevresindeki her şey yok sayılır. Engel olan "
+       "özneyse onu kaldırın."));
 
 }  // namespace dataset
 }  // namespace msg

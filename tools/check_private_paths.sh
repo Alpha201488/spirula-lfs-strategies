@@ -10,7 +10,7 @@
 
 cd "$(dirname "$0")/.." || exit 1
 
-PATTERN='/mnt/[a-z]/|/home/[a-z][a-z0-9_-]*/|[A-Za-z]:\\\\[Uu]sers|/media/[a-z][a-z0-9_-]*/'
+PATTERN='/mnt/[a-z]/|/home/[a-z][a-z0-9_-]*/|/Users/[A-Za-z][A-Za-z0-9._-]*/|[A-Za-z]:\\\\[Uu]sers|/media/[a-z][a-z0-9_-]*/'
 
 # Exclusions:
 #   viewer/js/ssv_wasm.js  - emscripten build output (single minified line)

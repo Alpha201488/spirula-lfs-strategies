@@ -476,7 +476,7 @@ std::vector<Match> Matcher::Impl::match(const MatchInput& A, const MatchInput& B
         const vk::Stream::Fold fold = vk::Stream::fold1D(R, 1);
         p.groups_per_row = fold.per_row;
         vk::Stream::get().dispatch(entry, vk::SpecList{0u, 0u}, fold.per_row, fold.rows, 1,
-                                   &p, sizeof(p));
+                                   &p, sizeof(p), (double)R * C * vk::Stream::kElemWork);
     };
 
     run("aliked.assign_logsumexp", lse0, {}, {}, n0, n1, n1, 1);

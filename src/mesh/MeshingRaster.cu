@@ -30,7 +30,7 @@ namespace SlangProjectionUtils {
 #endif
 
 // Run BODY(tier) for the tier `value` names. The camera model stays runtime;
-// the tier is one compile-time axis shared by every camera in the context.
+// the tier is one compile-time axis shared by every camera in the launch.
 #define _SS_DISPATCH_DISTORTION(value, BODY)                                       \
     do { switch ((CameraDistortionType)(value)) {                                  \
         case CameraDistortionType::None:      BODY(CameraDistortionType::None);      break; \
@@ -419,7 +419,7 @@ __global__ void tri_prep_kernel(
 
 template<CameraDistortionType distortion>
 __global__ void cull_kernel(
-    const float* __restrict__ verts, int nv,
+    const float* __restrict__ verts, int first, int count,
     const int* __restrict__ faces, int nf,
     const float* __restrict__ viewmats, const float* __restrict__ intrins,
     const CameraDistortionCoeffsBuffer dist,
@@ -429,8 +429,10 @@ __global__ void cull_kernel(
     const int2* __restrict__ internal, const float3* __restrict__ nodeAABB,
     uint32_t* __restrict__ visible
 ) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= nv) return;
+    int t = blockIdx.x * blockDim.x + threadIdx.x;
+    if (t >= count) return;
+    const int i = first + t;
+    if (visible[i]) return;                        // an earlier launch saw it
     float3 p = make_float3(verts[3*i], verts[3*i+1], verts[3*i+2]);
     for (int c = 0; c < C; ++c) {
         const float* vm = viewmats + (size_t)c * 16;
@@ -446,11 +448,10 @@ __global__ void cull_kernel(
             -(vm[2]*vm[3] + vm[6]*vm[7] + vm[10]*vm[11]));
         if (!seg_blocked(p, cam, i, verts, faces, nf,
                          leafMin, leafMax, internal, nodeAABB)) {
-            visible[i] = 1u;                       // seen by this camera -> keep
+            visible[i] = 1u;
             return;
         }
     }
-    visible[i] = 0u;                               // seen by no camera
 }
 
 } // namespace
@@ -537,18 +538,18 @@ void launch_tri_prep(
 }
 
 void launch_cull(
-    const float* verts, int nv, const int* faces, int nf,
+    const float* verts, int first, int count, const int* faces, int nf,
     const float* viewmats, const float* intrins, const float* dist,
     const int* Ws, const int* Hs, int camera_model, int distortion, int C,
     const float3* leafMin, const float3* leafMax,
     const int2* internal, const float3* nodeAABB,
     uint32_t* visible
 ) {
-    if (nv <= 0) return;
+    if (count <= 0) return;
     const CameraDistortionCoeffsBuffer dcb(const_cast<float*>(dist));
     #define LAUNCH(D) \
-        cull_kernel<D><<<_LAUNCH_ARGS_1D(nv, 256)>>>( \
-            verts, nv, faces, nf, viewmats, intrins, dcb, Ws, Hs, camera_model, C, \
+        cull_kernel<D><<<_LAUNCH_ARGS_1D(count, 256)>>>( \
+            verts, first, count, faces, nf, viewmats, intrins, dcb, Ws, Hs, camera_model, C, \
             leafMin, leafMax, internal, nodeAABB, visible)
     _SS_DISPATCH_DISTORTION(distortion, LAUNCH);
     #undef LAUNCH

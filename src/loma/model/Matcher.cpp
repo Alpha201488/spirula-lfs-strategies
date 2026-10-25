@@ -263,10 +263,11 @@ std::vector<Match> Matcher::match(const MatchInput& A, const MatchInput& B,
         const vk::SpecList spec{0u, 0u};
         vk::Stream& st = vk::Stream::get();
         st.dispatchFlat("loma.lse_cols", spec, n1, 256, &ap, sizeof(ap),
-                        &ap.groups_per_row);
+                        &ap.groups_per_row, (double)n0 * n1 * vk::Stream::kElemWork);
         const vk::Stream::Fold f = vk::Stream::fold1D(n0, 1);
         ap.groups_per_row = f.per_row;
-        st.dispatch("loma.assign_rows", spec, f.per_row, f.rows, 1, &ap, sizeof(ap));
+        st.dispatch("loma.assign_rows", spec, f.per_row, f.rows, 1, &ap, sizeof(ap),
+                    (double)n0 * n1 * vk::Stream::kElemWork);
         st.download(idx.data(), oi.ptr, (uint64_t)n0 * 4);
         st.download(sc.data(), os.ptr, (uint64_t)n0 * 4);
     }

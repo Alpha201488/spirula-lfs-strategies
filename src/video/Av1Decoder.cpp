@@ -882,15 +882,12 @@ void Av1Decoder::cdefParams(BitReader& br) {
     cdef_.cdef_bits = (uint8_t)br.u(2);
     const int n = 1 << cdef_.cdef_bits;
     for (int i = 0; i < n && i < STD_VIDEO_AV1_MAX_CDEF_FILTER_STRENGTHS; ++i) {
+        // Secondary strengths stay as coded (0..3); the driver applies 3 -> 4.
         cdef_.cdef_y_pri_strength[i] = (uint8_t)br.u(4);
-        uint8_t sec = (uint8_t)br.u(2);
-        if (sec == 3) sec = 4;
-        cdef_.cdef_y_sec_strength[i] = sec;
+        cdef_.cdef_y_sec_strength[i] = (uint8_t)br.u(2);
         if (num_planes_ > 1) {
             cdef_.cdef_uv_pri_strength[i] = (uint8_t)br.u(4);
-            uint8_t usec = (uint8_t)br.u(2);
-            if (usec == 3) usec = 4;
-            cdef_.cdef_uv_sec_strength[i] = usec;
+            cdef_.cdef_uv_sec_strength[i] = (uint8_t)br.u(2);
         }
     }
 }
@@ -920,11 +917,12 @@ void Av1Decoder::lrParams(BitReader& br) {
         lr_unit_shift = (int)br.bit();
         if (lr_unit_shift) lr_unit_shift += (int)br.bit();
     }
-    lr_.LoopRestorationSize[0] = (uint16_t)(256 >> (2 - lr_unit_shift));
+    // Vulkan takes log2(unit size) - 5, not pixels: 64 << lr_unit_shift -> 1 + shift.
+    lr_.LoopRestorationSize[0] = (uint16_t)(1 + lr_unit_shift);
     int uv_shift = 0;
     if (color_.subsampling_x && color_.subsampling_y && uses_chroma_lr_)
         uv_shift = (int)br.bit();
-    lr_.LoopRestorationSize[1] = (uint16_t)(lr_.LoopRestorationSize[0] >> uv_shift);
+    lr_.LoopRestorationSize[1] = (uint16_t)(lr_.LoopRestorationSize[0] - uv_shift);
     lr_.LoopRestorationSize[2] = lr_.LoopRestorationSize[1];
 }
 

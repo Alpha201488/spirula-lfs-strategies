@@ -26,7 +26,8 @@ reproduced.
 ## Device baseline
 
 Vulkan 1.2 core with features: `bufferDeviceAddress`, `timelineSemaphore`
-(both core-1.2 features; MoltenVK exposes both on Apple silicon). Optional,
+(both core-1.2 features; MoltenVK exposes both on Apple silicon), and compute
+subgroups of at most 64 lanes, pinned per kernel where the device allows (below). Optional,
 probed per device and reflected as pipeline variants where needed
 (spirv_tool compiles every subset of an entry's applicable variants, so
 any capability combination finds an exact blob; SS_VK_NATIVE_ATOMICS=0 /
@@ -39,7 +40,27 @@ for A/B testing):
   blob uses a CAS-loop emulation (Intel ANV), and a
   `.atomicadd`-suffixed blob uses native `OpAtomicFAddEXT`; the pipeline
   layer picks per device at module load (no in-shader branch). Unlike
-  VkSplat, both variants are always built.
+  VkSplat, both variants are always built. In Windows builds the CAS-loop
+  blob has a second shape behind the spec constant `kXchgFloatAdd` (ID 1000,
+  clear of every kernel's own 0..n-1): an add built from two float atomic
+  exchanges. Its float atomics are in the module whether the constant takes
+  them or not, so every device loading a CAS-loop blob there enables
+  `shaderBufferFloat32Atomics` where it has it; elsewhere the path is not
+  compiled, since SPIRV-Cross emits it as `atomic_float`, which MSL lacks
+  before 3.0. The pipeline layer sets the constant only on AMD's Windows
+  driver without native fp32 add (`amd_windows_emulated_fadd`,
+  `VulkanContext.cpp`); such a device without the exchange either is what
+  still reports `backend::DeviceIssue::AmdWindowsFloatAtomics`. That driver drops the
+  index of an indexed float pointer once it is reinterpreted as `uint*`
+  (OpBitcast and OpConvertPtrToU alike; the SPIR-V validates), so every CAS
+  of an array element hit the array's base and float sums came out
+  thousands of times too large (issue #23). Seen in the ISA of an
+  RX 6800 XT, Adrenalin 26.8.1 (driverVersion 2.0.353), via
+  VK_KHR_pipeline_executable_properties. `SS_VK_XCHG_FLOAT_ADD=0/1` forces
+  it either way. The same device also gets the word-packed int8 blobs: 13 of
+  the 148 ".int8" ones (ppl_fwd, ppl_bwd, fused_adam_qq, ...) crash its
+  compiler in amdvlk64.dll, and the gindex_t loads index before they cast,
+  the shape the float CAS was miscompiled in.
 - `shaderInt64` — 64-bit sort keys, morton codes, large-buffer indexing.
   Entries in an int64_compat-including source get a `.noint64` variant
   compiled with `-DSS_EMULATE_INT64` (`backend/vulkan/shaders/int64_compat.slang`),
@@ -69,9 +90,15 @@ for A/B testing):
   Forward/render path does not need it (only float atomicMax on radii,
   which is integer-monotonic on non-negative floats → emulate with
   u32 atomicMax over the float bit pattern; exact, not a CAS loop).
-- Subgroup size: never assumed 32. Kernels use `WaveActive*` /
-  `WavePrefixSum` and size-agnostic reductions; AMD wave64 and Intel
-  variable-width are first-class.
+- Subgroup size: 8 to 64 lanes, never assumed. Kernels use `WaveActive*` /
+  `WavePrefixSum`, uint4 ballots and per-wave partials counted with
+  `WaveGetLaneCount()`; a 32-thread workgroup on a 64-wide wave
+  (rasterize_bwd, the single-thread finals) is one half-full wave. Where the
+  device offers both 32 and 64 (RDNA), the kernels in `kWave64Entries`
+  (VulkanPipelines.cpp) run at 64 and the rest at 32. `SS_VK_SUBGROUP=N`
+  forces one width on every kernel: A/B timing, and on RDNA a stand-in for
+  wave64-only GCN (docs/testing.md). A device whose narrowest compute
+  subgroup is over 64 is refused in `probe_device`.
 
 ## Memory model
 
@@ -126,6 +153,13 @@ dropped for now and noted as a limitation).
   slower on desktop drivers, the same way `vkGetFenceStatus` polling beats
   `vkWaitForFences`. CPU devices (llvmpipe) always block
   (`SS_VK_POLL_WAIT=0/1` overrides).
+- Watchdog: a launch that grows with the input (rasterizer, bilateral grid,
+  SSIM, per-pixel losses) goes through `dispatch_budgeted`, which flushes
+  and, past `core/SubmitBudget.h`'s target, splits it into
+  `vkCmdDispatchBase` ranges, each its own submit
+  (docs/notes/gpu-submit-budget.md). Only an entry whose workgroups are
+  independent may use it. `SS_VK_SUBMIT_LOG=<ms>` prints every submit
+  longer than that, with its kernels.
 - Barriers: a conservative global `COMPUTE|TRANSFER → COMPUTE|TRANSFER`
   memory barrier after every dispatch/copy inside a batch reproduces CUDA
   stream ordering exactly. Per-resource narrowing is a later optimization,
@@ -159,7 +193,8 @@ Variant axes follow the CUDA instantiation structure
   output_median, VALUE_BITS** are value parameters → specialization
   constants on ONE SPIR-V module, folded at pipeline creation. Pipelines are
   created lazily and cached by (entry point, spec-constant tuple, device
-  capability set).
+  capability set). So is **kSbLobes**, the spherical-beta lobe count, which
+  only this backend has (below).
 
 ### The lens-distortion tier (`kDistortion`)
 
@@ -179,13 +214,31 @@ within a module and the host passes `SpecList` by index, so a constant
 inserted mid-module silently renumbers every axis after it (the class of bug
 the densify copy kernel hit — see "Spec IDs follow declaration order" below).
 The resulting IDs: warp 0; background_sh / pixel_wise_{render,train} /
-meshing_raster / visualizer 1; rasterize_moments 3; projection_fwd /
-rasterize_fwd 4; projection_bwd / rasterize_bwd 6; projection_qgrad 8;
-fpbo 11 (12 axes, still under `SpecList::kMax` = 16).
+meshing_raster / visualizer 1; rasterize_moments 3; rasterize_fwd 4;
+projection_fwd 6; rasterize_bwd 6; projection_bwd 7; projection_qgrad 9;
+fpbo 12 (13 axes, still under `SpecList::kMax` = 16).
 
 The one axis declared after `kDistortion` is warp's `kFromSource` (ID 1),
 which selects the source-camera projection in the wide warps: it trails so the
 launches that never re-distort keep passing their one-element `SpecList`.
+
+### The colour row (`kShDegree`, `kSbLobes`)
+
+A splat's view-dependent colour is one row of `features_sh`: the SH bands
+past the DC, then `kSbLobes` spherical-beta lobes of two float3 each
+(`core/ColorBasis.h`; docs/notes/spherical-beta.md). Every storage path --
+the q8/q16 value codec in both layouts, the 8-bit Adam state, the gradq
+accumulator, densify's copies -- treats the row as opaque cells, so the lobes
+ride through them unchanged. What knows the split:
+`backend/vulkan/shaders/view_color.slang` (the colour and its VJP, shared by
+the whole projection family through `ColorRow`), the per-cell optimizers
+(`sb_cells.slang`: their own rate, the regularizer on the amplitude only, no
+colour trust region), and FPBO, whose writeback walks the row's cells in
+order across the active bands, the warmup's zero bands and the lobes.
+Launchers resolve the lobes' first coefficient once (`vkk::color_spec`) and
+pass it as `sb_base`; `kShDegree` is the warmup's degree, so the stored bands
+cannot be inferred from it. The CUDA kernels carry no lobes and refuse a
+launch that asks for any.
 
 ## Shaders: build and shipping
 
@@ -257,7 +310,7 @@ in registers, and measure on Apple either way.
 MoltenVK translates our SPIR-V to Metal Shading Language through
 SPIRV-Cross, and two of its habits turn correct SPIR-V into wrong or
 uncompilable MSL. Both are invisible on every other driver, and both were
-found the same way: `spirv-cross --msl --stage comp build/spirv/<blob>.spv`
+found the same way: `spirv-cross --msl --stage comp build_vulkan/spirv/<blob>.spv`
 prints exactly what the Metal compiler will see, so read that before
 guessing.
 
@@ -336,14 +389,14 @@ Phase-0/1 hard-won portability rules (validated on NVIDIA proprietary,
 Mesa ANV, llvmpipe — all tests + validation layers clean on all three):
 
 - **Pin the subgroup size.** Compute pipelines are created with
-  VK_EXT_subgroup_size_control's required-size + full-subgroups whenever the
-  device supports it. Intel/ANV's default is a VARYING SIMD width, which
+  VK_EXT_subgroup_size_control's required size whenever the device supports
+  it. Intel/ANV's default is a VARYING SIMD width, which
   silently breaks `tid / WaveGetLaneCount()` subgroup indexing (the radix
-  sort produced garbage on Intel until pinned). Kernel workgroup sizes must
-  stay multiples of every plausible subgroup size (8..128). Specifically the
-  **X dimension** must be the multiple (VUID-02757 under
-  REQUIRE_FULL_SUBGROUPS) — a 16x16 workgroup fails even though its total is
-  256, so 2D kernels use flat 64/128/256-wide X layouts.
+  sort produced garbage on Intel until pinned). Full subgroups are required
+  too wherever the workgroup's **X dimension** is a multiple of the width
+  (VUID-02757) — a 16x16 workgroup fails even though its total is 256, so 2D
+  kernels use flat 64/128/256-wide X layouts. The 32-wide kernels skip it
+  only on a 64-wide device.
 - **No unguarded 8-bit types in shaders.** `uint8_t` loads / `uint8_t*`
   push-constant members require shaderInt8 / 8-bit-storage features outside
   the baseline. Byte access goes through `int8_compat.slang` (packed-u32
@@ -435,6 +488,7 @@ the engine level.
 - `kernels/PixelWiseRender.cpp` + `backend/vulkan/shaders/pixel_wise_render.slang`:
   the render-path PixelWise subset — `blend_background_forward`,
   `blend_background_noise_forward` (hash_uint3 ported bit-exact),
+  `blend_background_color_forward`,
   `rgb_to_srgb_forward`, `depth_to_normal_forward{,_tv}` (16x16 shared-mem
   apron tile as a flat 256-thread workgroup per the X-dim subgroup rule).
 - `kernels/Visualizer.cpp` + `backend/vulkan/shaders/visualizer.slang`: full
@@ -514,7 +568,7 @@ the engine level.
   randomness — parity compares only its deterministic count channel.
 - **Pixel-wise training + background-SH backward (phase 5, second slice)**:
   `kernels/PixelWiseTrain.cpp` + `pixel_wise_train.slang` implement the
-  blend/noise/srgb backwards, overexposure_grad_add, depth_to_normal_backward
+  blend/noise/color/srgb backwards, overexposure_grad_add, depth_to_normal_backward
   (16x16 tile apron + neighbor scatter), linear_depth_to_ray_depth_inplace,
   and color_shift_reg_step (ColorShiftReg.cu; shared-mem float atomics ->
   groupshared serial reduce + one portable atomic add per channel/block).
@@ -683,8 +737,8 @@ the engine level.
   - **backward_v1 grid-grad kernels** keep CUDA's logical 8x8 block
     geometry / mult_x-mult_y tile decomposition exactly (the per-thread
     pixel-range partition determines the writeback structure), but run as
-    flat 64-wide workgroups with an in-shader 8x8 decode — the pinned
-    subgroup size requires workgroup X to be a multiple of 32 (VUID-02757;
+    flat 64-wide workgroups with an in-shader 8x8 decode — full subgroups
+    need workgroup X to be a multiple of the pinned width (VUID-02757;
     same reason the TV/channel-mean 4x4x4 blocks and the single-thread
     reg-loss finals are 64-/32-wide with logical decode / a tid-0 guard).
     The warp-shuffle block reduce becomes a groupshared tree
@@ -753,7 +807,14 @@ the engine level.
     flat 256-wide workgroups (~30 KB, same buffer1/buffer2 overlay reuse).
     Every per-pixel output is a pure function of the zero-padded input, so
     tile size does not change the map or dL/dimg1 (tight); only the
-    display-only scalar's accumulation grouping differs (loose).
+    display-only scalar's accumulation grouping differs (loose). Its
+    `scielab_*` entries port the S-CIELAB loss with the CUDA kernel's own
+    16x16 tile and 28 KB overlay, under the floor on every device; its
+    `flip_*` entries port FLIP the same way at 31.4 KB, keeping each lane's
+    window centres in registers across the passes, as the CUDA kernel does.
+    The `ssim_bt_*` entries are blur-tolerant SSIM: a blur pass, the fused
+    kernel on SSIM's tile (30 KB at 16, 47.7 KB at 24), and the blur's
+    adjoint (`docs/notes/ssim-blur-tolerance.md`).
   - `canny.slang` (canny rgb/scalar + BT.601 residual luma + Tukey
     biweight) with globally-clamped loads -> per-pixel deterministic, so
     even the RobustEdgeAware densification map compares tight.
@@ -872,17 +933,20 @@ the engine level.
   quantized paths; kernels that early-return on a flat-index guard before
   any barrier need nothing.
 - **Device enumeration / selection** (`backend::device_count / device_info /
-  device_select / device_current` in BackendRuntime.h): enumeration uses a
-  throwaway VkInstance (never initializes the Context singleton), so apps
-  can list devices before committing. Selection precedence inside
-  `Context::init`: `device_select()` > `SS_VK_DEVICE` env (index or
-  name substring) > auto-score (discrete > integrated, VRAM tie-break).
-  One device per process: after the context exists, `device_select` only
-  succeeds for the device already in use. The CUDA backend implements the
-  same four calls inline over cudart. `spirula train` prints the device
-  table at startup (`*` marks the device in use, VkSplat-style) and takes
-  `--device <index|name substring>`; the GUI has a Device combo in
-  the train panel that locks once training starts.
+  device_select / device_select_identity / device_selection_error /
+  device_current` in `BackendRuntime.h`): enumeration uses a throwaway
+  VkInstance (never initializes the Context singleton), so apps can list
+  devices before committing. Native selectors accept `auto`, a raw ordinal, a
+  unique case-insensitive name substring, or `uuid:<32 hex digits>`. Explicit
+  selection wins over `SS_VK_DEVICE`, then shared Auto ranking resolves to a
+  canonical UUID plus the diagnostic name; failed selection details are
+  available through `device_selection_error()`.
+  One device per process: after the context exists, selection only succeeds
+  for the device already in use. The CUDA backend is separate and ordinal-only;
+  `device_bind()` reapplies its frozen ordinal on each CUDA worker thread.
+  `spirula train` uses `--device <index|name|auto|uuid:hex>` for Vulkan and
+  `--device <index>` for CUDA. The GUI's native picker is shared by built-in
+  Vulkan workflows; CUDA training has its own ordinal picker.
 - **Training stubs**: `kernels/TrainingStubs.gen.cpp` (generated by
   `tools/codegen/generate_vulkan_stubs.py` from a link probe of
   csrc_portable vs the backend lib) provides throwing

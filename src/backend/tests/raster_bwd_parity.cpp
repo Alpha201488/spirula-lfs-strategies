@@ -147,6 +147,11 @@ int main(int argc, char** argv) {
     float* d_v_drgb = upload(h_v_drgb);
     float* d_v_dd = upload(h_v_dd);
     float* d_awmap = upload(h_awmap);
+    // Peak-weight seed: some splats keep it, the rest are raised past it.
+    std::vector<float> h_mw(N);
+    for (auto& v : h_mw) v = uf(0.f, 0.3f);
+    float* d_mw = upload(h_mw);
+    const float kMwScale = 1.25f;
 
     auto t3f3 = [&](float* p) {
         return DeviceTensor3D<float3>(ttv(p, {(int64_t)C, H, W, 3}));
@@ -158,6 +163,19 @@ int main(int argc, char** argv) {
                                         DeviceTensor3D<float3>{}};
     RenderOutput::TensorTuple v_dists{t3f3(d_v_drgb), t3f1(d_v_dd),
                                       DeviceTensor3D<float3>{}};
+    // The RGB distortion gradient as the loss hands it over: a fixed multiple
+    // of the depth one, either spelled out or left for the kernel to derive.
+    const float kDistRatio = 0.6f;
+    std::vector<float> h_v_drgb_tied(n_pix * 3);
+    for (int64_t i = 0; i < n_pix; i++)
+        for (int c = 0; c < 3; c++) h_v_drgb_tied[i * 3 + c] = h_v_dd[i] * kDistRatio;
+    float* d_v_drgb_tied = upload(h_v_drgb_tied);
+    RenderOutput::TensorTuple v_dists_tied{t3f3(d_v_drgb_tied), t3f1(d_v_dd),
+                                           DeviceTensor3D<float3>{}};
+    RenderOutput::TensorTuple v_dists_derived{DeviceTensor3D<float3>{},
+                                              t3f1(d_v_dd),
+                                              DeviceTensor3D<float3>{}};
+    int derived_failures = 0;
 
     std::vector<float> acc;
 
@@ -170,18 +188,22 @@ int main(int argc, char** argv) {
         bool median;
         DensifyAccumMode aw;
         bool vmg;  // 3dgut viewmat grad
+        bool mw;   // peak-weight output
+        float cut; // 3dgs kernel_cut: Primitive3DGS::kernel_vis
     };
     // The 3dgs backward never sees the camera, so the tier sweep lives on the
     // 3dgut rows; the 3dgs rows carry it through the projection only.
     const Cfg cfgs[] = {
-        {0, false, 0, 0, DistortionType::None, false, DensifyAccumMode::None, false},
-        {0, false, 0, 1, DistortionType::RGB_D, true, DensifyAccumMode::Max, false},
-        {0, true, 1, 2, DistortionType::D, false, DensifyAccumMode::Sum, false},
-        {0, true, 1, 2, DistortionType::D, false, DensifyAccumMode::Avg, false},
-        {2, false, 0, 0, DistortionType::None, false, DensifyAccumMode::None, true},
-        {2, false, 1, 2, DistortionType::D, true, DensifyAccumMode::Max, false},
-        {2, false, 0, 1, DistortionType::RGB_D, false, DensifyAccumMode::Sum, false},
-        {2, true, 0, 2, DistortionType::D, false, DensifyAccumMode::Avg, false},
+        {0, false, 0, 0, DistortionType::None, false, DensifyAccumMode::None, false, true, 0.0f},
+        {0, false, 0, 1, DistortionType::RGB_D, true, DensifyAccumMode::Max, false, false, 0.0f},
+        {0, true, 1, 2, DistortionType::D, false, DensifyAccumMode::Sum, false, true, 0.0f},
+        {0, true, 1, 2, DistortionType::D, false, DensifyAccumMode::Avg, false, false, 0.0f},
+        {0, false, 0, 0, DistortionType::None, false, DensifyAccumMode::Sum, false, true, 4.0f},
+        {0, true, 1, 1, DistortionType::D, false, DensifyAccumMode::Avg, false, false, 4.0f},
+        {2, false, 0, 0, DistortionType::None, false, DensifyAccumMode::None, true, false, 0.0f},
+        {2, false, 1, 2, DistortionType::D, true, DensifyAccumMode::Max, false, true, 0.0f},
+        {2, false, 0, 1, DistortionType::RGB_D, false, DensifyAccumMode::Sum, false, false, 0.0f},
+        {2, true, 0, 2, DistortionType::D, false, DensifyAccumMode::Avg, false, true, 0.0f},
     };
     const char* cams[4] = {"PINHOLE", "FISHEYE", "EQUISOLID",
                            "EQUIRECTANGULAR"};
@@ -202,7 +224,7 @@ int main(int argc, char** argv) {
         if (cfg.packed) {
             auto fn = cfg.prim == 0 ? projection_3dgs_packed_forward
                                     : projection_3dgut_packed_forward;
-            auto out = fn(N, 3, in_splats, ttv(d_vm, {(int64_t)C, 16}),
+            auto out = fn(N, ColorBasis{3, 0}, in_splats, ttv(d_vm, {(int64_t)C, 16}),
                           ttv(d_intr, {(int64_t)C, 4}), W, H, cams[cfg.cam],
                           dist_fixture::kTierNames[cfg.dist],
                           dist_tv(cfg.dist), radii, std::nullopt,
@@ -217,7 +239,7 @@ int main(int argc, char** argv) {
         } else {
             auto fn = cfg.prim == 0 ? projection_3dgs_forward
                                     : projection_3dgut_forward;
-            auto out = fn(N, 3, in_splats, ttv(d_vm, {(int64_t)C, 16}),
+            auto out = fn(N, ColorBasis{3, 0}, in_splats, ttv(d_vm, {(int64_t)C, 16}),
                           ttv(d_intr, {(int64_t)C, 4}), W, H, cams[cfg.cam],
                           dist_fixture::kTierNames[cfg.dist],
                           dist_tv(cfg.dist), radii, std::nullopt,
@@ -236,7 +258,7 @@ int main(int argc, char** argv) {
         int macro_log2 = kMacroLog2Default;
         auto [isect_ids, flatten_ids, tile_offsets] =
             do_intersect_tile_generic(aabb_2d, depths_nd,
-                                      ellipse_view(splats_s, cfg.prim == 2), C,
+                                      ellipse_view(splats_s, cfg.prim == 2, cfg.cut), C,
                                       ttv(d_intr, {(int64_t)C, 4}), W, H,
                                       image_ids_ptr, /*tile_active=*/nullptr,
                                       macro_log2);
@@ -255,13 +277,14 @@ int main(int argc, char** argv) {
                 cams[cfg.cam], dist_fixture::kTierNames[cfg.dist],
                 dist_tv(cfg.dist), aabb_2d, W, H,
                 tile_offsets, flatten_ids, macro_log2, cfg.dt,
-                cfg.median);
+                cfg.median, true, SplatScoreRender{});
         } else {
             rout = rasterize_to_pixels_3dgs_fwd(N, in_splats, splats_s,
                                                 gauss_ids, W, H, tile_offsets,
                                                 flatten_ids,
                                                 macro_log2, cfg.dt,
-                                                cfg.median);
+                                                cfg.median, true,
+                                                SplatScoreRender{}, cfg.cut);
         }
         backend::device_synchronize();
         if (check_error()) return 1;
@@ -280,6 +303,12 @@ int main(int argc, char** argv) {
             ? t3f1(d_awmap) : DeviceTensor3D<float>{};
         DeviceTensor3D<float> v_med_t =
             cfg.median ? t3f1(d_v_med) : DeviceTensor3D<float>{};
+        DeviceVector<float> mw_t;
+        if (cfg.mw) {
+            backend::memcpy_sync(d_mw, h_mw.data(), N * sizeof(float),
+                                 MemcpyKind::HostToDevice);
+            mw_t = DeviceVector<float>(ttv(d_mw, {N, 1}));
+        }
 
         // --- rasterization backward ---
         if (cfg.prim == 2) {
@@ -293,8 +322,8 @@ int main(int argc, char** argv) {
                     tile_offsets, flatten_ids, macro_log2,
                     render_Ts, last_ids, renders,
                     dist_fwd_opt, cfg.dt, DeviceTensor3D<float>{}, awmap_t,
-                    cfg.aw, v_renders, t3f1(d_v_T), v_med_t, v_dist_opt,
-                    std::nullopt, std::nullopt, cfg.vmg);
+                    cfg.aw, mw_t, kMwScale, v_renders, t3f1(d_v_T), v_med_t,
+                    v_dist_opt, 0.0f, std::nullopt, std::nullopt, cfg.vmg);
             backend::device_synchronize();
             if (check_error()) return 1;
             for (int c = 0; c < 3; c++)  // v means/quats/scales
@@ -305,13 +334,14 @@ int main(int argc, char** argv) {
                 readback(acc, v_viewmats.data_ptr(), (int64_t)C * 16);
             if (accum_any(cfg.aw))
                 readback(acc, aw_out.data_ptr(), N * accum_lanes(cfg.aw));
+            if (cfg.mw) readback(acc, d_mw, N);
         } else {
             auto [v_w, v_s, aw_out] = rasterize_to_pixels_3dgs_bwd(
                 N, in_splats, splats_s, gauss_ids, W, H, tile_offsets,
                 flatten_ids, macro_log2, render_Ts, last_ids,
                 renders, dist_fwd_opt,
-                cfg.dt, awmap_t, cfg.aw, v_renders, t3f1(d_v_T), v_med_t,
-                v_dist_opt,
+                cfg.dt, awmap_t, cfg.aw, mw_t, kMwScale, cfg.cut, v_renders,
+                t3f1(d_v_T), v_med_t, v_dist_opt, 0.0f,
                 std::nullopt, std::nullopt);
             backend::device_synchronize();
             if (check_error()) return 1;
@@ -320,8 +350,37 @@ int main(int argc, char** argv) {
                              {SCR2_OPAC, 1}, {SCR2_RGB, 3}});
             if (accum_any(cfg.aw))
                 readback(acc, aw_out.data_ptr(), N * accum_lanes(cfg.aw));
+            if (cfg.mw) readback(acc, d_mw, N);
+
+            if (cfg.dt == DistortionType::RGB_D) {
+                std::vector<float> got[2];
+                for (int k = 0; k < 2; k++) {
+                    auto [w2, s2, a2] = rasterize_to_pixels_3dgs_bwd(
+                        N, in_splats, splats_s, gauss_ids, W, H, tile_offsets,
+                        flatten_ids, macro_log2, render_Ts, last_ids,
+                        renders, dist_fwd_opt, cfg.dt, awmap_t, cfg.aw,
+                        DeviceVector<float>{}, 1.0f, cfg.cut,
+                        v_renders, t3f1(d_v_T), v_med_t,
+                        k == 0 ? v_dists_tied : v_dists_derived,
+                        k == 0 ? 0.0f : kDistRatio, std::nullopt, std::nullopt);
+                    backend::device_synchronize();
+                    readback_screen(got[k], s2[0], SCR2_STRIDE,
+                                    {{SCR2_XY, 2}, {SCR2_CONIC, 3},
+                                     {SCR2_OPAC, 1}, {SCR2_RGB, 3}});
+                }
+                double worst = 0.0;
+                for (size_t i = 0; i < got[0].size(); i++)
+                    worst = std::max(worst, std::fabs((double)got[0][i] - got[1][i]) /
+                                                (1e-6 + 1e-4 * std::fabs((double)got[0][i])));
+                if (worst > 1.0) {
+                    std::fprintf(stderr, "derived RGB distortion gradient differs "
+                                 "(%.3g of tolerance)\n", worst);
+                    derived_failures++;
+                }
+            }
         }
     }
+    if (derived_failures) return 1;
 
     if (dumping) {
         std::ofstream f(argv[2], std::ios::binary);

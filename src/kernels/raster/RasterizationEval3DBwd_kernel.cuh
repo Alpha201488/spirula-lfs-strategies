@@ -96,11 +96,18 @@ __global__ void rasterize_to_pixels_bwd_kernel(
     const float *__restrict__ v_render_Ts, // [..., image_height, image_width, 1]
     const float *__restrict__ v_median, // [..., image_height, image_width, 1], optional
     RenderOutput::Buffer v_distortions_output_buffer,
+    // With no RGB distortion gradient buffer, that gradient is this multiple of
+    // the depth channel's (the loss gives both the same mask and normalizer).
+    const float v_dist_rgb_per_depth,
     // grad inputs
     typename SplatPrimitive::WorldBuffer v_splat_wbuffer,
     typename SplatPrimitive::ScreenBuffer v_splat_sbuffer,
     float *__restrict__ o_accum_weight,
-    float *__restrict__ o_accum_weight_den  // Avg lane 2, else null
+    float *__restrict__ o_accum_weight_den,  // Avg lane 2, else null
+    // Peak alpha * T per splat, atomic-maxed times max_weight_scale; null = off.
+    float *__restrict__ o_max_weight,
+    const float max_weight_scale,
+    const float kernel_cut  // Primitive3DGS::kernel_vis; the 2D path only
 #if IS_EVAL3D
     ,
     float *__restrict__ v_viewmats // [B, C, 4, 4]
@@ -220,7 +227,8 @@ __global__ void rasterize_to_pixels_bwd_kernel(
              : RenderOutput::zero());
         if constexpr (RenderOutput::has_depth(SplatPrimitive::pixelType)) {
             float inv_alpha = 1.0f / fmaxf(1.0f - render_Ts_local, 1e-10f);  // 1/W
-            float exp_depth = (inside ? render_output_buffer.depths[pix_id_image_global] : 0.0f);
+            float exp_depth = (inside && render_output_buffer.depths) ?
+                render_output_buffer.depths[pix_id_image_global] : 0.0f;
             if constexpr (dist_has_depth(dist_type)) {
                 // Log-depth render: depth = exp(m), m = C_logz/W = ln(depth).
                 // dL/dC_logz = v_d * depth / W;  dL/dT = v_d * depth * m / W.
@@ -260,9 +268,18 @@ __global__ void rasterize_to_pixels_bwd_kernel(
                 : RenderOutput::zero());
             float invW = W > 1e-10f ? (1.0f / W) : 0.0f;
             pix2_colors[pix_id_local] = (Dval + C * C) * invW;
-            v_distortion_out[pix_id_local] = (inside ?
-                v_distortions_output_buffer.loadDistortion<dist_type>(pix_id_image_global)
-                : RenderOutput::zero());
+            RenderOutput v_d = RenderOutput::zero();
+            if (inside) {
+                if (dist_has_rgb(dist_type) && v_distortions_output_buffer.rgbs == nullptr) {
+                    constexpr DistortionType no_rgb = dist_has_normal(dist_type) ?
+                        DistortionType::DN : DistortionType::D;
+                    v_d = v_distortions_output_buffer.loadDistortion<no_rgb>(pix_id_image_global);
+                    v_d.rgb = make_float3(v_d.depth * v_dist_rgb_per_depth);
+                } else {
+                    v_d = v_distortions_output_buffer.loadDistortion<dist_type>(pix_id_image_global);
+                }
+            }
+            v_distortion_out[pix_id_local] = v_d;
             dist_W[pix_id_local] = W;
         }
 
@@ -377,6 +394,7 @@ __global__ void rasterize_to_pixels_bwd_kernel(
         typename SplatPrimitive::FragmentBwd v_splat = SplatPrimitive::FragmentBwd::zero(splat);
         [[maybe_unused]] float accum_weight = 0.0f;
         [[maybe_unused]] float accum_weight_den = 0.0f;
+        float max_weight = 0.0f;
         // A survivor overlaps the sub-tile but often clears no pixel's alpha
         // threshold; its gradient is then all zeros and the ~12 atomics that
         // write it are pure cost.
@@ -411,7 +429,7 @@ __global__ void rasterize_to_pixels_bwd_kernel(
             if (alpha <= ALPHA_THRESHOLD || dot(ray_d, ray_d) == 0.0f)
                 continue;
         #else
-            float alpha = splat.evaluate_alpha(px, py);
+            float alpha = splat.evaluate_alpha(px, py, kernel_cut);
             if (alpha <= ALPHA_THRESHOLD)
                 continue;
         #endif
@@ -542,11 +560,13 @@ __global__ void rasterize_to_pixels_bwd_kernel(
                 splat.evaluate_alpha_vjp(ray_o, ray_d, v_alpha, v_splat, v_ray_o_alpha, v_ray_d_alpha);
                 splat.evaluate_color_vjp(ray_o, ray_d, v_color, v_splat, v_ray_o_color, v_ray_d_color);
             #else
-                splat.evaluate_alpha_vjp(px, py, v_alpha, v_splat);
+                splat.evaluate_alpha_vjp(px, py, v_alpha, v_splat, kernel_cut);
                 splat.evaluate_color_vjp(px, py, v_color, v_splat);
             #endif
             }
 
+            if (o_max_weight != nullptr)
+                max_weight = fmaxf(max_weight, alpha * T0);
             if constexpr (output_accum_weight) {
                 const float w = alpha * T0;  // this splat's contribution here
                 if constexpr (accum_mode == DensifyAccumMode::Max) {
@@ -586,6 +606,8 @@ __global__ void rasterize_to_pixels_bwd_kernel(
                                   accum_weight_den);
                 }
             }
+            if (o_max_weight != nullptr && max_weight > 0.0f)
+                atomicMax(o_max_weight + splat_wid, max_weight * max_weight_scale);
         }
     }  // for splat_b (within segment)
 
@@ -696,11 +718,18 @@ void rasterize_to_pixels_bwd_kernel_wrapper(
     const float *__restrict__ v_render_Ts, // [..., image_height, image_width, 1]
     const float *__restrict__ v_median, // [..., image_height, image_width, 1], optional
     RenderOutput::Buffer v_distortions_output_buffer,
+    // With no RGB distortion gradient buffer, that gradient is this multiple of
+    // the depth channel's (the loss gives both the same mask and normalizer).
+    const float v_dist_rgb_per_depth,
     // grad inputs
     typename SplatPrimitive::WorldBuffer v_splat_wbuffer,
     typename SplatPrimitive::ScreenBuffer v_splat_sbuffer,
     float *__restrict__ o_accum_weight,
-    float *__restrict__ o_accum_weight_den  // Avg lane 2, else null
+    float *__restrict__ o_accum_weight_den,  // Avg lane 2, else null
+    // Peak alpha * T per splat, atomic-maxed times max_weight_scale; null = off.
+    float *__restrict__ o_max_weight,
+    const float max_weight_scale,
+    const float kernel_cut  // Primitive3DGS::kernel_vis; the 2D path only
 #if IS_EVAL3D
     ,
     float *__restrict__ v_viewmats // [B, C, 4, 4]
@@ -743,9 +772,13 @@ void rasterize_to_pixels_bwd_kernel_wrapper(
         v_render_output_buffer, v_render_Ts,
         v_median,
         v_distortions_output_buffer,
+        v_dist_rgb_per_depth,
         v_splat_wbuffer, v_splat_sbuffer,
         o_accum_weight,
-        o_accum_weight_den
+        o_accum_weight_den,
+        o_max_weight,
+        max_weight_scale,
+        kernel_cut
     #if IS_EVAL3D
         , v_viewmats
     #endif

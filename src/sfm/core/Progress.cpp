@@ -263,12 +263,13 @@ void model(const Reconstruction& rec, bool force, const PointColor& color) {
     std::string b;
     b.reserve(64 + imgs.size() * 128 + (size_t)(n_pts / stride + 1) * 15);
     put(b, "VKPM", 4);
-    put_u32(b, 3);
+    put_u32(b, 4);
     put_u32(b, (s.gauge_oriented ? 1u : 0u) | (s.gauge_metric ? 2u : 0u));
     put_u32(b, (uint32_t)rec.images.size());
     put_u32(b, (uint32_t)imgs.size());
     put_u64(b, n_pts);
     for (const Image* im : imgs) {
+        put_u32(b, im->id);
         // COLMAP world->camera (R, t) to nerfstudio/OpenGL camera->world:
         // R^T with columns 1 and 2 negated, translation -R^T t. Same
         // conversion ColmapParser does, done here so the reader needs none.

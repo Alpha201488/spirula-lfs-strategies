@@ -107,7 +107,7 @@ inline std::tuple<
 std::tuple<
     DeviceTensor2D<uint2>, DeviceTensor2D<float>, std::vector<DeviceTensorFloatND>
 > projection_3dgs_forward(
-    const int64_t num_splats, const int max_sh_degree,
+    const int64_t num_splats, const ColorBasis color,
     const std::vector<DeviceTensorFloatND> &in_splats,
     TorchTensorView viewmats, TorchTensorView intrins,
     const uint32_t image_width, const uint32_t image_height,
@@ -123,6 +123,7 @@ std::tuple<
     // layout. Plumbed unchanged from EngineForward.cpp.
     const int64_t sh_bounds_stride
 ) {
+    const int max_sh_degree = sh_only_degree(color, "projection_3dgs_forward");
     int sh_degree = Vanilla3DGS<0>::WorldBuffer(in_splats).sh_degree();
     sh_degree = min(sh_degree, max_sh_degree);
     uint32_t C = (uint32_t)std::get<2>(viewmats)[0];
@@ -200,7 +201,7 @@ std::tuple<
 std::tuple<
     DeviceTensor2D<uint2>, DeviceTensor2D<float>, std::vector<DeviceTensorFloatND>
 > projection_mip_forward(
-    const int64_t num_splats, const int max_sh_degree,
+    const int64_t num_splats, const ColorBasis color,
     const std::vector<DeviceTensorFloatND> &in_splats,
     TorchTensorView viewmats, TorchTensorView intrins,
     const uint32_t image_width, const uint32_t image_height,
@@ -216,6 +217,7 @@ std::tuple<
     // layout. Plumbed unchanged from EngineForward.cpp.
     const int64_t sh_bounds_stride
 ) {
+    const int max_sh_degree = sh_only_degree(color, "projection_mip_forward");
     int sh_degree = MipSplatting<0>::WorldBuffer(in_splats).sh_degree();
     sh_degree = min(sh_degree, max_sh_degree);
     uint32_t C = (uint32_t)std::get<2>(viewmats)[0];
@@ -245,7 +247,7 @@ std::tuple<
 std::tuple<
     DeviceTensor2D<uint2>, DeviceTensor2D<float>, std::vector<DeviceTensorFloatND>
 > projection_3dgut_forward(
-    const int64_t num_splats, const int max_sh_degree,
+    const int64_t num_splats, const ColorBasis color,
     const std::vector<DeviceTensorFloatND> &in_splats,
     TorchTensorView viewmats, TorchTensorView intrins,
     const uint32_t image_width, const uint32_t image_height,
@@ -261,6 +263,7 @@ std::tuple<
     // layout. Plumbed unchanged from EngineForward.cpp.
     const int64_t sh_bounds_stride
 ) {
+    const int max_sh_degree = sh_only_degree(color, "projection_3dgut_forward");
     int sh_degree = Vanilla3DGUT<0>::WorldBuffer(in_splats).sh_degree();
     sh_degree = min(sh_degree, max_sh_degree);
     uint32_t C = (uint32_t)std::get<2>(viewmats)[0];

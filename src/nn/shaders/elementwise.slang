@@ -8,8 +8,8 @@
 #include "_common.slang"
 
 // Spec ids 0..3.
-[SpecializationConstant] const int kOp        = 0;  // 0 add, 1 mul, 2 sub, 3 max
-[SpecializationConstant] const int kBroadcast = 0;  // 0 elementwise, 1 per-column, 2 scalar
+[SpecializationConstant] const int kOp        = 0;  // 0 add, 1 mul, 2 sub, 3 max, 4 div
+[SpecializationConstant] const int kBroadcast = 0;  // 0 elementwise, 1 per-column, 2 scalar, 3 per-row
 [SpecializationConstant] const int kAct       = 0;
 [SpecializationConstant] const int kInputF16  = 0;
 
@@ -20,7 +20,7 @@ struct BinaryParams {
     uint*  a;
     uint*  b;
     uint   n;          // total elements of `out`
-    uint   cols;       // for kBroadcast == 1
+    uint   cols;       // for kBroadcast == 1 and 3
     float  alpha;      // scales a
     float  beta;       // scales b
     uint   groups_per_row;
@@ -33,13 +33,16 @@ void binary(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
     uint i = fold_index(gid, tid, p.groups_per_row, uint(WG));
     if (i >= p.n) return;
     float av = load_elem(p.a, i, kInputF16 != 0) * p.alpha;
-    uint bi = (kBroadcast == 1) ? (i % p.cols) : ((kBroadcast == 2) ? 0u : i);
+    uint bi = (kBroadcast == 1) ? (i % p.cols)
+            : (kBroadcast == 2) ? 0u
+            : (kBroadcast == 3) ? (i / p.cols) : i;
     float bv = load_elem(p.b, bi, kInputF16 != 0) * p.beta;
     float r;
     switch (kOp) {
         case 1:  r = av * bv; break;
         case 2:  r = av - bv; break;
         case 3:  r = max(av, bv); break;
+        case 4:  r = av / bv; break;
         default: r = av + bv; break;
     }
     p.out[i] = apply_act(r, kAct);

@@ -268,7 +268,8 @@ void _accumulate_edge_scores(const DensifyConfig& cfg) {
     // (LFS: normalize_by_positive_median_inplace then add to edge_score_sum).
     TorchTensorView tv((uint64_t)st.edge_view_score.data_ptr(), 4, {cur, 1LL});
     normalize_clip_map_inplace_tensor(tv, /*normalize_median=*/true,
-                                      /*clip_quantile=*/1.0f, /*power=*/1.0f);
+                                      /*clip_quantile=*/1.0f, /*power=*/1.0f,
+                                      /*fit=*/{});
     strat_ew_add_inplace_tensor(cur, st.edge_score_sum, st.edge_view_score);
     st.edge_view_count++;
 }
@@ -331,7 +332,7 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
     if (cam.num <= 0 || cam.width <= 1 || cam.height <= 1) return;
     const auto& renders = engine().fwd.renders;
     if (std::get<0>(renders).data_ptr() == nullptr ||
-        engine().gt.rgb.data_ptr() == nullptr)
+        std::get<0>(engine().gt.rgb) == 0)
         return;
 
     const int C = cam.num;
@@ -345,7 +346,7 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
 
     const float3* rsrc = (const float3*)std::get<0>(renders).data_ptr()
         + (int64_t)cam_idx * (int64_t)npix;
-    const float3* gsrc = (const float3*)engine().gt.rgb.data_ptr()
+    const float3* gsrc = (const float3*)std::get<0>(engine().gt.rgb)
         + (int64_t)cam_idx * (int64_t)npix;
     backend::memcpy_sync(st.explore_render.data(), rsrc,
                          npix * 3 * sizeof(float),
@@ -633,6 +634,8 @@ int64_t _append_las(const SplatBundle& b, int64_t cur, int64_t n_new,
         b.g2_means, b.g2_quats, b.g2_scales, b.g2_opacs, b.g2_features_dc, b.g2_features_sh,
         engine().optim.accum_buffer, weights,
         b.bias_steps,
+        engine().optim.visit_counters,  // visit counters (upstream-added arg)
+        {},                             // max_weight: not used by LFS paths
         b.quantize_sh ? engine().optim.sh_optim_bits : 32, b.num_sh,
         dv_sh_quant_bounds, sh_bounds_per_splat,
         dv_sh_value_packed, dv_sh_value_bounds,
@@ -706,7 +709,7 @@ int64_t _densify_igs_plus(int step, const DensifyConfig& cfg,
                          backend::MemcpyKind::DeviceToDevice);
     {
         TorchTensorView tv((uint64_t)st.score_scratch.data_ptr(), 4, {cur, 1LL});
-        normalize_clip_map_inplace_tensor(tv, true, 1.0f, 1.0f);
+        normalize_clip_map_inplace_tensor(tv, true, 1.0f, 1.0f, {});
     }
     // edge norm in edge_view_score (scratch)
     if (have_edge) {
@@ -714,7 +717,7 @@ int64_t _densify_igs_plus(int step, const DensifyConfig& cfg,
                              (size_t)cur * sizeof(float),
                              backend::MemcpyKind::DeviceToDevice);
         TorchTensorView tv((uint64_t)st.edge_view_score.data_ptr(), 4, {cur, 1LL});
-        normalize_clip_map_inplace_tensor(tv, true, 1.0f, 1.0f);
+        normalize_clip_map_inplace_tensor(tv, true, 1.0f, 1.0f, {});
     } else {
         backend::memset_sync(st.edge_view_score.data_ptr(), 0,
                              (size_t)cur * sizeof(float));
@@ -1130,7 +1133,8 @@ int64_t _densify_mcmc(int step, const DensifyConfig& cfg,
         dv_sh_value_packed, dv_sh_value_bounds,
         sh_value_bits, sh_value_bounds_per_splat, b.num_sh_buffer,
         non_sh,
-        (uint32_t)(0x2545f491u ^ (uint32_t)step));
+        (uint32_t)(0x2545f491u ^ (uint32_t)step),
+        {});  // draw_weight: not used by LFS paths
 
     int64_t n_target = std::min(cap, (int64_t)(cfg.growth_factor * cur));
     int64_t num_added = std::max<int64_t>(0, n_target - cur);
@@ -1146,7 +1150,8 @@ int64_t _densify_mcmc(int step, const DensifyConfig& cfg,
             dv_sh_value_packed, dv_sh_value_bounds,
             sh_value_bits, sh_value_bounds_per_splat, b.num_sh_buffer,
             non_sh,
-            (uint32_t)(0x2545f491u ^ (uint32_t)step));
+            (uint32_t)(0x2545f491u ^ (uint32_t)step),
+            {});  // draw_weight: not used by LFS paths
     }
 
     // LFS noise cadence (progress-scaled like the stock path)

@@ -1,13 +1,13 @@
 // Fused projection-backward + optimizer (Vulkan backend), mirroring
-// kernels/optim/FusedProjectionBwdOptim_kernel.cuh: one thread per splat,
-// 256 per group -- camera-loop register gradient accumulation, per-splat
-// regularizers, then the in-place Adam update of every attribute.
-//
-// Spec constants 0..4 come from proj_bwd_common.slang; this file adds
-// kEval3d (3DGUT screen-grad layout), kScaleAgnostic, kColorTrust, kLevel
-// (1 = 8-bit qadam SH state + 16-bit value codec,
-// docs/notes/sh-quant-layout.md), kNonShQuant, kVwMask (which
-// v_splats_world tensors exist), and kDistortion, declared last.
+// kernels/optim/FusedProjectionBwdOptim_kernel.cuh: one thread per splat, 256
+// per group -- camera-loop register gradients, per-splat regularizers, then
+// the in-place Adam update of every attribute. kLevel 1 is the 8-bit qadam
+// colour-row state + 16-bit value codec (docs/notes/sh-quant-layout.md).
+// A row's lobes share its SH cells' state and codecs but take their own
+// rate, and the regularizer on their amplitude only (core/ColorBasis.h).
+// Spec IDs: 0..5 from proj_bwd_common.slang, this file's after, kDistortion
+// last.
+
 #define CudaDeviceExport ForceInline
 #include "aabb16.slang"
 #include "int64_compat.slang"
@@ -19,10 +19,13 @@
 #undef CudaDeviceExport
 #include "sh_quant.slang"
 #include "sh_vjp.slang"
+#include "view_color.slang"
+#include "sb_cells.slang"
 #include "atomic_float.slang"
 #include "proj_bwd_common.slang"
 #include "optim_quant.slang"
 #include "screen_size_hinge.slang"
+#include "visit.slang"
 
 [SpecializationConstant]
 const int kEval3d = 0;
@@ -99,6 +102,7 @@ struct FpboParams {
     float* radii;          // (kScaleAgnostic)
     float* densify_score;  // optional output (has_densify_score)
     int* steps;            // per-splat steps (has_steps)
+    uint* visit_counters;  // per-splat render counters (has_visit)
     // learning rates + regularizer weights (already divided by N host-side)
     float lr_means;
     float lr_quats;
@@ -106,6 +110,7 @@ struct FpboParams {
     float lr_opacs;
     float lr_features_dc;
     float lr_features_sh;
+    float lr_features_sb;
     float max_gauss_ratio;
     float scale_regularization_weight;
     float mcmc_opacity_reg_weight;
@@ -127,11 +132,29 @@ struct FpboParams {
     uint32_t height;
     uint32_t wgs_per_row;
     uint32_t num_sh_buffer;
+    uint32_t has_visit;
+    uint32_t skip_unrendered_reg;
+    uint32_t sb_base; // float3 coefficient of the first lobe in a row
     uint32_t _pad0;
 };
 
 [ForceInline]
 float _fp_sigmoid(float x) { return 1.0f / (1.0f + exp(-x)); }
+
+// One cell of the FPBO writeback: the even cell of a word waits, the odd one
+// stores both halves (docs/notes/sh-quant-layout.md).
+[ForceInline]
+void _fp_emit_cell(uint c, uint st, uint vv, uint* wp_s, uint* wp_v,
+                   inout uint pend_s, inout uint pend_v, inout uint w) {
+    if ((c & 1u) == 0u) {
+        pend_s = st;
+        pend_v = vv;
+    } else {
+        wp_s[w] = pend_s | (st << 16);
+        wp_v[w] = pend_v | (vv << 16);
+        w += 256u;
+    }
+}
 
 // Non-SH attribute Adam-state IO + clamped sqrt helpers live in
 // optim_quant.slang (oq_state_read / oq_accum_us / oq_state_encode /
@@ -143,8 +166,14 @@ float _fp_sigmoid(float x) { return 1.0f / (1.0f + exp(-x)); }
 void _fpbo_camera_loop<let cam : CameraModelType, D : ICameraDistortion>(
     FpboParams p, PbSplat s, uint gid, int cid_0, int cid_1, gindex_t qbase,
     gindex_t vstride, gindex_t vpitch, inout PbGrads g) {
-    const gindex_t sh_row = (gindex_t)(3u * p.num_sh_buffer) * (gindex_t)gid;
-    float* sh_fp32 = elem_at(p.features_sh, sh_row);
+    ColorRow row;
+    row.fp32 = elem_at(p.features_sh,
+                       (gindex_t)(3u * p.num_sh_buffer) * (gindex_t)gid);
+    row.packed = p.sh_value_packed;
+    row.bounds = p.sh_value_bounds;
+    row.base = qbase;
+    row.bounds_stride = vstride;
+    row.pair_pitch = vpitch;
     for (int cid_t = cid_0; cid_t < cid_1; ++cid_t) {
         // Packed: the forward emits (gaussian, camera) order, so cid_t is
         // the out_idx that indexes aabb / camera_ids / vs_screen.
@@ -160,9 +189,7 @@ void _fpbo_camera_loop<let cam : CameraModelType, D : ICameraDistortion>(
             float v_so = scrg_opac(v_row);
             float3 v_rgb = scrg_rgb(v_row);
             pb_vjp_3dgut<cam, D>(s, c, p.width, p.height, v_ss, v_so, g);
-            pb_sh_vjp<D>(s, c, sh_fp32,
-                         p.sh_value_packed, p.sh_value_bounds, qbase,
-                         vstride, vpitch, v_rgb, g);
+            pb_color_vjp<D>(s, c, row, int(p.sb_base), v_rgb, g);
         } else {
             float* v_row = scr2_row(p.vs_screen, idx);
             float2 v_xy = scr2_xy(v_row);
@@ -172,9 +199,7 @@ void _fpbo_camera_loop<let cam : CameraModelType, D : ICameraDistortion>(
             float3 v_rgb = scr2_rgb(v_row);
             pb_vjp_2d<cam, D>(s, c, p.width, p.height, v_xy, v_depth, v_conic,
                               v_opac, g);
-            pb_sh_vjp<D>(s, c, sh_fp32,
-                         p.sh_value_packed, p.sh_value_bounds, qbase,
-                         vstride, vpitch, v_rgb, g);
+            pb_color_vjp<D>(s, c, row, int(p.sb_base), v_rgb, g);
         }
     }
 }
@@ -205,6 +230,7 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
     // see that and warns 160 times across this file's variants.
     PbSplat s = {};
     PbGrads g = pb_grads_zero();
+    bool regularize = true;
     if (inside) {
         s = pb_load_splat(p.means, p.quats, p.scales, p.opacities,
                           p.features_dc, gid);
@@ -237,6 +263,11 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
         gindex_t vpitch = sha.pair_pitch;
         SS_DISPATCH_CAM_DIST(_fpbo_call)
 
+        bool rendered = g.v_opacity != 0.0f;
+        if (p.has_visit != 0)
+            p.visit_counters[gid] = visit_step(p.visit_counters[gid], rendered);
+        regularize = !(p.skip_unrendered_reg != 0 && !rendered);
+
         // per-splat regularizers -> gradient
         float v_losses[5] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
         float3 v_scale_t;
@@ -249,9 +280,11 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
                              p.scale_regularization_weight,
                              p.erank_reg_weight, p.erank_reg_weight_s3,
                              p.quat_norm_reg_weight);
-        g.v_scale += v_scale_t;
-        g.v_quat += v_quat_t;
-        g.v_opacity += v_opac_t;
+        if (regularize) {
+            g.v_scale += v_scale_t;
+            g.v_quat += v_quat_t;
+            g.v_opacity += v_opac_t;
+        }
         g.v_dc += p.dc_reg_weight * max(s.dc - float3(0.5f / kSh0), float3(0.0f)) +
             (p.dc_reg_weight + p.sh_reg_weight) * min(s.dc + float3(0.5f / kSh0), float3(0.0f));
     }
@@ -283,7 +316,7 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
         oq_state_read<3>(kNonShQuant != 0, p.nq_scales_packed,
                           p.nq_scales_bounds, p.g1_scales, p.g2_scales,
                           block_id, gid, g1, g2);
-        g.v_scale += screen_size_hinge_grad(
+        if (regularize) g.v_scale += screen_size_hinge_grad(
             p.radii[gid], p.max_screen_size, p.max_screen_size_penalty,
             s.scale,
             oq_sqrt3(float3(g2[0], g2[1], g2[2]) * ibc2) + float3(kFpboEps));
@@ -522,11 +555,12 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
         }
     }
 
-    // ---- update features_sh ----
+    // ---- update features_sh: SH bands, then lobes ----
     const int num_sh = kShDegree * (kShDegree + 2);
+    const int sb_cells = 6 * kSbLobes;
     float lr_sh = p.lr_features_sh * ibc1;
-    const float reg_weight =
-        p.sh_reg_weight * (1.0f / max(float(num_sh), 1.0f));
+    float lr_sb = p.lr_features_sb * ibc1;
+    const float reg_weight = p.sh_reg_weight;  // per coefficient, as fused_adam_step
 
     // Per-channel DC color + clip radius for the trust-region SH update.
     float3 c_dc = float3(0.0f);
@@ -578,17 +612,31 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
             sh_g1[i] = g1;
             sh_g2[i] = g2;
         }
+        const int sb_c0 = 3 * int(p.sb_base);
+        // A lobe's six cells unrolled: 2-5% faster than one flat loop.
+        for (int l = 0; l < kSbLobes; ++l) {
+            [ForceUnroll]
+            for (int i = 0; i < 6; i++) {
+                const int k = 6 * l + i;
+                const float x = sh_v[sb_c0 + k];
+                const float v = g.v_sb[k / 3][k % 3];
+                float g1 =
+                    kFpboBeta1 * sh_g1[sb_c0 + k] + (1.0f - kFpboBeta1) * v;
+                float g2 = kFpboBeta2 * sh_g2[sb_c0 + k] +
+                           (1.0f - kFpboBeta2) * v * v;
+                sh_v[sb_c0 + k] =
+                    x - lr_sb * g1 / (sqrt(max(g2 * ibc2, 0.0f)) + kFpboEps);
+                sh_g1[sb_c0 + k] = g1;
+                sh_g2[sb_c0 + k] = g2;
+            }
+        }
         return;
     }
 
-    // kLevel == 1: 8-bit joint (u, sqrt_g2) Adam state + 16-bit value codec,
-    // FPBO per-splat-block layouts (one bound per 256 splats).
-    // No active SH bands -> nothing to update, and the inactive cells need
-    // no zero-encode either: the buffers' zero-init state already decodes
-    // to 0 (codec fixed point). Mirrors the CUDA kernel, whose whole SH
-    // block is `else if constexpr (num_sh > 0)`. Spec-folded and uniform,
-    // so skipping past the staging barriers is safe.
-    if (num_sh == 0)
+    // kLevel == 1. With nothing active the inactive cells keep their zero
+    // init, which decodes to 0 (codec fixed point); the early-out is
+    // spec-folded and uniform, so skipping the staging barriers is safe.
+    if (num_sh == 0 && sb_cells == 0)
         return;
     {
         ShAddrW shq = sh_quant_addr_w(p.num_sh_buffer, 0);
@@ -604,9 +652,13 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
         // Held until after the bounds reduce the encode ranges come from,
         // as the codec's (u, log_s) primitives rather than (g1, g2) so
         // reduce and encode share one qadam_g1g2_to_us per cell.
-        float3 sh_updated_vals[24] = {};
-        float3 u_sh_vals[24] = {};
-        float3 s_sh_vals[24] = {};
+        float3 sh_updated_vals[kVcMaxShCoeffs] = {};
+        float3 u_sh_vals[kVcMaxShCoeffs] = {};
+        float3 s_sh_vals[kVcMaxShCoeffs] = {};
+        float3 sb_updated_vals[kVcMaxSbCoeffs] = {};
+        float3 u_sb_vals[kVcMaxSbCoeffs] = {};
+        float3 s_sb_vals[kVcMaxSbCoeffs] = {};
+        const int sb_c0 = 3 * int(p.sb_base);
 
         if (inside) {
             for (int j = 0; j < num_sh; ++j) {
@@ -670,10 +722,37 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
                     mm.w = max(mm.w, us.y);
                 }
             }
+            for (int l = 0; l < kSbLobes; ++l) {
+                [ForceUnroll]
+                for (int i = 0; i < 6; i++) {
+                    const int k = 6 * l + i;
+                    gindex_t cell =
+                        sh_cell_at_w(sh_base, sb_c0 + k, shq.pair_pitch);
+                    float2 ab =
+                        qadam_decode_g1g2<8>(p.sh_packed, cell, quant_bounds);
+                    const float x = qtensor_decode_v<16>(
+                        p.sh_value_packed, cell, sh_value_old_mm);
+                    const float v = g.v_sb[k / 3][k % 3];
+                    float g1 = kFpboBeta1 * ab.x + (1.0f - kFpboBeta1) * v;
+                    float g2 = kFpboBeta2 * ab.y + (1.0f - kFpboBeta2) * v * v;
+                    const float x_new = x - lr_sb * g1 /
+                        (sqrt(max(g2 * ibc2, 0.0f)) + kFpboEps);
+                    float2 us = qadam_g1g2_to_us(g1, g2);
+                    u_sb_vals[k / 3][k % 3] = us.x;
+                    s_sb_vals[k / 3][k % 3] = us.y;
+                    mm.x = min(mm.x, us.x);
+                    mm.y = max(mm.y, us.x);
+                    mm.z = min(mm.z, us.y);
+                    mm.w = max(mm.w, us.y);
+                    sb_updated_vals[k / 3][k % 3] = x_new;
+                    sh_value_new_mm.x = min(sh_value_new_mm.x, x_new);
+                    sh_value_new_mm.y = max(sh_value_new_mm.y, x_new);
+                }
+            }
             // SH-degree warmup: inactive cells zero-encode after the reduce;
             // expand this thread's bound so 0 is inside both value and
             // (u, log_s) ranges.
-            if (p.num_sh_buffer > uint(num_sh)) {
+            if (p.sb_base > uint(num_sh)) {
                 sh_value_new_mm.x = min(sh_value_new_mm.x, 0.0f);
                 sh_value_new_mm.y = max(sh_value_new_mm.y, 0.0f);
                 mm.x = min(mm.x, 0.0f);
@@ -708,33 +787,30 @@ void fpbo(uint3 wg: SV_GroupID, uint tid: SV_GroupThreadID,
                 for (int ch = 0; ch < 3; ++ch) {
                     uint2 q = qadam_quantize_us<8>(u_sh_vals[j][ch],
                                                    s_sh_vals[j][ch], mm);
-                    uint st = q.x | (q.y << 8);
                     uint vv = qtensor_quantize_v<16>(sh_updated_vals[j][ch],
                                                      sh_value_new_mm);
-                    if (((3 * j + ch) & 1) == 0) {
-                        pend_s = st;
-                        pend_v = vv;
-                    } else {
-                        wp_s[w] = pend_s | (st << 16);
-                        wp_v[w] = pend_v | (vv << 16);
-                        w += 256u;
-                    }
+                    _fp_emit_cell(uint(3 * j + ch), q.x | (q.y << 8), vv,
+                                  wp_s, wp_v, pend_s, pend_v, w);
                 }
             }
-            // Inactive warmup bands, and the pad cell an odd cell count
-            // leaves in the last word: both take the zero encode, which the
+            // Inactive warmup bands take the zero encode, which the
             // 0-inclusive fresh bounds make exact.
-            const uint R = 3u * p.num_sh_buffer;
-            for (uint c = uint(3 * num_sh); c < R + (R & 1u); ++c) {
-                if ((c & 1u) == 0u) {
-                    pend_s = warm_st;
-                    pend_v = warm_vv;
-                } else {
-                    wp_s[w] = pend_s | (warm_st << 16);
-                    wp_v[w] = pend_v | (warm_vv << 16);
-                    w += 256u;
-                }
+            for (uint c = uint(3 * num_sh); c < uint(sb_c0); ++c)
+                _fp_emit_cell(c, warm_st, warm_vv, wp_s, wp_v, pend_s,
+                              pend_v, w);
+            for (int k = 0; k < sb_cells; ++k) {
+                uint2 q = qadam_quantize_us<8>(u_sb_vals[k / 3][k % 3],
+                                               s_sb_vals[k / 3][k % 3], mm);
+                uint vv = qtensor_quantize_v<16>(sb_updated_vals[k / 3][k % 3],
+                                                 sh_value_new_mm);
+                _fp_emit_cell(uint(sb_c0 + k), q.x | (q.y << 8), vv, wp_s,
+                              wp_v, pend_s, pend_v, w);
             }
+            // The pad cell an odd cell count leaves in the last word.
+            const uint R = 3u * p.num_sh_buffer;
+            if ((R & 1u) != 0u)
+                _fp_emit_cell(R, warm_st, warm_vv, wp_s, wp_v, pend_s, pend_v,
+                              w);
         }
     }
 }

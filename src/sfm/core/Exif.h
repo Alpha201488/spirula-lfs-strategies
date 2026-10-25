@@ -23,6 +23,7 @@
 // exactly as before.
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -41,6 +42,7 @@ struct ExifData {
     double focal_plane_x_res = 0;   // Exif:FocalPlaneXResolution
     int focal_plane_unit = 0;       // Exif:FocalPlaneResolutionUnit (2=in, 3=cm, 4=mm, 5=um)
     int pixel_width = 0, pixel_height = 0;  // Exif:PixelXDimension/PixelYDimension
+    int orientation = 1;        // Exif:Orientation, 1..8 (1 = stored as shown)
 
     double exposure_time = 0;   // Exif:ExposureTime, seconds
     double f_number = 0;        // Exif:FNumber
@@ -53,6 +55,7 @@ struct ExifData {
     // GPS, from the separate IFD tag 0x8825 points at. Degrees, signed by the
     // hemisphere ref; altitude negated when GPSAltitudeRef says below sea level.
     bool has_gps = false;
+    bool gps_zero = false;      // a GPS block at 0, 0: written with no fix, so not has_gps
     bool has_alt = false;
     double lat_deg = 0, lon_deg = 0, alt_m = 0;
 
@@ -61,6 +64,14 @@ struct ExifData {
 
 namespace detail {
 
+inline bool seekTo(FILE* f, uint64_t off) {
+#if defined(_WIN32)
+    return _fseeki64(f, (long long)off, SEEK_SET) == 0;
+#else
+    return fseeko(f, (off_t)off, SEEK_SET) == 0;
+#endif
+}
+
 // Bounds-checked little/big-endian reader over the TIFF block. Every accessor
 // returns 0 out of range, so a truncated or hostile file yields empty fields
 // instead of a read past the buffer.
@@ -68,15 +79,35 @@ struct TiffReader {
     const uint8_t* p = nullptr;
     size_t n = 0;
     bool le = true;
+    // Set instead of `p` for a TIFF file, which is read where it is asked for:
+    // its directories often follow megabytes of pixels.
+    FILE* f = nullptr;
+    mutable std::vector<uint8_t> window;
+    mutable size_t window_at = 0;
 
+    const uint8_t* at(size_t o, size_t len) const {
+        if (o > n || len > n - o) return nullptr;
+        if (!f) return p + o;
+        if (o < window_at || o + len > window_at + window.size()) {
+            window.resize(std::max<size_t>(len, std::min<size_t>(4096, n - o)));
+            window_at = o;
+            if (!seekTo(f, o) || std::fread(window.data(), 1, window.size(), f) != window.size()) {
+                window.clear();
+                return nullptr;
+            }
+        }
+        return window.data() + (o - window_at);
+    }
     uint16_t u16(size_t o) const {
-        if (o + 2 > n) return 0;
-        return le ? (uint16_t)(p[o] | (p[o + 1] << 8)) : (uint16_t)((p[o] << 8) | p[o + 1]);
+        const uint8_t* q = at(o, 2);
+        if (!q) return 0;
+        return le ? (uint16_t)(q[0] | (q[1] << 8)) : (uint16_t)((q[0] << 8) | q[1]);
     }
     uint32_t u32(size_t o) const {
-        if (o + 4 > n) return 0;
-        return le ? (uint32_t)(p[o] | (p[o + 1] << 8) | (p[o + 2] << 16) | ((uint32_t)p[o + 3] << 24))
-                  : (uint32_t)(((uint32_t)p[o] << 24) | (p[o + 1] << 16) | (p[o + 2] << 8) | p[o + 3]);
+        const uint8_t* q = at(o, 4);
+        if (!q) return 0;
+        return le ? (uint32_t)(q[0] | (q[1] << 8) | (q[2] << 16) | ((uint32_t)q[3] << 24))
+                  : (uint32_t)(((uint32_t)q[0] << 24) | (q[1] << 16) | (q[2] << 8) | q[3]);
     }
 };
 
@@ -100,7 +131,11 @@ inline bool tiffValue(const TiffReader& r, size_t entry, double& out) {
     if (esz == 0) return false;
     size_t vo = (esz * count <= 4) ? entry + 8 : r.u32(entry + 8);
     switch (type) {
-        case 1: case 7: out = vo < r.n ? r.p[vo] : 0; return vo < r.n;
+        case 1: case 7: {
+            const uint8_t* q = r.at(vo, 1);
+            out = q ? *q : 0;
+            return q != nullptr;
+        }
         case 3: out = r.u16(vo); return true;
         case 4: out = r.u32(vo); return true;
         case 9: out = (int32_t)r.u32(vo); return true;
@@ -138,9 +173,11 @@ inline std::string tiffString(const TiffReader& r, size_t entry) {
     if (count == 0) return {};
     size_t vo = (count <= 4) ? entry + 8 : r.u32(entry + 8);
     if (vo >= r.n) return {};
-    size_t len = std::min((size_t)count, r.n - vo);
-    while (len > 0 && r.p[vo + len - 1] == '\0') len--;
-    std::string s((const char*)r.p + vo, len);
+    size_t len = std::min({(size_t)count, r.n - vo, (size_t)4096});
+    const uint8_t* q = r.at(vo, len);
+    if (!q) return {};
+    while (len > 0 && q[len - 1] == '\0') len--;
+    std::string s((const char*)q, len);
     // Trailing spaces are common ("NIKON CORPORATION   ").
     while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
     return s;
@@ -169,6 +206,11 @@ inline void parseGpsIfd(const TiffReader& r, size_t off, ExifData& out) {
         }
     }
     if (!has_lat || !has_lon || !lat_ref || !lon_ref) return;
+    // Zeros are what a camera writes with no fix, not a position.
+    if (lat[0] == 0 && lat[1] == 0 && lat[2] == 0 && lon[0] == 0 && lon[1] == 0 && lon[2] == 0) {
+        out.gps_zero = true;
+        return;
+    }
     out.lat_deg = lat[0] + lat[1] / 60.0 + lat[2] / 3600.0;
     out.lon_deg = lon[0] + lon[1] / 60.0 + lon[2] / 3600.0;
     if (lat_ref == 'S' || lat_ref == 's') out.lat_deg = -out.lat_deg;
@@ -189,6 +231,9 @@ inline void parseIfd(const TiffReader& r, size_t off, ExifData& out, int depth) 
         uint16_t tag = r.u16(e);
         double v = 0;
         switch (tag) {
+            case 0x0112:
+                if (tiffValue(r, e, v) && v >= 1 && v <= 8) out.orientation = (int)v;
+                break;
             case 0x010F: out.make = tiffString(r, e); break;
             case 0x0110: out.model = tiffString(r, e); break;
             case 0x8769:  // Exif sub-IFD, where the lens tags live
@@ -236,37 +281,256 @@ inline ExifData parseExifTiff(const uint8_t* data, size_t size) {
     return out;
 }
 
-// Read EXIF from an image file. Only JPEG carries it in the layouts we handle
-// (PNG/TIFF captures in our datasets do not have lens metadata); anything else
-// returns an invalid ExifData, which every caller treats as "no prior".
-inline ExifData readExif(const std::string& path) {
-    ExifData out;
+namespace detail {
+
+// The first APP1 segment whose payload starts with `sig`, `sig` included. The
+// marker chain is SEEKED -- a dataset parse asks every image for its
+// Orientation, and a fixed prefix would read megabytes per image.
+inline std::vector<uint8_t> readApp1Segment(const std::string& path, const char* sig,
+                                            size_t sig_len) {
+    std::vector<uint8_t> seg_buf;
     FILE* f = fopen(path.c_str(), "rb");
-    if (!f) return out;
-    // The APP1 segment is at the very front of a JPEG, but some writers put
-    // APP0/JFIF and thumbnails first; 512 KB covers every real file and still
-    // costs one read.
-    std::vector<uint8_t> buf(512 * 1024);
-    size_t n = fread(buf.data(), 1, buf.size(), f);
-    fclose(f);
-    if (n < 4) return out;
-    if (buf[0] != 0xFF || buf[1] != 0xD8) return out;  // not a JPEG
-    size_t o = 2;
-    while (o + 4 <= n) {
-        if (buf[o] != 0xFF) break;
-        uint8_t marker = buf[o + 1];
+    if (!f) return seg_buf;
+    auto at = [f](long off, void* dst, size_t n) {
+        return std::fseek(f, off, SEEK_SET) == 0 && std::fread(dst, 1, n, f) == n;
+    };
+    uint8_t hdr[2];
+    long o = 2;
+    if (!at(0, hdr, 2) || hdr[0] != 0xFF || hdr[1] != 0xD8) { fclose(f); return seg_buf; }
+    while (at(o, hdr, 2)) {
+        if (hdr[0] != 0xFF) break;
+        const uint8_t marker = hdr[1];
+        // 0xFF is also the fill byte writers pad with before a marker.
+        if (marker == 0xFF) { o += 1; continue; }
         if (marker == 0xD8 || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {
             o += 2;
             continue;
         }
         if (marker == 0xDA || marker == 0xD9) break;  // scan data / end: no more metadata
-        size_t seg = (size_t)(buf[o + 2] << 8 | buf[o + 3]);
-        if (seg < 2 || o + 2 + seg > n) break;
-        if (marker == 0xE1 && seg >= 8 && std::memcmp(&buf[o + 4], "Exif\0\0", 6) == 0)
-            return parseExifTiff(&buf[o + 10], seg - 8);
-        o += 2 + seg;
+        if (!at(o + 2, hdr, 2)) break;
+        const size_t seg = (size_t)(hdr[0] << 8 | hdr[1]);
+        if (seg < 2) break;
+        // APP1 carries both Exif and XMP, so a segment of the other kind keeps
+        // the walk going rather than ending it.
+        if (marker == 0xE1 && seg >= 2 + sig_len) {
+            seg_buf.resize(sig_len);
+            if (!at(o + 4, seg_buf.data(), sig_len)) break;
+            if (std::memcmp(seg_buf.data(), sig, sig_len) == 0) {
+                seg_buf.resize(seg - 2);
+                const bool whole = at(o + 4, seg_buf.data(), seg_buf.size());
+                fclose(f);
+                if (!whole) seg_buf.clear();
+                return seg_buf;
+            }
+            seg_buf.clear();
+        }
+        o += 2 + (long)seg;
     }
+    fclose(f);
+    seg_buf.clear();
+    return seg_buf;
+}
+
+}  // namespace detail
+
+// A JPEG's APP1 Exif segment, "Exif\0\0" and the TIFF block after it; empty
+// when there is none.
+inline std::vector<uint8_t> readExifSegment(const std::string& path) {
+    return detail::readApp1Segment(path, "Exif\0\0", 6);
+}
+
+// A JPEG's XMP packet, the text after the namespace header; empty when there
+// is none.
+inline std::string readXmpPacket(const std::string& path) {
+    static const char kSig[] = "http://ns.adobe.com/xap/1.0/";   // the NUL is part of it
+    const std::vector<uint8_t> seg = detail::readApp1Segment(path, kSig, sizeof kSig);
+    if (seg.size() <= sizeof kSig) return {};
+    return std::string((const char*)seg.data() + sizeof kSig, seg.size() - sizeof kSig);
+}
+
+// A TIFF file's first directory is its EXIF block. Orientation is dropped: no
+// reader turns a TIFF's pixels, so all of them take the stored ones, as for a PNG.
+inline ExifData readTiffFileExif(const std::string& path) {
+    ExifData out;
+    FILE* f = fopen(path.c_str(), "rb");
+    if (!f) return out;
+    uint8_t h[8];
+    const bool tiff = std::fread(h, 1, 8, f) == 8 &&
+                      ((h[0] == 'I' && h[1] == 'I' && h[2] == 42 && h[3] == 0) ||
+                       (h[0] == 'M' && h[1] == 'M' && h[2] == 0 && h[3] == 42));
+    long long size = -1;
+#if defined(_WIN32)
+    if (tiff && _fseeki64(f, 0, SEEK_END) == 0) size = _ftelli64(f);
+#else
+    if (tiff && fseeko(f, 0, SEEK_END) == 0) size = (long long)ftello(f);
+#endif
+    if (size > 8) {
+        detail::TiffReader r;
+        r.f = f;
+        r.n = (size_t)size;
+        r.le = h[0] == 'I';
+        const uint32_t ifd0 = r.u32(4);
+        if (ifd0 >= 8 && ifd0 < r.n) {
+            detail::parseIfd(r, ifd0, out, 0);
+            out.orientation = 1;
+            out.valid = true;
+        }
+    }
+    fclose(f);
     return out;
+}
+
+// Read EXIF from an image file. Anything without one comes back invalid, which
+// every caller treats as "no prior".
+inline ExifData readExif(const std::string& path) {
+    const std::vector<uint8_t> seg = readExifSegment(path);
+    if (seg.size() <= 6) return readTiffFileExif(path);
+    return parseExifTiff(seg.data() + 6, seg.size() - 6);
+}
+
+// Is `name`, a '/'-separated path under the image directory, under one of
+// `prefixes`? "" covers every image. What SfmConfig::exif_gps_off and
+// exif_attitude_off are matched with.
+inline bool exifPrefixCovers(const std::vector<std::string>& prefixes, const std::string& name) {
+    for (const std::string& p : prefixes)
+        if (p.empty() || (name.size() > p.size() && name.compare(0, p.size(), p) == 0 &&
+                          name[p.size()] == '/'))
+            return true;
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// Orientation
+// ---------------------------------------------------------------------------
+
+// What an Orientation tag asks for, as the transform from the STORED pixels to
+// the displayed image: turn clockwise first, then mirror horizontally.
+struct ExifTransform {
+    int  turns_cw = 0;      // 0..3 quarter turns
+    bool mirror = false;    // horizontal mirror, applied after the turns
+    bool identity() const { return turns_cw == 0 && !mirror; }
+};
+
+inline ExifTransform exifTransform(int orientation) {
+    switch (orientation) {
+        case 2:  return {0, true};
+        case 3:  return {2, false};
+        case 4:  return {2, true};
+        case 5:  return {1, true};
+        case 6:  return {1, false};
+        case 7:  return {3, true};
+        case 8:  return {3, false};
+        default: return {0, false};
+    }
+}
+
+// Up, in the camera frame of the STORED image (x right, y down, z forward).
+// A mirror leaves it where it is, which is what lets an orientation carrying
+// one still fix a reconstruction's gauge without touching any pixels.
+inline void exifUpInCamera(int orientation, double up[3]) {
+    static const double kX[4] = {0, -1, 0, 1};
+    static const double kY[4] = {-1, 0, 1, 0};
+    const int t = exifTransform(orientation).turns_cw;
+    up[0] = kX[t];
+    up[1] = kY[t];
+    up[2] = 0;
+}
+
+// The Orientation tag alone; 1 for a file that carries none.
+inline int exifOrientation(const std::string& path) {
+    return readExif(path).orientation;
+}
+
+// Rewrite an EXIF block to describe pixels that already carry the turn, and
+// unlink the thumbnail, which is still the old way up. Every tag written is a
+// SHORT or LONG inside its own IFD entry, so no offset in the block moves.
+inline void exifFlattenOrientation(uint8_t* tiff, size_t size, int w, int h) {
+    if (size < 8) return;
+    detail::TiffReader r;
+    r.p = tiff;
+    r.n = size;
+    if (tiff[0] == 'I' && tiff[1] == 'I') r.le = true;
+    else if (tiff[0] == 'M' && tiff[1] == 'M') r.le = false;
+    else return;
+    if (r.u16(2) != 42) return;
+    const uint32_t ifd0 = r.u32(4);
+    if (ifd0 == 0 || (size_t)ifd0 + 2 > size) return;
+
+    auto put = [&](size_t entry, uint32_t value) {
+        const uint16_t type = r.u16(entry + 2);
+        if (r.u32(entry + 4) != 1 || entry + 12 > size) return;
+        uint8_t* v = tiff + entry + 8;
+        if (type == 3) {              // SHORT: the low half of the value field
+            for (int i = 0; i < 2; i++) v[r.le ? i : 1 - i] = (uint8_t)(value >> (8 * i));
+        } else if (type == 4) {       // LONG
+            for (int i = 0; i < 4; i++) v[r.le ? i : 3 - i] = (uint8_t)(value >> (8 * i));
+        }
+    };
+    auto entries = [&](size_t off) {
+        uint16_t n = r.u16(off);
+        if ((size_t)n * 12 + off + 2 > size) n = (uint16_t)((size - off - 2) / 12);
+        return n;
+    };
+
+    const uint16_t n0 = entries(ifd0);
+    size_t exif_ifd = 0;
+    for (uint16_t i = 0; i < n0; i++) {
+        const size_t e = ifd0 + 2 + (size_t)i * 12;
+        const uint16_t tag = r.u16(e);
+        if (tag == 0x0112) put(e, 1);
+        else if (tag == 0x8769) exif_ifd = r.u32(e + 8);
+    }
+    if (exif_ifd > 0 && exif_ifd + 2 <= size) {
+        const uint16_t n1 = entries(exif_ifd);
+        for (uint16_t i = 0; i < n1; i++) {
+            const size_t e = exif_ifd + 2 + (size_t)i * 12;
+            const uint16_t tag = r.u16(e);
+            if (tag == 0xA002) put(e, (uint32_t)w);
+            else if (tag == 0xA003) put(e, (uint32_t)h);
+        }
+    }
+    const size_t next = ifd0 + 2 + (size_t)n0 * 12;
+    if (next + 4 <= size) for (int i = 0; i < 4; i++) tiff[next + i] = 0;
+}
+
+// Zero FocalLength and FocalLengthIn35mmFilm -- both read as "unknown" -- for
+// pixels they no longer describe: a 360 camera states the pinhole equivalent
+// of its whole frame, and exifFocalPx would make that a KNOWN fisheye focal.
+inline void exifClearFocal(uint8_t* tiff, size_t size) {
+    if (size < 8) return;
+    detail::TiffReader r;
+    r.p = tiff;
+    r.n = size;
+    if (tiff[0] == 'I' && tiff[1] == 'I') r.le = true;
+    else if (tiff[0] == 'M' && tiff[1] == 'M') r.le = false;
+    else return;
+    if (r.u16(2) != 42) return;
+    auto entries = [&](size_t off) {
+        uint16_t n = r.u16(off);
+        if ((size_t)n * 12 + off + 2 > size) n = (uint16_t)((size - off - 2) / 12);
+        return n;
+    };
+    const uint32_t ifd0 = r.u32(4);
+    if (ifd0 == 0 || (size_t)ifd0 + 2 > size) return;
+    size_t exif_ifd = 0;
+    for (uint16_t i = 0, n = entries(ifd0); i < n; i++) {
+        const size_t e = ifd0 + 2 + (size_t)i * 12;
+        if (r.u16(e) == 0x8769) exif_ifd = r.u32(e + 8);
+    }
+    if (exif_ifd == 0 || exif_ifd + 2 > size) return;
+    for (uint16_t i = 0, n = entries(exif_ifd); i < n; i++) {
+        const size_t e = exif_ifd + 2 + (size_t)i * 12;
+        const uint16_t tag = r.u16(e), type = r.u16(e + 2);
+        size_t at = 0, len = 0;
+        if (tag == 0xA405 && (type == 3 || type == 4)) {
+            at = e + 8;
+            len = type == 3 ? 2 : 4;
+        } else if (tag == 0x920A && type == 5) {
+            at = r.u32(e + 8);   // the numerator; the denominator stays nonzero
+            len = 4;
+        }
+        if (len > 0 && at + len <= size) std::memset(tiff + at, 0, len);
+    }
 }
 
 // The focal length in pixels of the *stored* image, or 0 if EXIF cannot say.

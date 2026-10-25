@@ -25,7 +25,7 @@ namespace gui {
 
 class NativeDialog {
 public:
-    enum class Mode { Folder, File };
+    enum class Mode { Folder, File, Save, FileOrFolder };
 
     ~NativeDialog();
 
@@ -34,10 +34,11 @@ public:
 
     // Starts the picker. False when it could not be launched, which is the
     // caller's cue to fall back to the built-in browser. `extensions` are
-    // lowercase with the dot (".mp4"); empty means every file.
+    // lowercase with the dot (".mp4"); `suggested` is a Save's opening name.
     bool open(const std::string& title, Mode mode,
               const std::vector<std::string>& extensions,
-              const std::string& start_dir, bool multi);
+              const std::string& start_dir, bool multi,
+              const std::string& suggested = {});
 
     bool busy() const { return _job != nullptr; }
 

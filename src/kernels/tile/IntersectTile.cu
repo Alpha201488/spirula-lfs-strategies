@@ -14,6 +14,7 @@ namespace SlangProjectionUtils {
 #include <cooperative_groups.h>
 
 #include <cub/cub.cuh>
+#include <thrust/iterator/transform_iterator.h>
 
 
 namespace cg = cooperative_groups;
@@ -119,6 +120,15 @@ inline __device__ int count_ellipse_grid_overlaps(
 }
 
 
+// DeviceReduce::Sum accumulates in the input type, so widen the int32 counts on
+// the way in. thrust's iterator, not cub::TransformInputIterator: CCCL 3
+// (CUDA 13) removed it.
+struct WidenToI64 {
+    __host__ __device__ int64_t operator()(int32_t v) const {
+        return (int64_t)v;
+    }
+};
+
 template<bool is_counting_pass, bool is_ellipse>
 __global__ void intersect_tile_kernel(
     const uint32_t I,  // or 1 in packed mode
@@ -181,7 +191,9 @@ __global__ void intersect_tile_kernel(
                  : float2{0.5f * (xmin + xmax), 0.5f * (ymin + ymax)};
         conic = float3{row[ellipse.conic], row[ellipse.conic + 1],
                        row[ellipse.conic + 2]};
-        conic = conic * (0.5f / __logf(row[ellipse.opac] / ALPHA_THRESHOLD));
+        float reach = __logf(row[ellipse.opac] / ALPHA_THRESHOLD);
+        if (ellipse.max_sigma > 0.0f) reach = fminf(reach, ellipse.max_sigma);
+        conic = conic * (0.5f / reach);
     }
 
     uint2 tile_min, tile_max;
@@ -504,10 +516,10 @@ std::tuple<
         if (total_count > 0) {
             DeviceVector<int64_t> isect_total;
             isect_total.resize(PoolSlot::IsectTotal, 1);
-            cudaMemsetAsync(isect_total.data_ptr(), 0, sizeof(int64_t), 0);
-            intersect_sum_i32_as_i64_kernel<<<_LAUNCH_ARGS_1D(total_count, 256)>>>(
-                tiles_per_splat.data_ptr(), isect_total.data_ptr(),
-                (int)total_count);
+            thrust::transform_iterator<WidenToI64, const int32_t*, int64_t>
+                widened(tiles_per_splat.data_ptr(), WidenToI64{});
+            CUB_WRAPPER(cub::DeviceReduce::Sum, widened, isect_total.data_ptr(),
+                        (int)total_count);
             CHECK_DEVICE_ERROR(cudaGetLastError());
             cudaMemcpy(&n_isects64, isect_total.data_ptr(), sizeof(int64_t),
                        cudaMemcpyDeviceToHost);

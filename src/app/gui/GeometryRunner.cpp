@@ -11,16 +11,18 @@
 #include "i18n/catalog/Log.h"
 
 #ifdef SS_TOOL_GEOMETRY
+#include "app/GeometryModel.h"
+#include "marigold/model/Fetch.h"
 #include "metric3d/model/Fetch.h"
 #include "moge/model/Fetch.h"
+#include "nn/Device.h"
+#include "app/gui/FetchSource.h"
 #include "nn/io/Fetch.h"
 #endif
 
 #include <algorithm>
-#include <chrono>
 #include <cstdlib>
 #include <filesystem>
-#include <set>
 
 namespace fs = std::filesystem;
 namespace dmsg = spirula::i18n::msg::dataset;
@@ -43,107 +45,14 @@ constexpr uint64_t kGiantBytes = 1401125724ull + 1355808768ull;
 constexpr uint64_t kMogeSBytes = 140852051ull;
 constexpr uint64_t kMogeBBytes = 419411850ull;
 constexpr uint64_t kMogeLBytes = 1324265014ull;
+// Streamed, never stored: the files on disk come to 11 GB.
+constexpr uint64_t kMarigoldBytes = 44844605868ull;
 
 std::string trim_right(const std::string& s) {
     size_t n = s.size();
     while (n && (s[n - 1] == ' ' || s[n - 1] == '\t')) n--;
     return s.substr(0, n);
 }
-
-// The maps the child has written, onto the reel as they appear. The child
-// says nothing about them, so the folder is what is watched.
-class OutputWatch {
-public:
-    OutputWatch(FilmReel* reel, fs::path dir, fs::path images, fs::path depths)
-        : _reel(reel), _dir(std::move(dir)), _images(std::move(images)),
-          _depths(std::move(depths)) {}
-
-    // One scan of lag before a file is shown: what appeared this tick may
-    // still be half written, and a truncated PNG reads as a failure rather
-    // than as a race. `flush` gives that up, for the end of the run.
-    void poll(bool flush = false) {
-        if (!_reel) return;
-        const auto now = std::chrono::steady_clock::now();
-        if (!flush && now - _last < std::chrono::seconds(1)) return;
-        _last = now;
-
-        publish(_ripe);
-        _ripe.clear();
-
-        std::vector<std::string> found;
-        std::error_code ec;
-        for (fs::recursive_directory_iterator
-                 it(_dir, fs::directory_options::skip_permission_denied, ec), end;
-             !ec && it != end; it.increment(ec))
-            if (it->is_regular_file(ec) && !_seen.count(it->path().string()))
-                found.push_back(it->path().string());
-        std::sort(found.begin(), found.end());
-
-        if (!flush) {
-            _ripe = std::move(found);
-            return;
-        }
-        publish(found);
-    }
-
-private:
-    // The reel follows the newest picture it HOLDS, not the newest frame
-    // registered (FilmReel::draw), so the last of a batch is read here or the
-    // slider never leaves the first one it managed to load.
-    void publish(const std::vector<std::string>& batch) {
-        const bool want_pixels = !batch.empty() && _reel->wants();
-        for (size_t i = 0; i < batch.size(); i++) {
-            _seen.insert(batch[i]);
-            FilmFrame f;
-            f.name = fs::path(batch[i]).filename().string();
-            f.panels = row_for(batch[i]);
-            if (want_pixels && i + 1 == batch.size()) _reel->add_loaded(f);
-            else                                      _reel->add(f);
-        }
-    }
-
-    // The photograph, the normal map and the depth map of one frame. The map
-    // is what was found; the other two are derived from its path, since the
-    // three trees mirror each other (spirula geometry writes them that way).
-    std::vector<PicturePanel> row_for(const std::string& map) const {
-        std::error_code ec;
-        fs::path rel = fs::relative(map, _dir, ec);
-        if (ec || rel.empty()) rel = fs::path(map).filename();
-        std::vector<PicturePanel> out;
-        if (!_images.empty()) {
-            // The extension is the capture's, not the map's.
-            for (const char* ext : {".jpg", ".jpeg", ".png", ".webp", ".tif",
-                                    ".tiff", ".bmp", ".exr", ".JPG", ".PNG"}) {
-                fs::path p = _images / rel;
-                p.replace_extension(ext);
-                if (!fs::is_regular_file(p, ec)) {
-                    p = _images / rel.filename();
-                    p.replace_extension(ext);
-                }
-                if (fs::is_regular_file(p, ec)) {
-                    out.push_back({p.string(), false});
-                    break;
-                }
-            }
-        }
-        const bool map_is_depth = _dir.filename() == "depths";
-        out.push_back({map, map_is_depth});
-        if (!map_is_depth && !_depths.empty()) {
-            // Not probed: the writer pool may not have reached it yet, and a
-            // panel that fails to load is skipped when the row is read.
-            fs::path d = _depths / rel;
-            d.replace_extension(".png");
-            out.push_back({d.string(), true});
-        }
-        return out;
-    }
-
-    FilmReel* _reel;
-    fs::path _dir, _images, _depths;
-    std::set<std::string> _seen;
-    std::vector<std::string> _ripe;
-    std::chrono::steady_clock::time_point _last{};
-};
 
 }  // namespace
 
@@ -161,6 +70,8 @@ const std::vector<GeometryModel>& geometry_models() {
          &dmsg::geom_model_large_blurb, kLargeBytes},
         {"metric3d-vit-giant2", &dmsg::geom_model_giant,
          &dmsg::geom_model_giant_blurb, kGiantBytes},
+        {"marigold-v2", &dmsg::geom_model_marigold, &dmsg::geom_model_marigold_blurb,
+         kMarigoldBytes},
     };
     return kModels;
 }
@@ -171,9 +82,22 @@ std::vector<PendingDownload> geometry_model_downloads(const std::string& id) {
     auto want = [&](const nn::FetchFile& f) {
         if (!f.file) return;
         const std::string dest = nn::cached_path(f);
-        if (!file_is_cached(dest, f.bytes)) out.push_back({f.url, dest, f.bytes});
+        if (!file_is_cached(dest, f.bytes)) out.push_back(pending_download(f));
     };
-    if (const moge::ModelSource* m = moge::find_model_source(id)) {
+    if (id == marigold::kModelId) {
+        // Both maps: a run that later turns depth on should not stop for a second
+        // install. The child checks the disk before anything streams.
+        const app::GeometryInstall need = app::geometry_install_needs(id, true, true);
+        if (need.needed()) {
+            PendingDownload d;
+            d.bytes = need.download;
+            d.command = {app::exe_path(), "--lang", spirula::i18n::code(spirula::i18n::current()),
+                         "geometry", "--install", id, "--depth"};
+            out.push_back(d);
+        }
+        // Its depth is anchored to MoGe-2's.
+        want(moge::find_model_source("moge2-vitb")->onnx);
+    } else if (const moge::ModelSource* m = moge::find_model_source(id)) {
         want(m->onnx);
     } else if (const metric3d::ModelSource* src = metric3d::find_model_source(id)) {
         want(src->onnx);
@@ -187,7 +111,8 @@ std::vector<PendingDownload> geometry_model_downloads(const std::string& id) {
 
 bool geometry_model_cached(const std::string& id) {
 #ifdef SS_TOOL_GEOMETRY
-    if (!moge::find_model_source(id) && !metric3d::find_model_source(id)) {
+    if (!moge::find_model_source(id) && !metric3d::find_model_source(id) &&
+        id != marigold::kModelId) {
         std::error_code ec;
         return fs::is_regular_file(id, ec);   // a file the user pointed at
     }
@@ -196,6 +121,22 @@ bool geometry_model_cached(const std::string& id) {
     (void)id;
     return false;
 #endif
+}
+
+GeometryDisk geometry_model_disk(const std::string& id) {
+    GeometryDisk d;
+#ifdef SS_TOOL_GEOMETRY
+    const app::GeometryInstall need = app::geometry_install_needs(id, true, true);
+    d.needed = need.needed();
+    d.fits = need.fits();
+    d.disk = need.disk;
+    d.free = need.free;
+    d.spare = need.spare;
+    d.where = need.where;
+#else
+    (void)id;
+#endif
+    return d;
 }
 
 std::string geometry_availability() {
@@ -232,16 +173,30 @@ bool run_geometry_step(const GeometryJob& job, const std::string& dataset,
         "--depth-units", job.depth_mm ? "mm" : "relative",
         "--ray-depth", kTri[std::clamp(job.ray_depth, 0, 2)],
         "--split", kTri[std::clamp(job.split, 0, 2)],
+        "--face-res", job.face_res == 1 ? "source" : "output",
     };
     if (job.want_depth) argv.push_back("--depth");
     if (!job.want_normal) argv.push_back("--no-normal");
     if (job.overwrite) argv.push_back("--overwrite");
+    // Carry the frozen UUID so an inherited environment cannot redirect the child.
+    std::string device = job.device_uuid;
+#ifdef SS_TOOL_GEOMETRY
+    if (device.empty()) device = nn::configured_device_selector();
+#endif
+    if (!device.empty()) {
+        argv.push_back("--device");
+        argv.push_back(device);
+    }
     if (!job.image_gamut.empty()) {
         argv.push_back("--image-gamut");
         argv.push_back(job.image_gamut);
     }
     if (job.image_is_linear.has_value())
         argv.push_back(*job.image_is_linear ? "--image-linear" : "--no-image-linear");
+    if (!job.image_exposure.empty()) {
+        argv.push_back("--image-exposure");
+        argv.push_back(job.image_exposure);
+    }
 
     std::string cmd;
     for (const std::string& a : argv) cmd += (cmd.empty() ? "$ " : " ") + a;

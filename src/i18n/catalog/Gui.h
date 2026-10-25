@@ -222,6 +222,21 @@ SS_MSG(menu_new_dataset,
     RU("Создать набор данных…"),
     TR("Yeni veri kümesi…"));
 
+SS_MSG(menu_open_recent,
+    EN("Open Recent"),
+    JA("最近使った項目を開く"),
+    ZH_HANS("打开最近使用的项目"),
+    ZH_HANT("開啟最近使用的項目"),
+    KO("최근 항목 열기"),
+    DE("Zuletzt verwendet"),
+    FR("Ouvrir un élément récent"),
+    ES("Abrir recientes"),
+    PT("Abrir recentes"),
+    IT("Apri recenti"),
+    NL("Recent geopend"),
+    RU("Открыть недавние"),
+    TR("Son kullanılanları aç"));
+
 // ===========================================================================
 // File dialog titles
 // ===========================================================================
@@ -240,6 +255,21 @@ SS_MSG(pick_photo_folder,
     NL("Fotomap kiezen"),
     RU("Выбор папки с фотографиями"),
     TR("Fotoğraf klasörü seç"));
+
+SS_MSG(pick_existing_dataset,
+    EN("Select Dataset Folder"),
+    JA("データセットフォルダを選択"),
+    ZH_HANS("选择数据集文件夹"),
+    ZH_HANT("選擇資料集資料夾"),
+    KO("데이터셋 폴더 선택"),
+    DE("Datensatzordner wählen"),
+    FR("Choisir un dossier de jeu de données"),
+    ES("Seleccionar una carpeta de conjunto de datos"),
+    PT("Selecionar uma pasta de conjunto de dados"),
+    IT("Seleziona una cartella di set di dati"),
+    NL("Datasetmap kiezen"),
+    RU("Выбор папки набора данных"),
+    TR("Veri kümesi klasörü seç"));
 
 SS_MSG(pick_videos,
     EN("Select Videos"),
@@ -561,43 +591,379 @@ SS_MSG(home_new_dataset_help,
        "açılır."));
 
 SS_MSG(home_drop_hint,
-    EN("...or drop a dataset folder, photo folders, video files, or a model or "
-       "mesh file anywhere in this window"),
+    EN("...or drop a dataset folder, photo folders, video files, a model or "
+       "mesh file, or a camera project anywhere in this window"),
     JA("…または、データセットフォルダ・写真フォルダ・動画ファイル・モデルや"
-       "メッシュのファイルをこのウィンドウのどこかにドロップしてください"),
-    ZH_HANS("…或者把数据集文件夹、照片文件夹、视频文件，或者模型和网格文件拖到"
-            "这个窗口的任意位置"),
-    ZH_HANT("…或者把資料集資料夾、相片資料夾、影片檔，或者模型和網格檔案拖到"
-            "這個視窗的任意位置"),
-    KO("…또는 데이터셋 폴더, 사진 폴더, 동영상 파일, 모델이나 메시 파일을 이 창 "
-       "아무 곳에나 끌어다 놓으세요"),
-    DE("… oder ziehen Sie einen Datensatzordner, Fotoordner, Videodateien oder "
-       "eine Modell- oder Netzdatei irgendwo in dieses Fenster"),
+       "メッシュのファイル・カメラプロジェクトをこのウィンドウのどこかにドロップ"
+       "してください"),
+    ZH_HANS("…或者把数据集文件夹、照片文件夹、视频文件、模型和网格文件，或者相机"
+            "项目拖到这个窗口的任意位置"),
+    ZH_HANT("…或者把資料集資料夾、相片資料夾、影片檔、模型和網格檔案，或者相機"
+            "專案拖到這個視窗的任意位置"),
+    KO("…또는 데이터셋 폴더, 사진 폴더, 동영상 파일, 모델이나 메시 파일, 카메라 "
+       "프로젝트를 이 창 아무 곳에나 끌어다 놓으세요"),
+    DE("… oder ziehen Sie einen Datensatzordner, Fotoordner, Videodateien, eine "
+       "Modell- oder Netzdatei oder ein Kameraprojekt irgendwo in dieses Fenster"),
     FR("… ou déposez un dossier de jeu de données, des dossiers de photos, des "
-       "fichiers vidéo, ou un fichier de modèle ou de maillage n'importe où "
-       "dans cette fenêtre"),
+       "fichiers vidéo, un fichier de modèle ou de maillage, ou un projet de "
+       "caméra n'importe où dans cette fenêtre"),
     ES("… o arrastre una carpeta de conjunto de datos, carpetas de fotos, "
-       "archivos de vídeo, o un archivo de modelo o de malla a cualquier punto "
-       "de esta ventana"),
+       "archivos de vídeo, un archivo de modelo o de malla, o un proyecto de "
+       "cámara a cualquier punto de esta ventana"),
     PT("… ou arraste uma pasta de conjunto de dados, pastas de fotos, arquivos "
-       "de vídeo, ou um arquivo de modelo ou de malha para qualquer ponto "
-       "desta janela"),
+       "de vídeo, um arquivo de modelo ou de malha, ou um projeto de câmera "
+       "para qualquer ponto desta janela"),
     IT("… oppure trascina una cartella di dataset, cartelle di foto, file video, "
-       "o un file di modello o di mesh in un punto qualsiasi di questa "
-       "finestra"),
-    NL("… of sleep een datasetmap, fotomappen, videobestanden, of een model- of "
-       "meshbestand ergens in dit venster"),
+       "un file di modello o di mesh, o un progetto di camera in un punto "
+       "qualsiasi di questa finestra"),
+    NL("… of sleep een datasetmap, fotomappen, videobestanden, een model- of "
+       "meshbestand, of een cameraproject ergens in dit venster"),
     RU("…или перетащите папку набора данных, папки с фотографиями, видеофайлы, "
-       "либо файл модели или меша в любое место этого окна"),
+       "файл модели или меша либо проект камеры в любое место этого окна"),
     TR("…ya da bir veri kümesi klasörünü, fotoğraf klasörlerini, video "
-       "dosyalarını veya bir model ya da ağ dosyasını bu pencerenin herhangi "
-       "bir yerine bırakın"));
+       "dosyalarını, bir model ya da ağ dosyasını veya bir kamera projesini bu "
+       "pencerenin herhangi bir yerine bırakın"));
 
 SS_MSG(home_recent,
     EN("Recent"),        JA("最近使った項目"), ZH_HANS("最近"),   ZH_HANT("最近"),
     KO("최근 항목"),      DE("Zuletzt"),      FR("Récents"),     ES("Recientes"),
     PT("Recentes"),      IT("Recenti"),      NL("Recent"),      RU("Недавние"),
     TR("Son kullanılan"));
+
+// The recent list's tabs: "Recent" (home_recent) holds every kind, these one
+// kind each. Labels, so plurals are fine.
+SS_MSG(home_tab_datasets,
+    EN("Datasets"),      JA("データセット"),   ZH_HANS("数据集"),   ZH_HANT("資料集"),
+    KO("데이터셋"),       DE("Datensätze"),   FR("Jeux de données"),
+    ES("Conjuntos de datos"), PT("Conjuntos de dados"), IT("Set di dati"),
+    NL("Datasets"),      RU("Наборы данных"), TR("Veri kümeleri"));
+
+SS_MSG(home_tab_recons,
+    EN("Reconstructions"), JA("再構成"),     ZH_HANS("重建"),     ZH_HANT("重建"),
+    KO("재구성"),         DE("Rekonstruktionen"), FR("Reconstructions"),
+    ES("Reconstrucciones"), PT("Reconstruções"), IT("Ricostruzioni"),
+    NL("Reconstructies"), RU("Реконструкции"), TR("Yeniden kurmalar"));
+
+SS_MSG(home_tab_models,
+    EN("Models"),        JA("モデル"),        ZH_HANS("模型"),     ZH_HANT("模型"),
+    KO("모델"),           DE("Modelle"),      FR("Modèles"),      ES("Modelos"),
+    PT("Modelos"),       IT("Modelli"),      NL("Modellen"),     RU("Модели"),
+    TR("Modeller"));
+
+SS_MSG(home_tab_runs,
+    EN("Training runs"), JA("学習の実行"),     ZH_HANS("训练运行"), ZH_HANT("訓練執行"),
+    KO("학습 실행"),      DE("Trainingsläufe"), FR("Entraînements"),
+    ES("Entrenamientos"), PT("Treinamentos"), IT("Addestramenti"),
+    NL("Trainingsruns"), RU("Запуски обучения"), TR("Eğitimler"));
+
+SS_MSG(home_tab_projects,
+    EN("Camera projects"), JA("カメラプロジェクト"), ZH_HANS("相机项目"),
+    ZH_HANT("相機專案"),   KO("카메라 프로젝트"), DE("Kameraprojekte"),
+    FR("Projets de caméra"), ES("Proyectos de cámara"),
+    PT("Projetos de câmera"), IT("Progetti di camera"), NL("Cameraprojecten"),
+    RU("Проекты камеры"), TR("Kamera projeleri"));
+
+// What one entry is, beside it in the "Recent" tab. A model says what the
+// file turned out to hold once that is known, and "Model" until then.
+SS_MSG(home_kind_dataset,
+    EN("Dataset"),       JA("データセット"),   ZH_HANS("数据集"),   ZH_HANT("資料集"),
+    KO("데이터셋"),       DE("Datensatz"),    FR("Jeu de données"),
+    ES("Conjunto de datos"), PT("Conjunto de dados"), IT("Set di dati"),
+    NL("Dataset"),       RU("Набор данных"), TR("Veri kümesi"));
+
+SS_MSG(home_kind_recon,
+    EN("Reconstruction"), JA("再構成"),      ZH_HANS("重建"),     ZH_HANT("重建"),
+    KO("재구성"),         DE("Rekonstruktion"), FR("Reconstruction"),
+    ES("Reconstrucción"), PT("Reconstrução"), IT("Ricostruzione"),
+    NL("Reconstructie"), RU("Реконструкция"), TR("Yeniden kurma"));
+
+SS_MSG(home_kind_model,
+    EN("Model"),         JA("モデル"),        ZH_HANS("模型"),     ZH_HANT("模型"),
+    KO("모델"),           DE("Modell"),       FR("Modèle"),       ES("Modelo"),
+    PT("Modelo"),        IT("Modello"),      NL("Model"),        RU("Модель"),
+    TR("Model"));
+
+SS_MSG(home_kind_splats,
+    EN("Splats"),        JA("スプラット"),     ZH_HANS("高斯点"),   ZH_HANT("高斯點"),
+    KO("스플랫"),         DE("Splats"),       FR("Splats"),       ES("Splats"),
+    PT("Splats"),        IT("Splat"),        NL("Splats"),       RU("Сплаты"),
+    TR("Splat'lar"));
+
+SS_MSG(home_kind_mesh,
+    EN("Mesh"),          JA("メッシュ"),       ZH_HANS("网格"),     ZH_HANT("網格"),
+    KO("메시"),           DE("Netz"),         FR("Maillage"),     ES("Malla"),
+    PT("Malha"),         IT("Mesh"),         NL("Mesh"),         RU("Меш"),
+    TR("Ağ"));
+
+SS_MSG(home_kind_points,
+    EN("Point cloud"),   JA("点群"),          ZH_HANS("点云"),     ZH_HANT("點雲"),
+    KO("포인트 클라우드"), DE("Punktwolke"),   FR("Nuage de points"),
+    ES("Nube de puntos"), PT("Nuvem de pontos"), IT("Nuvola di punti"),
+    NL("Puntenwolk"),    RU("Облако точек"), TR("Nokta bulutu"));
+
+SS_MSG(home_kind_run,
+    EN("Training run"),  JA("学習の実行"),     ZH_HANS("训练运行"), ZH_HANT("訓練執行"),
+    KO("학습 실행"),      DE("Trainingslauf"), FR("Entraînement"),
+    ES("Entrenamiento"), PT("Treinamento"),  IT("Addestramento"),
+    NL("Trainingsrun"),  RU("Запуск обучения"), TR("Eğitim"));
+
+SS_MSG(home_kind_project,
+    EN("Camera project"), JA("カメラプロジェクト"), ZH_HANS("相机项目"),
+    ZH_HANT("相機專案"),   KO("카메라 프로젝트"), DE("Kameraprojekt"),
+    FR("Projet de caméra"), ES("Proyecto de cámara"), PT("Projeto de câmera"),
+    IT("Progetto di camera"), NL("Cameraproject"), RU("Проект камеры"),
+    TR("Kamera projesi"));
+
+// What each tab holds: its hover help, and what an empty one says.
+SS_MSG(home_recent_about,
+    EN("Everything opened, built or trained here lately, newest first. "
+       "Whatever is no longer on disk drops off the list by itself. "
+       "Right-click an entry for more."),
+    JA("最近ここで開いた・作成した・学習したものが新しい順に並びます。"
+       "ディスクから消えたものは自動的に一覧から外れます。"
+       "項目を右クリックすると、ほかの操作も選べます。"),
+    ZH_HANS("最近在这里打开、创建或训练过的内容，按从新到旧排列。"
+            "已不在磁盘上的条目会自动从列表中移除。右键单击条目可进行更多操作。"),
+    ZH_HANT("最近在這裡開啟、建立或訓練過的內容，按從新到舊排列。"
+            "已不在磁碟上的項目會自動從清單中移除。在項目上按右鍵可進行更多操作。"),
+    KO("최근 여기서 열거나 만들거나 학습한 항목이 최신순으로 표시됩니다. "
+       "디스크에서 사라진 항목은 목록에서 저절로 빠집니다. "
+       "항목을 마우스 오른쪽 버튼으로 클릭하면 다른 작업도 할 수 있습니다."),
+    DE("Alles, was hier zuletzt geöffnet, erstellt oder trainiert wurde, das "
+       "Neueste zuerst. Was nicht mehr auf der Festplatte liegt, verschwindet "
+       "von selbst aus der Liste. Ein Rechtsklick auf einen Eintrag bietet mehr."),
+    FR("Tout ce qui a été ouvert, créé ou entraîné ici récemment, du plus récent "
+       "au plus ancien. Ce qui n'est plus sur le disque quitte la liste tout "
+       "seul. Un clic droit sur une entrée propose d'autres actions."),
+    ES("Todo lo que se abrió, creó o entrenó aquí últimamente, de lo más "
+       "reciente a lo más antiguo. Lo que ya no está en el disco sale de la "
+       "lista por sí solo. Haga clic derecho en una entrada para ver más."),
+    PT("Tudo o que foi aberto, criado ou treinado aqui recentemente, do mais "
+       "novo ao mais antigo. O que não está mais no disco sai da lista sozinho. "
+       "Clique com o botão direito em uma entrada para ver mais."),
+    IT("Tutto ciò che è stato aperto, creato o addestrato qui di recente, dal "
+       "più nuovo. Ciò che non è più sul disco esce dall'elenco da solo. Fai "
+       "clic destro su una voce per altre azioni."),
+    NL("Alles wat hier onlangs is geopend, gemaakt of getraind, het nieuwste "
+       "eerst. Wat niet meer op de schijf staat, verdwijnt vanzelf uit de "
+       "lijst. Klik met de rechtermuisknop op een item voor meer."),
+    RU("Всё, что недавно открывалось, создавалось или обучалось здесь, — "
+       "сначала самое новое. То, чего больше нет на диске, само исчезает из "
+       "списка. Щёлкните запись правой кнопкой мыши, чтобы увидеть другие "
+       "действия."),
+    TR("Burada son zamanlarda açılan, oluşturulan ya da eğitilen her şey, en "
+       "yenisi önce. Artık diskte olmayanlar listeden kendiliğinden düşer. "
+       "Diğer işlemler için bir girdiye sağ tıklayın."));
+
+SS_MSG(home_datasets_about,
+    EN("Datasets opened in the trainer. Click one to open it there again."),
+    JA("トレーナーで開いたデータセットです。クリックすると、もう一度トレーナーで"
+       "開きます。"),
+    ZH_HANS("在训练器中打开过的数据集。单击即可在训练器中再次打开。"),
+    ZH_HANT("在訓練器中開啟過的資料集。按一下即可在訓練器中再次開啟。"),
+    KO("트레이너에서 열었던 데이터셋입니다. 클릭하면 트레이너에서 다시 엽니다."),
+    DE("Im Trainer geöffnete Datensätze. Ein Klick öffnet einen davon dort "
+       "erneut."),
+    FR("Les jeux de données ouverts dans l'atelier. Cliquez sur l'un d'eux pour "
+       "l'y rouvrir."),
+    ES("Conjuntos de datos abiertos en el entrenador. Haga clic en uno para "
+       "volver a abrirlo allí."),
+    PT("Conjuntos de dados abertos no treinador. Clique em um para abri-lo lá "
+       "de novo."),
+    IT("Set di dati aperti nell'addestratore. Fai clic su uno per riaprirlo lì."),
+    NL("Datasets die in de trainer zijn geopend. Klik op een dataset om hem daar "
+       "opnieuw te openen."),
+    RU("Наборы данных, открытые в тренажёре. Щёлкните по одному, чтобы снова "
+       "открыть его там."),
+    TR("Eğiticide açılan veri kümeleri. Birine tıklayınca orada yeniden açılır."));
+
+SS_MSG(home_recons_about,
+    EN("Datasets built here from photos or video. Click one to go back to the "
+       "screen that built it, with its inputs and settings."),
+    JA("ここで写真や動画から作成したデータセットです。クリックすると、入力と"
+       "設定をそのままに、作成した画面に戻ります。"),
+    ZH_HANS("在这里从照片或视频创建的数据集。单击即可回到创建它的界面，输入和"
+            "设置都会恢复。"),
+    ZH_HANT("在這裡從相片或影片建立的資料集。按一下即可回到建立它的畫面，輸入和"
+            "設定都會還原。"),
+    KO("여기서 사진이나 동영상으로 만든 데이터셋입니다. 클릭하면 입력과 설정을 "
+       "그대로 가지고 그것을 만든 화면으로 돌아갑니다."),
+    DE("Hier aus Fotos oder Video erstellte Datensätze. Ein Klick führt mit "
+       "Eingaben und Einstellungen zurück zu dem Bildschirm, der ihn erstellt "
+       "hat."),
+    FR("Les jeux de données créés ici à partir de photos ou de vidéo. Cliquez "
+       "sur l'un d'eux pour revenir à l'écran qui l'a créé, avec ses entrées et "
+       "ses réglages."),
+    ES("Conjuntos de datos creados aquí a partir de fotos o vídeo. Haga clic en "
+       "uno para volver a la pantalla que lo creó, con sus entradas y ajustes."),
+    PT("Conjuntos de dados criados aqui a partir de fotos ou vídeo. Clique em "
+       "um para voltar à tela que o criou, com suas entradas e configurações."),
+    IT("Set di dati creati qui da fotografie o video. Fai clic su uno per "
+       "tornare alla schermata che l'ha creato, con i suoi ingressi e le sue "
+       "impostazioni."),
+    NL("Datasets die hier uit foto's of video zijn gemaakt. Klik op een dataset "
+       "om terug te gaan naar het scherm dat hem maakte, met zijn invoer en "
+       "instellingen."),
+    RU("Наборы данных, созданные здесь из фотографий или видео. Щёлкните по "
+       "одному, чтобы вернуться на экран, где он создавался, со всеми входами и "
+       "настройками."),
+    TR("Burada fotoğraflardan veya videodan oluşturulan veri kümeleri. Birine "
+       "tıklayınca, girdileri ve ayarlarıyla birlikte onu oluşturan ekrana "
+       "dönülür."));
+
+SS_MSG(home_models_about,
+    EN("Splats, meshes, point clouds and reconstructions opened in the viewer."),
+    JA("ビューアで開いたスプラット、メッシュ、点群、再構成です。"),
+    ZH_HANS("在查看器中打开过的高斯点、网格、点云和重建。"),
+    ZH_HANT("在檢視器中開啟過的高斯點、網格、點雲和重建。"),
+    KO("뷰어에서 열었던 스플랫, 메시, 포인트 클라우드, 재구성입니다."),
+    DE("Im Betrachter geöffnete Splats, Netze, Punktwolken und "
+       "Rekonstruktionen."),
+    FR("Les splats, maillages, nuages de points et reconstructions ouverts dans "
+       "la visionneuse."),
+    ES("Splats, mallas, nubes de puntos y reconstrucciones abiertos en el visor."),
+    PT("Splats, malhas, nuvens de pontos e reconstruções abertos no "
+       "visualizador."),
+    IT("Splat, mesh, nuvole di punti e ricostruzioni aperti nel visualizzatore."),
+    NL("Splats, meshes, puntenwolken en reconstructies die in de viewer zijn "
+       "geopend."),
+    RU("Сплаты, меши, облака точек и реконструкции, открытые в просмотрщике."),
+    TR("Görüntüleyicide açılan splat'lar, ağlar, nokta bulutları ve yeniden "
+       "yapımlar."));
+
+SS_MSG(home_runs_about,
+    EN("Training runs that finished and saved a model. Click one to look at it "
+       "in the viewer."),
+    JA("最後まで進んでモデルを保存した学習です。クリックするとビューアで表示"
+       "します。"),
+    ZH_HANS("已完成并保存了模型的训练运行。单击即可在查看器中查看。"),
+    ZH_HANT("已完成並儲存了模型的訓練執行。按一下即可在檢視器中檢視。"),
+    KO("끝까지 진행되어 모델을 저장한 학습 실행입니다. 클릭하면 뷰어에서 "
+       "봅니다."),
+    DE("Trainingsläufe, die fertig wurden und ein Modell gespeichert haben. Ein "
+       "Klick zeigt es im Betrachter."),
+    FR("Les entraînements terminés qui ont enregistré un modèle. Cliquez sur "
+       "l'un d'eux pour le voir dans la visionneuse."),
+    ES("Entrenamientos que terminaron y guardaron un modelo. Haga clic en uno "
+       "para verlo en el visor."),
+    PT("Treinamentos que terminaram e salvaram um modelo. Clique em um para "
+       "vê-lo no visualizador."),
+    IT("Addestramenti conclusi che hanno salvato un modello. Fai clic su uno "
+       "per vederlo nel visualizzatore."),
+    NL("Trainingsruns die klaar zijn en een model hebben opgeslagen. Klik op een "
+       "run om het model in de viewer te bekijken."),
+    RU("Завершённые запуски обучения, сохранившие модель. Щёлкните по одному, "
+       "чтобы посмотреть её в просмотрщике."),
+    TR("Biten ve bir model kaydeden eğitimler. Birine tıklayınca "
+       "görüntüleyicide açılır."));
+
+SS_MSG(home_projects_about,
+    EN("Camera moves saved or opened for a photo or video. Click one to open it "
+       "with its model."),
+    JA("写真や動画のために保存した、または開いたカメラの動きです。クリックすると"
+       "モデルと一緒に開きます。"),
+    ZH_HANS("为照片或视频保存或打开过的相机运动。单击即可连同其模型一起打开。"),
+    ZH_HANT("為相片或影片儲存或開啟過的相機運動。按一下即可連同其模型一起開啟。"),
+    KO("사진이나 동영상을 위해 저장하거나 열었던 카메라 움직임입니다. 클릭하면 "
+       "그 모델과 함께 엽니다."),
+    DE("Für ein Foto oder Video gespeicherte oder geöffnete Kamerafahrten. Ein "
+       "Klick öffnet eine davon mit ihrem Modell."),
+    FR("Les mouvements de caméra enregistrés ou ouverts pour une photo ou une "
+       "vidéo. Cliquez sur l'un d'eux pour l'ouvrir avec son modèle."),
+    ES("Movimientos de cámara guardados o abiertos para una foto o un vídeo. "
+       "Haga clic en uno para abrirlo con su modelo."),
+    PT("Movimentos de câmera salvos ou abertos para uma foto ou um vídeo. "
+       "Clique em um para abri-lo com o seu modelo."),
+    IT("Movimenti di camera salvati o aperti per una foto o un video. Fai clic "
+       "su uno per aprirlo con il suo modello."),
+    NL("Camerabewegingen die zijn opgeslagen of geopend voor een foto of video. "
+       "Klik op een beweging om hem met zijn model te openen."),
+    RU("Движения камеры, сохранённые или открытые для фото или видео. Щёлкните "
+       "по одному, чтобы открыть его вместе с моделью."),
+    TR("Bir fotoğraf ya da video için kaydedilen veya açılan kamera hareketleri. "
+       "Birine tıklayınca modeliyle birlikte açılır."));
+
+SS_MSG(home_recent_empty,
+    EN("Nothing here yet."), JA("まだ何もありません。"),
+    ZH_HANS("这里还没有内容。"), ZH_HANT("這裡還沒有內容。"),
+    KO("아직 아무것도 없습니다."), DE("Hier ist noch nichts."),
+    FR("Rien ici pour l'instant."), ES("Aquí aún no hay nada."),
+    PT("Ainda não há nada aqui."), IT("Qui non c'è ancora niente."),
+    NL("Hier staat nog niets."), RU("Здесь пока пусто."),
+    TR("Burada henüz bir şey yok."));
+
+// When an entry was last used: a time today or yesterday, a date before that.
+SS_MSG(home_recent_today,
+    EN("Today {0}"),     JA("今日 {0}"),      ZH_HANS("今天 {0}"), ZH_HANT("今天 {0}"),
+    KO("오늘 {0}"),       DE("Heute {0}"),    FR("Aujourd'hui {0}"), ES("Hoy {0}"),
+    PT("Hoje {0}"),      IT("Oggi {0}"),     NL("Vandaag {0}"),  RU("Сегодня {0}"),
+    TR("Bugün {0}"));
+
+SS_MSG(home_recent_yesterday,
+    EN("Yesterday {0}"), JA("昨日 {0}"),      ZH_HANS("昨天 {0}"), ZH_HANT("昨天 {0}"),
+    KO("어제 {0}"),       DE("Gestern {0}"),  FR("Hier {0}"),     ES("Ayer {0}"),
+    PT("Ontem {0}"),     IT("Ieri {0}"),     NL("Gisteren {0}"), RU("Вчера {0}"),
+    TR("Dün {0}"));
+
+// An entry's right-click menu.
+SS_MSG(home_recent_open,
+    EN("Open"),          JA("開く"),          ZH_HANS("打开"),     ZH_HANT("開啟"),
+    KO("열기"),           DE("Öffnen"),       FR("Ouvrir"),       ES("Abrir"),
+    PT("Abrir"),         IT("Apri"),         NL("Openen"),       RU("Открыть"),
+    TR("Aç"));
+
+SS_MSG(home_recent_show,
+    EN("Show in folder"), JA("フォルダで表示"), ZH_HANS("在文件夹中显示"),
+    ZH_HANT("在資料夾中顯示"), KO("폴더에서 보기"), DE("Im Ordner anzeigen"),
+    FR("Afficher dans le dossier"), ES("Mostrar en la carpeta"),
+    PT("Mostrar na pasta"), IT("Mostra nella cartella"), NL("In map weergeven"),
+    RU("Показать в папке"), TR("Klasörde göster"));
+
+SS_MSG(home_recent_copy,
+    EN("Copy path"),     JA("パスをコピー"),   ZH_HANS("复制路径"), ZH_HANT("複製路徑"),
+    KO("경로 복사"),      DE("Pfad kopieren"), FR("Copier le chemin"),
+    ES("Copiar la ruta"), PT("Copiar o caminho"), IT("Copia il percorso"),
+    NL("Pad kopiëren"),  RU("Скопировать путь"), TR("Yolu kopyala"));
+
+SS_MSG(home_recent_remove,
+    EN("Remove from list"), JA("一覧から削除"), ZH_HANS("从列表中移除"),
+    ZH_HANT("從清單中移除"), KO("목록에서 제거"), DE("Aus der Liste entfernen"),
+    FR("Retirer de la liste"), ES("Quitar de la lista"), PT("Remover da lista"),
+    IT("Rimuovi dall'elenco"), NL("Uit de lijst verwijderen"),
+    RU("Убрать из списка"), TR("Listeden kaldır"));
+
+SS_MSG(home_recent_clear,
+    EN("Clear this list"), JA("この一覧を消去"), ZH_HANS("清空此列表"),
+    ZH_HANT("清空此清單"), KO("이 목록 비우기"), DE("Diese Liste leeren"),
+    FR("Vider cette liste"), ES("Vaciar esta lista"), PT("Limpar esta lista"),
+    IT("Svuota questo elenco"), NL("Deze lijst wissen"),
+    RU("Очистить этот список"), TR("Bu listeyi temizle"));
+
+SS_MSG(home_recon_busy,
+    EN("Something is still running. Let it finish, or stop it, before opening "
+       "another reconstruction."),
+    JA("まだ処理が実行中です。別の再構成を開く前に、完了を待つか停止して"
+       "ください。"),
+    ZH_HANS("仍有任务在运行。请等它完成或将其停止，然后再打开另一个重建。"),
+    ZH_HANT("仍有工作在執行。請等它完成或將其停止，然後再開啟另一個重建。"),
+    KO("아직 실행 중인 작업이 있습니다. 다른 재구성을 열기 전에 끝날 때까지 "
+       "기다리거나 중지하세요."),
+    DE("Es läuft noch etwas. Lassen Sie es fertig werden oder beenden Sie es, "
+       "bevor Sie eine andere Rekonstruktion öffnen."),
+    FR("Une tâche est encore en cours. Laissez-la se terminer ou arrêtez-la "
+       "avant d'ouvrir une autre reconstruction."),
+    ES("Todavía hay algo en marcha. Deje que termine, o deténgalo, antes de "
+       "abrir otra reconstrucción."),
+    PT("Ainda há algo em execução. Deixe terminar, ou interrompa, antes de "
+       "abrir outra reconstrução."),
+    IT("C'è ancora qualcosa in corso. Lascialo finire, o fermalo, prima di "
+       "aprire un'altra ricostruzione."),
+    NL("Er loopt nog iets. Laat het afronden of stop het voordat u een andere "
+       "reconstructie opent."),
+    RU("Что-то ещё выполняется. Дождитесь завершения или остановите задачу, "
+       "прежде чем открывать другую реконструкцию."),
+    TR("Hâlâ çalışan bir iş var. Başka bir yeniden kurmayı açmadan önce "
+       "bitmesini bekleyin ya da durdurun."));
 
 SS_MSG(home_no_engine,
     EN("note: neither the built-in reconstruction nor COLMAP was found, so "
@@ -800,29 +1166,374 @@ SS_MSG(device_unsupported,
     NL(" [niet ondersteund]"), RU(" [не поддерживается]"),
     TR(" [desteklenmiyor]"));
 
-SS_MSG(device_locked,
-    EN("Device is fixed once training starts; restart the app to change it."),
-    JA("学習を始めるとデバイスは固定されます。変更するにはアプリを再起動して"
-       "ください。"),
-    ZH_HANS("训练开始后设备就固定了；要更换请重新启动程序。"),
-    ZH_HANT("訓練開始後裝置就固定了；要更換請重新啟動程式。"),
-    KO("학습이 시작되면 장치가 고정됩니다. 바꾸려면 앱을 다시 시작하세요."),
-    DE("Das Gerät steht fest, sobald das Training beginnt; zum Wechseln die "
-       "Anwendung neu starten."),
-    FR("Le périphérique est figé une fois l'entraînement lancé ; redémarrez "
-       "l'application pour en changer."),
-    ES("El dispositivo queda fijado en cuanto empieza el entrenamiento; "
-       "reinicie la aplicación para cambiarlo."),
-    PT("O dispositivo fica fixo assim que o treinamento começa; reinicie o "
-       "aplicativo para trocá-lo."),
-    IT("Il dispositivo è fissato una volta avviato l'addestramento; riavvii "
-       "l'applicazione per cambiarlo."),
-    NL("Het apparaat ligt vast zodra de training begint; herstart de "
-       "toepassing om het te wijzigen."),
-    RU("После начала обучения устройство менять нельзя; чтобы выбрать другое, "
-       "перезапустите программу."),
-    TR("Eğitim başladıktan sonra aygıt sabitlenir; değiştirmek için "
-       "uygulamayı yeniden başlatın."));
+SS_MSG(device_auto,
+    EN("Auto"),          JA("自動"),          ZH_HANS("自动"),     ZH_HANT("自動"),
+    KO("자동"),           DE("Automatisch"),  FR("Automatique"),  ES("Automático"),
+    PT("Automático"),    IT("Automatico"),   NL("Automatisch"),  RU("Автоматически"),
+    TR("Otomatik"));
+
+SS_MSG(menu_device,
+    EN("Device"),        JA("デバイス"),       ZH_HANS("设备"),     ZH_HANT("裝置"),
+    KO("장치"),           DE("Gerät"),        FR("Périphérique"), ES("Dispositivo"),
+    PT("Dispositivo"),   IT("Dispositivo"),  NL("Apparaat"),     RU("Устройство"),
+    TR("Aygıt"));
+
+SS_MSG(device_help,
+    EN("The GPU for built-in Vulkan jobs. Chosen once per session at the first "
+       "native GPU operation; changing it needs a restart. Auto picks the "
+       "fastest usable device. CUDA training and external tools use separate "
+       "settings."),
+    JA("組み込み Vulkan 処理が使う GPU です。セッションごとに最初のネイティブ "
+       "GPU 処理で一度だけ決まり、変更には再起動が必要です。自動は使用可能な"
+       "最も速いデバイスを選びます。CUDA 学習と外部ツールは別の設定を使います。"),
+    ZH_HANS("内置 Vulkan 任务使用的 GPU。每个会话在第一次原生 GPU 操作时只确定一"
+            "次，更改需要重新启动。自动会选择最快的可用设备。CUDA 训练和外部工"
+            "具使用独立设置。"),
+    ZH_HANT("內建 Vulkan 工作使用的 GPU。每個工作階段在第一次原生 GPU 操作時只"
+            "確定一次，變更需要重新啟動。自動會選擇最快的可用裝置。CUDA 訓練和"
+            "外部工具使用獨立設定。"),
+    KO("내장 Vulkan 작업에 사용할 GPU입니다. 세션마다 첫 네이티브 GPU 작업에서 한 "
+       "번만 정해지며, 바꾸려면 다시 시작해야 합니다. 자동은 사용 가능한 가장 빠른 "
+       "장치를 고릅니다. CUDA 학습과 외부 도구는 별도 설정을 사용합니다."),
+    DE("Die GPU für integrierte Vulkan-Aufträge. Sie wird pro Sitzung beim ersten "
+       "nativen GPU-Vorgang gewählt; zum Wechseln ist ein Neustart nötig. "
+       "Automatisch wird das schnellste nutzbare Gerät gewählt. CUDA-Training und "
+       "externe Werkzeuge verwenden eigene Einstellungen."),
+    FR("Le GPU des tâches Vulkan intégrées. Il est choisi une fois par session, "
+       "lors de la première opération GPU native ; le changer demande un "
+       "redémarrage. Automatique choisit le périphérique utilisable le plus "
+       "rapide. L'entraînement CUDA et les outils externes ont leurs propres "
+       "réglages."),
+    ES("La GPU de las tareas Vulkan integradas. Se elige una vez por sesión, en la "
+       "primera operación de GPU nativa; cambiarla requiere reiniciar. Automático "
+       "elige el dispositivo utilizable más rápido. El entrenamiento CUDA y las "
+       "herramientas externas usan ajustes separados."),
+    PT("A GPU das tarefas Vulkan integradas. É escolhida uma vez por sessão, na "
+       "primeira operação de GPU nativa; trocá-la exige reiniciar. Automático "
+       "escolhe o dispositivo utilizável mais rápido. O treinamento CUDA e as "
+       "ferramentas externas usam configurações separadas."),
+    IT("La GPU per le attività Vulkan integrate. Viene scelta una volta per "
+       "sessione, alla prima operazione GPU nativa; cambiarla richiede un "
+       "riavvio. Automatico sceglie il dispositivo utilizzabile più veloce. "
+       "L'addestramento CUDA e gli strumenti esterni usano impostazioni separate."),
+    NL("De GPU voor ingebouwde Vulkan-taken. Per sessie wordt deze bij de eerste "
+       "native GPU-bewerking gekozen; wijzigen vereist een herstart. Automatisch "
+       "kiest het snelste bruikbare apparaat. CUDA-training en externe "
+       "hulpmiddelen gebruiken aparte instellingen."),
+    RU("Графический процессор для встроенных задач Vulkan. Он выбирается один раз "
+       "за сеанс, при первой операции со встроенным GPU; для смены нужен "
+       "перезапуск. Автоматически выбирается самое быстрое доступное устройство. "
+       "Обучение CUDA и внешние инструменты используют отдельные настройки."),
+    TR("Yerleşik Vulkan işlerinin GPU'su. Oturum başına ilk yerel GPU işleminde bir "
+       "kez seçilir; değiştirmek için yeniden başlatma gerekir. Otomatik, "
+       "kullanılabilir en hızlı aygıtı seçer. CUDA eğitimi ve harici araçlar ayrı "
+       "ayarlar kullanır."));
+
+SS_MSG(device_auto_help,
+    EN("Let the application rank the devices and pick the best usable one."),
+    JA("アプリにデバイスを評価させ、使用可能な最良のものを選ばせます。"),
+    ZH_HANS("让程序对设备排序并选择最合适的可用设备。"),
+    ZH_HANT("讓程式對裝置排序並選擇最合適的可用裝置。"),
+    KO("앱이 장치를 평가해 사용 가능한 가장 좋은 것을 고르게 합니다."),
+    DE("Die Anwendung die Geräte bewerten und das beste nutzbare wählen lassen."),
+    FR("Laisser l'application classer les périphériques et prendre le meilleur "
+       "utilisable."),
+    ES("Dejar que la aplicación ordene los dispositivos y elija el mejor "
+       "utilizable."),
+    PT("Deixar o aplicativo classificar os dispositivos e escolher o melhor "
+       "utilizável."),
+    IT("Lasciare che l'applicazione ordini i dispositivi e scelga il migliore "
+       "utilizzabile."),
+    NL("De toepassing de apparaten laten rangschikken en het beste bruikbare "
+       "laten kiezen."),
+    RU("Позволить программе оценить устройства и выбрать лучшее доступное."),
+    TR("Uygulamanın aygıtları sıralayıp kullanılabilir en iyisini seçmesine izin "
+       "ver."));
+
+// {0} device name
+SS_MSG(device_frozen_at,
+    EN("GPU fixed for this session: {0}"),
+    JA("このセッションの GPU: {0}"),
+    ZH_HANS("本会话使用的 GPU：{0}"),
+    ZH_HANT("本工作階段使用的 GPU：{0}"),
+    KO("이 세션의 GPU: {0}"),
+    DE("GPU für diese Sitzung festgelegt: {0}"),
+    FR("GPU figé pour cette session : {0}"),
+    ES("GPU fijada para esta sesión: {0}"),
+    PT("GPU fixa para esta sessão: {0}"),
+    IT("GPU fissata per questa sessione: {0}"),
+    NL("GPU vastgelegd voor deze sessie: {0}"),
+    RU("Графический процессор закреплён на этот сеанс: {0}"),
+    TR("Bu oturum için GPU sabitlendi: {0}"));
+
+SS_MSG(device_restart_required,
+    EN("Changing the native Vulkan GPU needs restarting the application. Built-in "
+       "Vulkan jobs stay on this device; CUDA training and external tools use "
+       "separate settings."),
+    JA("組み込み Vulkan GPU を変更するにはアプリを再起動してください。組み込み "
+       "Vulkan 処理はこのデバイスで続き、CUDA 学習と外部ツールは別の設定を使います。"),
+    ZH_HANS("更换内置 Vulkan GPU 需要重新启动程序。内置 Vulkan 任务继续使用此设备；"
+            "CUDA 训练和外部工具使用独立设置。"),
+    ZH_HANT("更換內建 Vulkan GPU 需要重新啟動程式。內建 Vulkan 工作會繼續使用此"
+            "裝置；CUDA 訓練和外部工具使用獨立設定。"),
+    KO("내장 Vulkan GPU를 바꾸려면 앱을 다시 시작해야 합니다. 내장 Vulkan 작업은 이 "
+       "장치를 계속 사용하며, CUDA 학습과 외부 도구는 별도 설정을 사용합니다."),
+    DE("Das Ändern der integrierten Vulkan-GPU erfordert einen Neustart der "
+       "Anwendung. Integrierte Vulkan-Aufträge bleiben auf diesem Gerät; "
+       "CUDA-Training und externe Werkzeuge verwenden eigene Einstellungen."),
+    FR("Changer le GPU Vulkan intégré demande de redémarrer l'application. Les "
+       "tâches Vulkan intégrées restent sur ce périphérique ; l'entraînement CUDA "
+       "et les outils externes ont leurs propres réglages."),
+    ES("Cambiar la GPU Vulkan integrada requiere reiniciar la aplicación. Las "
+       "tareas Vulkan integradas siguen en este dispositivo; el entrenamiento "
+       "CUDA y las herramientas externas usan ajustes separados."),
+    PT("Trocar a GPU Vulkan integrada exige reiniciar o aplicativo. As tarefas "
+       "Vulkan integradas permanecem neste dispositivo; o treinamento CUDA e as "
+       "ferramentas externas usam configurações separadas."),
+    IT("Cambiare la GPU Vulkan integrata richiede di riavviare l'applicazione. "
+       "Le attività Vulkan integrate restano su questo dispositivo; "
+       "l'addestramento CUDA e gli strumenti esterni usano impostazioni separate."),
+    NL("De ingebouwde Vulkan-GPU wijzigen vereist een herstart van de toepassing. "
+       "Ingebouwde Vulkan-taken blijven op dit apparaat; CUDA-training en externe "
+       "hulpmiddelen gebruiken aparte instellingen."),
+    RU("Для смены встроенного GPU Vulkan требуется перезапустить программу. "
+       "Встроенные задачи Vulkan остаются на этом устройстве; обучение CUDA и "
+       "внешние инструменты используют отдельные настройки."),
+    TR("Yerleşik Vulkan GPU'sunu değiştirmek için uygulamayı yeniden başlatmak "
+       "gerekir. Yerleşik Vulkan işleri bu aygıtta kalır; CUDA eğitimi ve harici "
+       "araçlar ayrı ayarlar kullanır."));
+
+// {0} the requested value, {1} the frozen one
+SS_MSG(device_conflict,
+    EN("This session already runs on {1}, so {0} cannot be used. Restart the "
+       "application to choose another GPU."),
+    JA("このセッションはすでに {1} で動作しているため {0} は使えません。"
+       "別の GPU を選ぶにはアプリを再起動してください。"),
+    ZH_HANS("本会话已在 {1} 上运行，无法使用 {0}。请重新启动程序以选择其他 GPU。"),
+    ZH_HANT("本工作階段已在 {1} 上執行，無法使用 {0}。請重新啟動程式以選擇其他 GPU。"),
+    KO("이 세션은 이미 {1} 에서 실행 중이므로 {0} 을(를) 쓸 수 없습니다. 다른 "
+       "GPU 를 고르려면 앱을 다시 시작하세요."),
+    DE("Diese Sitzung läuft bereits auf {1}, daher kann {0} nicht verwendet "
+       "werden. Starten Sie die Anwendung neu, um eine andere GPU zu wählen."),
+    FR("Cette session tourne déjà sur {1} ; {0} ne peut donc pas être utilisé. "
+       "Redémarrez l'application pour choisir un autre GPU."),
+    ES("Esta sesión ya se ejecuta en {1}, así que no se puede usar {0}. "
+       "Reinicie la aplicación para elegir otra GPU."),
+    PT("Esta sessão já roda em {1}, então {0} não pode ser usado. Reinicie o "
+       "aplicativo para escolher outra GPU."),
+    IT("Questa sessione gira già su {1}, quindi {0} non può essere usato. "
+       "Riavvia l'applicazione per scegliere un'altra GPU."),
+    NL("Deze sessie draait al op {1}, dus {0} kan niet worden gebruikt. Herstart "
+       "de toepassing om een andere GPU te kiezen."),
+    RU("Этот сеанс уже выполняется на {1}, поэтому {0} использовать нельзя. "
+       "Перезапустите программу, чтобы выбрать другой GPU."),
+    TR("Bu oturum zaten {1} üzerinde çalışıyor, bu yüzden {0} kullanılamaz. "
+       "Başka bir GPU seçmek için uygulamayı yeniden başlatın."));
+
+// {0} the requested value, {1} why it was rejected
+SS_MSG(device_error,
+    EN("Cannot use GPU \"{0}\": {1}"),
+    JA("GPU「{0}」は使えません: {1}"),
+    ZH_HANS("无法使用 GPU“{0}”：{1}"),
+    ZH_HANT("無法使用 GPU「{0}」：{1}"),
+    KO("GPU \"{0}\" 을(를) 쓸 수 없습니다: {1}"),
+    DE("GPU „{0}“ kann nicht verwendet werden: {1}"),
+    FR("Impossible d'utiliser le GPU « {0} » : {1}"),
+    ES("No se puede usar la GPU «{0}»: {1}"),
+    PT("Não é possível usar a GPU \"{0}\": {1}"),
+    IT("Impossibile usare la GPU \"{0}\": {1}"),
+    NL("GPU \"{0}\" kan niet worden gebruikt: {1}"),
+    RU("Не удаётся использовать GPU «{0}»: {1}"),
+    TR("\"{0}\" GPU'su kullanılamıyor: {1}"));
+
+SS_MSG(device_detail_malformed,
+    EN("the request is not a valid device selector"),
+    JA("要求が有効なデバイス指定ではありません"),
+    ZH_HANS("该请求不是有效的设备选择器"),
+    ZH_HANT("該要求不是有效的裝置選擇器"),
+    KO("요청이 올바른 장치 선택자가 아닙니다"),
+    DE("die Angabe ist kein gültiger Geräteauswahlwert"),
+    FR("la demande n'est pas un sélecteur de périphérique valide"),
+    ES("la solicitud no es un selector de dispositivo válido"),
+    PT("a solicitação não é um seletor de dispositivo válido"),
+    IT("la richiesta non è un selettore di dispositivo valido"),
+    NL("de aanvraag is geen geldige apparaatkiezer"),
+    RU("запрос не является допустимым селектором устройства"),
+    TR("istek geçerli bir aygıt seçici değil"));
+
+SS_MSG(device_detail_out_of_range,
+    EN("no device has this index"),
+    JA("この番号のデバイスはありません"),
+    ZH_HANS("没有此索引的设备"),
+    ZH_HANT("沒有此索引的裝置"),
+    KO("이 번호의 장치가 없습니다"),
+    DE("kein Gerät hat diesen Index"),
+    FR("aucun périphérique n'a cet indice"),
+    ES("ningún dispositivo tiene este índice"),
+    PT("nenhum dispositivo tem este índice"),
+    IT("nessun dispositivo ha questo indice"),
+    NL("geen apparaat heeft deze index"),
+    RU("устройства с таким индексом нет"),
+    TR("bu dizinde bir aygıt yok"));
+
+SS_MSG(device_detail_missing,
+    EN("no device matches this request"),
+    JA("この指定に一致するデバイスがありません"),
+    ZH_HANS("没有与此请求匹配的设备"),
+    ZH_HANT("沒有與此要求相符的裝置"),
+    KO("이 요청과 일치하는 장치가 없습니다"),
+    DE("kein Gerät passt zu dieser Angabe"),
+    FR("aucun périphérique ne correspond à cette demande"),
+    ES("ningún dispositivo coincide con esta solicitud"),
+    PT("nenhum dispositivo corresponde a esta solicitação"),
+    IT("nessun dispositivo corrisponde a questa richiesta"),
+    NL("geen apparaat komt overeen met deze aanvraag"),
+    RU("ни одно устройство не соответствует этому запросу"),
+    TR("bu istekle eşleşen aygıt yok"));
+
+SS_MSG(device_detail_no_device,
+    EN("no usable Vulkan device was found"),
+    JA("使用可能な Vulkan デバイスが見つかりませんでした"),
+    ZH_HANS("未找到可用的 Vulkan 设备"),
+    ZH_HANT("找不到可用的 Vulkan 裝置"),
+    KO("사용 가능한 Vulkan 장치를 찾지 못했습니다"),
+    DE("es wurde kein nutzbares Vulkan-Gerät gefunden"),
+    FR("aucun périphérique Vulkan utilisable n'a été trouvé"),
+    ES("no se encontró ningún dispositivo Vulkan utilizable"),
+    PT("nenhum dispositivo Vulkan utilizável foi encontrado"),
+    IT("non è stato trovato alcun dispositivo Vulkan utilizzabile"),
+    NL("er is geen bruikbaar Vulkan-apparaat gevonden"),
+    RU("используемое устройство Vulkan не найдено"),
+    TR("kullanılabilir bir Vulkan aygıtı bulunamadı"));
+
+// {0} the environment's selector
+SS_MSG(device_inherited_env,
+    EN("Inherited from SS_VK_DEVICE: {0}"),
+    JA("SS_VK_DEVICE から継承: {0}"),
+    ZH_HANS("从 SS_VK_DEVICE 继承：{0}"),
+    ZH_HANT("繼承自 SS_VK_DEVICE：{0}"),
+    KO("SS_VK_DEVICE 에서 상속: {0}"),
+    DE("Von SS_VK_DEVICE übernommen: {0}"),
+    FR("Hérité de SS_VK_DEVICE : {0}"),
+    ES("Heredado de SS_VK_DEVICE: {0}"),
+    PT("Herdado de SS_VK_DEVICE: {0}"),
+    IT("Ereditato da SS_VK_DEVICE: {0}"),
+    NL("Overgenomen van SS_VK_DEVICE: {0}"),
+    RU("Унаследовано из SS_VK_DEVICE: {0}"),
+    TR("SS_VK_DEVICE'den devralındı: {0}"));
+
+SS_MSG(device_none_native,
+    EN("No usable Vulkan device was found, so nothing native can run."),
+    JA("使用可能な Vulkan デバイスが見つからないため、ネイティブ処理は実行"
+       "できません。"),
+    ZH_HANS("未找到可用的 Vulkan 设备，因此无法运行任何原生任务。"),
+    ZH_HANT("找不到可用的 Vulkan 裝置，因此無法執行任何原生工作。"),
+    KO("사용 가능한 Vulkan 장치를 찾지 못해 네이티브 작업을 실행할 수 없습니다."),
+    DE("Es wurde kein nutzbares Vulkan-Gerät gefunden, daher kann nichts Natives "
+       "laufen."),
+    FR("Aucun périphérique Vulkan utilisable n'a été trouvé ; rien de natif ne "
+       "peut donc tourner."),
+    ES("No se encontró ningún dispositivo Vulkan utilizable, así que nada nativo "
+       "puede ejecutarse."),
+    PT("Nenhum dispositivo Vulkan utilizável foi encontrado, então nada nativo "
+       "pode rodar."),
+    IT("Non è stato trovato alcun dispositivo Vulkan utilizzabile, quindi nulla "
+       "di nativo può girare."),
+    NL("Er is geen bruikbaar Vulkan-apparaat gevonden, dus niets natives kan "
+       "draaien."),
+    RU("Используемого устройства Vulkan не найдено, поэтому встроенные задачи "
+       "запустить нельзя."),
+    TR("Kullanılabilir bir Vulkan aygıtı bulunamadı, bu yüzden yerel hiçbir şey "
+       "çalışamaz."));
+
+SS_MSG(device_unusable_native,
+    EN("the device exists but does not meet the requirements of this workflow"),
+    JA("デバイスは存在しますが、この処理の必要条件を満たしていません"),
+    ZH_HANS("该设备存在，但不满足此任务的要求"),
+    ZH_HANT("該裝置存在，但不符合此工作的要求"),
+    KO("장치는 있지만 이 작업의 요구 사항을 충족하지 않습니다"),
+    DE("Das Gerät ist vorhanden, erfüllt aber nicht die Anforderungen dieses "
+       "Ablaufs"),
+    FR("Le périphérique existe mais ne répond pas aux exigences de ce flux"),
+    ES("El dispositivo existe pero no cumple los requisitos de este flujo"),
+    PT("O dispositivo existe mas não atende aos requisitos deste fluxo"),
+    IT("Il dispositivo esiste ma non soddisfa i requisiti di questo flusso"),
+    NL("Het apparaat bestaat maar voldoet niet aan de eisen van deze "
+       "werkstroom"),
+    RU("Устройство есть, но оно не отвечает требованиям этого процесса"),
+    TR("Aygıt var ama bu iş akışının gereksinimlerini karşılamıyor"));
+
+SS_MSG(device_cuda_locked,
+    EN("The CUDA device is fixed at the first engine operation; restart the app "
+       "to change it. Native Vulkan work uses its own selection."),
+    JA("CUDA デバイスは最初のエンジン処理で固定されます。変更するにはアプリを再起動"
+       "してください。ネイティブ Vulkan 処理は独自の選択を使います。"),
+    ZH_HANS("CUDA 设备在第一次引擎操作时固定；要更换请重新启动程序。原生 Vulkan "
+            "任务使用自己的选择。"),
+    ZH_HANT("CUDA 裝置會在第一次引擎操作時固定；要更換請重新啟動程式。原生 Vulkan "
+            "工作使用自己的選擇。"),
+    KO("CUDA 장치는 첫 엔진 작업에서 고정됩니다. 바꾸려면 앱을 다시 시작하세요. "
+       "네이티브 Vulkan 작업은 자체 선택을 사용합니다."),
+    DE("Das CUDA-Gerät wird beim ersten Engine-Vorgang festgelegt; zum Wechseln "
+       "die Anwendung neu starten. Native Vulkan-Arbeit nutzt eine eigene Auswahl."),
+    FR("Le périphérique CUDA est fixé lors de la première opération du moteur ; "
+       "redémarrez l'application pour en changer. Le travail Vulkan natif utilise "
+       "sa propre sélection."),
+    ES("El dispositivo CUDA queda fijado en la primera operación del motor; "
+       "reinicie la aplicación para cambiarlo. El trabajo Vulkan nativo usa su "
+       "propia selección."),
+    PT("O dispositivo CUDA fica fixo na primeira operação do mecanismo; reinicie "
+       "o aplicativo para trocá-lo. O trabalho Vulkan nativo usa sua própria seleção."),
+    IT("Il dispositivo CUDA viene fissato alla prima operazione del motore; "
+       "riavvia l'applicazione per cambiarlo. Il lavoro Vulkan nativo usa una "
+       "selezione propria."),
+    NL("Het CUDA-apparaat ligt vast bij de eerste enginebewerking; herstart de "
+       "toepassing om het te wijzigen. Native Vulkan-werk gebruikt een eigen keuze."),
+    RU("Устройство CUDA фиксируется при первой операции движка; чтобы сменить его, "
+       "перезапустите программу. Встроенные задачи Vulkan используют собственный "
+       "выбор."),
+    TR("CUDA aygıtı ilk motor işleminde sabitlenir; değiştirmek için uygulamayı "
+       "yeniden başlatın. Yerel Vulkan işi kendi seçimini kullanır."));
+
+// The known-issue banner's link to the issue tracker.
+SS_MSG(device_issue_details,
+    EN("Details on GitHub"),
+    JA("GitHub で詳細を見る"),
+    ZH_HANS("在 GitHub 上查看详情"),
+    ZH_HANT("在 GitHub 上查看詳情"),
+    KO("GitHub에서 자세히 보기"),
+    DE("Details auf GitHub"),
+    FR("Détails sur GitHub"),
+    ES("Detalles en GitHub"),
+    PT("Detalhes no GitHub"),
+    IT("Dettagli su GitHub"),
+    NL("Details op GitHub"),
+    RU("Подробности на GitHub"),
+    TR("GitHub'da ayrıntılar"));
+
+SS_MSG(link_no_browser,
+    EN("Could not open a browser. The page is at {0} (copied to the clipboard)."),
+    JA("ブラウザを開けませんでした。ページは {0} にあります"
+       "（クリップボードにコピーしました）。"),
+    ZH_HANS("无法打开浏览器。页面在 {0}（已复制到剪贴板）。"),
+    ZH_HANT("無法開啟瀏覽器。頁面在 {0}（已複製到剪貼簿）。"),
+    KO("브라우저를 열지 못했습니다. 페이지는 {0}에 있습니다(클립보드에 "
+       "복사했습니다)."),
+    DE("Es ließ sich kein Browser öffnen. Die Seite steht unter {0} (in die "
+       "Zwischenablage kopiert)."),
+    FR("Impossible d'ouvrir un navigateur. La page est à l'adresse {0} "
+       "(copiée dans le presse-papiers)."),
+    ES("No se pudo abrir un navegador. La página está en {0} (copiada al "
+       "portapapeles)."),
+    PT("Não foi possível abrir um navegador. A página está em {0} (copiada "
+       "para a área de transferência)."),
+    IT("Non è stato possibile aprire un browser. La pagina si trova in {0} "
+       "(copiata negli appunti)."),
+    NL("Er kon geen browser worden geopend. De pagina staat op {0} "
+       "(gekopieerd naar het klembord)."),
+    RU("Не удалось открыть браузер. Страница находится по адресу {0} "
+       "(адрес скопирован в буфер обмена)."),
+    TR("Bir tarayıcı açılamadı. Sayfa şu adreste: {0} (panoya kopyalandı)."));
 
 // ---- basic options ----
 SS_MSG(opt_output_folder,
@@ -1179,68 +1890,94 @@ SS_MSG(opt_mask_mode_help,
        "pixels are left out of the loss -- for people, cars, the "
        "photographer's shadow, or the area outside a fisheye circle. Cut out "
        "background: masked-out pixels are trained as empty, so the background "
-       "is cut away and only the masked subject is reconstructed -- for "
-       "object captures. Don't use masks: the mask folder is not read at "
-       "all. Has no effect on a dataset without masks."),
-    JA("マスクがある場合の意味です。「邪魔物を無視」ではマスクされた画素を"
-       "損失から外します。通行人、車、撮影者の影、魚眼の円外といったものに"
-       "向きます。「背景を切り抜く」ではマスクされた画素を空として学習するので、"
+       "is cut away and only the masked subject is reconstructed -- for object "
+       "captures. Don't use masks: the mask folder is not read at all. Has no "
+       "effect on a dataset without masks. Transparent pixels in the images "
+       "count as masked out; with no mask files beside them, the default is "
+       "Cut out background. "
+       "Dense point-cloud seeds also default to cut out."),
+    JA("マスクがある場合の意味です。「邪魔物を無視」ではマスクされた画素を損"
+       "失から外します。通行人、車、撮影者の影、魚眼の円外といったものに向き"
+       "ます。「背景を切り抜く」ではマスクされた画素を空として学習するので、"
        "背景が取り除かれ、マスクされた被写体だけが再構成されます。物体の撮影"
-       "向けです。「マスクを使わない」ではマスクを一切読み込みません。"
-       "マスクのないデータセットでは効果はありません。"),
-    ZH_HANS("有蒙版时蒙版的含义。“忽略干扰物”：被遮住的像素不计入损失——用于"
-            "行人、汽车、摄影者的影子、鱼眼圆之外的区域。“裁掉背景”：被遮住的"
-            "像素按空白训练，于是背景被裁掉，只重建被蒙版选中的主体——用于物体"
-            "拍摄。“不使用蒙版”：完全不读取蒙版。数据集没有蒙版时不起作用。"),
+       "向けです。「マスクを使わない」ではマスクを一切読み込みません。マスク"
+       "のないデータセットでは効果はありません。画像の透明な画素もマスクされ"
+       "たものとして扱います。マスクファイルがなければ、既定は「背景を切り抜"
+       "く」です。 "
+       "密な点群を初期値に使う場合も、既定は切り抜きです。"),
+    ZH_HANS("有蒙版时蒙版的含义。“忽略干扰物”：被遮住的像素不计入损失——用于行"
+            "人、汽车、摄影者的影子、鱼眼圆之外的区域。“裁掉背景”：被遮住的像"
+            "素按空白训练，于是背景被裁掉，只重建被蒙版选中的主体——用于物体拍"
+            "摄。“不使用蒙版”：完全不读取蒙版。数据集没有蒙版时不起作用。图像"
+            "中的透明像素也算作被遮住；没有蒙版文件时，默认为“裁掉背景”。 "
+       "使用稠密点云初始化时也默认裁掉背景。"),
     ZH_HANT("有遮罩時遮罩的含意。「忽略干擾物」：被遮住的像素不計入損失——用於"
-            "行人、汽車、攝影者的影子、魚眼圓之外的區域。「裁掉背景」：被遮住的"
-            "像素按空白訓練，於是背景被裁掉，只重建被遮罩選中的主體——用於物體"
-            "拍攝。「不使用遮罩」：完全不讀取遮罩。資料集沒有遮罩時不起作用。"),
-    KO("마스크가 있을 때 마스크의 의미입니다. 방해물 무시: 가려진 픽셀을 "
-       "손실에서 뺍니다 — 지나가는 사람, 차, 촬영자의 그림자, 어안 원 바깥에 "
-       "씁니다. 배경 잘라내기: 가려진 픽셀을 빈 곳으로 학습해 배경을 잘라내고 "
-       "마스크된 피사체만 재구성합니다 — 물체 촬영용입니다. 마스크 사용 안 "
-       "함: 마스크를 전혀 읽지 않습니다. 마스크가 없는 데이터셋에서는 아무 "
-       "효과가 없습니다."),
+            "行人、汽車、攝影者的影子、魚眼圓之外的區域。「裁掉背景」：被遮住"
+            "的像素按空白訓練，於是背景被裁掉，只重建被遮罩選中的主體——用於物"
+            "體拍攝。「不使用遮罩」：完全不讀取遮罩。資料集沒有遮罩時不起作用。"
+            "影像中的透明像素也算作被遮住；沒有遮罩檔案時，預設為「裁掉背景」。 "
+       "使用稠密點雲初始化時也預設裁掉背景。"),
+    KO("마스크가 있을 때 마스크의 의미입니다. 방해물 무시: 가려진 픽셀을 손실"
+       "에서 뺍니다 — 지나가는 사람, 차, 촬영자의 그림자, 어안 원 바깥에 씁니"
+       "다. 배경 잘라내기: 가려진 픽셀을 빈 곳으로 학습해 배경을 잘라내고 마"
+       "스크된 피사체만 재구성합니다 — 물체 촬영용입니다. 마스크 사용 안 함: "
+       "마스크를 전혀 읽지 않습니다. 마스크가 없는 데이터셋에서는 아무 효과가"
+       " 없습니다. 이미지의 투명한 픽셀도 가려진 것으로 봅니다. 마스크 파일이"
+       " 없으면 기본값은 배경 잘라내기입니다. "
+       "밀집 포인트 클라우드로 초기화할 때도 기본값은 배경 잘라내기입니다."),
     DE("Was eine Maske bedeutet, wo eine vorliegt. Störendes ignorieren: "
        "maskierte Pixel bleiben aus der Verlustfunktion heraus -- für "
        "Passanten, Autos, den eigenen Schatten oder den Bereich außerhalb des "
        "Fischaugenkreises. Hintergrund freistellen: maskierte Pixel werden als "
        "leer trainiert, der Hintergrund fällt weg und nur das maskierte Motiv "
-       "wird rekonstruiert -- für Objektaufnahmen. Masken nicht verwenden: "
-       "die Masken werden gar nicht erst gelesen. Ohne Masken im Datensatz "
-       "ohne Wirkung."),
+       "wird rekonstruiert -- für Objektaufnahmen. Masken nicht verwenden: die "
+       "Masken werden gar nicht erst gelesen. Ohne Masken im Datensatz ohne "
+       "Wirkung. Transparente Pixel der Bilder gelten ebenfalls als maskiert; "
+       "ohne Maskendateien daneben ist Hintergrund freistellen voreingestellt. "
+       "Bei einer dichten Startpunktwolke ist Ausschneiden ebenfalls die Vorgabe."),
     FR("Ce que signifie un masque, là où il y en a un. Ignorer les gêneurs : "
        "les pixels masqués sont retirés de la fonction de coût -- pour les "
        "passants, les voitures, votre propre ombre ou la zone hors du cercle "
        "fisheye. Détourer l'arrière-plan : les pixels masqués sont entraînés "
        "comme vides, l'arrière-plan disparaît et seul le sujet masqué est "
        "reconstruit -- pour les prises d'objet. Ne pas utiliser de masques : "
-       "les masques ne sont pas lus du tout. Sans effet sur un jeu de "
-       "données sans masques."),
+       "les masques ne sont pas lus du tout. Sans effet sur un jeu de données "
+       "sans masques. Les pixels transparents des images comptent aussi comme "
+       "masqués ; sans fichiers de masque à côté, Détourer l'arrière-plan est "
+       "le réglage par défaut. "
+       "Les nuages denses utilisés pour initialiser choisissent aussi le détourage par défaut."),
     ES("Qué significa una máscara, donde la hay. Ignorar los elementos "
        "molestos: los píxeles enmascarados quedan fuera de la función de "
-       "pérdida -- para transeúntes, coches, la sombra del fotógrafo o la "
-       "zona fuera del círculo de ojo de pez. Recortar el fondo: los píxeles "
+       "pérdida -- para transeúntes, coches, la sombra del fotógrafo o la zona "
+       "fuera del círculo de ojo de pez. Recortar el fondo: los píxeles "
        "enmascarados se entrenan como vacíos, el fondo se elimina y solo se "
-       "reconstruye el sujeto enmascarado -- para capturas de objetos. No "
-       "usar máscaras: las máscaras no se leen en absoluto. Sin efecto en un "
-       "conjunto sin máscaras."),
+       "reconstruye el sujeto enmascarado -- para capturas de objetos. No usar "
+       "máscaras: las máscaras no se leen en absoluto. Sin efecto en un "
+       "conjunto sin máscaras. Los píxeles transparentes de las imágenes "
+       "también cuentan como enmascarados; sin archivos de máscara junto a "
+       "ellas, lo predeterminado es Recortar el fondo. "
+       "La inicialización con nube densa también recorta por defecto."),
     PT("O que uma máscara significa, onde houver uma. Ignorar o que atrapalha: "
        "os pixels mascarados ficam de fora da função de perda -- para pessoas "
        "passando, carros, a sombra do fotógrafo ou a área fora do círculo olho "
        "de peixe. Recortar o fundo: os pixels mascarados são treinados como "
        "vazios, o fundo é removido e só o sujeito mascarado é reconstruído -- "
-       "para capturas de objetos. Não usar máscaras: as máscaras não são "
-       "lidas de todo. Sem efeito num conjunto sem máscaras."),
-    IT("Che cosa significa una maschera, dove ce n'è una. Ignorare i "
-       "disturbi: i pixel mascherati restano fuori dalla funzione di perdita "
-       "-- per passanti, automobili, l'ombra del fotografo o l'area fuori dal "
-       "cerchio fisheye. Ritagliare lo sfondo: i pixel mascherati vengono "
-       "addestrati come vuoti, lo sfondo sparisce e si ricostruisce solo il "
-       "soggetto mascherato -- per le riprese di oggetti. Non usare le "
-       "maschere: le maschere non vengono lette affatto. Senza effetto su un "
-       "set di dati senza maschere."),
+       "para capturas de objetos. Não usar máscaras: as máscaras não são lidas "
+       "de todo. Sem efeito num conjunto sem máscaras. Os pixels transparentes "
+       "das imagens também contam como mascarados; sem arquivos de máscara ao "
+       "lado, o padrão é Recortar o fundo. "
+       "A inicialização com nuvem densa também recorta por padrão."),
+    IT("Che cosa significa una maschera, dove ce n'è una. Ignorare i disturbi: "
+       "i pixel mascherati restano fuori dalla funzione di perdita -- per "
+       "passanti, automobili, l'ombra del fotografo o l'area fuori dal cerchio "
+       "fisheye. Ritagliare lo sfondo: i pixel mascherati vengono addestrati "
+       "come vuoti, lo sfondo sparisce e si ricostruisce solo il soggetto "
+       "mascherato -- per le riprese di oggetti. Non usare le maschere: le "
+       "maschere non vengono lette affatto. Senza effetto su un set di dati "
+       "senza maschere. Anche i pixel trasparenti delle immagini contano come "
+       "mascherati; senza file di maschera accanto, l'impostazione predefinita "
+       "è Ritagliare lo sfondo. "
+       "Anche l’inizializzazione con nuvola densa usa il ritaglio come predefinito."),
     NL("Wat een masker betekent, waar er een is. Storende dingen negeren: "
        "gemaskeerde pixels tellen niet mee in het verlies -- voor "
        "voorbijgangers, auto's, de schaduw van de fotograaf of het gebied "
@@ -1248,21 +1985,30 @@ SS_MSG(opt_mask_mode_help,
        "worden als leeg getraind, de achtergrond valt weg en alleen het "
        "gemaskeerde onderwerp wordt gereconstrueerd -- voor opnamen van een "
        "object. Maskers niet gebruiken: de maskers worden helemaal niet "
-       "gelezen. Zonder maskers in de dataset zonder effect."),
+       "gelezen. Zonder maskers in de dataset zonder effect. Transparante "
+       "pixels in de beelden tellen ook als gemaskeerd; zonder maskerbestanden "
+       "ernaast is Achtergrond uitsnijden de standaard. "
+       "Initialisatie met een dichte puntenwolk kiest standaard ook uitsnijden."),
     RU("Что означает маска там, где она есть. Игнорировать помехи: закрытые "
-       "маской пиксели не входят в функцию потерь -- для прохожих, машин, "
-       "тени фотографа или области вне круга «рыбьего глаза». Вырезать фон: "
+       "маской пиксели не входят в функцию потерь -- для прохожих, машин, тени "
+       "фотографа или области вне круга «рыбьего глаза». Вырезать фон: "
        "закрытые маской пиксели обучаются как пустота, фон удаляется и "
-       "восстанавливается только объект под маской -- для съёмки предметов. "
-       "Не использовать маски: маски вообще не читаются. Без масок в наборе "
-       "ни на что не влияет."),
+       "восстанавливается только объект под маской -- для съёмки предметов. Не "
+       "использовать маски: маски вообще не читаются. Без масок в наборе ни на "
+       "что не влияет. Прозрачные пиксели изображений тоже считаются закрытыми "
+       "маской; если файлов масок рядом нет, по умолчанию выбрано «Вырезать "
+       "фон». "
+       "При инициализации плотным облаком по умолчанию также вырезается фон."),
     TR("Maske varsa maskenin ne anlama geldiği. Rahatsız edicileri yok say: "
        "maskelenen pikseller yitim işlevine girmez -- yoldan geçenler, "
        "arabalar, fotoğrafçının gölgesi ya da balıkgözü dairesinin dışı için. "
        "Arka planı ayır: maskelenen pikseller boş olarak eğitilir, arka plan "
        "kalkar ve yalnızca maskelenen konu yeniden oluşturulur -- nesne "
-       "çekimleri için. Maskeleri kullanma: maskeler hiç okunmaz. Maskesiz "
-       "bir veri kümesinde etkisi yoktur."));
+       "çekimleri için. Maskeleri kullanma: maskeler hiç okunmaz. Maskesiz bir "
+       "veri kümesinde etkisi yoktur. Görüntülerdeki saydam pikseller de "
+       "maskelenmiş sayılır; yanlarında maske dosyası yoksa varsayılan Arka "
+       "planı ayır olur. "
+       "Yoğun nokta bulutuyla başlatmada da varsayılan arka planı kesmektir."));
 
 SS_MSG(opt_sh_degree,
     EN("Color detail (SH)"),
@@ -1325,6 +2071,70 @@ SS_MSG(opt_sh_degree_help,
        "harmonik derecesi. 3 standarttır; 0 düz renkler ve en küçük modeli "
        "verir; 4 yaygın görüntüleyicilerde çalışmayabilir."));
 
+SS_MSG(opt_dataset_depths,
+    EN("Use dataset depth maps"), JA("データセットの深度マップを使う"), ZH_HANS("使用数据集深度图"),
+    ZH_HANT("使用資料集深度圖"), KO("데이터셋 깊이 맵 사용"), DE("Tiefenkarten des Datensatzes verwenden"),
+    FR("Utiliser les cartes de profondeur du jeu de données"),
+    ES("Usar los mapas de profundidad del conjunto de datos"),
+    PT("Usar os mapas de profundidade do conjunto de dados"), IT("Usa le mappe di profondità del set di dati"),
+    NL("Dieptekaarten van de dataset gebruiken"), RU("Использовать карты глубины набора данных"),
+    TR("Veri kümesinin derinlik haritalarını kullan"));
+SS_MSG(opt_dataset_depths_help,
+    EN("Let the depth maps in this dataset guide the geometry. Helps plain, textureless areas; a "
+       "badly wrong map can pull quality down."),
+    JA("データセットの深度マップで形状を導きます。模様の少ない領域に効きますが、大きく誤った"
+       "マップは品質を下げることがあります。"),
+    ZH_HANS("用数据集中的深度图引导几何。对无纹理区域有帮助；明显错误的深度图可能降低质量。"),
+    ZH_HANT("用資料集中的深度圖引導幾何。對無紋理區域有幫助；明顯錯誤的深度圖可能降低品質。"),
+    KO("데이터셋의 깊이 맵으로 형상을 안내합니다. 무늬 없는 영역에 도움이 되지만, 크게 틀린 맵은 "
+       "품질을 떨어뜨릴 수 있습니다."),
+    DE("Die Tiefenkarten des Datensatzes führen die Geometrie. Hilft in texturlosen Bereichen; eine "
+       "stark falsche Karte kann die Qualität senken."),
+    FR("Les cartes de profondeur du jeu de données guident la géométrie. Utile sur les zones sans "
+       "texture ; une carte très fausse peut dégrader la qualité."),
+    ES("Los mapas de profundidad del conjunto de datos guían la geometría. Ayuda en zonas sin textura; "
+       "un mapa muy erróneo puede empeorar la calidad."),
+    PT("Os mapas de profundidade do conjunto de dados guiam a geometria. Ajuda em áreas sem textura; "
+       "um mapa muito errado pode piorar a qualidade."),
+    IT("Le mappe di profondità del set di dati guidano la geometria. Aiuta nelle zone senza texture; "
+       "una mappa molto errata può peggiorare la qualità."),
+    NL("De dieptekaarten van de dataset sturen de geometrie. Helpt bij textuurloze vlakken; een sterk "
+       "foute kaart kan de kwaliteit verlagen."),
+    RU("Карты глубины набора данных направляют геометрию. Помогает на участках без текстуры; сильно "
+       "ошибочная карта может ухудшить качество."),
+    TR("Veri kümesindeki derinlik haritaları geometriye yön verir. Dokusuz alanlarda yardımcı olur; çok "
+       "hatalı bir harita kaliteyi düşürebilir."));
+SS_MSG(opt_dataset_normals,
+    EN("Use dataset normal maps"), JA("データセットの法線マップを使う"), ZH_HANS("使用数据集法线图"),
+    ZH_HANT("使用資料集法線圖"), KO("데이터셋 노멀 맵 사용"), DE("Normalenkarten des Datensatzes verwenden"),
+    FR("Utiliser les cartes de normales du jeu de données"),
+    ES("Usar los mapas de normales del conjunto de datos"),
+    PT("Usar os mapas de normais do conjunto de dados"), IT("Usa le mappe delle normali del set di dati"),
+    NL("Normaalkaarten van de dataset gebruiken"), RU("Использовать карты нормалей набора данных"),
+    TR("Veri kümesinin normal haritalarını kullan"));
+SS_MSG(opt_dataset_normals_help,
+    EN("Let the normal maps in this dataset guide which way surfaces face. Helps flat surfaces come "
+       "out flat."),
+    JA("データセットの法線マップで面の向きを導きます。平らな面が平らに仕上がりやすくなります。"),
+    ZH_HANS("用数据集中的法线图引导表面朝向，让平面更平整。"),
+    ZH_HANT("用資料集中的法線圖引導表面朝向，讓平面更平整。"),
+    KO("데이터셋의 노멀 맵으로 표면 방향을 안내합니다. 평평한 면이 평평하게 나오도록 돕습니다."),
+    DE("Die Normalenkarten des Datensatzes geben die Ausrichtung der Flächen vor. Ebene Flächen "
+       "werden so eben."),
+    FR("Les cartes de normales du jeu de données guident l'orientation des surfaces. Les surfaces "
+       "planes restent planes."),
+    ES("Los mapas de normales del conjunto de datos guían la orientación de las superficies. Ayuda a "
+       "que las superficies planas salgan planas."),
+    PT("Os mapas de normais do conjunto de dados guiam a orientação das superfícies. Ajuda as "
+       "superfícies planas a saírem planas."),
+    IT("Le mappe delle normali del set di dati guidano l'orientamento delle superfici. Aiuta le "
+       "superfici piane a restare piane."),
+    NL("De normaalkaarten van de dataset sturen de richting van oppervlakken. Vlakke oppervlakken "
+       "worden zo vlak."),
+    RU("Карты нормалей набора данных задают ориентацию поверхностей. Плоские поверхности получаются "
+       "плоскими."),
+    TR("Veri kümesindeki normal haritaları yüzeylerin yönüne rehberlik eder. Düz yüzeylerin düz "
+       "çıkmasına yardımcı olur."));
 SS_MSG(opt_bilateral_grid,
     EN("Bilateral Grid color correction"),
     JA("バイラテラルグリッドによる色補正"),
@@ -1563,6 +2373,55 @@ SS_MSG(preparing_engine,
     TR("Motor hazırlanıyor (splat'lar tohumlanıyor, görüntüler önbelleğe "
        "alınıyor)…"));
 
+// {0} a file name, {1} FileDownload's status ("42% of 553 MB").
+SS_MSG(fetching_lpips,
+    EN("Downloading the LPIPS checkpoint {0}: {1}"),
+    JA("LPIPS チェックポイント {0} をダウンロード中: {1}"),
+    ZH_HANS("正在下载 LPIPS 检查点 {0}：{1}"),
+    ZH_HANT("正在下載 LPIPS 檢查點 {0}：{1}"),
+    KO("LPIPS 체크포인트 {0} 내려받는 중: {1}"),
+    DE("LPIPS-Checkpoint {0} wird heruntergeladen: {1}"),
+    FR("Téléchargement du point de contrôle LPIPS {0} : {1}"),
+    ES("Descargando el punto de control de LPIPS {0}: {1}"),
+    PT("Baixando o checkpoint do LPIPS {0}: {1}"),
+    IT("Download del checkpoint LPIPS {0}: {1}"),
+    NL("LPIPS-checkpoint {0} wordt gedownload: {1}"),
+    RU("Загрузка контрольной точки LPIPS {0}: {1}"),
+    TR("LPIPS denetim noktası {0} indiriliyor: {1}"));
+
+SS_MSG(lpips_fetch_failed,
+    EN("Could not download the LPIPS checkpoint {0}, which evaluation needs: {1}. "
+       "Turn LPIPS off in the training options to train without it."),
+    JA("評価に必要な LPIPS チェックポイント {0} をダウンロードできませんでした: {1}。"
+       "LPIPS なしで学習するには、学習オプションで LPIPS をオフにしてください。"),
+    ZH_HANS("无法下载评估所需的 LPIPS 检查点 {0}：{1}。若要不用 LPIPS 训练，"
+            "请在训练选项中关闭 LPIPS。"),
+    ZH_HANT("無法下載評估所需的 LPIPS 檢查點 {0}：{1}。若要不用 LPIPS 訓練，"
+            "請在訓練選項中關閉 LPIPS。"),
+    KO("평가에 필요한 LPIPS 체크포인트 {0} 파일을 내려받지 못했습니다: {1}. "
+       "LPIPS 없이 학습하려면 학습 옵션에서 LPIPS를 끄세요."),
+    DE("Der LPIPS-Checkpoint {0}, den die Auswertung braucht, ließ sich nicht "
+       "herunterladen: {1}. Um ohne ihn zu trainieren, LPIPS in den "
+       "Trainingsoptionen ausschalten."),
+    FR("Impossible de télécharger le point de contrôle LPIPS {0}, nécessaire à "
+       "l'évaluation : {1}. Pour entraîner sans lui, désactivez LPIPS dans les "
+       "options d'entraînement."),
+    ES("No se pudo descargar el punto de control de LPIPS {0}, que la evaluación "
+       "necesita: {1}. Para entrenar sin él, desactive LPIPS en las opciones de "
+       "entrenamiento."),
+    PT("Não foi possível baixar o checkpoint do LPIPS {0}, de que a avaliação "
+       "precisa: {1}. Para treinar sem ele, desative o LPIPS nas opções de "
+       "treinamento."),
+    IT("Impossibile scaricare il checkpoint LPIPS {0}, necessario alla "
+       "valutazione: {1}. Per addestrare senza, disattiva LPIPS nelle opzioni di "
+       "addestramento."),
+    NL("Het LPIPS-checkpoint {0}, dat de evaluatie nodig heeft, kon niet worden "
+       "gedownload: {1}. Zet LPIPS uit in de trainingsopties om zonder te trainen."),
+    RU("Не удалось скачать контрольную точку LPIPS {0}, нужную для оценки: {1}. "
+       "Чтобы обучать без неё, отключите LPIPS в параметрах обучения."),
+    TR("Değerlendirmenin ihtiyaç duyduğu LPIPS denetim noktası {0} indirilemedi: "
+       "{1}. Onsuz eğitmek için eğitim seçeneklerinde LPIPS'i kapatın."));
+
 SS_MSG(pause,
     EN("Pause"),         JA("一時停止"),      ZH_HANS("暂停"),     ZH_HANT("暫停"),
     KO("일시 정지"),      DE("Pause"),        FR("Pause"),        ES("Pausar"),
@@ -1677,32 +2536,19 @@ SS_MSG(stopping,
     NL("Bezig met stoppen…"), RU("Останавливается…"), TR("Durduruluyor…"));
 
 SS_MSG(stop_and_save_help,
-    EN("Finish the current step, save a checkpoint, and keep the result "
-       "loaded for viewing."),
-    JA("いまのステップを終えてチェックポイントを保存し、結果は表示用に"
-       "読み込んだままにします。"),
-    ZH_HANS("完成当前这一步，保存一个检查点，并把结果留在内存中以便查看。"),
-    ZH_HANT("完成目前這一步，儲存一個檢查點，並把結果留在記憶體中以便檢視。"),
-    KO("현재 단계를 마치고 체크포인트를 저장한 뒤, 결과는 볼 수 있도록 그대로 "
-       "둡니다."),
-    DE("Den laufenden Schritt zu Ende bringen, einen Prüfpunkt speichern und "
-       "das Ergebnis zum Betrachten geladen lassen."),
-    FR("Terminer l'étape en cours, enregistrer un point de sauvegarde et "
-       "garder le résultat chargé pour le consulter."),
-    ES("Terminar el paso actual, guardar un punto de control y dejar el "
-       "resultado cargado para verlo."),
-    PT("Terminar o passo atual, salvar um ponto de verificação e deixar o "
-       "resultado carregado para visualização."),
-    IT("Terminare il passo in corso, salvare un punto di controllo e lasciare "
-       "il risultato caricato per poterlo osservare."),
-    NL("De huidige stap afmaken, een controlepunt opslaan en het resultaat "
-       "geladen laten om te bekijken."),
-    RU("Завершить текущий шаг, сохранить контрольную точку и оставить "
-       "результат загруженным для просмотра."),
-    TR("Şu anki adımı bitir, bir denetim noktası kaydet ve sonucu görmek için "
-       "yüklü bırak."));
-
-// ---- status strip ----
+    EN("Finish the current step, save a checkpoint, and keep the result loaded for viewing. A run stopped before its last step saves everything needed to continue it later with File > Resume Training."),
+    JA("いまのステップを終えてチェックポイントを保存し、結果は表示用に読み込んだままにします。最後のステップ前に停止した学習は、後で「ファイル > 学習を再開」で続けるのに必要なものをすべて保存します。"),
+    ZH_HANS("完成当前这一步，保存一个检查点，并把结果留在内存中以便查看。在最后一步之前停止的运行会保存日后通过“文件 > 继续训练”继续所需的全部内容。"),
+    ZH_HANT("完成目前這一步，儲存一個檢查點，並把結果留在記憶體中以便檢視。在最後一步之前停止的執行會儲存日後透過「檔案 > 繼續訓練」繼續所需的全部內容。"),
+    KO("현재 단계를 마치고 체크포인트를 저장한 뒤, 결과는 볼 수 있도록 그대로 둡니다. 마지막 단계 전에 중지한 실행은 나중에 '파일 > 학습 재개'로 이어 가는 데 필요한 모든 것을 저장합니다."),
+    DE("Den laufenden Schritt zu Ende bringen, einen Prüfpunkt speichern und das Ergebnis zum Betrachten geladen lassen. Ein vor dem letzten Schritt gestopptes Training speichert alles, um es später mit Datei > Training fortsetzen weiterzuführen."),
+    FR("Terminer l'étape en cours, enregistrer un point de sauvegarde et garder le résultat chargé pour le consulter. Un entraînement arrêté avant sa dernière étape enregistre tout le nécessaire pour le reprendre plus tard avec Fichier > Reprendre l'entraînement."),
+    ES("Terminar el paso actual, guardar un punto de control y dejar el resultado cargado para verlo. Un entrenamiento detenido antes de su último paso guarda todo lo necesario para continuarlo después con Archivo > Reanudar entrenamiento."),
+    PT("Terminar o passo atual, salvar um ponto de verificação e deixar o resultado carregado para visualização. Um treinamento parado antes do último passo salva tudo o que é preciso para continuá-lo depois com Arquivo > Retomar treinamento."),
+    IT("Terminare il passo in corso, salvare un punto di controllo e lasciare il risultato caricato per la visualizzazione. Un addestramento fermato prima dell'ultimo passo salva tutto il necessario per riprenderlo poi con File > Riprendi addestramento."),
+    NL("De huidige stap afmaken, een checkpoint opslaan en het resultaat geladen houden om te bekijken. Een training die vóór de laatste stap stopt, bewaart alles om later verder te gaan met Bestand > Training hervatten."),
+    RU("Завершить текущий шаг, сохранить контрольную точку и оставить результат загруженным для просмотра. Обучение, остановленное до последнего шага, сохраняет всё нужное, чтобы позже продолжить его через «Файл > Продолжить обучение»."),
+    TR("Geçerli adımı bitir, bir denetim noktası kaydet ve sonucu görüntülemek için yüklü tut. Son adımından önce durdurulan bir eğitim, daha sonra Dosya > Eğitime devam et ile sürdürmek için gereken her şeyi kaydeder."));
 
 SS_MSG(status_step,
     EN("step {0} / {1}  ({2}%)"), JA("ステップ {0} / {1}  ({2}%)"),
@@ -1778,6 +2624,27 @@ SS_MSG(status_preparing,
     KO("준비 중"),        DE("wird vorbereitet"), FR("préparation"),
     ES("preparando"),    PT("preparando"),   IT("preparazione"),
     NL("bezig met voorbereiden"), RU("подготовка"), TR("hazırlanıyor"));
+
+SS_MSG(status_evaluating,
+    EN("evaluating"),     JA("評価中"),         ZH_HANS("评估中"),  ZH_HANT("評估中"),
+    KO("평가 중"),         DE("Auswertung läuft"), FR("évaluation"),
+    ES("evaluando"),      PT("avaliando"),      IT("valutazione in corso"),
+    NL("bezig met evalueren"), RU("оценка"),     TR("değerlendiriliyor"));
+
+SS_MSG(status_eval_views,
+    EN("evaluating {0}/{1} views ({2}%)"),
+    JA("評価中 {0}/{1} 視点 ({2}%)"),
+    ZH_HANS("正在评估 {0}/{1} 个视角 ({2}%)"),
+    ZH_HANT("正在評估 {0}/{1} 個視角 ({2}%)"),
+    KO("평가 중 {0}/{1} 뷰 ({2}%)"),
+    DE("Auswertung {0}/{1} Ansichten ({2}%)"),
+    FR("évaluation {0}/{1} vues ({2}%)"),
+    ES("evaluando {0}/{1} vistas ({2}%)"),
+    PT("avaliando {0}/{1} vistas ({2}%)"),
+    IT("valutazione {0}/{1} viste ({2}%)"),
+    NL("bezig met evalueren {0}/{1} weergaven ({2}%)"),
+    RU("оценка: {0}/{1} ракурсов ({2}%)"),
+    TR("{0}/{1} görüntü değerlendiriliyor (%{2})"));
 
 SS_MSG(status_ready,
     EN("ready"),         JA("準備完了"),      ZH_HANS("就绪"),     ZH_HANT("就緒"),
@@ -1895,6 +2762,184 @@ SS_MSG(vram_help,
     TR("GPU belleği (GiB): bu sürecin kullandığı / sistem genelinde kullanılan "
        "/ aygıtın kapasitesi. “?”, arka ucun o değeri sorgulayamadığı "
        "anlamına gelir."));
+
+// The VRAM forecast: the risk tag beside the bar, and its hover card.
+SS_MSG(oom_risk_low,
+    EN("OOM risk: low"), JA("メモリ不足リスク: 低"), ZH_HANS("显存不足风险：低"),
+    ZH_HANT("顯示記憶體不足風險：低"), KO("메모리 부족 위험: 낮음"),
+    DE("OOM-Risiko: gering"), FR("Risque de saturation : faible"),
+    ES("Riesgo de falta de memoria: bajo"), PT("Risco de falta de memória: baixo"),
+    IT("Rischio memoria esaurita: basso"), NL("Risico geheugentekort: laag"),
+    RU("Риск нехватки памяти: низкий"), TR("Bellek yetmeme riski: düşük"));
+
+SS_MSG(oom_risk_medium,
+    EN("OOM risk: medium"), JA("メモリ不足リスク: 中"), ZH_HANS("显存不足风险：中"),
+    ZH_HANT("顯示記憶體不足風險：中"), KO("메모리 부족 위험: 보통"),
+    DE("OOM-Risiko: mittel"), FR("Risque de saturation : moyen"),
+    ES("Riesgo de falta de memoria: medio"), PT("Risco de falta de memória: médio"),
+    IT("Rischio memoria esaurita: medio"), NL("Risico geheugentekort: middel"),
+    RU("Риск нехватки памяти: средний"), TR("Bellek yetmeme riski: orta"));
+
+SS_MSG(oom_risk_high,
+    EN("OOM risk: high"), JA("メモリ不足リスク: 高"), ZH_HANS("显存不足风险：高"),
+    ZH_HANT("顯示記憶體不足風險：高"), KO("메모리 부족 위험: 높음"),
+    DE("OOM-Risiko: hoch"), FR("Risque de saturation : élevé"),
+    ES("Riesgo de falta de memoria: alto"), PT("Risco de falta de memória: alto"),
+    IT("Rischio memoria esaurita: alto"), NL("Risico geheugentekort: hoog"),
+    RU("Риск нехватки памяти: высокий"), TR("Bellek yetmeme riski: yüksek"));
+
+SS_MSG(vram_chart_title,
+    EN("GPU memory over the run (GiB)"), JA("学習中の GPU メモリ（GiB）"),
+    ZH_HANS("训练过程中的显存（GiB）"), ZH_HANT("訓練過程中的顯示記憶體（GiB）"),
+    KO("학습 중 GPU 메모리(GiB)"), DE("Grafikspeicher im Verlauf (GiB)"),
+    FR("Mémoire GPU au fil de l'entraînement (Gio)"),
+    ES("Memoria de GPU durante el entrenamiento (GiB)"),
+    PT("Memória da GPU ao longo do treinamento (GiB)"),
+    IT("Memoria GPU durante l'addestramento (GiB)"),
+    NL("GPU-geheugen tijdens de training (GiB)"),
+    RU("Видеопамять по ходу обучения (ГиБ)"), TR("Eğitim boyunca GPU belleği (GiB)"));
+
+SS_MSG(vram_legend_run,
+    EN("this run"), JA("この学習"), ZH_HANS("本次训练"), ZH_HANT("本次訓練"),
+    KO("이 학습"), DE("dieses Training"), FR("cet entraînement"),
+    ES("este entrenamiento"), PT("este treinamento"), IT("questo addestramento"),
+    NL("deze training"), RU("это обучение"), TR("bu eğitim"));
+
+SS_MSG(vram_legend_projected,
+    EN("projected (95% band)"), JA("予測（95% 範囲）"), ZH_HANS("预测（95% 区间）"),
+    ZH_HANT("預測（95% 區間）"), KO("예측(95% 범위)"), DE("Prognose (95-%-Band)"),
+    FR("prévision (bande à 95 %)"), ES("previsión (banda del 95 %)"),
+    PT("previsão (faixa de 95%)"), IT("previsione (banda al 95%)"),
+    NL("prognose (95%-band)"), RU("прогноз (полоса 95 %)"), TR("tahmin (%95 aralığı)"));
+
+SS_MSG(vram_legend_others,
+    EN("other programs"), JA("他のプログラム"), ZH_HANS("其他程序"), ZH_HANT("其他程式"),
+    KO("다른 프로그램"), DE("andere Programme"), FR("autres programmes"),
+    ES("otros programas"), PT("outros programas"), IT("altri programmi"),
+    NL("andere programma's"), RU("другие программы"), TR("diğer programlar"));
+
+SS_MSG(vram_legend_capacity,
+    EN("device capacity"), JA("デバイスの容量"), ZH_HANS("设备容量"), ZH_HANT("裝置容量"),
+    KO("장치 용량"), DE("Kapazität des Geräts"), FR("capacité du périphérique"),
+    ES("capacidad del dispositivo"), PT("capacidade do dispositivo"),
+    IT("capacità del dispositivo"), NL("capaciteit van het apparaat"),
+    RU("объём устройства"), TR("aygıt kapasitesi"));
+
+SS_MSG(vram_chart_peak,
+    EN("Projected peak: {0} ± {1} GiB   free for training: {2} GiB   chance of running out: {3}%"),
+    JA("予測ピーク: {0} ± {1} GiB   学習に使える量: {2} GiB   不足する確率: {3}%"),
+    ZH_HANS("预计峰值：{0} ± {1} GiB   可供训练：{2} GiB   耗尽的概率：{3}%"),
+    ZH_HANT("預計峰值：{0} ± {1} GiB   可供訓練：{2} GiB   耗盡的機率：{3}%"),
+    KO("예상 최대치: {0} ± {1} GiB   학습에 쓸 수 있는 양: {2} GiB   부족할 확률: {3}%"),
+    DE("Erwartete Spitze: {0} ± {1} GiB   für das Training frei: {2} GiB   Wahrscheinlichkeit, dass er ausgeht: {3} %"),
+    FR("Pic prévu : {0} ± {1} Gio   disponible pour l'entraînement : {2} Gio   probabilité de saturation : {3} %"),
+    ES("Pico previsto: {0} ± {1} GiB   libre para entrenar: {2} GiB   probabilidad de quedarse sin memoria: {3} %"),
+    PT("Pico previsto: {0} ± {1} GiB   livre para o treinamento: {2} GiB   chance de faltar memória: {3}%"),
+    IT("Picco previsto: {0} ± {1} GiB   libera per l'addestramento: {2} GiB   probabilità di esaurirla: {3}%"),
+    NL("Verwachte piek: {0} ± {1} GiB   vrij voor training: {2} GiB   kans op tekort: {3}%"),
+    RU("Ожидаемый пик: {0} ± {1} ГиБ   доступно для обучения: {2} ГиБ   вероятность нехватки: {3} %"),
+    TR("Beklenen tepe: {0} ± {1} GiB   eğitim için boş: {2} GiB   yetmeme olasılığı: %{3}"));
+
+SS_MSG(vram_chart_provisional,
+    EN("The estimate firms up once the first densification step has run."),
+    JA("最初の高密度化ステップが済むと、推定の精度が上がります。"),
+    ZH_HANS("第一次加密步骤运行后，估计会更准确。"),
+    ZH_HANT("第一次加密步驟執行後，估計會更準確。"),
+    KO("첫 번째 밀집화 단계가 끝나면 추정이 더 정확해집니다."),
+    DE("Die Schätzung wird genauer, sobald der erste Verdichtungsschritt gelaufen ist."),
+    FR("L'estimation se précise après la première étape de densification."),
+    ES("La estimación se afina en cuanto se ejecuta el primer paso de densificación."),
+    PT("A estimativa fica mais precisa depois do primeiro passo de densificação."),
+    IT("La stima si affina dopo il primo passo di densificazione."),
+    NL("De schatting wordt nauwkeuriger zodra de eerste verdichtingsstap is uitgevoerd."),
+    RU("Оценка уточнится после первого шага уплотнения."),
+    TR("İlk yoğunlaştırma adımı çalıştıktan sonra tahmin netleşir."));
+
+SS_MSG(vram_chart_waiting,
+    EN("The projection appears after the first steps have been measured."),
+    JA("最初のステップを計測すると予測が表示されます。"),
+    ZH_HANS("测量完最初的若干步后会显示预测。"),
+    ZH_HANT("量測完最初的若干步後會顯示預測。"),
+    KO("처음 몇 단계를 측정하면 예측이 표시됩니다."),
+    DE("Die Prognose erscheint, sobald die ersten Schritte gemessen sind."),
+    FR("La prévision apparaît une fois les premières étapes mesurées."),
+    ES("La previsión aparece cuando se han medido los primeros pasos."),
+    PT("A previsão aparece depois que os primeiros passos são medidos."),
+    IT("La previsione compare dopo che i primi passi sono stati misurati."),
+    NL("De prognose verschijnt zodra de eerste stappen gemeten zijn."),
+    RU("Прогноз появится, когда будут измерены первые шаги."),
+    TR("Tahmin, ilk adımlar ölçüldükten sonra görünür."));
+
+SS_MSG(vram_breakdown_title,
+    EN("This run by category (GiB)"), JA("この学習の内訳（GiB）"),
+    ZH_HANS("本次训练按类别（GiB）"), ZH_HANT("本次訓練按類別（GiB）"),
+    KO("이 학습의 항목별 사용량(GiB)"), DE("Dieses Training nach Kategorie (GiB)"),
+    FR("Cet entraînement par catégorie (Gio)"), ES("Este entrenamiento por categoría (GiB)"),
+    PT("Este treinamento por categoria (GiB)"), IT("Questo addestramento per categoria (GiB)"),
+    NL("Deze training per categorie (GiB)"), RU("Это обучение по категориям (ГиБ)"),
+    TR("Bu eğitim, kategoriye göre (GiB)"));
+
+SS_MSG(vram_breakdown_growth,
+    EN("Faded: growth still to come, up to the projected peak."),
+    JA("薄い部分: 予測ピークまでにこれから増える分。"),
+    ZH_HANS("浅色部分：到预计峰值前还会增加的量。"),
+    ZH_HANT("淺色部分：到預計峰值前還會增加的量。"),
+    KO("흐린 부분: 예상 최대치까지 앞으로 늘어날 양."),
+    DE("Blass: der Zuwachs, der bis zur erwarteten Spitze noch kommt."),
+    FR("En pâle : la croissance encore à venir, jusqu'au pic prévu."),
+    ES("Atenuado: el crecimiento que aún falta hasta el pico previsto."),
+    PT("Esmaecido: o crescimento que ainda virá, até o pico previsto."),
+    IT("Sbiadito: la crescita ancora da venire, fino al picco previsto."),
+    NL("Vaag: de groei die nog komt, tot de verwachte piek."),
+    RU("Бледным: рост, который ещё впереди, до ожидаемого пика."),
+    TR("Soluk: beklenen tepeye kadar daha gelecek artış."));
+
+SS_MSG(vram_cat_splat,
+    EN("Splats"), JA("スプラット"), ZH_HANS("泼溅"), ZH_HANT("潑濺"), KO("스플랫"),
+    DE("Splats"), FR("Splats"), ES("Splats"), PT("Splats"), IT("Splat"),
+    NL("Splats"), RU("Сплаты"), TR("Splat'ler"));
+
+SS_MSG(vram_cat_splat_x_img,
+    EN("Splats × images"), JA("スプラット × 画像"), ZH_HANS("泼溅 × 图像"),
+    ZH_HANT("潑濺 × 影像"), KO("스플랫 × 이미지"), DE("Splats × Bilder"),
+    FR("Splats × images"), ES("Splats × imágenes"), PT("Splats × imagens"),
+    IT("Splat × immagini"), NL("Splats × beelden"), RU("Сплаты × изображения"),
+    TR("Splat × görüntü"));
+
+SS_MSG(vram_cat_image,
+    EN("Images"), JA("画像"), ZH_HANS("图像"), ZH_HANT("影像"), KO("이미지"),
+    DE("Bilder"), FR("Images"), ES("Imágenes"), PT("Imagens"), IT("Immagini"),
+    NL("Beelden"), RU("Изображения"), TR("Görüntüler"));
+
+SS_MSG(vram_cat_appearance,
+    EN("Appearance"), JA("外観補正"), ZH_HANS("外观校正"), ZH_HANT("外觀校正"),
+    KO("외관 보정"), DE("Erscheinungsbild"), FR("Apparence"), ES("Apariencia"),
+    PT("Aparência"), IT("Aspetto"), NL("Uiterlijk"), RU("Внешний вид"),
+    TR("Görünüm"));
+
+SS_MSG(vram_cat_viewer,
+    EN("Viewer"), JA("ビューア"), ZH_HANS("查看器"), ZH_HANT("檢視器"), KO("뷰어"),
+    DE("Betrachter"), FR("Visionneuse"), ES("Visor"), PT("Visualizador"),
+    IT("Visualizzatore"), NL("Viewer"), RU("Просмотр"), TR("Görüntüleyici"));
+
+SS_MSG(vram_cat_other,
+    EN("Other"), JA("その他"), ZH_HANS("其他"), ZH_HANT("其他"), KO("기타"),
+    DE("Sonstiges"), FR("Autre"), ES("Otros"), PT("Outros"), IT("Altro"),
+    NL("Overig"), RU("Прочее"), TR("Diğer"));
+
+SS_MSG(vram_cat_scratch,
+    EN("Sort scratch"), JA("ソート用の作業領域"), ZH_HANS("排序临时缓冲"),
+    ZH_HANT("排序暫存緩衝"), KO("정렬 작업 공간"), DE("Sortierpuffer"),
+    FR("Tampon de tri"), ES("Búfer de ordenación"), PT("Buffer de ordenação"),
+    IT("Buffer di ordinamento"), NL("Sorteerbuffer"), RU("Буфер сортировки"),
+    TR("Sıralama tamponu"));
+
+SS_MSG(vram_cat_unpooled,
+    EN("Backend and staging"), JA("バックエンドと転送用"), ZH_HANS("后端与中转"),
+    ZH_HANT("後端與中轉"), KO("백엔드와 전송용"), DE("Backend und Staging"),
+    FR("Backend et transfert"), ES("Backend y transferencia"),
+    PT("Backend e transferência"), IT("Backend e trasferimento"),
+    NL("Backend en staging"), RU("Бэкенд и передача"), TR("Arka uç ve aktarım"));
 
 // ===========================================================================
 // Log panel
@@ -2259,11 +3304,118 @@ SS_MSG(viewport_frustum_size_help,
     RU("Размер отображения пирамид видимости камер."),
     TR("Kamera görüş piramitlerinin görüntülenme boyutu."));
 
+SS_MSG(viewport_point_size,
+    EN("Points: {0} px"),
+    JA("点: {0} px"),
+    ZH_HANS("点：{0} px"),
+    ZH_HANT("點：{0} px"),
+    KO("점: {0} px"),
+    DE("Punkte: {0} px"),
+    FR("Points : {0} px"),
+    ES("Puntos: {0} px"),
+    PT("Pontos: {0} px"),
+    IT("Punti: {0} px"),
+    NL("Punten: {0} px"),
+    RU("Точки: {0} px"),
+    TR("Noktalar: {0} px"));
+
+SS_MSG(viewport_point_size_help,
+    EN("How many pixels across each point of the reconstruction is drawn."),
+    JA("再構成の点を何ピクセルの幅で描くかです。"),
+    ZH_HANS("重建中每个点绘制的像素宽度。"),
+    ZH_HANT("重建中每個點繪製的像素寬度。"),
+    KO("재구성의 각 점을 몇 픽셀 폭으로 그릴지입니다."),
+    DE("Wie viele Pixel breit jeder Punkt der Rekonstruktion gezeichnet wird."),
+    FR("Largeur en pixels de chaque point de la reconstruction à l'écran."),
+    ES("Cuántos píxeles de ancho mide cada punto de la reconstrucción en pantalla."),
+    PT("Quantos pixels de largura tem cada ponto da reconstrução na tela."),
+    IT("Quanti pixel di larghezza ha ogni punto della ricostruzione a schermo."),
+    NL("Hoeveel pixels breed elk punt van de reconstructie getekend wordt."),
+    RU("Ширина каждой точки реконструкции на экране в пикселях."),
+    TR("Rekonstrüksiyonun her noktasının kaç piksel genişliğinde çizileceği."));
+
 SS_MSG(viewport_grid,
     EN("grid"),          JA("グリッド"),      ZH_HANS("网格"),     ZH_HANT("格線"),
     KO("격자"),           DE("Raster"),       FR("grille"),       ES("rejilla"),
     PT("grade"),         IT("griglia"),      NL("raster"),       RU("сетка"),
     TR("ızgara"));
+
+SS_MSG(viewport_grid_help,
+    EN("Overlay a ground-plane grid and the X, Y and Z axes. Its cells are a "
+       "power of ten that follows the zoom; the corner of the view shows one "
+       "cell's size."),
+    JA("地面のグリッドと X・Y・Z 軸を重ねて表示します。マス目は 10 のべき乗の"
+       "大きさでズームに合わせて変わり、1 マスの大きさはビューの隅に表示されます。"),
+    ZH_HANS("叠加显示地面网格和 X、Y、Z 轴。格子大小是 10 的幂，随缩放变化；"
+            "视图角落显示一格的大小。"),
+    ZH_HANT("疊加顯示地面格線和 X、Y、Z 軸。格子大小是 10 的冪，隨縮放變化；"
+            "視圖角落顯示一格的大小。"),
+    KO("지면 격자와 X·Y·Z 축을 겹쳐 보여줍니다. 칸 크기는 확대·축소에 따라 "
+       "바뀌는 10의 거듭제곱이며, 한 칸의 크기는 뷰 모서리에 표시됩니다."),
+    DE("Ein Bodenraster und die X-, Y- und Z-Achsen einblenden. Die Zellen sind "
+       "eine Zehnerpotenz, die dem Zoom folgt; die Ecke der Ansicht zeigt die "
+       "Größe einer Zelle."),
+    FR("Superposer une grille au sol et les axes X, Y et Z. Ses cellules sont "
+       "une puissance de dix qui suit le zoom ; le coin de la vue indique la "
+       "taille d'une cellule."),
+    ES("Superponer una rejilla en el suelo y los ejes X, Y y Z. Sus celdas son "
+       "una potencia de diez que sigue al zoom; la esquina de la vista indica "
+       "el tamaño de una celda."),
+    PT("Sobrepor uma grade no chão e os eixos X, Y e Z. As células são uma "
+       "potência de dez que acompanha o zoom; o canto da vista mostra o "
+       "tamanho de uma célula."),
+    IT("Sovrapporre una griglia a terra e gli assi X, Y e Z. Le celle sono una "
+       "potenza di dieci che segue lo zoom; l'angolo della vista mostra la "
+       "dimensione di una cella."),
+    NL("Een grondraster en de X-, Y- en Z-as tonen. De cellen zijn een macht "
+       "van tien die de zoom volgt; de hoek van het beeld toont de grootte van "
+       "één cel."),
+    RU("Показывать поверх сетку на плоскости земли и оси X, Y и Z. Размер "
+       "клетки — степень десяти, меняется вместе с масштабом; размер одной "
+       "клетки указан в углу вида."),
+    TR("Zemin ızgarasını ve X, Y, Z eksenlerini üstüne bindirir. Hücreler "
+       "yakınlaştırmaya göre değişen bir on kuvvetidir; bir hücrenin boyutu "
+       "görünümün köşesinde yazar."));
+
+SS_MSG(viewport_region,
+    EN("region"),        JA("領域"),          ZH_HANS("区域"),     ZH_HANT("區域"),
+    KO("영역"),           DE("Bereich"),      FR("région"),       ES("región"),
+    PT("região"),        IT("regione"),      NL("gebied"),       RU("область"),
+    TR("bölge"));
+
+SS_MSG(viewport_region_help,
+    EN("The region of interest this run trains, drawn as a tinted surface with a "
+       "dashed outline; fainter where the scene is in front of it. Splats outside "
+       "it are rarely densified."),
+    JA("この実行が学習する注目領域。色付きの面と破線の輪郭で描き、シーンの陰になる部分は薄く表示します。"
+       "領域外のスプラットはほとんど高密度化されません。"),
+    ZH_HANS("本次训练的感兴趣区域，以着色表面和虚线轮廓显示；被场景遮挡的部分较淡。区域外的高斯点很少被加密。"),
+    ZH_HANT("本次訓練的感興趣區域，以著色表面和虛線輪廓顯示；被場景遮擋的部分較淡。區域外的高斯點很少被加密。"),
+    KO("이 실행이 학습하는 관심 영역을 색칠된 면과 점선 윤곽으로 표시합니다. 장면에 가려진 부분은 흐리게 보입니다. "
+       "영역 밖의 스플랫은 거의 조밀화되지 않습니다."),
+    DE("Der Interessenbereich, den dieser Lauf trainiert, als getönte Fläche mit "
+       "gestrichelter Kontur; blasser, wo die Szene davor liegt. Splats außerhalb "
+       "werden kaum verdichtet."),
+    FR("La région d'intérêt que cet entraînement apprend, en surface teintée au "
+       "contour pointillé ; plus pâle là où la scène passe devant. Les splats hors "
+       "de la région sont rarement densifiés."),
+    ES("La región de interés que entrena esta ejecución, como superficie tintada con "
+       "contorno discontinuo; más tenue donde la escena queda delante. Los splats "
+       "fuera de ella apenas se densifican."),
+    PT("A região de interesse que esta execução treina, como superfície tingida com "
+       "contorno tracejado; mais clara onde a cena fica à frente. Splats fora dela "
+       "quase não são densificados."),
+    IT("La regione di interesse che questa esecuzione addestra, come superficie "
+       "colorata con contorno tratteggiato; più tenue dove la scena sta davanti. Gli "
+       "splat fuori da essa vengono densificati di rado."),
+    NL("Het interessegebied dat deze run traint, als getint oppervlak met een "
+       "gestippelde omtrek; vager waar de scène ervoor ligt. Splats erbuiten worden "
+       "zelden verdicht."),
+    RU("Область интереса этого обучения: тонированная поверхность с пунктирным "
+       "контуром, бледнее там, где сцена перед ней. Сплаты вне её почти не уплотняются."),
+    TR("Bu eğitimin ilgi bölgesi; renkli bir yüzey ve kesikli bir çerçeveyle çizilir, "
+       "sahnenin önünde kaldığı yerde daha soluktur. Dışındaki splat'ler nadiren "
+       "yoğunlaştırılır."));
 
 SS_MSG(viewport_level_cameras,
     EN("auto-level"),    JA("自動水平"),      ZH_HANS("自动摆正"),  ZH_HANT("自動擺正"),
@@ -2563,85 +3715,88 @@ SS_MSG(cam_equirectangular,
 
 SS_MSG(viewport_nav_help,
     EN("Navigation mode (identical to the web viewer):\n"
-       "{0} / {1} -- LMB orbit, RMB/MMB/Shift pan, wheel zoom\n"
+       "{0} / {1} -- LMB orbit, RMB/MMB/Shift pan, wheel zoom "
+       "({1}: E/Q roll)\n"
        "{2} / {3} -- LMB look, WASD/arrows move, E/Q up-down "
        "({3}: E/Q roll)\nGamepad: left stick move, right stick look, "
        "triggers up-down/roll."),
     JA("操作モードです（ウェブビューアと同じ）:\n"
        "{0} / {1} -- 左ドラッグで回転、右・中ドラッグや Shift で"
-       "平行移動、ホイールでズーム\n"
+       "平行移動、ホイールでズーム（{1}では E/Q はロール）\n"
        "{2} / {3} -- 左ドラッグで視線、WASD／矢印で移動、E/Q で"
        "上下（{3}では E/Q はロール）\n"
        "ゲームパッド: 左スティックで移動、右スティックで視線、トリガーで"
        "上下・ロール。"),
     ZH_HANS("导航模式（与网页查看器一致）：\n"
-            "{0} / {1} —— 左键环绕，右键／中键／Shift 平移，滚轮缩放\n"
+            "{0} / {1} —— 左键环绕，右键／中键／Shift 平移，滚轮缩放"
+            "（{1}下 E/Q 为滚转）\n"
             "{2} / {3} —— 左键转视角，WASD／方向键移动，E/Q 升降"
             "（{3}下 E/Q 为滚转）\n"
             "手柄：左摇杆移动，右摇杆转视角，扳机升降／滚转。"),
     ZH_HANT("導覽模式（與網頁檢視器一致）：\n"
-            "{0} / {1} —— 左鍵環繞，右鍵／中鍵／Shift 平移，滾輪縮放\n"
+            "{0} / {1} —— 左鍵環繞，右鍵／中鍵／Shift 平移，滾輪縮放"
+            "（{1}下 E/Q 為滾轉）\n"
             "{2} / {3} —— 左鍵轉視角，WASD／方向鍵移動，E/Q 升降"
             "（{3}下 E/Q 為滾轉）\n"
             "手把：左搖桿移動，右搖桿轉視角，扳機升降／滾轉。"),
     KO("이동 방식입니다(웹 뷰어와 동일):\n"
        "{0} / {1} -- 왼쪽 드래그로 궤도 회전, 오른쪽·가운데·Shift로 "
-       "이동, 휠로 확대·축소\n"
+       "이동, 휠로 확대·축소({1}에서는 E/Q가 롤)\n"
        "{2} / {3} -- 왼쪽 드래그로 시선, WASD·화살표로 이동, "
        "E/Q로 상하({3}에서는 E/Q가 롤)\n"
        "게임패드: 왼쪽 스틱 이동, 오른쪽 스틱 시선, 트리거 상하·롤."),
     DE("Navigationsmodus (wie im Web-Betrachter):\n"
        "{0} / {1} -- linke Maustaste umkreisen, rechte/mittlere "
-       "Taste oder Umschalt schwenken, Rad zoomen\n"
+       "Taste oder Umschalt schwenken, Rad zoomen ({1}: E/Q rollen)\n"
        "{2} / {3} -- linke Maustaste umsehen, WASD/Pfeile "
        "bewegen, E/Q hoch-runter ({3}: E/Q rollen)\n"
        "Gamepad: linker Stick bewegen, rechter Stick umsehen, Trigger "
        "hoch-runter/rollen."),
     FR("Mode de navigation (identique à la visionneuse web) :\n"
        "{0} / {1} -- clic gauche pour orbiter, clic droit/milieu "
-       "ou Maj pour translater, molette pour zoomer\n"
+       "ou Maj pour translater, molette pour zoomer ({1} : E/Q roulis)\n"
        "{2} / {3} -- clic gauche pour regarder, WASD/flèches "
        "pour se déplacer, E/Q pour monter-descendre ({3} : E/Q roulis)\n"
        "Manette : stick gauche déplacement, stick droit regard, gâchettes "
        "montée-descente/roulis."),
     ES("Modo de navegación (igual que en el visor web):\n"
        "{0} / {1}: botón izquierdo para orbitar, derecho/central "
-       "o Mayús para desplazar, rueda para acercar\n"
+       "o Mayús para desplazar, rueda para acercar (en {1}, E/Q alabean)\n"
        "{2} / {3}: botón izquierdo para mirar, WASD/flechas "
        "para moverse, E/Q para subir y bajar (en {3}, E/Q alabean)\n"
        "Mando: stick izquierdo mover, stick derecho mirar, gatillos "
        "subir-bajar/alabear."),
     PT("Modo de navegação (igual ao visualizador web):\n"
        "{0} / {1} -- botão esquerdo orbita, direito/meio ou Shift "
-       "desloca, roda aproxima\n"
+       "desloca, roda aproxima (em {1}, E/Q rolam)\n"
        "{2} / {3} -- botão esquerdo olha, WASD/setas movem, E/Q "
        "sobem e descem (em {3}, E/Q rolam)\n"
        "Controle: analógico esquerdo move, direito olha, gatilhos "
        "sobem-descem/rolam."),
     IT("Modalità di navigazione (uguale al visualizzatore web):\n"
        "{0} / {1} -- tasto sinistro per orbitare, destro/centrale "
-       "o Maiusc per traslare, rotellina per lo zoom\n"
+       "o Maiusc per traslare, rotellina per lo zoom (in {1} E/Q rollano)\n"
        "{2} / {3} -- tasto sinistro per guardare, WASD/frecce "
        "per muoversi, E/Q su-giù (in {3} E/Q rollano)\n"
        "Gamepad: levetta sinistra movimento, destra sguardo, grilletti "
        "su-giù/rollio."),
     NL("Navigatiemodus (gelijk aan de webviewer):\n"
        "{0} / {1} -- linkermuisknop draaien, rechter/midden of "
-       "Shift verschuiven, wiel zoomen\n"
+       "Shift verschuiven, wiel zoomen ({1}: E/Q rollen)\n"
        "{2} / {3} -- linkermuisknop kijken, WASD/pijlen "
        "bewegen, E/Q omhoog-omlaag ({3}: E/Q rollen)\n"
        "Gamepad: linkerstick bewegen, rechterstick kijken, triggers "
        "omhoog-omlaag/rollen."),
     RU("Режим навигации (как в веб-просмотрщике):\n"
        "{0} / {1} — левая кнопка вращает, правая/средняя или Shift "
-       "сдвигают, колесо приближает\n"
+       "сдвигают, колесо приближает (в режиме «{1}» E/Q — крен)\n"
        "{2} / {3} — левая кнопка поворачивает взгляд, WASD и "
        "стрелки перемещают, E/Q вверх-вниз (в режиме «{3}» E/Q — крен)\n"
        "Геймпад: левый стик — движение, правый — взгляд, триггеры — "
        "вверх-вниз и крен."),
     TR("Gezinme kipi (web görüntüleyicisiyle aynı):\n"
        "{0} / {1} -- sol tuş yörünge, sağ/orta tuş veya Shift "
-       "kaydırma, tekerlek yakınlaştırma\n"
+       "kaydırma, tekerlek yakınlaştırma ({1} kipinde E/Q yalpalama)\n"
        "{2} / {3} -- sol tuş bakış, WASD/oklar hareket, E/Q "
        "yukarı-aşağı ({3} kipinde E/Q yalpalama)\n"
        "Oyun kolu: sol çubuk hareket, sağ çubuk bakış, tetikler "
@@ -2946,6 +4101,33 @@ SS_MSG(fd_select_files,
     RU("Выбрать файлы ({0})"),
     TR("Dosyaları seç ({0})"));
 
+SS_MSG(fd_save_here,
+    EN("Save"),          JA("保存"),          ZH_HANS("保存"),     ZH_HANT("儲存"),
+    KO("저장"),           DE("Speichern"),    FR("Enregistrer"),
+    ES("Guardar"),       PT("Salvar"),        IT("Salva"),
+    NL("Opslaan"),       RU("Сохранить"),     TR("Kaydet"));
+
+SS_MSG(fd_file_name,
+    EN("File name"),     JA("ファイル名"),     ZH_HANS("文件名"),   ZH_HANT("檔案名稱"),
+    KO("파일 이름"),      DE("Dateiname"),    FR("Nom du fichier"),
+    ES("Nombre del archivo"), PT("Nome do arquivo"), IT("Nome del file"),
+    NL("Bestandsnaam"),  RU("Имя файла"),     TR("Dosya adı"));
+
+SS_MSG(fd_will_replace,
+    EN("A file of that name is there and will be replaced."),
+    JA("同じ名前のファイルがあり、置き換えられます。"),
+    ZH_HANS("同名文件已存在，将被替换。"),
+    ZH_HANT("同名檔案已存在，將被取代。"),
+    KO("같은 이름의 파일이 있어 덮어씁니다."),
+    DE("Eine Datei dieses Namens ist vorhanden und wird ersetzt."),
+    FR("Un fichier de ce nom existe et sera remplacé."),
+    ES("Ya hay un archivo con ese nombre y será reemplazado."),
+    PT("Já existe um arquivo com esse nome e ele será substituído."),
+    IT("Esiste già un file con quel nome e verrà sostituito."),
+    NL("Er is al een bestand met die naam; het wordt vervangen."),
+    RU("Файл с таким именем есть и будет заменён."),
+    TR("Bu adda bir dosya var ve değiştirilecek."));
+
 SS_MSG(fd_multi_hint,
     EN("(click several to add them all)"),
     JA("（複数クリックするとまとめて追加できます）"),
@@ -2987,56 +4169,57 @@ SS_MSG(menu_open_splat,
     TR("Splat dosyası aç…"));
 
 SS_MSG(home_open_splat,
-    EN("View a Trained Model"),
-    JA("学習済みモデルを見る"),
-    ZH_HANS("查看已训练的模型"),
-    ZH_HANT("檢視已訓練的模型"),
-    KO("학습된 모델 보기"),
-    DE("Trainiertes Modell ansehen"),
-    FR("Voir un modèle entraîné"),
-    ES("Ver un modelo entrenado"),
-    PT("Ver um modelo treinado"),
-    IT("Guarda un modello addestrato"),
-    NL("Een getraind model bekijken"),
-    RU("Посмотреть обученную модель"),
-    TR("Eğitilmiş bir modeli görüntüle"));
+    EN("Open a Model or Reconstruction"),
+    JA("モデルまたは再構成を開く"),
+    ZH_HANS("打开模型或重建"),
+    ZH_HANT("開啟模型或重建"),
+    KO("모델 또는 복원 열기"),
+    DE("Modell oder Rekonstruktion öffnen"),
+    FR("Ouvrir un modèle ou une reconstruction"),
+    ES("Abrir un modelo o una reconstrucción"),
+    PT("Abrir um modelo ou uma reconstrução"),
+    IT("Apri un modello o una ricostruzione"),
+    NL("Een model of reconstructie openen"),
+    RU("Открыть модель или реконструкцию"),
+    TR("Bir model veya yeniden yapım aç"));
 
 SS_MSG(home_open_splat_help,
-    EN("Open a .ply file, a checkpoint or a run folder and look around it. "
-       "Models from other Gaussian splatting tools open too, and so does a "
-       "plain point cloud."),
-    JA("PLYファイル・チェックポイント・実行フォルダを開いて自由に見て回れます。"
-       "他のガウススプラッティングツールのモデルや、ただの点群も開けます。"),
-    ZH_HANS("打开 .ply 文件、检查点或运行文件夹，随意观察。也可以打开其他高斯泼溅"
-            "工具的模型，以及普通点云。"),
-    ZH_HANT("開啟 .ply 檔案、檢查點或執行資料夾，隨意觀察。也可以開啟其他高斯潑濺"
-            "工具的模型，以及一般點雲。"),
-    KO(".ply 파일, 체크포인트, 실행 폴더를 열어 자유롭게 둘러봅니다. 다른 가우시안 "
-       "스플래팅 도구의 모델이나 단순한 점군도 열립니다."),
-    DE("Eine .ply-Datei, einen Prüfpunkt oder einen Laufordner öffnen und sich "
-       "darin umsehen. Modelle aus anderen Gaussian-Splatting-Werkzeugen lassen "
-       "sich ebenso öffnen wie eine reine Punktwolke."),
-    FR("Ouvrez un fichier .ply, un point de sauvegarde ou un dossier "
-       "d'exécution et promenez-vous dedans. Les modèles d'autres outils de "
-       "Gaussian splatting s'ouvrent aussi, tout comme un simple nuage de points."),
-    ES("Abra un archivo .ply, un punto de control o una carpeta de ejecución y "
-       "recórralo. También se abren modelos de otras herramientas de Gaussian "
-       "splatting y una simple nube de puntos."),
-    PT("Abra um arquivo .ply, um ponto de verificação ou uma pasta de execução "
-       "e percorra-o. Modelos de outras ferramentas de Gaussian splatting "
-       "também abrem, assim como uma simples nuvem de pontos."),
-    IT("Apra un file .ply, un punto di controllo o una cartella di esecuzione e "
-       "ci si muova dentro. Si aprono anche i modelli di altri strumenti di "
-       "Gaussian splatting e una semplice nuvola di punti."),
-    NL("Open een .ply-bestand, een checkpoint of een uitvoermap en kijk erin "
-       "rond. Modellen uit andere Gaussian-splattingprogramma's openen ook, "
-       "net als een gewone puntenwolk."),
-    RU("Откройте файл .ply, контрольную точку или папку запуска и осмотритесь. "
-       "Модели из других инструментов гауссова сплаттинга тоже открываются, как "
-       "и обычное облако точек."),
-    TR("Bir .ply dosyasını, bir kontrol noktasını veya bir çalışma klasörünü "
-       "açıp içinde gezinin. Başka Gaussian splatting araçlarının modelleri de, "
-       "sıradan bir nokta bulutu da açılır."));
+    EN("A .ply file, a checkpoint, a run folder, or a reconstruction -- its "
+       "dataset folder, or any one of the files that define it. Look around "
+       "it, and clean it up."),
+    JA("PLYファイル、チェックポイント、実行フォルダ、または再構成 -- そのデータ"
+       "セットフォルダでも、それを定めるファイルのどれか一つでも構いません。"
+       "自由に見て回り、不要なところを取り除けます。"),
+    ZH_HANS("可以是 .ply 文件、检查点、运行文件夹，或一个重建——它的数据集文件夹，"
+            "或定义它的任意一个文件。可以随意观察，也可以清理。"),
+    ZH_HANT("可以是 .ply 檔案、檢查點、執行資料夾，或一個重建——它的資料集資料夾，"
+            "或定義它的任意一個檔案。可以隨意觀察，也可以清理。"),
+    KO(".ply 파일, 체크포인트, 실행 폴더, 또는 복원 -- 그 데이터셋 폴더나 그것을 "
+       "이루는 파일 중 하나. 둘러보고 정리할 수 있습니다."),
+    DE("Eine .ply-Datei, ein Prüfpunkt, ein Laufordner oder eine Rekonstruktion "
+       "-- ihr Datensatzordner oder eine der Dateien, die sie ausmachen. Darin "
+       "umsehen und aufräumen."),
+    FR("Un fichier .ply, un point de sauvegarde, un dossier d'exécution ou une "
+       "reconstruction -- son dossier de jeu de données, ou l'un des fichiers "
+       "qui la définissent. À parcourir, et à nettoyer."),
+    ES("Un archivo .ply, un punto de control, una carpeta de ejecución o una "
+       "reconstrucción: su carpeta de datos, o cualquiera de los archivos que "
+       "la definen. Para recorrerla y para limpiarla."),
+    PT("Um arquivo .ply, um ponto de verificação, uma pasta de execução ou uma "
+       "reconstrução -- a pasta do conjunto, ou qualquer um dos arquivos que a "
+       "definem. Para percorrer e para limpar."),
+    IT("Un file .ply, un punto di controllo, una cartella di esecuzione o una "
+       "ricostruzione -- la sua cartella di dati, o uno qualsiasi dei file che "
+       "la definiscono. Da percorrere e da ripulire."),
+    NL("Een .ply-bestand, een checkpoint, een uitvoermap of een reconstructie "
+       "-- de gegevensmap ervan, of een van de bestanden die hem vormen. Om in "
+       "rond te kijken en om op te ruimen."),
+    RU("Файл .ply, контрольная точка, папка запуска или реконструкция -- её "
+       "папка набора данных или любой из файлов, которые её задают. Чтобы "
+       "осмотреться и чтобы почистить."),
+    TR("Bir .ply dosyası, bir kontrol noktası, bir çalışma klasörü ya da bir "
+       "yeniden yapım -- veri kümesi klasörü veya onu tanımlayan dosyalardan "
+       "herhangi biri. İçinde gezinmek ve temizlemek için."));
 
 SS_MSG(viewer_pick_file,
     EN("Choose a splat file, checkpoint or run folder"),
@@ -3082,6 +4265,21 @@ SS_MSG(viewer_splat_count,
     NL("Splats: {0}   SH-graad: {1}"),
     RU("Сплатов: {0}   Порядок SH: {1}"),
     TR("Splat: {0}   SH derecesi: {1}"));
+
+SS_MSG(viewer_splat_count_sb,
+    EN("Splats: {0}   SH degree: {1}   SB lobes: {2}"),
+    JA("スプラット数: {0}   SH次数: {1}   SBローブ: {2}"),
+    ZH_HANS("泼溅数: {0}   球谐阶数: {1}   SB 波瓣: {2}"),
+    ZH_HANT("潑濺數: {0}   球諧階數: {1}   SB 波瓣: {2}"),
+    KO("스플랫 수: {0}   SH 차수: {1}   SB 로브: {2}"),
+    DE("Splats: {0}   SH-Grad: {1}   SB-Keulen: {2}"),
+    FR("Splats : {0}   Degré SH : {1}   Lobes SB : {2}"),
+    ES("Splats: {0}   Grado SH: {1}   Lóbulos SB: {2}"),
+    PT("Splats: {0}   Grau SH: {1}   Lóbulos SB: {2}"),
+    IT("Splat: {0}   Grado SH: {1}   Lobi SB: {2}"),
+    NL("Splats: {0}   SH-graad: {1}   SB-lobben: {2}"),
+    RU("Сплатов: {0}   Порядок SH: {1}   Лепестков SB: {2}"),
+    TR("Splat: {0}   SH derecesi: {1}   SB lobu: {2}"));
 
 SS_MSG(viewer_point_count,
     EN("Points: {0}"),
@@ -3172,6 +4370,21 @@ SS_MSG(viewer_loaded,
     NL("Geladen. Splats: {0}   SH-graad: {1}"),
     RU("Загружено. Сплатов: {0}   Порядок SH: {1}"),
     TR("Yüklendi. Splat: {0}   SH derecesi: {1}"));
+
+SS_MSG(viewer_loaded_sb,
+    EN("Loaded. Splats: {0}   SH degree: {1}   SB lobes: {2}"),
+    JA("読み込みました。スプラット数: {0}   SH次数: {1}   SBローブ: {2}"),
+    ZH_HANS("已载入。泼溅数: {0}   球谐阶数: {1}   SB 波瓣: {2}"),
+    ZH_HANT("已載入。潑濺數: {0}   球諧階數: {1}   SB 波瓣: {2}"),
+    KO("불러왔습니다. 스플랫 수: {0}   SH 차수: {1}   SB 로브: {2}"),
+    DE("Geladen. Splats: {0}   SH-Grad: {1}   SB-Keulen: {2}"),
+    FR("Chargé. Splats : {0}   Degré SH : {1}   Lobes SB : {2}"),
+    ES("Cargado. Splats: {0}   Grado SH: {1}   Lóbulos SB: {2}"),
+    PT("Carregado. Splats: {0}   Grau SH: {1}   Lóbulos SB: {2}"),
+    IT("Caricato. Splat: {0}   Grado SH: {1}   Lobi SB: {2}"),
+    NL("Geladen. Splats: {0}   SH-graad: {1}   SB-lobben: {2}"),
+    RU("Загружено. Сплатов: {0}   Порядок SH: {1}   Лепестков SB: {2}"),
+    TR("Yüklendi. Splat: {0}   SH derecesi: {1}   SB lobu: {2}"));
 
 SS_MSG(viewer_loaded_points,
     EN("That file holds a point cloud, not Gaussians. Points: {0}"),
@@ -3733,19 +4946,19 @@ SS_MSG(preset_drop_hint,
        "bu pencereye sürükleyip bırakabilirsiniz."));
 
 SS_MSG(preset_save_title,
-    EN("Save Training Preset"),
-    JA("学習プリセットを保存"),
-    ZH_HANS("保存训练预设"),
-    ZH_HANT("儲存訓練預設"),
-    KO("학습 프리셋 저장"),
-    DE("Trainingsvoreinstellung speichern"),
-    FR("Enregistrer le préréglage d'entraînement"),
-    ES("Guardar el ajuste de entrenamiento"),
-    PT("Salvar a predefinição de treinamento"),
-    IT("Salva la preimpostazione di addestramento"),
-    NL("Trainingsvoorinstelling opslaan"),
-    RU("Сохранение пресета обучения"),
-    TR("Eğitim hazır ayarını kaydet"));
+    EN("Save Preset"),
+    JA("プリセットを保存"),
+    ZH_HANS("保存预设"),
+    ZH_HANT("儲存預設"),
+    KO("프리셋 저장"),
+    DE("Voreinstellung speichern"),
+    FR("Enregistrer le préréglage"),
+    ES("Guardar ajuste"),
+    PT("Salvar predefinição"),
+    IT("Salva preimpostazione"),
+    NL("Voorinstelling opslaan"),
+    RU("Сохранить пресет"),
+    TR("Hazır ayarı kaydet"));
 SS_MSG(preset_name,
     EN("Name"),          JA("名前"),          ZH_HANS("名称"),     ZH_HANT("名稱"),
     KO("이름"),           DE("Name"),         FR("Nom"),          ES("Nombre"),
@@ -4055,149 +5268,164 @@ SS_MSG(preset_delete_failed,
 
 
 // ===========================================================================
-// Batch training
+// Batch processing
 // ===========================================================================
 
 SS_MSG(home_batch,
-    EN("Batch Training"),
-    JA("バッチ学習"),
-    ZH_HANS("批量训练"),
-    ZH_HANT("批次訓練"),
-    KO("일괄 학습"),
-    DE("Stapeltraining"),
-    FR("Entraînement par lots"),
-    ES("Entrenamiento por lotes"),
-    PT("Treinamento em lote"),
-    IT("Addestramento in batch"),
-    NL("Batchtraining"),
-    RU("Пакетное обучение"),
-    TR("Toplu eğitim"));
+    EN("Batch Processing"),
+    JA("バッチ処理"),
+    ZH_HANS("批量处理"),
+    ZH_HANT("批次處理"),
+    KO("일괄 처리"),
+    DE("Stapelverarbeitung"),
+    FR("Traitement par lots"),
+    ES("Procesamiento por lotes"),
+    PT("Processamento em lote"),
+    IT("Elaborazione in batch"),
+    NL("Batchverwerking"),
+    RU("Пакетная обработка"),
+    TR("Toplu işleme"));
 SS_MSG(home_batch_help,
-    EN("Queue several datasets, each with its own preset, and train them one "
+    EN("Queue datasets to build, train and mesh, and work through them one "
        "after another without supervision."),
-    JA("複数のデータセットをそれぞれのプリセットとともに並べて、順番に学習させ"
-       "ます。付きっきりでいる必要はありません。"),
-    ZH_HANS("把多个数据集排成队列，各自配一个预设，然后一个接一个训练下去，中途"
-            "不用盯着。"),
-    ZH_HANT("把多個資料集排成佇列，各自配一個預設，然後一個接一個訓練下去，中途"
-            "不用盯著。"),
-    KO("여러 데이터셋을 각자의 프리셋과 함께 줄 세워 두면, 지켜보지 않아도 차례로 "
-       "학습합니다."),
-    DE("Mehrere Datensätze mit je eigener Voreinstellung in eine Warteschlange "
-       "stellen und unbeaufsichtigt nacheinander trainieren."),
-    FR("Mettre en file plusieurs jeux de données, chacun avec son préréglage, "
-       "et les entraîner l'un après l'autre sans surveillance."),
-    ES("Poner en cola varios conjuntos de datos, cada uno con su ajuste, y "
-       "entrenarlos uno tras otro sin vigilarlos."),
-    PT("Enfileirar vários conjuntos de dados, cada um com sua predefinição, e "
-       "treiná-los um após o outro sem supervisão."),
-    IT("Mettere in coda più set di dati, ciascuno con la sua preimpostazione, e "
-       "addestrarli uno dopo l'altro senza sorvegliarli."),
-    NL("Meerdere datasets in de wachtrij zetten, elk met een eigen "
-       "voorinstelling, en ze zonder toezicht na elkaar trainen."),
-    RU("Поставить в очередь несколько наборов данных, каждый со своим пресетом, "
-       "и обучать их один за другим без присмотра."),
-    TR("Her biri kendi hazır ayarıyla birkaç veri kümesini sıraya koyup, başında "
-       "durmadan arka arkaya eğitir."));
+    JA("データセットの作成・学習・メッシュ化を並べておき、付きっきりでなくても順番に片づけます。"),
+    ZH_HANS("把建数据集、训练和生成网格排成队列，不用盯着也能一个接一个做完。"),
+    ZH_HANT("把建資料集、訓練與產生網格排成佇列，不用盯著也能一個接一個做完。"),
+    KO("데이터셋 생성, 학습, 메시 생성을 줄 세워 두면 지켜보지 않아도 차례로 처리합니다."),
+    DE("Datensätze zum Bauen, Trainieren und Meshen in eine Warteschlange "
+       "stellen und unbeaufsichtigt nacheinander abarbeiten."),
+    FR("Mettre en file la construction de jeux de données, l'entraînement et "
+       "le maillage, et les enchaîner sans surveillance."),
+    ES("Poner en cola la construcción de conjuntos de datos, el entrenamiento "
+       "y el mallado, y encadenarlos sin vigilarlos."),
+    PT("Enfileirar a construção de conjuntos de dados, o treinamento e a "
+       "geração de malha, e encadeá-los sem supervisão."),
+    IT("Mettere in coda la costruzione dei set di dati, l'addestramento e la "
+       "mesh, e portarli avanti uno dopo l'altro senza sorvegliarli."),
+    NL("Datasets bouwen, trainen en meshen in de wachtrij zetten en zonder "
+       "toezicht na elkaar afwerken."),
+    RU("Поставить в очередь сборку наборов данных, обучение и построение "
+       "полигонов и выполнить всё подряд без присмотра."),
+    TR("Veri kümesi kurma, eğitme ve ağ oluşturmayı sıraya koyup, başında "
+       "durmadan arka arkaya bitirir."));
 SS_MSG(menu_batch,
-    EN("Batch Training..."),
-    JA("バッチ学習…"),
-    ZH_HANS("批量训练…"),
-    ZH_HANT("批次訓練…"),
-    KO("일괄 학습…"),
-    DE("Stapeltraining …"),
-    FR("Entraînement par lots…"),
-    ES("Entrenamiento por lotes…"),
-    PT("Treinamento em lote…"),
-    IT("Addestramento in batch…"),
-    NL("Batchtraining…"),
-    RU("Пакетное обучение…"),
-    TR("Toplu eğitim…"));
+    EN("Batch Processing..."),
+    JA("バッチ処理…"),
+    ZH_HANS("批量处理…"),
+    ZH_HANT("批次處理…"),
+    KO("일괄 처리…"),
+    DE("Stapelverarbeitung …"),
+    FR("Traitement par lots…"),
+    ES("Procesamiento por lotes…"),
+    PT("Processamento em lote…"),
+    IT("Elaborazione in batch…"),
+    NL("Batchverwerking…"),
+    RU("Пакетная обработка…"),
+    TR("Toplu işleme…"));
 SS_MSG(batch_title,
-    EN("Batch Training"),
-    JA("バッチ学習"),
-    ZH_HANS("批量训练"),
-    ZH_HANT("批次訓練"),
-    KO("일괄 학습"),
-    DE("Stapeltraining"),
-    FR("Entraînement par lots"),
-    ES("Entrenamiento por lotes"),
-    PT("Treinamento em lote"),
-    IT("Addestramento in batch"),
-    NL("Batchtraining"),
-    RU("Пакетное обучение"),
-    TR("Toplu eğitim"));
+    EN("Batch Processing"),
+    JA("バッチ処理"),
+    ZH_HANS("批量处理"),
+    ZH_HANT("批次處理"),
+    KO("일괄 처리"),
+    DE("Stapelverarbeitung"),
+    FR("Traitement par lots"),
+    ES("Procesamiento por lotes"),
+    PT("Processamento em lote"),
+    IT("Elaborazione in batch"),
+    NL("Batchverwerking"),
+    RU("Пакетная обработка"),
+    TR("Toplu işleme"));
 SS_MSG(batch_intro,
-    EN("Each row trains one dataset with one preset, top to bottom. A row that "
-       "fails is recorded and the next one starts anyway."),
-    JA("1 行につきデータセット 1 つをプリセット 1 つで、上から順に学習します。"
-       "失敗した行は記録され、次の行はそのまま始まります。"),
-    ZH_HANS("每一行用一个预设训练一个数据集，从上往下依次进行。失败的行会记录"
-            "下来，下一行照常开始。"),
-    ZH_HANT("每一行用一個預設訓練一個資料集，從上往下依序進行。失敗的行會記錄"
-            "下來，下一行照常開始。"),
-    KO("한 행이 데이터셋 하나를 프리셋 하나로 학습하며, 위에서 아래로 진행합니다. "
-       "실패한 행은 기록해 두고 다음 행을 그대로 시작합니다."),
-    DE("Jede Zeile trainiert einen Datensatz mit einer Voreinstellung, von oben "
-       "nach unten. Eine gescheiterte Zeile wird vermerkt, die nächste startet "
-       "trotzdem."),
-    FR("Chaque ligne entraîne un jeu de données avec un préréglage, de haut en "
-       "bas. Une ligne en échec est notée et la suivante démarre quand même."),
-    ES("Cada fila entrena un conjunto de datos con un ajuste, de arriba abajo. "
-       "Una fila que falla queda anotada y la siguiente arranca igualmente."),
-    PT("Cada linha treina um conjunto de dados com uma predefinição, de cima "
-       "para baixo. Uma linha que falha fica registrada e a seguinte começa "
-       "assim mesmo."),
-    IT("Ogni riga addestra un set di dati con una preimpostazione, dall'alto in "
-       "basso. Una riga fallita viene annotata e la successiva parte comunque."),
-    NL("Elke rij traint één dataset met één voorinstelling, van boven naar "
-       "beneden. Een rij die mislukt wordt genoteerd en de volgende start toch."),
-    RU("Каждая строка обучает один набор данных с одним пресетом, сверху вниз. "
-       "Сорвавшаяся строка записывается, а следующая всё равно запускается."),
-    TR("Her satır bir veri kümesini bir hazır ayarla, yukarıdan aşağıya eğitir. "
-       "Başarısız olan satır kaydedilir ve sıradaki yine de başlar."));
+    EN("Each row can build a dataset, train it any number of times, and mesh "
+       "what came out. None of that has to exist yet. A task that fails is "
+       "recorded and the next one starts anyway."),
+    JA("各行はデータセットの作成、その学習 "
+       "(何回でも)、できたモデルのメッシュ化を行えます。どれもまだ存在していなくて構いません。失敗した作業は記録され、次の作業はそのまま始まります。"),
+    ZH_HANS("每一行都可以建数据集、把它训练任意多次，再为训练结果生成网格。这些东西现在都还不必存在。失败的作业会被记录下来，下一个照常开始。"),
+    ZH_HANT("每一列都可以建資料集、把它訓練任意多次，再為訓練結果產生網格。這些東西現在都還不必存在。失敗的作業會被記錄下來，下一個照常開始。"),
+    KO("각 행은 데이터셋을 만들고, 원하는 횟수만큼 학습하고, 그 결과로 메시를 만들 수 있습니다. 어느 것도 아직 존재할 필요가 "
+       "없습니다. 실패한 작업은 기록해 두고 다음 작업을 그대로 시작합니다."),
+    DE("Jede Zeile kann einen Datensatz bauen, ihn beliebig oft trainieren und "
+       "das Ergebnis meshen. Nichts davon muss schon vorhanden sein. Eine "
+       "gescheiterte Aufgabe wird vermerkt, die nächste startet trotzdem."),
+    FR("Chaque ligne peut construire un jeu de données, l'entraîner autant de "
+       "fois qu'on veut et mailler le résultat. Rien de tout cela n'a besoin "
+       "d'exister encore. Une tâche en échec est notée et la suivante démarre "
+       "quand même."),
+    ES("Cada fila puede construir un conjunto de datos, entrenarlo cuantas "
+       "veces haga falta y mallar el resultado. Nada de eso tiene que existir "
+       "todavía. Una tarea que falla queda anotada y la siguiente arranca "
+       "igualmente."),
+    PT("Cada linha pode construir um conjunto de dados, treiná-lo quantas "
+       "vezes quiser e gerar a malha do resultado. Nada disso precisa existir "
+       "ainda. Uma tarefa que falha fica registrada e a seguinte começa assim "
+       "mesmo."),
+    IT("Ogni riga può costruire un set di dati, addestrarlo quante volte si "
+       "vuole e generare la mesh del risultato. Niente di tutto ciò deve già "
+       "esistere. Un'attività fallita viene annotata e la successiva parte "
+       "comunque."),
+    NL("Elke rij kan een dataset bouwen, die zo vaak trainen als je wilt en "
+       "het resultaat meshen. Niets daarvan hoeft al te bestaan. Een taak die "
+       "mislukt wordt genoteerd en de volgende start toch."),
+    RU("Каждая строка может собрать набор данных, обучить его сколько угодно "
+       "раз и построить полигоны по результату. Ничего из этого ещё не обязано "
+       "существовать. Сорвавшаяся задача записывается, а следующая всё равно "
+       "запускается."),
+    TR("Her satır bir veri kümesi kurabilir, onu istediğiniz kadar eğitebilir "
+       "ve çıkan modelden ağ oluşturabilir. Bunların hiçbirinin şimdiden var "
+       "olması gerekmez. Başarısız olan iş kaydedilir ve sıradaki yine de "
+       "başlar."));
 SS_MSG(batch_drop_hint,
-    EN("Drop dataset folders here to add them."),
-    JA("データセットのフォルダーをここにドロップすると追加されます。"),
-    ZH_HANS("把数据集文件夹拖到这里即可添加。"),
-    ZH_HANT("把資料集資料夾拖到這裡即可新增。"),
-    KO("데이터셋 폴더를 여기에 끌어다 놓으면 추가됩니다."),
-    DE("Datensatzordner hierher ziehen, um sie hinzuzufügen."),
-    FR("Déposez ici des dossiers de jeux de données pour les ajouter."),
-    ES("Arrastra aquí carpetas de conjuntos de datos para añadirlas."),
-    PT("Arraste pastas de conjuntos de dados até aqui para adicioná-las."),
-    IT("Trascina qui le cartelle dei set di dati per aggiungerle."),
-    NL("Sleep datasetmappen hierheen om ze toe te voegen."),
-    RU("Перетащите сюда папки наборов данных, чтобы добавить их."),
-    TR("Veri kümesi klasörlerini eklemek için buraya bırakın."));
+    EN("Drop videos, photo folders, datasets or models here to add rows."),
+    JA("動画・写真フォルダー・データセット・モデルをここにドロップすると行が増えます。"),
+    ZH_HANS("把视频、照片文件夹、数据集或模型拖到这里就能添加行。"),
+    ZH_HANT("把影片、照片資料夾、資料集或模型拖到這裡就能新增列。"),
+    KO("동영상, 사진 폴더, 데이터셋, 모델을 여기에 끌어다 놓으면 행이 추가됩니다."),
+    DE("Videos, Fotoordner, Datensätze oder Modelle hierher ziehen, um Zeilen "
+       "hinzuzufügen."),
+    FR("Déposez ici des vidéos, des dossiers de photos, des jeux de données ou "
+       "des modèles pour ajouter des lignes."),
+    ES("Arrastra aquí vídeos, carpetas de fotos, conjuntos de datos o modelos "
+       "para añadir filas."),
+    PT("Arraste vídeos, pastas de fotos, conjuntos de dados ou modelos até "
+       "aqui para adicionar linhas."),
+    IT("Trascina qui video, cartelle di foto, set di dati o modelli per "
+       "aggiungere righe."),
+    NL("Sleep video's, fotomappen, datasets of modellen hierheen om rijen toe "
+       "te voegen."),
+    RU("Перетащите сюда видео, папки с фотографиями, наборы данных или модели, "
+       "чтобы добавить строки."),
+    TR("Satır eklemek için videoları, fotoğraf klasörlerini, veri kümelerini "
+       "ya da modelleri buraya bırakın."));
 SS_MSG(batch_empty,
-    EN("The list is empty. Add a dataset to get started."),
-    JA("一覧が空です。まずデータセットを追加してください。"),
-    ZH_HANS("列表是空的。先添加一个数据集吧。"),
-    ZH_HANT("清單是空的。先新增一個資料集吧。"),
-    KO("목록이 비어 있습니다. 데이터셋을 하나 추가해 보세요."),
-    DE("Die Liste ist leer. Fügen Sie zum Start einen Datensatz hinzu."),
-    FR("La liste est vide. Ajoutez un jeu de données pour commencer."),
-    ES("La lista está vacía. Añade un conjunto de datos para empezar."),
-    PT("A lista está vazia. Adicione um conjunto de dados para começar."),
-    IT("L'elenco è vuoto. Aggiungi un set di dati per iniziare."),
-    NL("De lijst is leeg. Voeg een dataset toe om te beginnen."),
-    RU("Список пуст. Добавьте набор данных, чтобы начать."),
-    TR("Liste boş. Başlamak için bir veri kümesi ekleyin."));
+    EN("The list is empty. Add a row to get started."),
+    JA("一覧が空です。まず行を追加してください。"),
+    ZH_HANS("列表是空的。先添加一行吧。"),
+    ZH_HANT("清單是空的。先新增一列吧。"),
+    KO("목록이 비어 있습니다. 행을 하나 추가해 보세요."),
+    DE("Die Liste ist leer. Fügen Sie zum Start eine Zeile hinzu."),
+    FR("La liste est vide. Ajoutez une ligne pour commencer."),
+    ES("La lista está vacía. Añade una fila para empezar."),
+    PT("A lista está vazia. Adicione uma linha para começar."),
+    IT("L'elenco è vuoto. Aggiungi una riga per iniziare."),
+    NL("De lijst is leeg. Voeg een rij toe om te beginnen."),
+    RU("Список пуст. Добавьте строку, чтобы начать."),
+    TR("Liste boş. Başlamak için bir satır ekleyin."));
 SS_MSG(batch_add_row,
-    EN("Add dataset..."),
-    JA("データセットを追加…"),
-    ZH_HANS("添加数据集…"),
-    ZH_HANT("新增資料集…"),
-    KO("데이터셋 추가…"),
-    DE("Datensatz hinzufügen …"),
-    FR("Ajouter un jeu de données…"),
-    ES("Añadir un conjunto de datos…"),
-    PT("Adicionar conjunto de dados…"),
-    IT("Aggiungi set di dati…"),
-    NL("Dataset toevoegen…"),
-    RU("Добавить набор данных…"),
-    TR("Veri kümesi ekle…"));
+    EN("Add a dataset to train..."),
+    JA("学習するデータセットを追加…"),
+    ZH_HANS("添加要训练的数据集…"),
+    ZH_HANT("新增要訓練的資料集…"),
+    KO("학습할 데이터셋 추가…"),
+    DE("Datensatz zum Trainieren hinzufügen …"),
+    FR("Ajouter un jeu de données à entraîner…"),
+    ES("Añadir un conjunto de datos para entrenar…"),
+    PT("Adicionar um conjunto de dados para treinar…"),
+    IT("Aggiungi un set di dati da addestrare…"),
+    NL("Dataset toevoegen om te trainen…"),
+    RU("Добавить набор данных для обучения…"),
+    TR("Eğitilecek veri kümesi ekle…"));
 SS_MSG(batch_add_recent,
     EN("Add a recent one"),
     JA("最近使ったものから追加"),
@@ -4226,6 +5454,133 @@ SS_MSG(batch_no_recent,
     NL("Er is nog geen dataset geopend."),
     RU("Ни один набор данных ещё не открывался."),
     TR("Henüz hiçbir veri kümesi açılmadı."));
+SS_MSG(batch_clear_done,
+    EN("Clear done rows"), JA("完了した行を消す"), ZH_HANS("清除已完成的行"),
+    ZH_HANT("清除已完成的列"), KO("완료된 행 지우기"), DE("Fertige Zeilen entfernen"),
+    FR("Retirer les lignes terminées"), ES("Quitar las filas terminadas"),
+    PT("Remover as linhas terminadas"), IT("Rimuovi le righe terminate"),
+    NL("Klare rijen verwijderen"), RU("Убрать завершённые строки"),
+    TR("Biten satırları temizle"));
+SS_MSG(batch_clear_done_help,
+    EN("Removes every row whose tasks all finished well the last time it ran. "
+       "Rows that failed, were stopped or never ran stay."),
+    JA("最後に実行したとき全タスクが成功した行をすべて消します。失敗・停止・未実行の行は"
+       "残ります。"),
+    ZH_HANS("删除上次运行时所有任务都成功完成的行。失败、被停止或未运行的行保留。"),
+    ZH_HANT("刪除上次執行時所有任務都成功完成的列。失敗、被停止或未執行的列保留。"),
+    KO("마지막으로 실행했을 때 모든 작업이 잘 끝난 행을 모두 지웁니다. 실패했거나 "
+       "중단됐거나 실행되지 않은 행은 남습니다."),
+    DE("Entfernt jede Zeile, deren Aufgaben bei ihrem letzten Lauf alle gut "
+       "endeten. Fehlgeschlagene, gestoppte oder nie gelaufene Zeilen bleiben."),
+    FR("Retire chaque ligne dont toutes les tâches ont bien fini la dernière fois "
+       "qu'elle a tourné. Les lignes échouées, arrêtées ou jamais lancées restent."),
+    ES("Quita cada fila cuyas tareas terminaron todas bien la última vez que se "
+       "ejecutó. Las filas fallidas, detenidas o nunca ejecutadas se quedan."),
+    PT("Remove cada linha cujas tarefas terminaram todas bem da última vez que "
+       "correu. As linhas falhadas, paradas ou nunca executadas ficam."),
+    IT("Rimuove ogni riga i cui compiti sono finiti tutti bene l'ultima volta che "
+       "è stata eseguita. Le righe fallite, fermate o mai eseguite restano."),
+    NL("Verwijdert elke rij waarvan alle taken de laatste keer dat hij draaide goed "
+       "eindigden. Mislukte, gestopte of nooit gedraaide rijen blijven."),
+    RU("Убирает каждую строку, все задачи которой успешно завершились при её "
+       "последнем запуске. Неудачные, остановленные и не запускавшиеся строки "
+       "остаются."),
+    TR("Son çalıştığında tüm görevleri iyi biten her satırı kaldırır. Başarısız, "
+       "durdurulmuş ya da hiç çalışmamış satırlar kalır."));
+SS_MSG(batch_clear_unchecked,
+    EN("Clear unchecked rows"), JA("チェックのない行を消す"), ZH_HANS("清除未勾选的行"),
+    ZH_HANT("清除未勾選的列"), KO("체크 해제된 행 지우기"),
+    DE("Nicht angehakte Zeilen entfernen"), FR("Retirer les lignes non cochées"),
+    ES("Quitar las filas sin marcar"), PT("Remover as linhas não marcadas"),
+    IT("Rimuovi le righe non spuntate"), NL("Niet-aangevinkte rijen verwijderen"),
+    RU("Убрать строки без отметки"), TR("İşaretsiz satırları temizle"));
+SS_MSG(batch_clear_unchecked_help,
+    EN("Removes every row whose box is unticked, done or not: the ones a run "
+       "would leave out."),
+    JA("チェックの外れた行を、完了したかどうかに関わらずすべて消します。実行で"
+       "飛ばされる行です。"),
+    ZH_HANS("删除所有未勾选的行，无论是否已完成：即运行时会跳过的行。"),
+    ZH_HANT("刪除所有未勾選的列，無論是否已完成：即執行時會略過的列。"),
+    KO("완료 여부와 상관없이 체크가 해제된 행을 모두 지웁니다. 실행 때 건너뛰는 "
+       "행들입니다."),
+    DE("Entfernt jede Zeile ohne Haken, ob fertig oder nicht: die, die ein Lauf "
+       "auslassen würde."),
+    FR("Retire chaque ligne décochée, terminée ou non : celles qu'un passage "
+       "laisserait de côté."),
+    ES("Quita cada fila sin marcar, terminada o no: las que una ejecución dejaría "
+       "fuera."),
+    PT("Remove cada linha sem marca, terminada ou não: as que uma execução "
+       "deixaria de fora."),
+    IT("Rimuove ogni riga senza spunta, finita o no: quelle che un'esecuzione "
+       "salterebbe."),
+    NL("Verwijdert elke rij zonder vinkje, klaar of niet: de rijen die een run "
+       "zou overslaan."),
+    RU("Убирает каждую строку без отметки, завершённую или нет, — те, что запуск "
+       "пропустил бы."),
+    TR("İşareti kaldırılmış her satırı, bitmiş olsun olmasın, kaldırır: bir "
+       "çalışmanın atlayacağı satırlar."));
+SS_MSG(batch_confirm_title,
+    EN("Batch list"), JA("バッチ一覧"), ZH_HANS("批处理列表"), ZH_HANT("批次處理列表"),
+    KO("배치 목록"), DE("Stapelliste"), FR("Liste du lot"), ES("Lista del lote"),
+    PT("Lista do lote"), IT("Lista del lotto"), NL("Batchlijst"), RU("Пакетный список"),
+    TR("Toplu liste"));
+SS_MSG(batch_clear_confirm,
+    EN("Remove every row from the list? The saved presets and the runs already "
+       "written are not touched."),
+    JA("一覧のすべての行を消しますか？保存済みプリセットと書き出し済みの実行結果は"
+       "そのままです。"),
+    ZH_HANS("从列表中删除所有行？已保存的预设和已写出的运行结果不受影响。"),
+    ZH_HANT("從列表中刪除所有列？已儲存的預設和已寫出的執行結果不受影響。"),
+    KO("목록의 모든 행을 지울까요? 저장된 프리셋과 이미 기록된 실행 결과는 그대로입니다."),
+    DE("Alle Zeilen von der Liste entfernen? Gespeicherte Presets und bereits "
+       "geschriebene Läufe bleiben unberührt."),
+    FR("Retirer toutes les lignes de la liste ? Les préréglages enregistrés et les "
+       "entraînements déjà écrits ne sont pas touchés."),
+    ES("¿Quitar todas las filas de la lista? Los ajustes guardados y las "
+       "ejecuciones ya escritas no se tocan."),
+    PT("Remover todas as linhas da lista? As predefinições guardadas e os treinos "
+       "já escritos não são tocados."),
+    IT("Rimuovere tutte le righe dalla lista? I preset salvati e le esecuzioni "
+       "già scritte non vengono toccati."),
+    NL("Alle rijen van de lijst verwijderen? Opgeslagen presets en al weggeschreven "
+       "runs blijven onaangeroerd."),
+    RU("Убрать все строки из списка? Сохранённые пресеты и уже записанные запуски "
+       "не затрагиваются."),
+    TR("Listedeki tüm satırlar kaldırılsın mı? Kayıtlı ön ayarlar ve yazılmış "
+       "çalıştırmalar dokunulmadan kalır."));
+SS_MSG(batch_clear_done_confirm,
+    EN("Remove the rows that finished well? What they wrote stays on disk."),
+    JA("成功して終わった行を消しますか？書き出したものはディスクに残ります。"),
+    ZH_HANS("删除已成功完成的行？它们写出的内容仍保留在磁盘上。"),
+    ZH_HANT("刪除已成功完成的列？它們寫出的內容仍保留在磁碟上。"),
+    KO("잘 끝난 행을 지울까요? 그 행들이 기록한 것은 디스크에 남습니다."),
+    DE("Die gut beendeten Zeilen entfernen? Was sie geschrieben haben, bleibt auf "
+       "der Platte."),
+    FR("Retirer les lignes bien terminées ? Ce qu'elles ont écrit reste sur le "
+       "disque."),
+    ES("¿Quitar las filas que terminaron bien? Lo que escribieron sigue en el disco."),
+    PT("Remover as linhas que terminaram bem? O que escreveram fica no disco."),
+    IT("Rimuovere le righe finite bene? Ciò che hanno scritto resta su disco."),
+    NL("De goed geëindigde rijen verwijderen? Wat ze schreven blijft op schijf."),
+    RU("Убрать успешно завершённые строки? Записанное ими остаётся на диске."),
+    TR("İyi biten satırlar kaldırılsın mı? Yazdıkları diskte kalır."));
+SS_MSG(batch_clear_unchecked_confirm,
+    EN("Remove the unticked rows? What they wrote stays on disk."),
+    JA("チェックのない行を消しますか？書き出したものはディスクに残ります。"),
+    ZH_HANS("删除未勾选的行？它们写出的内容仍保留在磁盘上。"),
+    ZH_HANT("刪除未勾選的列？它們寫出的內容仍保留在磁碟上。"),
+    KO("체크 해제된 행을 지울까요? 그 행들이 기록한 것은 디스크에 남습니다."),
+    DE("Die nicht angehakten Zeilen entfernen? Was sie geschrieben haben, bleibt "
+       "auf der Platte."),
+    FR("Retirer les lignes non cochées ? Ce qu'elles ont écrit reste sur le "
+       "disque."),
+    ES("¿Quitar las filas sin marcar? Lo que escribieron sigue en el disco."),
+    PT("Remover as linhas não marcadas? O que escreveram fica no disco."),
+    IT("Rimuovere le righe non spuntate? Ciò che hanno scritto resta su disco."),
+    NL("De niet-aangevinkte rijen verwijderen? Wat ze schreven blijft op schijf."),
+    RU("Убрать строки без отметки? Записанное ими остаётся на диске."),
+    TR("İşaretsiz satırlar kaldırılsın mı? Yazdıkları diskte kalır."));
+
 SS_MSG(batch_clear,
     EN("Clear list"),
     JA("一覧を空にする"),
@@ -4361,16 +5716,6 @@ SS_MSG(batch_no_runnable,
     NL("Er valt niets uit te voeren."),
     RU("Запускать нечего."),
     TR("Çalıştırılacak bir şey yok."));
-SS_MSG(batch_col_dataset,
-    EN("Dataset"),       JA("データセット"),   ZH_HANS("数据集"),   ZH_HANT("資料集"),
-    KO("데이터셋"),        DE("Datensatz"),    FR("Jeu de données"),
-    ES("Conjunto de datos"), PT("Conjunto de dados"), IT("Set di dati"),
-    NL("Dataset"),       RU("Набор данных"), TR("Veri kümesi"));
-SS_MSG(batch_col_preset,
-    EN("Preset"),        JA("プリセット"),     ZH_HANS("预设"),     ZH_HANT("預設"),
-    KO("프리셋"),         DE("Voreinstellung"), FR("Préréglage"),  ES("Ajuste"),
-    PT("Predefinição"),  IT("Preimpostazione"), NL("Voorinstelling"),
-    RU("Пресет"),        TR("Hazır ayar"));
 // A column heading, so every language is kept to about the width of the
 // English one -- the row under it is a number, and a heading that has to be
 // truncated says less than a short one.
@@ -4421,11 +5766,6 @@ SS_MSG(batch_col_output,
     NL("Uitvoermap"),
     RU("Папка вывода"),
     TR("Çıktı klasörü"));
-SS_MSG(batch_col_status,
-    EN("Status"),        JA("状態"),          ZH_HANS("状态"),     ZH_HANT("狀態"),
-    KO("상태"),           DE("Status"),       FR("État"),         ES("Estado"),
-    PT("Estado"),        IT("Stato"),        NL("Status"),       RU("Состояние"),
-    TR("Durum"));
 SS_MSG(batch_dataset_hint,
     EN("path to a reconstructed dataset"),
     JA("再構成済みデータセットのパス"),
@@ -4448,30 +5788,29 @@ SS_MSG(batch_override_hint,
     PT("predefinição"),  IT("preimpostazione"), NL("voorinstelling"),
     RU("пресет"),        TR("hazır ayar"));
 SS_MSG(batch_override_help,
-    EN("Overrides what the preset says, for this row alone. Leave it empty to "
+    EN("Overrides what the preset says, for this run alone. Leave it empty to "
        "train with the preset's own value."),
-    JA("この行だけ、プリセットの値を上書きします。空にしておくとプリセットの値の"
-       "まま学習します。"),
-    ZH_HANS("只对这一行覆盖预设里的值。留空就按预设本身的值来训练。"),
-    ZH_HANT("只對這一行覆寫預設裡的值。留空就按預設本身的值來訓練。"),
-    KO("이 행에 한해 프리셋 값을 덮어씁니다. 비워 두면 프리셋의 값 그대로 "
-       "학습합니다."),
-    DE("Überschreibt nur für diese Zeile, was die Voreinstellung sagt. Leer "
-       "lassen, um mit deren eigenem Wert zu trainieren."),
-    FR("Remplace ce que dit le préréglage, pour cette ligne seulement. Laisser "
-       "vide pour entraîner avec la valeur du préréglage."),
-    ES("Sustituye lo que dice el ajuste, solo en esta fila. Déjalo vacío para "
-       "entrenar con el valor del propio ajuste."),
-    PT("Substitui o que a predefinição diz, só nesta linha. Deixe vazio para "
-       "treinar com o valor da própria predefinição."),
-    IT("Sovrascrive quanto dice la preimpostazione, solo per questa riga. "
-       "Lascialo vuoto per addestrare con il valore della preimpostazione."),
-    NL("Overschrijft wat de voorinstelling zegt, alleen voor deze rij. Laat het "
+    JA("この実行だけ、プリセットの値を上書きします。空にしておくとプリセットの値のまま学習します。"),
+    ZH_HANS("只对这次运行覆盖预设的值。留空就按预设的值训练。"),
+    ZH_HANT("只對這次執行覆蓋預設的值。留空就照預設的值訓練。"),
+    KO("이 실행에만 프리셋 값을 덮어씁니다. 비워 두면 프리셋 값으로 학습합니다."),
+    DE("Überschreibt den Wert der Voreinstellung, nur für diesen Lauf. Leer "
+       "lassen, um mit dem Wert der Voreinstellung zu trainieren."),
+    FR("Remplace ce que dit le préréglage, pour cette exécution seulement. "
+       "Laissez vide pour entraîner avec la valeur du préréglage."),
+    ES("Sustituye lo que dice el ajuste, solo para esta ejecución. Déjelo "
+       "vacío para entrenar con el valor del ajuste."),
+    PT("Substitui o que a predefinição diz, só para esta execução. Deixe vazio "
+       "para treinar com o valor da predefinição."),
+    IT("Sostituisce ciò che dice la preimpostazione, solo per questa "
+       "esecuzione. Lascialo vuoto per addestrare con il valore della "
+       "preimpostazione."),
+    NL("Overschrijft wat de voorinstelling zegt, alleen voor deze run. Laat "
        "leeg om met de waarde van de voorinstelling te trainen."),
-    RU("Переопределяет значение из пресета только для этой строки. Оставьте "
-       "пустым, чтобы обучать со значением самого пресета."),
-    TR("Yalnızca bu satır için hazır ayardaki değerin yerine geçer. Hazır ayarın "
-       "kendi değeriyle eğitmek için boş bırakın."));
+    RU("Переопределяет значение пресета, только для этого прогона. Оставьте "
+       "пустым, чтобы обучать со значением пресета."),
+    TR("Hazır ayarın değerini yalnızca bu çalıştırma için geçersiz kılar. "
+       "Hazır ayarın değeriyle eğitmek için boş bırakın."));
 SS_MSG(batch_output_hint,
     EN("default: <dataset>/outputs"),
     JA("既定: <データセット>/outputs"),
@@ -4571,10 +5910,19 @@ SS_MSG(batch_status_pending,
     PT("Aguardando"),    IT("In attesa"),    NL("Wacht"),        RU("Ожидает"),
     TR("Bekliyor"));
 SS_MSG(batch_status_running,
-    EN("Training"),      JA("学習中"),        ZH_HANS("训练中"),   ZH_HANT("訓練中"),
-    KO("학습 중"),         DE("Training läuft"), FR("Entraînement"),
-    ES("Entrenando"),    PT("Treinando"),    IT("In addestramento"),
-    NL("Bezig met trainen"), RU("Обучается"), TR("Eğitiliyor"));
+    EN("Running"),
+    JA("実行中"),
+    ZH_HANS("运行中"),
+    ZH_HANT("執行中"),
+    KO("실행 중"),
+    DE("Läuft"),
+    FR("En cours"),
+    ES("En curso"),
+    PT("Em execução"),
+    IT("In corso"),
+    NL("Bezig"),
+    RU("Выполняется"),
+    TR("Çalışıyor"));
 SS_MSG(batch_status_done,
     EN("Done"),          JA("完了"),          ZH_HANS("完成"),     ZH_HANT("完成"),
     KO("완료"),           DE("Fertig"),       FR("Terminé"),      ES("Listo"),
@@ -4597,61 +5945,33 @@ SS_MSG(batch_status_stopped,
     TR("Durduruldu"));
 
 SS_MSG(batch_issue_row,
-    EN("Job {0}: {1}"),
-    JA("ジョブ {0}: {1}"),
-    ZH_HANS("任务 {0}：{1}"),
-    ZH_HANT("工作 {0}：{1}"),
-    KO("작업 {0}: {1}"),
-    DE("Auftrag {0}: {1}"),
-    FR("Tâche {0} : {1}"),
-    ES("Trabajo {0}: {1}"),
-    PT("Trabalho {0}: {1}"),
-    IT("Lavoro {0}: {1}"),
-    NL("Taak {0}: {1}"),
-    RU("Задание {0}: {1}"),
-    TR("İş {0}: {1}"));
+    EN("Row {0}: {1}"),
+    JA("{0} 行目: {1}"),
+    ZH_HANS("第 {0} 行: {1}"),
+    ZH_HANT("第 {0} 列: {1}"),
+    KO("{0}번 행: {1}"),
+    DE("Zeile {0}: {1}"),
+    FR("Ligne {0} : {1}"),
+    ES("Fila {0}: {1}"),
+    PT("Linha {0}: {1}"),
+    IT("Riga {0}: {1}"),
+    NL("Rij {0}: {1}"),
+    RU("Строка {0}: {1}"),
+    TR("Satır {0}: {1}"));
 SS_MSG(batch_running_banner,
-    EN("Batch job {0} of {1}"),
-    JA("バッチのジョブ {0} / {1}"),
-    ZH_HANS("批量任务 {0} / {1}"),
-    ZH_HANT("批次工作 {0} / {1}"),
+    EN("Batch task {0} of {1}"),
+    JA("バッチ作業 {0} / {1}"),
+    ZH_HANS("批处理作业 {0} / {1}"),
+    ZH_HANT("批次作業 {0} / {1}"),
     KO("일괄 작업 {0} / {1}"),
-    DE("Stapelauftrag {0} von {1}"),
-    FR("Tâche du lot {0} sur {1}"),
-    ES("Trabajo del lote {0} de {1}"),
-    PT("Trabalho do lote {0} de {1}"),
-    IT("Lavoro del batch {0} di {1}"),
+    DE("Stapelaufgabe {0} von {1}"),
+    FR("Tâche de lot {0} sur {1}"),
+    ES("Tarea del lote {0} de {1}"),
+    PT("Tarefa do lote {0} de {1}"),
+    IT("Attività del batch {0} di {1}"),
     NL("Batchtaak {0} van {1}"),
-    RU("Задание пакета {0} из {1}"),
+    RU("Задача пакета {0} из {1}"),
     TR("Toplu iş {0} / {1}"));
-SS_MSG(batch_running_dataset,
-    EN("Training: {0}"),
-    JA("学習中: {0}"),
-    ZH_HANS("正在训练：{0}"),
-    ZH_HANT("正在訓練：{0}"),
-    KO("학습 중: {0}"),
-    DE("Training: {0}"),
-    FR("Entraînement : {0}"),
-    ES("Entrenando: {0}"),
-    PT("Treinando: {0}"),
-    IT("Addestramento: {0}"),
-    NL("Training: {0}"),
-    RU("Обучение: {0}"),
-    TR("Eğitiliyor: {0}"));
-SS_MSG(batch_running_preset,
-    EN("Preset: {0}"),
-    JA("プリセット: {0}"),
-    ZH_HANS("预设：{0}"),
-    ZH_HANT("預設：{0}"),
-    KO("프리셋: {0}"),
-    DE("Voreinstellung: {0}"),
-    FR("Préréglage : {0}"),
-    ES("Ajuste: {0}"),
-    PT("Predefinição: {0}"),
-    IT("Preimpostazione: {0}"),
-    NL("Voorinstelling: {0}"),
-    RU("Пресет: {0}"),
-    TR("Hazır ayar: {0}"));
 SS_MSG(confirm_batch,
     EN("Stop training and start the batch?"),
     JA("学習を停止してバッチを開始しますか？"),
@@ -4681,57 +6001,56 @@ SS_MSG(batch_show_list,
     RU("Список пакета"),
     TR("Toplu iş listesi"));
 SS_MSG(batch_show_training,
-    EN("Show training"),
-    JA("学習の画面を表示"),
-    ZH_HANS("显示训练画面"),
-    ZH_HANT("顯示訓練畫面"),
-    KO("학습 화면 보기"),
-    DE("Training anzeigen"),
-    FR("Afficher l'entraînement"),
-    ES("Mostrar el entrenamiento"),
-    PT("Mostrar o treinamento"),
-    IT("Mostra l'addestramento"),
-    NL("Training tonen"),
-    RU("Показать обучение"),
-    TR("Eğitimi göster"));
+    EN("Show the run"),
+    JA("実行中の画面へ"),
+    ZH_HANS("查看正在跑的作业"),
+    ZH_HANT("查看正在跑的作業"),
+    KO("실행 중인 화면 보기"),
+    DE("Den Lauf anzeigen"),
+    FR("Afficher l'exécution"),
+    ES("Ver la ejecución"),
+    PT("Ver a execução"),
+    IT("Mostra l'esecuzione"),
+    NL("De run tonen"),
+    RU("Показать выполнение"),
+    TR("Çalışmayı göster"));
 SS_MSG(batch_stop_after,
-    EN("Stop after this job"),
-    JA("このジョブの後で停止"),
-    ZH_HANS("跑完这个任务后停止"),
-    ZH_HANT("跑完這個工作後停止"),
-    KO("이 작업 뒤에 중지"),
-    DE("Nach diesem Auftrag anhalten"),
+    EN("Stop after this task"),
+    JA("この作業のあとで停止"),
+    ZH_HANS("做完这个作业后停止"),
+    ZH_HANT("做完這個作業後停止"),
+    KO("이 작업 후 중지"),
+    DE("Nach dieser Aufgabe stoppen"),
     FR("Arrêter après cette tâche"),
-    ES("Parar después de este trabajo"),
-    PT("Parar depois deste trabalho"),
-    IT("Fermarsi dopo questo lavoro"),
+    ES("Parar después de esta tarea"),
+    PT("Parar depois desta tarefa"),
+    IT("Fermati dopo questa attività"),
     NL("Stoppen na deze taak"),
-    RU("Остановиться после этого задания"),
+    RU("Остановить после этой задачи"),
     TR("Bu işten sonra dur"));
 SS_MSG(batch_stop_after_help,
-    EN("Let the job that is running finish and save, then stop instead of "
-       "starting the next one."),
-    JA("実行中のジョブは最後まで走らせて保存し、次を始めずにそこで止めます。"),
-    ZH_HANS("让正在跑的任务跑完并保存，然后就此停下，不再开始下一个。"),
-    ZH_HANT("讓正在跑的工作跑完並儲存，然後就此停下，不再開始下一個。"),
-    KO("실행 중인 작업은 끝까지 돌려 저장한 뒤, 다음 작업을 시작하지 않고 "
-       "멈춥니다."),
-    DE("Den laufenden Auftrag zu Ende bringen und speichern lassen, dann "
-       "anhalten, statt den nächsten zu starten."),
-    FR("Laisser la tâche en cours finir et enregistrer, puis s'arrêter au lieu "
-       "de lancer la suivante."),
-    ES("Dejar que el trabajo en curso termine y guarde, y luego parar en vez de "
-       "arrancar el siguiente."),
-    PT("Deixar o trabalho em andamento terminar e salvar, e então parar em vez "
-       "de começar o próximo."),
-    IT("Lasciare che il lavoro in corso finisca e salvi, poi fermarsi invece di "
-       "avviare il successivo."),
-    NL("De lopende taak laten afmaken en opslaan, en dan stoppen in plaats van "
-       "de volgende te starten."),
-    RU("Дать текущему заданию доработать и сохраниться, а затем остановиться, "
-       "не запуская следующее."),
-    TR("Çalışan işin bitip kaydetmesini bekler, sonra bir sonrakini başlatmak "
-       "yerine durur."));
+    EN("Let the task that is running finish, then stop instead of starting the "
+       "next one."),
+    JA("実行中の作業は最後までやらせて、次を始めずに停止します。"),
+    ZH_HANS("让正在跑的作业做完，然后不再开始下一个。"),
+    ZH_HANT("讓正在跑的作業做完，然後不再開始下一個。"),
+    KO("실행 중인 작업은 끝까지 두고, 다음 작업은 시작하지 않고 멈춥니다."),
+    DE("Die laufende Aufgabe zu Ende bringen und dann stoppen, statt die "
+       "nächste zu beginnen."),
+    FR("Laisser la tâche en cours se terminer, puis s'arrêter au lieu de "
+       "démarrer la suivante."),
+    ES("Dejar que termine la tarea en curso y luego parar en vez de empezar la "
+       "siguiente."),
+    PT("Deixar a tarefa em andamento terminar e então parar em vez de começar "
+       "a seguinte."),
+    IT("Lascia finire l'attività in corso e poi fermati invece di iniziare la "
+       "successiva."),
+    NL("De lopende taak laten afmaken en dan stoppen in plaats van de volgende "
+       "te starten."),
+    RU("Дать текущей задаче доработать, а затем остановиться, не начиная "
+       "следующую."),
+    TR("Çalışan işin bitmesine izin ver, sonra sıradakini başlatmak yerine "
+       "dur."));
 SS_MSG(batch_stop_now,
     EN("Stop now"),
     JA("いますぐ停止"),
@@ -4747,58 +6066,56 @@ SS_MSG(batch_stop_now,
     RU("Остановить сейчас"),
     TR("Şimdi durdur"));
 SS_MSG(batch_stop_now_help,
-    EN("Cut the running job short -- it still saves a checkpoint -- and stop "
-       "the batch."),
-    JA("実行中のジョブを途中で打ち切り（チェックポイントは保存されます）、"
-       "バッチを止めます。"),
-    ZH_HANS("把正在跑的任务提前结束（仍会保存一个检查点），并停止整批。"),
-    ZH_HANT("把正在跑的工作提前結束（仍會儲存一個檢查點），並停止整批。"),
-    KO("실행 중인 작업을 중간에 끊고(체크포인트는 저장합니다) 일괄 실행을 "
-       "멈춥니다."),
-    DE("Den laufenden Auftrag abkürzen -- ein Checkpoint wird trotzdem "
-       "gespeichert -- und den Stapel anhalten."),
-    FR("Interrompre la tâche en cours -- un point de reprise est tout de même "
-       "enregistré -- et arrêter le lot."),
-    ES("Cortar el trabajo en curso -- aun así guarda un punto de control -- y "
-       "parar el lote."),
-    PT("Encerrar antes o trabalho em andamento -- um ponto de verificação ainda "
-       "é salvo -- e parar o lote."),
-    IT("Interrompere il lavoro in corso -- un checkpoint viene comunque salvato "
-       "-- e fermare il batch."),
-    NL("De lopende taak afbreken -- er wordt nog wel een controlepunt "
-       "opgeslagen -- en de batch stoppen."),
-    RU("Оборвать текущее задание -- контрольная точка всё равно сохранится -- и "
-       "остановить пакет."),
-    TR("Çalışan işi yarıda keser -- yine de bir denetim noktası kaydedilir -- "
-       "ve toplu işi durdurur."));
+    EN("Cut the running task short -- a training run still saves a checkpoint "
+       "-- and stop the batch."),
+    JA("実行中の作業を途中で打ち切り、バッチを停止します。学習中ならチェックポイントは保存されます。"),
+    ZH_HANS("把正在跑的作业中途切断并停止批处理；如果是训练，仍会保存检查点。"),
+    ZH_HANT("把正在跑的作業中途切斷並停止批次處理；如果是訓練，仍會儲存檢查點。"),
+    KO("실행 중인 작업을 중간에 끊고 일괄 처리를 멈춥니다. 학습 중이면 체크포인트는 저장됩니다."),
+    DE("Die laufende Aufgabe abbrechen -- ein Trainingslauf speichert trotzdem "
+       "einen Checkpoint -- und den Stapel stoppen."),
+    FR("Interrompre la tâche en cours -- un entraînement enregistre quand même "
+       "un point de contrôle -- et arrêter le lot."),
+    ES("Cortar la tarea en curso -- un entrenamiento guarda igualmente un "
+       "punto de control -- y parar el lote."),
+    PT("Cortar a tarefa em andamento -- um treinamento ainda salva um "
+       "checkpoint -- e parar o lote."),
+    IT("Interrompere l'attività in corso -- un addestramento salva comunque un "
+       "checkpoint -- e fermare il batch."),
+    NL("De lopende taak afbreken -- een trainingsrun bewaart nog wel een "
+       "checkpoint -- en de batch stoppen."),
+    RU("Прервать текущую задачу -- обучение всё же сохранит контрольную точку "
+       "-- и остановить пакет."),
+    TR("Çalışan işi yarıda kes -- bir eğitim yine de kontrol noktası kaydeder "
+       "-- ve toplu işi durdur."));
 SS_MSG(batch_stopping,
-    EN("Stopping after this job."),
-    JA("このジョブの後で停止します。"),
-    ZH_HANS("将在这个任务之后停止。"),
-    ZH_HANT("將在這個工作之後停止。"),
-    KO("이 작업 뒤에 멈춥니다."),
-    DE("Wird nach diesem Auftrag angehalten."),
+    EN("Stopping after this task."),
+    JA("この作業のあとで停止します。"),
+    ZH_HANS("将在这个作业之后停止。"),
+    ZH_HANT("將在這個作業之後停止。"),
+    KO("이 작업 후 중지합니다."),
+    DE("Stoppt nach dieser Aufgabe."),
     FR("Arrêt après cette tâche."),
-    ES("Se parará después de este trabajo."),
-    PT("Vai parar depois deste trabalho."),
-    IT("Ci si fermerà dopo questo lavoro."),
+    ES("Se parará después de esta tarea."),
+    PT("Vai parar depois desta tarefa."),
+    IT("Si fermerà dopo questa attività."),
     NL("Stopt na deze taak."),
-    RU("Остановка после этого задания."),
-    TR("Bu işten sonra durulacak."));
+    RU("Остановится после этой задачи."),
+    TR("Bu işten sonra duracak."));
 
 SS_MSG(batch_log_started,
-    EN("Batch started. Jobs: {0}"),
-    JA("バッチを開始しました。ジョブ数: {0}"),
-    ZH_HANS("批量训练已开始。任务数：{0}"),
-    ZH_HANT("批次訓練已開始。工作數：{0}"),
-    KO("일괄 실행을 시작했습니다. 작업 수: {0}"),
-    DE("Stapel gestartet. Aufträge: {0}"),
+    EN("Batch started. Tasks: {0}"),
+    JA("バッチを開始しました。作業数: {0}"),
+    ZH_HANS("批处理已开始。作业数: {0}"),
+    ZH_HANT("批次處理已開始。作業數: {0}"),
+    KO("일괄 처리를 시작했습니다. 작업 수: {0}"),
+    DE("Stapel gestartet. Aufgaben: {0}"),
     FR("Lot démarré. Tâches : {0}"),
-    ES("Lote iniciado. Trabajos: {0}"),
-    PT("Lote iniciado. Trabalhos: {0}"),
-    IT("Batch avviato. Lavori: {0}"),
+    ES("Lote iniciado. Tareas: {0}"),
+    PT("Lote iniciado. Tarefas: {0}"),
+    IT("Batch avviato. Attività: {0}"),
     NL("Batch gestart. Taken: {0}"),
-    RU("Пакет запущен. Заданий: {0}"),
+    RU("Пакет запущен. Задач: {0}"),
     TR("Toplu iş başladı. İş sayısı: {0}"));
 SS_MSG(batch_log_job_start,
     EN("Batch job {0}: training {1}"),
@@ -4815,46 +6132,46 @@ SS_MSG(batch_log_job_start,
     RU("Задание пакета {0}: обучается {1}"),
     TR("Toplu iş {0}: {1} eğitiliyor"));
 SS_MSG(batch_log_job_done,
-    EN("Batch job {0} finished, written to {1}"),
-    JA("バッチのジョブ {0} が完了し、{1} に書き出しました"),
-    ZH_HANS("批量任务 {0} 已完成，写入 {1}"),
-    ZH_HANT("批次工作 {0} 已完成，寫入 {1}"),
-    KO("일괄 작업 {0}을(를) 마치고 {1}에 썼습니다"),
-    DE("Stapelauftrag {0} beendet, geschrieben nach {1}"),
-    FR("Tâche du lot {0} terminée, écrite dans {1}"),
-    ES("Trabajo del lote {0} terminado, escrito en {1}"),
-    PT("Trabalho do lote {0} concluído, escrito em {1}"),
-    IT("Lavoro del batch {0} terminato, scritto in {1}"),
-    NL("Batchtaak {0} klaar, weggeschreven naar {1}"),
-    RU("Задание пакета {0} завершено, записано в {1}"),
+    EN("Batch task {0} finished, written to {1}"),
+    JA("バッチ作業 {0} が完了しました。出力先: {1}"),
+    ZH_HANS("批处理作业 {0} 已完成，写入 {1}"),
+    ZH_HANT("批次作業 {0} 已完成，寫入 {1}"),
+    KO("일괄 작업 {0} 이(가) 끝났습니다. 저장 위치: {1}"),
+    DE("Stapelaufgabe {0} fertig, geschrieben nach {1}"),
+    FR("Tâche de lot {0} terminée, écrite dans {1}"),
+    ES("Tarea del lote {0} terminada, escrita en {1}"),
+    PT("Tarefa do lote {0} concluída, escrita em {1}"),
+    IT("Attività del batch {0} terminata, scritta in {1}"),
+    NL("Batchtaak {0} klaar, geschreven naar {1}"),
+    RU("Задача пакета {0} завершена, записано в {1}"),
     TR("Toplu iş {0} bitti, {1} konumuna yazıldı"));
 SS_MSG(batch_log_job_failed,
-    EN("Batch job {0} failed: {1}"),
-    JA("バッチのジョブ {0} が失敗しました: {1}"),
-    ZH_HANS("批量任务 {0} 失败：{1}"),
-    ZH_HANT("批次工作 {0} 失敗：{1}"),
-    KO("일괄 작업 {0}이(가) 실패했습니다: {1}"),
-    DE("Stapelauftrag {0} fehlgeschlagen: {1}"),
-    FR("Échec de la tâche du lot {0} : {1}"),
-    ES("El trabajo del lote {0} ha fallado: {1}"),
-    PT("O trabalho do lote {0} falhou: {1}"),
-    IT("Il lavoro del batch {0} non è riuscito: {1}"),
-    NL("Batchtaak {0} is mislukt: {1}"),
-    RU("Задание пакета {0} завершилось сбоем: {1}"),
+    EN("Batch task {0} failed: {1}"),
+    JA("バッチ作業 {0} が失敗しました: {1}"),
+    ZH_HANS("批处理作业 {0} 失败: {1}"),
+    ZH_HANT("批次作業 {0} 失敗: {1}"),
+    KO("일괄 작업 {0} 이(가) 실패했습니다: {1}"),
+    DE("Stapelaufgabe {0} gescheitert: {1}"),
+    FR("Tâche de lot {0} en échec : {1}"),
+    ES("La tarea del lote {0} ha fallado: {1}"),
+    PT("A tarefa do lote {0} falhou: {1}"),
+    IT("L'attività del batch {0} non è riuscita: {1}"),
+    NL("Batchtaak {0} mislukt: {1}"),
+    RU("Задача пакета {0} не выполнена: {1}"),
     TR("Toplu iş {0} başarısız oldu: {1}"));
 SS_MSG(batch_log_job_stopped,
-    EN("Batch job {0} was stopped."),
-    JA("バッチのジョブ {0} は停止されました。"),
-    ZH_HANS("批量任务 {0} 已被停止。"),
-    ZH_HANT("批次工作 {0} 已被停止。"),
-    KO("일괄 작업 {0}이(가) 중지되었습니다."),
-    DE("Stapelauftrag {0} wurde angehalten."),
-    FR("La tâche du lot {0} a été arrêtée."),
-    ES("El trabajo del lote {0} se ha detenido."),
-    PT("O trabalho do lote {0} foi interrompido."),
-    IT("Il lavoro del batch {0} è stato interrotto."),
+    EN("Batch task {0} was stopped."),
+    JA("バッチ作業 {0} を停止しました。"),
+    ZH_HANS("批处理作业 {0} 已停止。"),
+    ZH_HANT("批次作業 {0} 已停止。"),
+    KO("일괄 작업 {0} 을(를) 중지했습니다."),
+    DE("Stapelaufgabe {0} wurde gestoppt."),
+    FR("Tâche de lot {0} arrêtée."),
+    ES("La tarea del lote {0} se ha detenido."),
+    PT("A tarefa do lote {0} foi interrompida."),
+    IT("L'attività del batch {0} è stata interrotta."),
     NL("Batchtaak {0} is gestopt."),
-    RU("Задание пакета {0} остановлено."),
+    RU("Задача пакета {0} остановлена."),
     TR("Toplu iş {0} durduruldu."));
 // "Not finished" rather than "not run": a row stopped part-way is in there
 // too, and it did run -- it just has no result to report.
@@ -4872,6 +6189,221 @@ SS_MSG(batch_log_summary,
     NL("Batch klaar. Klaar: {0}   Mislukt: {1}   Niet afgemaakt: {2}"),
     RU("Пакет завершён. Готово: {0}   Сбоев: {1}   Не завершено: {2}"),
     TR("Toplu iş bitti. Biten: {0}   Başarısız: {1}   Tamamlanmayan: {2}"));
+
+// ---- the command a finished queue runs ----
+// The message these hand over goes through gui::safe_arg(), so an apostrophe
+// or a quote in a translation cannot reach the command as syntax.
+SS_MSG(batch_cmd_title,
+    EN("When the queue finishes"),
+    JA("バッチが終わったら"),
+    ZH_HANS("批处理结束后"),
+    ZH_HANT("批次結束後"),
+    KO("일괄 실행이 끝나면"),
+    DE("Wenn der Stapel fertig ist"),
+    FR("Quand le lot est terminé"),
+    ES("Cuando el lote termina"),
+    PT("Quando o lote termina"),
+    IT("Quando il batch è finito"),
+    NL("Als de batch klaar is"),
+    RU("Когда пакет завершится"),
+    TR("Toplu iş bittiğinde"));
+SS_MSG(batch_cmd_help,
+    EN("Runs when the last task is over, however it ended. {message} is "
+       "replaced by a one-line summary, and always arrives as a single "
+       "argument whether it is quoted or not. The command is run directly, "
+       "not through a shell."),
+    JA("最後の作業が終わったときに、どのような終わり方であっても実行します。"
+       "{message} は結果を1行にまとめた文に置き換わり、引用符の有無にかかわ"
+       "らず必ず1つの引数として渡されます。コマンドはシェルを通さずそのまま"
+       "実行します。"),
+    ZH_HANS("最后一个作业结束时运行，无论以何种方式结束。{message} 会替换为"
+            "一行结果摘要，无论是否加引号，都作为单个参数传入。命令直接运行，"
+            "不经过 shell。"),
+    ZH_HANT("最後一個作業結束時執行，無論以何種方式結束。{message} 會替換為"
+            "一行結果摘要，無論有沒有加引號，都會當成單一引數傳入。命令會直接"
+            "執行，不經過 shell。"),
+    KO("마지막 작업이 어떻게 끝나든, 끝나면 실행합니다. {message} 는 결과를 "
+       "한 줄로 요약한 문장으로 바뀌며, 따옴표가 있든 없든 항상 인수 하나로 "
+       "전달됩니다. 명령은 셸을 거치지 않고 바로 실행합니다."),
+    DE("Läuft, wenn die letzte Aufgabe vorbei ist, wie sie auch endete. "
+       "{message} wird durch eine einzeilige Zusammenfassung ersetzt und "
+       "kommt immer als ein einziges Argument an, in Anführungszeichen oder "
+       "nicht. Der Befehl läuft direkt, nicht über eine Shell."),
+    FR("S’exécute quand la dernière tâche est finie, quelle qu’en soit "
+       "l’issue. {message} est remplacé par un résumé d’une ligne et arrive "
+       "toujours comme un seul argument, entre guillemets ou non. La "
+       "commande est lancée directement, sans passer par un shell."),
+    ES("Se ejecuta cuando la última tarea termina, sea como sea. {message} "
+       "se sustituye por un resumen de una línea y siempre llega como un "
+       "solo argumento, esté entrecomillado o no. El comando se ejecuta "
+       "directamente, sin pasar por un shell."),
+    PT("É executado quando a última tarefa termina, seja como for. {message} "
+       "é substituído por um resumo de uma linha e chega sempre como um "
+       "único argumento, entre aspas ou não. O comando é executado "
+       "diretamente, sem passar por um shell."),
+    IT("Parte quando l’ultima attività è finita, comunque sia finita. "
+       "{message} viene sostituito da un riassunto di una riga e arriva "
+       "sempre come un solo argomento, tra virgolette o no. Il comando viene "
+       "eseguito direttamente, senza passare da una shell."),
+    NL("Draait als de laatste taak voorbij is, hoe die ook afliep. {message} "
+       "wordt vervangen door een samenvatting van één regel en komt altijd "
+       "als één argument aan, met of zonder aanhalingstekens. De opdracht "
+       "draait rechtstreeks, niet via een shell."),
+    RU("Запускается, когда последняя задача закончилась, чем бы она ни "
+       "кончилась. {message} заменяется однострочной сводкой и всегда "
+       "приходит одним аргументом, в кавычках или без. Команда запускается "
+       "напрямую, без оболочки."),
+    TR("Son iş nasıl biterse bitsin, bittiğinde çalışır. {message} tek "
+       "satırlık bir özetle değiştirilir ve tırnak içinde olsun olmasın her "
+       "zaman tek bir argüman olarak gelir. Komut kabuk üzerinden değil, "
+       "doğrudan çalıştırılır."));
+SS_MSG(batch_cmd_test,
+    EN("Test"),
+    JA("テスト"),
+    ZH_HANS("测试"),
+    ZH_HANT("測試"),
+    KO("테스트"),
+    DE("Testen"),
+    FR("Tester"),
+    ES("Probar"),
+    PT("Testar"),
+    IT("Prova"),
+    NL("Testen"),
+    RU("Проверить"),
+    TR("Dene"));
+SS_MSG(batch_cmd_test_help,
+    EN("Runs the command now, with a test message in place of the summary."),
+    JA("結果のまとめの代わりにテスト用の文を入れて、コマンドをいま実行します。"),
+    ZH_HANS("现在就运行这条命令，用一条测试消息代替结果摘要。"),
+    ZH_HANT("現在就執行這條命令，用一則測試訊息代替結果摘要。"),
+    KO("요약 대신 테스트 문구를 넣어 명령을 지금 실행합니다."),
+    DE("Führt den Befehl jetzt aus, mit einer Testnachricht statt der "
+       "Zusammenfassung."),
+    FR("Lance la commande maintenant, avec un message de test à la place du "
+       "résumé."),
+    ES("Ejecuta el comando ahora, con un mensaje de prueba en lugar del "
+       "resumen."),
+    PT("Executa o comando agora, com uma mensagem de teste no lugar do "
+       "resumo."),
+    IT("Esegue il comando adesso, con un messaggio di prova al posto del "
+       "riassunto."),
+    NL("Voert de opdracht nu uit, met een testbericht in plaats van de "
+       "samenvatting."),
+    RU("Запускает команду сейчас, подставив пробное сообщение вместо сводки."),
+    TR("Komutu şimdi çalıştırır, özet yerine bir deneme iletisi koyarak."));
+// The product name is the localized one where there is one (brand::product):
+// this is in-text copy, not the wordmark, and it is written out per language
+// rather than assembled, exactly as brand::window_title is.
+SS_MSG(batch_cmd_test_message,
+    EN("Spirula Studio: this is a test message."),
+    JA("スピルラ・スタジオ: これはテスト用のメッセージです。"),
+    ZH_HANS("旋影工坊：这是一条测试消息。"),
+    ZH_HANT("旋影工坊：這是一則測試訊息。"),
+    KO("스피룰라 스튜디오: 테스트 메시지입니다."),
+    DE("Spirula Studio: Das ist eine Testnachricht."),
+    FR("Spirula Studio : ceci est un message de test."),
+    ES("Spirula Studio: este es un mensaje de prueba."),
+    PT("Spirula Studio: esta é uma mensagem de teste."),
+    IT("Spirula Studio: questo è un messaggio di prova."),
+    NL("Spirula Studio: dit is een testbericht."),
+    RU("Spirula Studio: это пробное сообщение."),
+    TR("Spirula Studio: bu bir deneme iletisidir."));
+SS_MSG(batch_cmd_message,
+    EN("Spirula Studio: batch processing finished. Done: {0}, failed: {1}, "
+       "not finished: {2}."),
+    JA("スピルラ・スタジオ: バッチ処理が終了しました。完了: {0}、失敗: {1}、"
+       "未完了: {2}。"),
+    ZH_HANS("旋影工坊：批处理结束。完成：{0}，失败：{1}，未完成：{2}。"),
+    ZH_HANT("旋影工坊：批次處理結束。完成：{0}，失敗：{1}，未完成：{2}。"),
+    KO("스피룰라 스튜디오: 일괄 처리가 끝났습니다. 완료: {0}, 실패: {1}, "
+       "미완료: {2}."),
+    DE("Spirula Studio: Die Stapelverarbeitung ist fertig. Fertig: {0}, "
+       "fehlgeschlagen: {1}, unfertig: {2}."),
+    FR("Spirula Studio : le traitement par lots est terminé. Terminées : "
+       "{0}, en échec : {1}, inachevées : {2}."),
+    ES("Spirula Studio: el procesamiento por lotes ha terminado. Listos: "
+       "{0}, con error: {1}, sin terminar: {2}."),
+    PT("Spirula Studio: o processamento em lote terminou. Concluídos: {0}, "
+       "com falha: {1}, não concluídos: {2}."),
+    IT("Spirula Studio: l’elaborazione batch è finita. Fatti: {0}, non "
+       "riusciti: {1}, non finiti: {2}."),
+    NL("Spirula Studio: de batchverwerking is klaar. Klaar: {0}, mislukt: "
+       "{1}, niet afgemaakt: {2}."),
+    RU("Spirula Studio: пакетная обработка завершена. Готово: {0}, сбоев: "
+       "{1}, не завершено: {2}."),
+    TR("Spirula Studio: toplu işlem bitti. Biten: {0}, başarısız: {1}, "
+       "tamamlanmayan: {2}."));
+SS_MSG(batch_cmd_running,
+    EN("Running the finish command: {0}"),
+    JA("終了時のコマンドを実行します: {0}"),
+    ZH_HANS("正在运行结束命令：{0}"),
+    ZH_HANT("正在執行結束命令：{0}"),
+    KO("종료 명령을 실행합니다: {0}"),
+    DE("Abschlussbefehl wird ausgeführt: {0}"),
+    FR("Exécution de la commande de fin : {0}"),
+    ES("Ejecutando el comando de fin: {0}"),
+    PT("Executando o comando de fim: {0}"),
+    IT("Esecuzione del comando di fine: {0}"),
+    NL("De afsluitopdracht draait: {0}"),
+    RU("Запускается команда завершения: {0}"),
+    TR("Bitiş komutu çalıştırılıyor: {0}"));
+SS_MSG(batch_cmd_missing,
+    EN("Could not run the finish command: {0} was not found."),
+    JA("終了時のコマンドを実行できませんでした: {0} が見つかりません。"),
+    ZH_HANS("无法运行结束命令：找不到 {0}。"),
+    ZH_HANT("無法執行結束命令：找不到 {0}。"),
+    KO("종료 명령을 실행할 수 없습니다: {0} 을(를) 찾을 수 없습니다."),
+    DE("Der Abschlussbefehl ließ sich nicht ausführen: {0} wurde nicht "
+       "gefunden."),
+    FR("Impossible de lancer la commande de fin : {0} est introuvable."),
+    ES("No se ha podido ejecutar el comando de fin: no se encuentra {0}."),
+    PT("Não foi possível executar o comando de fim: {0} não foi encontrado."),
+    IT("Non è stato possibile eseguire il comando di fine: {0} non si trova."),
+    NL("De afsluitopdracht kon niet draaien: {0} is niet gevonden."),
+    RU("Не удалось выполнить команду завершения: {0} не найден."),
+    TR("Bitiş komutu çalıştırılamadı: {0} bulunamadı."));
+SS_MSG(batch_cmd_exit,
+    EN("The finish command exited with code {0}."),
+    JA("終了時のコマンドが終了コード {0} で終わりました。"),
+    ZH_HANS("结束命令退出，返回码 {0}。"),
+    ZH_HANT("結束命令結束，回傳碼 {0}。"),
+    KO("종료 명령이 코드 {0}(으)로 끝났습니다."),
+    DE("Der Abschlussbefehl endete mit Code {0}."),
+    FR("La commande de fin s’est terminée avec le code {0}."),
+    ES("El comando de fin ha terminado con el código {0}."),
+    PT("O comando de fim terminou com o código {0}."),
+    IT("Il comando di fine è terminato con codice {0}."),
+    NL("De afsluitopdracht eindigde met code {0}."),
+    RU("Команда завершения закончилась с кодом {0}."),
+    TR("Bitiş komutu {0} koduyla sona erdi."));
+SS_MSG(batch_cmd_ok,
+    EN("The finish command finished."),
+    JA("終了時のコマンドが完了しました。"),
+    ZH_HANS("结束命令已完成。"),
+    ZH_HANT("結束命令已完成。"),
+    KO("종료 명령이 끝났습니다."),
+    DE("Der Abschlussbefehl ist durch."),
+    FR("La commande de fin est terminée."),
+    ES("El comando de fin ha terminado."),
+    PT("O comando de fim terminou."),
+    IT("Il comando di fine è finito."),
+    NL("De afsluitopdracht is klaar."),
+    RU("Команда завершения выполнена."),
+    TR("Bitiş komutu tamamlandı."));
+SS_MSG(batch_cmd_busy,
+    EN("The finish command is already running; this one was not started."),
+    JA("終了時のコマンドはすでに実行中です。今回は実行しませんでした。"),
+    ZH_HANS("结束命令已经在运行，这一次没有再启动。"),
+    ZH_HANT("結束命令已經在執行，這一次沒有再啟動。"),
+    KO("종료 명령이 이미 실행 중이어서 이번에는 실행하지 않았습니다."),
+    DE("Der Abschlussbefehl läuft schon; dieser wurde nicht gestartet."),
+    FR("La commande de fin est déjà en cours ; celle-ci n’a pas été lancée."),
+    ES("El comando de fin ya se está ejecutando; este no se ha iniciado."),
+    PT("O comando de fim já está em execução; este não foi iniciado."),
+    IT("Il comando di fine è già in esecuzione; questo non è stato avviato."),
+    NL("De afsluitopdracht draait al; deze is niet gestart."),
+    RU("Команда завершения уже выполняется; эта не запущена."),
+    TR("Bitiş komutu zaten çalışıyor; bu çalıştırılmadı."));
 
 // ---- what a pre-flight can find ----
 SS_MSG(chk_dataset_empty,
@@ -4916,6 +6448,21 @@ SS_MSG(chk_dataset_not_a_dir,
     NL("Dit is een bestand, geen datasetmap: {0}"),
     RU("Это файл, а не папка набора данных: {0}"),
     TR("Bu bir dosya, veri kümesi klasörü değil: {0}"));
+SS_MSG(chk_partition_missing,
+    EN("The partition file this row trains a part of is missing: {0}"),
+    JA("この行が学習するパートの分割ファイルがありません: {0}"),
+    ZH_HANS("此行要训练的分区所属的分区文件不存在：{0}"),
+    ZH_HANT("此行要訓練的分區所屬的分區檔案不存在：{0}"),
+    KO("이 행이 학습할 파트의 분할 파일이 없습니다: {0}"),
+    DE("Die Partitionsdatei, deren Teil diese Zeile trainiert, fehlt: {0}"),
+    FR("Le fichier de partition dont cette ligne entraîne une partie est absent : {0}"),
+    ES("Falta el archivo de partición del que esta fila entrena una parte: {0}"),
+    PT("Falta o ficheiro de partição de que esta linha treina uma parte: {0}"),
+    IT("Manca il file di partizione di cui questa riga addestra una parte: {0}"),
+    NL("Het partitiebestand waarvan deze rij een deel traint ontbreekt: {0}"),
+    RU("Нет файла разбиения, часть которого обучает эта строка: {0}"),
+    TR("Bu satırın bir parçasını eğittiği bölümleme dosyası yok: {0}"));
+
 SS_MSG(chk_dataset_unreadable,
     EN("This folder holds no reconstruction the trainer can read -- no "
        "transforms.json, no sparse/ or colmap/, no Metashape .xml beside a "
@@ -7301,6 +8848,1850 @@ SS_MSG(runlog_settings_end,
     NL("Einde van de instellingen"),
     RU("Конец настроек"),
     TR("Ayarların sonu"));
+
+
+// ===========================================================================
+// Batch processing and the two new kinds of preset
+// ===========================================================================
+
+SS_MSG(batch_stage_dataset,
+    EN("Create dataset"),
+    JA("データセットを作成"),
+    ZH_HANS("创建数据集"),
+    ZH_HANT("建立資料集"),
+    KO("데이터셋 생성"),
+    DE("Datensatz erstellen"),
+    FR("Créer un jeu de données"),
+    ES("Crear conjunto de datos"),
+    PT("Criar conjunto de dados"),
+    IT("Crea set di dati"),
+    NL("Dataset maken"),
+    RU("Создать набор данных"),
+    TR("Veri kümesi oluştur"));
+SS_MSG(batch_stage_train,
+    EN("Train"),
+    JA("学習"),
+    ZH_HANS("训练"),
+    ZH_HANT("訓練"),
+    KO("학습"),
+    DE("Trainieren"),
+    FR("Entraîner"),
+    ES("Entrenar"),
+    PT("Treinar"),
+    IT("Addestra"),
+    NL("Trainen"),
+    RU("Обучить"),
+    TR("Eğit"));
+SS_MSG(batch_stage_mesh,
+    EN("Mesh"),
+    JA("メッシュ化"),
+    ZH_HANS("生成网格"),
+    ZH_HANT("產生網格"),
+    KO("메시 생성"),
+    DE("Mesh erzeugen"),
+    FR("Mailler"),
+    ES("Generar malla"),
+    PT("Gerar malha"),
+    IT("Genera mesh"),
+    NL("Mesh maken"),
+    RU("Построить полигоны"),
+    TR("Ağ oluştur"));
+SS_MSG(batch_add_create,
+    EN("Add videos..."),
+    JA("動画を追加…"),
+    ZH_HANS("添加视频…"),
+    ZH_HANT("新增影片…"),
+    KO("동영상 추가…"),
+    DE("Videos hinzufügen …"),
+    FR("Ajouter des vidéos…"),
+    ES("Añadir vídeos…"),
+    PT("Adicionar vídeos…"),
+    IT("Aggiungi video…"),
+    NL("Video's toevoegen…"),
+    RU("Добавить видео…"),
+    TR("Video ekle…"));
+SS_MSG(batch_add_create_help,
+    EN("Adds a row that builds a dataset from these files and then trains it. "
+       "Either step can be switched off in the row."),
+    JA("これらのファイルからデータセットを作り、続けて学習する行を追加します。どちらの工程も行の中で外せます。"),
+    ZH_HANS("添加一行：先用这些文件建数据集，再接着训练。两步都可以在行里关掉。"),
+    ZH_HANT("新增一列：先用這些檔案建資料集，再接著訓練。兩個步驟都可以在列裡關掉。"),
+    KO("이 파일들로 데이터셋을 만들고 이어서 학습하는 행을 추가합니다. 두 단계 모두 행 안에서 끌 수 있습니다."),
+    DE("Fügt eine Zeile hinzu, die aus diesen Dateien einen Datensatz baut und "
+       "ihn dann trainiert. Beide Schritte lassen sich in der Zeile "
+       "abschalten."),
+    FR("Ajoute une ligne qui construit un jeu de données à partir de ces "
+       "fichiers puis l'entraîne. Chaque étape peut être désactivée dans la "
+       "ligne."),
+    ES("Añade una fila que construye un conjunto de datos con estos archivos y "
+       "luego lo entrena. Cada paso puede desactivarse en la fila."),
+    PT("Adiciona uma linha que constrói um conjunto de dados com estes "
+       "arquivos e depois o treina. Cada etapa pode ser desligada na linha."),
+    IT("Aggiunge una riga che costruisce un set di dati da questi file e poi "
+       "lo addestra. Ogni passo può essere disattivato nella riga."),
+    NL("Voegt een rij toe die van deze bestanden een dataset bouwt en die "
+       "daarna traint. Beide stappen kunnen in de rij worden uitgezet."),
+    RU("Добавляет строку, которая соберёт из этих файлов набор данных и затем "
+       "обучит его. Любой из шагов можно отключить в самой строке."),
+    TR("Bu dosyalardan bir veri kümesi kuran ve ardından onu eğiten bir satır "
+       "ekler. Her iki adım da satır içinde kapatılabilir."));
+SS_MSG(batch_add_photos,
+    EN("Add a photo folder..."),
+    JA("写真フォルダーを追加…"),
+    ZH_HANS("添加照片文件夹…"),
+    ZH_HANT("新增照片資料夾…"),
+    KO("사진 폴더 추가…"),
+    DE("Fotoordner hinzufügen …"),
+    FR("Ajouter un dossier de photos…"),
+    ES("Añadir una carpeta de fotos…"),
+    PT("Adicionar uma pasta de fotos…"),
+    IT("Aggiungi una cartella di foto…"),
+    NL("Fotomap toevoegen…"),
+    RU("Добавить папку с фотографиями…"),
+    TR("Fotoğraf klasörü ekle…"));
+SS_MSG(batch_add_mesh,
+    EN("Add a model to mesh..."),
+    JA("メッシュ化するモデルを追加…"),
+    ZH_HANS("添加要生成网格的模型…"),
+    ZH_HANT("新增要產生網格的模型…"),
+    KO("메시를 만들 모델 추가…"),
+    DE("Modell zum Meshen hinzufügen …"),
+    FR("Ajouter un modèle à mailler…"),
+    ES("Añadir un modelo para mallar…"),
+    PT("Adicionar um modelo para malhar…"),
+    IT("Aggiungi un modello da trasformare in mesh…"),
+    NL("Model toevoegen om te meshen…"),
+    RU("Добавить модель для полигонов…"),
+    TR("Ağ oluşturulacak model ekle…"));
+SS_MSG(batch_pick_source,
+    EN("Choose videos"),
+    JA("動画を選ぶ"),
+    ZH_HANS("选择视频"),
+    ZH_HANT("選擇影片"),
+    KO("동영상 선택"),
+    DE("Videos wählen"),
+    FR("Choisir des vidéos"),
+    ES("Elegir vídeos"),
+    PT("Escolher vídeos"),
+    IT("Scegli i video"),
+    NL("Video's kiezen"),
+    RU("Выберите видео"),
+    TR("Video seçin"));
+SS_MSG(batch_pick_photos,
+    EN("Choose a photo folder"),
+    JA("写真フォルダーを選ぶ"),
+    ZH_HANS("选择照片文件夹"),
+    ZH_HANT("選擇照片資料夾"),
+    KO("사진 폴더 선택"),
+    DE("Fotoordner wählen"),
+    FR("Choisir un dossier de photos"),
+    ES("Elegir una carpeta de fotos"),
+    PT("Escolher uma pasta de fotos"),
+    IT("Scegli una cartella di foto"),
+    NL("Fotomap kiezen"),
+    RU("Выберите папку с фотографиями"),
+    TR("Fotoğraf klasörü seçin"));
+SS_MSG(batch_pick_model,
+    EN("Choose a model"),
+    JA("モデルを選ぶ"),
+    ZH_HANS("选择模型"),
+    ZH_HANT("選擇模型"),
+    KO("모델 선택"),
+    DE("Modell wählen"),
+    FR("Choisir un modèle"),
+    ES("Elegir un modelo"),
+    PT("Escolher um modelo"),
+    IT("Scegli un modello"),
+    NL("Model kiezen"),
+    RU("Выберите модель"),
+    TR("Model seçin"));
+SS_MSG(batch_row_expand_help,
+    EN("Show this row's settings."),
+    JA("この行の設定を開きます。"),
+    ZH_HANS("展开这一行的设置。"),
+    ZH_HANT("展開這一列的設定。"),
+    KO("이 행의 설정을 펼칩니다."),
+    DE("Die Einstellungen dieser Zeile anzeigen."),
+    FR("Afficher les réglages de cette ligne."),
+    ES("Mostrar los ajustes de esta fila."),
+    PT("Mostrar as configurações desta linha."),
+    IT("Mostra le impostazioni di questa riga."),
+    NL("De instellingen van deze rij tonen."),
+    RU("Показать настройки этой строки."),
+    TR("Bu satırın ayarlarını gösterir."));
+SS_MSG(batch_row_enabled_help,
+    EN("Run this row. Unticked, it stays on the list and is passed over."),
+    JA("この行を実行します。外しておくと一覧には残り、飛ばされます。"),
+    ZH_HANS("运行这一行。取消勾选后它仍留在列表里，只是被跳过。"),
+    ZH_HANT("執行這一列。取消勾選後它仍留在清單裡，只是被跳過。"),
+    KO("이 행을 실행합니다. 체크를 풀면 목록에는 남고 건너뜁니다."),
+    DE("Diese Zeile ausführen. Ohne Haken bleibt sie in der Liste und wird "
+       "übersprungen."),
+    FR("Exécuter cette ligne. Décochée, elle reste dans la liste et est "
+       "ignorée."),
+    ES("Ejecutar esta fila. Sin marcar, permanece en la lista y se omite."),
+    PT("Executar esta linha. Sem marcar, ela fica na lista e é ignorada."),
+    IT("Esegui questa riga. Senza spunta resta nell'elenco e viene saltata."),
+    NL("Deze rij uitvoeren. Zonder vinkje blijft hij in de lijst en wordt "
+       "overgeslagen."),
+    RU("Выполнить эту строку. Без галочки она остаётся в списке и "
+       "пропускается."),
+    TR("Bu satırı çalıştırır. İşaret kaldırılırsa listede kalır ve atlanır."));
+SS_MSG(batch_runs_count,
+    EN("Runs: {0}"),
+    JA("実行回数: {0}"),
+    ZH_HANS("运行次数: {0}"),
+    ZH_HANT("執行次數: {0}"),
+    KO("실행 횟수: {0}"),
+    DE("Läufe: {0}"),
+    FR("Exécutions : {0}"),
+    ES("Ejecuciones: {0}"),
+    PT("Execuções: {0}"),
+    IT("Esecuzioni: {0}"),
+    NL("Runs: {0}"),
+    RU("Запусков: {0}"),
+    TR("Çalıştırma: {0}"));
+SS_MSG(batch_move_up,
+    EN("Move up"),
+    JA("上へ"),
+    ZH_HANS("上移"),
+    ZH_HANT("上移"),
+    KO("위로"),
+    DE("Nach oben"),
+    FR("Monter"),
+    ES("Subir"),
+    PT("Mover para cima"),
+    IT("Sposta su"),
+    NL("Omhoog"),
+    RU("Вверх"),
+    TR("Yukarı taşı"));
+SS_MSG(batch_move_down,
+    EN("Move down"),
+    JA("下へ"),
+    ZH_HANS("下移"),
+    ZH_HANT("下移"),
+    KO("아래로"),
+    DE("Nach unten"),
+    FR("Descendre"),
+    ES("Bajar"),
+    PT("Mover para baixo"),
+    IT("Sposta giù"),
+    NL("Omlaag"),
+    RU("Вниз"),
+    TR("Aşağı taşı"));
+SS_MSG(batch_row_inputs,
+    EN("Inputs"),
+    JA("入力"),
+    ZH_HANS("输入"),
+    ZH_HANT("輸入"),
+    KO("입력"),
+    DE("Eingaben"),
+    FR("Entrées"),
+    ES("Entradas"),
+    PT("Entradas"),
+    IT("Ingressi"),
+    NL("Invoer"),
+    RU("Исходные файлы"),
+    TR("Girdiler"));
+SS_MSG(batch_add_video,
+    EN("Add a video..."),
+    JA("動画を追加…"),
+    ZH_HANS("添加视频…"),
+    ZH_HANT("新增影片…"),
+    KO("동영상 추가…"),
+    DE("Video hinzufügen …"),
+    FR("Ajouter une vidéo…"),
+    ES("Añadir un vídeo…"),
+    PT("Adicionar um vídeo…"),
+    IT("Aggiungi un video…"),
+    NL("Video toevoegen…"),
+    RU("Добавить видео…"),
+    TR("Video ekle…"));
+SS_MSG(batch_preset_dataset,
+    EN("Dataset preset"),
+    JA("データセットのプリセット"),
+    ZH_HANS("数据集预设"),
+    ZH_HANT("資料集預設"),
+    KO("데이터셋 프리셋"),
+    DE("Datensatz-Voreinstellung"),
+    FR("Préréglage de jeu de données"),
+    ES("Ajuste del conjunto de datos"),
+    PT("Predefinição do conjunto de dados"),
+    IT("Preimpostazione del set di dati"),
+    NL("Datasetvoorinstelling"),
+    RU("Пресет набора данных"),
+    TR("Veri kümesi hazır ayarı"));
+SS_MSG(batch_preset_mesh,
+    EN("Meshing preset"),
+    JA("メッシュ化のプリセット"),
+    ZH_HANS("网格预设"),
+    ZH_HANT("網格預設"),
+    KO("메시 프리셋"),
+    DE("Mesh-Voreinstellung"),
+    FR("Préréglage de maillage"),
+    ES("Ajuste de mallado"),
+    PT("Predefinição de malha"),
+    IT("Preimpostazione della mesh"),
+    NL("Meshvoorinstelling"),
+    RU("Пресет полигонов"),
+    TR("Ağ hazır ayarı"));
+SS_MSG(batch_preset_stock,
+    EN("Default settings"),
+    JA("既定の設定"),
+    ZH_HANS("默认设置"),
+    ZH_HANT("預設設定"),
+    KO("기본 설정"),
+    DE("Standardeinstellungen"),
+    FR("Réglages par défaut"),
+    ES("Ajustes predeterminados"),
+    PT("Configurações padrão"),
+    IT("Impostazioni predefinite"),
+    NL("Standaardinstellingen"),
+    RU("Настройки по умолчанию"),
+    TR("Varsayılan ayarlar"));
+SS_MSG(batch_dataset_label,
+    EN("Dataset folder"),
+    JA("データセットのフォルダー"),
+    ZH_HANS("数据集文件夹"),
+    ZH_HANT("資料集資料夾"),
+    KO("데이터셋 폴더"),
+    DE("Datensatzordner"),
+    FR("Dossier du jeu de données"),
+    ES("Carpeta del conjunto de datos"),
+    PT("Pasta do conjunto de dados"),
+    IT("Cartella del set di dati"),
+    NL("Datasetmap"),
+    RU("Папка набора данных"),
+    TR("Veri kümesi klasörü"));
+SS_MSG(batch_dataset_auto_hint,
+    EN("created from the inputs above"),
+    JA("上の入力から作られます"),
+    ZH_HANS("由上面的输入创建"),
+    ZH_HANT("由上面的輸入建立"),
+    KO("위 입력으로 만들어집니다"),
+    DE("wird aus den Eingaben oben erstellt"),
+    FR("créé à partir des entrées ci-dessus"),
+    ES("se crea con las entradas de arriba"),
+    PT("criado a partir das entradas acima"),
+    IT("creata dagli ingressi qui sopra"),
+    NL("wordt uit de invoer hierboven gemaakt"),
+    RU("будет создана из файлов выше"),
+    TR("yukarıdaki girdilerden oluşturulur"));
+SS_MSG(batch_runs,
+    EN("Training runs"),
+    JA("学習の実行"),
+    ZH_HANS("训练运行"),
+    ZH_HANT("訓練執行"),
+    KO("학습 실행"),
+    DE("Trainingsläufe"),
+    FR("Exécutions d'entraînement"),
+    ES("Ejecuciones de entrenamiento"),
+    PT("Execuções de treinamento"),
+    IT("Esecuzioni di addestramento"),
+    NL("Trainingsruns"),
+    RU("Запуски обучения"),
+    TR("Eğitim çalıştırmaları"));
+SS_MSG(batch_runs_default,
+    EN("No preset chosen: one run on the default settings."),
+    JA("プリセット未選択: 既定の設定で 1 回だけ実行します。"),
+    ZH_HANS("未选预设：按默认设置运行一次。"),
+    ZH_HANT("未選預設：以預設設定執行一次。"),
+    KO("프리셋을 고르지 않았습니다: 기본 설정으로 한 번 실행합니다."),
+    DE("Keine Voreinstellung gewählt: ein Lauf mit den Standardeinstellungen."),
+    FR("Aucun préréglage choisi : une exécution avec les réglages par défaut."),
+    ES("Sin ajuste elegido: una ejecución con los valores predeterminados."),
+    PT("Nenhuma predefinição escolhida: uma execução com as configurações "
+       "padrão."),
+    IT("Nessuna preimpostazione scelta: una esecuzione con le impostazioni "
+       "predefinite."),
+    NL("Geen voorinstelling gekozen: één run met de standaardinstellingen."),
+    RU("Пресет не выбран: один запуск с настройками по умолчанию."),
+    TR("Hazır ayar seçilmedi: varsayılan ayarlarla tek çalıştırma."));
+SS_MSG(batch_add_run,
+    EN("Add a run"),
+    JA("実行を追加"),
+    ZH_HANS("添加一次运行"),
+    ZH_HANT("新增一次執行"),
+    KO("실행 추가"),
+    DE("Lauf hinzufügen"),
+    FR("Ajouter une exécution"),
+    ES("Añadir una ejecución"),
+    PT("Adicionar uma execução"),
+    IT("Aggiungi un'esecuzione"),
+    NL("Run toevoegen"),
+    RU("Добавить запуск"),
+    TR("Çalıştırma ekle"));
+SS_MSG(batch_add_run_help,
+    EN("One more training run over the same dataset, with a preset of its own."),
+    JA("同じデータセットをもう一度、別のプリセットで学習します。"),
+    ZH_HANS("在同一个数据集上再训练一次，用另一个预设。"),
+    ZH_HANT("在同一個資料集上再訓練一次，用另一個預設。"),
+    KO("같은 데이터셋을 프리셋만 바꿔 한 번 더 학습합니다."),
+    DE("Noch ein Trainingslauf über denselben Datensatz, mit eigener "
+       "Voreinstellung."),
+    FR("Une exécution d'entraînement de plus sur le même jeu de données, avec "
+       "son propre préréglage."),
+    ES("Otra ejecución de entrenamiento sobre el mismo conjunto de datos, con "
+       "su propio ajuste."),
+    PT("Mais uma execução de treinamento sobre o mesmo conjunto de dados, com "
+       "sua própria predefinição."),
+    IT("Un'altra esecuzione di addestramento sullo stesso set di dati, con una "
+       "sua preimpostazione."),
+    NL("Nog een trainingsrun over dezelfde dataset, met een eigen "
+       "voorinstelling."),
+    RU("Ещё один запуск обучения по тому же набору данных, со своим пресетом."),
+    TR("Aynı veri kümesi üzerinde, kendi hazır ayarıyla bir eğitim "
+       "çalıştırması daha."));
+SS_MSG(batch_mesh_model_label,
+    EN("Model"),
+    JA("モデル"),
+    ZH_HANS("模型"),
+    ZH_HANT("模型"),
+    KO("모델"),
+    DE("Modell"),
+    FR("Modèle"),
+    ES("Modelo"),
+    PT("Modelo"),
+    IT("Modello"),
+    NL("Model"),
+    RU("Модель"),
+    TR("Model"));
+SS_MSG(batch_mesh_model_hint,
+    EN("what this row trains"),
+    JA("この行が学習したもの"),
+    ZH_HANS("这一行训练出来的东西"),
+    ZH_HANT("這一列訓練出來的東西"),
+    KO("이 행이 학습한 결과"),
+    DE("was diese Zeile trainiert"),
+    FR("ce que cette ligne entraîne"),
+    ES("lo que entrena esta fila"),
+    PT("o que esta linha treina"),
+    IT("ciò che questa riga addestra"),
+    NL("wat deze rij traint"),
+    RU("то, что обучит эта строка"),
+    TR("bu satırın eğittiği model"));
+SS_MSG(batch_mesh_model_pick,
+    EN("a run folder or a splat .ply"),
+    JA("実行フォルダーまたは splat の .ply"),
+    ZH_HANS("运行文件夹或 splat 的 .ply"),
+    ZH_HANT("執行資料夾或 splat 的 .ply"),
+    KO("실행 폴더 또는 splat .ply"),
+    DE("ein Laufordner oder eine Splat-.ply"),
+    FR("un dossier d'exécution ou un .ply de splats"),
+    ES("una carpeta de ejecución o un .ply de splats"),
+    PT("uma pasta de execução ou um .ply de splats"),
+    IT("una cartella di esecuzione o un .ply di splat"),
+    NL("een runmap of een splat-.ply"),
+    RU("папка запуска или .ply со сплатами"),
+    TR("bir çalıştırma klasörü ya da splat .ply dosyası"));
+SS_MSG(batch_plan_title,
+    EN("What will run"),
+    JA("実行される内容"),
+    ZH_HANS("将要执行的内容"),
+    ZH_HANT("將要執行的內容"),
+    KO("실행될 작업"),
+    DE("Was ausgeführt wird"),
+    FR("Ce qui va être exécuté"),
+    ES("Lo que se va a ejecutar"),
+    PT("O que será executado"),
+    IT("Cosa verrà eseguito"),
+    NL("Wat er gaat draaien"),
+    RU("Что будет выполнено"),
+    TR("Ne çalışacak"));
+SS_MSG(batch_plan_empty,
+    EN("Nothing on the list is switched on."),
+    JA("一覧の中に有効な行がありません。"),
+    ZH_HANS("列表里没有启用的行。"),
+    ZH_HANT("清單裡沒有啟用的列。"),
+    KO("목록에 켜진 행이 없습니다."),
+    DE("In der Liste ist nichts eingeschaltet."),
+    FR("Rien n'est activé dans la liste."),
+    ES("No hay nada activado en la lista."),
+    PT("Nada na lista está ativado."),
+    IT("Nell'elenco non c'è nulla di attivo."),
+    NL("Er staat niets aan in de lijst."),
+    RU("В списке ничего не включено."),
+    TR("Listede açık olan bir şey yok."));
+SS_MSG(batch_plan_dataset,
+    EN("{0}. Build the dataset in {1}"),
+    JA("{0}. {1} にデータセットを作る"),
+    ZH_HANS("{0}. 在 {1} 建数据集"),
+    ZH_HANT("{0}. 在 {1} 建資料集"),
+    KO("{0}. {1} 에 데이터셋 만들기"),
+    DE("{0}. Den Datensatz in {1} bauen"),
+    FR("{0}. Construire le jeu de données dans {1}"),
+    ES("{0}. Construir el conjunto de datos en {1}"),
+    PT("{0}. Construir o conjunto de dados em {1}"),
+    IT("{0}. Costruire il set di dati in {1}"),
+    NL("{0}. De dataset bouwen in {1}"),
+    RU("{0}. Собрать набор данных в {1}"),
+    TR("{0}. Veri kümesini {1} içinde kur"));
+SS_MSG(batch_plan_train,
+    EN("{0}. Train {1} with the preset {2}"),
+    JA("{0}. {1} をプリセット {2} で学習する"),
+    ZH_HANS("{0}. 用预设 {2} 训练 {1}"),
+    ZH_HANT("{0}. 用預設 {2} 訓練 {1}"),
+    KO("{0}. {1} 을(를) 프리셋 {2} 로 학습"),
+    DE("{0}. {1} mit der Voreinstellung {2} trainieren"),
+    FR("{0}. Entraîner {1} avec le préréglage {2}"),
+    ES("{0}. Entrenar {1} con el ajuste {2}"),
+    PT("{0}. Treinar {1} com a predefinição {2}"),
+    IT("{0}. Addestrare {1} con la preimpostazione {2}"),
+    NL("{0}. {1} trainen met de voorinstelling {2}"),
+    RU("{0}. Обучить {1} с пресетом {2}"),
+    TR("{0}. {1} kümesini {2} hazır ayarıyla eğit"));
+SS_MSG(batch_plan_train_new,
+    EN("{0}. Train the dataset this row builds, with the preset {1}"),
+    JA("{0}. この行が作るデータセットをプリセット {1} で学習する"),
+    ZH_HANS("{0}. 用预设 {1} 训练这一行建出来的数据集"),
+    ZH_HANT("{0}. 用預設 {1} 訓練這一列建出來的資料集"),
+    KO("{0}. 이 행이 만드는 데이터셋을 프리셋 {1} 로 학습"),
+    DE("{0}. Den Datensatz dieser Zeile mit der Voreinstellung {1} trainieren"),
+    FR("{0}. Entraîner le jeu de données construit par cette ligne, avec le "
+       "préréglage {1}"),
+    ES("{0}. Entrenar el conjunto de datos que construye esta fila, con el "
+       "ajuste {1}"),
+    PT("{0}. Treinar o conjunto de dados que esta linha constrói, com a "
+       "predefinição {1}"),
+    IT("{0}. Addestrare il set di dati costruito da questa riga, con la "
+       "preimpostazione {1}"),
+    NL("{0}. De dataset die deze rij bouwt trainen met de voorinstelling {1}"),
+    RU("{0}. Обучить набор данных, который соберёт эта строка, с пресетом {1}"),
+    TR("{0}. Bu satırın kuracağı veri kümesini {1} hazır ayarıyla eğit"));
+SS_MSG(batch_plan_mesh,
+    EN("{0}. Mesh {1}"),
+    JA("{0}. {1} をメッシュ化する"),
+    ZH_HANS("{0}. 为 {1} 生成网格"),
+    ZH_HANT("{0}. 為 {1} 產生網格"),
+    KO("{0}. {1} 의 메시 생성"),
+    DE("{0}. {1} meshen"),
+    FR("{0}. Mailler {1}"),
+    ES("{0}. Mallar {1}"),
+    PT("{0}. Gerar a malha de {1}"),
+    IT("{0}. Generare la mesh di {1}"),
+    NL("{0}. {1} meshen"),
+    RU("{0}. Построить полигоны для {1}"),
+    TR("{0}. {1} için ağ oluştur"));
+SS_MSG(batch_plan_mesh_new,
+    EN("{0}. Mesh what this row trained"),
+    JA("{0}. この行が学習したものをメッシュ化する"),
+    ZH_HANS("{0}. 为这一行训练出的结果生成网格"),
+    ZH_HANT("{0}. 為這一列訓練出的結果產生網格"),
+    KO("{0}. 이 행이 학습한 결과의 메시 생성"),
+    DE("{0}. Meshen, was diese Zeile trainiert hat"),
+    FR("{0}. Mailler ce que cette ligne a entraîné"),
+    ES("{0}. Mallar lo que ha entrenado esta fila"),
+    PT("{0}. Gerar a malha do que esta linha treinou"),
+    IT("{0}. Generare la mesh di ciò che questa riga ha addestrato"),
+    NL("{0}. Meshen wat deze rij heeft getraind"),
+    RU("{0}. Построить полигоны по тому, что обучила эта строка"),
+    TR("{0}. Bu satırın eğittiği modelden ağ oluştur"));
+SS_MSG(batch_log_build,
+    EN("Batch task {0}: building the dataset in {1}"),
+    JA("バッチ作業 {0}: {1} にデータセットを作成中"),
+    ZH_HANS("批处理任务 {0}: 正在 {1} 建数据集"),
+    ZH_HANT("批次作業 {0}: 正在 {1} 建資料集"),
+    KO("일괄 작업 {0}: {1} 에 데이터셋 생성 중"),
+    DE("Stapelaufgabe {0}: Datensatz wird in {1} gebaut"),
+    FR("Tâche de lot {0} : construction du jeu de données dans {1}"),
+    ES("Tarea del lote {0}: construyendo el conjunto de datos en {1}"),
+    PT("Tarefa do lote {0}: construindo o conjunto de dados em {1}"),
+    IT("Attività del batch {0}: costruzione del set di dati in {1}"),
+    NL("Batchtaak {0}: de dataset wordt gebouwd in {1}"),
+    RU("Задача пакета {0}: сборка набора данных в {1}"),
+    TR("Toplu iş {0}: veri kümesi {1} içinde kuruluyor"));
+SS_MSG(batch_log_train,
+    EN("Batch task {0}: training {1}"),
+    JA("バッチ作業 {0}: {1} を学習中"),
+    ZH_HANS("批处理任务 {0}: 正在训练 {1}"),
+    ZH_HANT("批次作業 {0}: 正在訓練 {1}"),
+    KO("일괄 작업 {0}: {1} 학습 중"),
+    DE("Stapelaufgabe {0}: {1} wird trainiert"),
+    FR("Tâche de lot {0} : entraînement de {1}"),
+    ES("Tarea del lote {0}: entrenando {1}"),
+    PT("Tarefa do lote {0}: treinando {1}"),
+    IT("Attività del batch {0}: addestramento di {1}"),
+    NL("Batchtaak {0}: {1} wordt getraind"),
+    RU("Задача пакета {0}: обучение {1}"),
+    TR("Toplu iş {0}: {1} eğitiliyor"));
+SS_MSG(batch_log_mesh,
+    EN("Batch task {0}: meshing {1}"),
+    JA("バッチ作業 {0}: {1} をメッシュ化中"),
+    ZH_HANS("批处理任务 {0}: 正在为 {1} 生成网格"),
+    ZH_HANT("批次作業 {0}: 正在為 {1} 產生網格"),
+    KO("일괄 작업 {0}: {1} 메시 생성 중"),
+    DE("Stapelaufgabe {0}: {1} wird gemesht"),
+    FR("Tâche de lot {0} : maillage de {1}"),
+    ES("Tarea del lote {0}: mallando {1}"),
+    PT("Tarefa do lote {0}: gerando a malha de {1}"),
+    IT("Attività del batch {0}: generazione della mesh di {1}"),
+    NL("Batchtaak {0}: {1} wordt gemesht"),
+    RU("Задача пакета {0}: построение полигонов для {1}"),
+    TR("Toplu iş {0}: {1} için ağ oluşturuluyor"));
+SS_MSG(batch_log_task_skipped,
+    EN("Batch task {0} was passed over: what it needed was never produced."),
+    JA("バッチ作業 {0} を飛ばしました: 必要なものが作られませんでした。"),
+    ZH_HANS("跳过批处理任务 {0}: 它需要的东西没有被产出。"),
+    ZH_HANT("跳過批次作業 {0}: 它需要的東西沒有被產出。"),
+    KO("일괄 작업 {0} 을(를) 건너뛰었습니다: 필요한 것이 만들어지지 않았습니다."),
+    DE("Stapelaufgabe {0} übersprungen: was sie brauchte, ist nie entstanden."),
+    FR("Tâche de lot {0} ignorée : ce dont elle avait besoin n'a jamais été "
+       "produit."),
+    ES("Tarea del lote {0} omitida: lo que necesitaba nunca se produjo."),
+    PT("Tarefa do lote {0} ignorada: o que ela precisava nunca foi produzido."),
+    IT("Attività del batch {0} saltata: ciò che le serviva non è mai stato "
+       "prodotto."),
+    NL("Batchtaak {0} overgeslagen: wat hij nodig had is nooit gemaakt."),
+    RU("Задача пакета {0} пропущена: то, что ей было нужно, не было создано."),
+    TR("Toplu iş {0} atlandı: ihtiyaç duyduğu şey hiç üretilmedi."));
+SS_MSG(preset_drop_hint_plain,
+    EN("Tip: a preset file can be dropped onto this window."),
+    JA("ヒント: プリセットのファイルはこのウィンドウにドロップできます。"),
+    ZH_HANS("提示：预设文件可以直接拖到这个窗口里。"),
+    ZH_HANT("提示：預設檔案可以直接拖到這個視窗裡。"),
+    KO("팁: 프리셋 파일은 이 창에 끌어다 놓을 수 있습니다."),
+    DE("Tipp: Eine Voreinstellungsdatei lässt sich auf dieses Fenster ziehen."),
+    FR("Astuce : un fichier de préréglage peut être déposé sur cette fenêtre."),
+    ES("Consejo: un archivo de ajustes se puede soltar sobre esta ventana."),
+    PT("Dica: um arquivo de predefinição pode ser solto nesta janela."),
+    IT("Suggerimento: un file di preimpostazione può essere trascinato su "
+       "questa finestra."),
+    NL("Tip: een voorinstellingsbestand kun je op dit venster slepen."),
+    RU("Подсказка: файл пресета можно перетащить в это окно."),
+    TR("İpucu: bir hazır ayar dosyası bu pencereye bırakılabilir."));
+SS_MSG(preset_load_help_plain,
+    EN("Read a preset saved earlier. What it is applied TO -- the files, the "
+       "output folder -- is left alone."),
+    JA("前に保存したプリセットを読み込みます。適用先 (ファイルと出力先フォルダー) はそのままです。"),
+    ZH_HANS("读取之前保存的预设。它作用的对象——文件和输出文件夹——保持不变。"),
+    ZH_HANT("讀取之前儲存的預設。它作用的對象——檔案與輸出資料夾——保持不變。"),
+    KO("이전에 저장한 프리셋을 읽어 옵니다. 적용 대상인 파일과 출력 폴더는 그대로 둡니다."),
+    DE("Eine zuvor gespeicherte Voreinstellung lesen. Worauf sie angewendet "
+       "wird -- die Dateien, der Ausgabeordner -- bleibt unberührt."),
+    FR("Lire un préréglage enregistré plus tôt. Ce à quoi il s'applique -- les "
+       "fichiers, le dossier de sortie -- n'est pas touché."),
+    ES("Leer un ajuste guardado antes. Aquello a lo que se aplica -- los "
+       "archivos, la carpeta de salida -- se deja como está."),
+    PT("Ler uma predefinição salva antes. Aquilo a que ela se aplica -- os "
+       "arquivos, a pasta de saída -- fica como está."),
+    IT("Legge una preimpostazione salvata in precedenza. Ciò a cui viene "
+       "applicata -- i file, la cartella di uscita -- resta com'è."),
+    NL("Een eerder opgeslagen voorinstelling lezen. Waarop hij wordt toegepast "
+       "-- de bestanden, de uitvoermap -- blijft ongemoeid."),
+    RU("Прочитать сохранённый ранее пресет. То, к чему он применяется -- файлы "
+       "и папка вывода -- остаётся прежним."),
+    TR("Daha önce kaydedilmiş bir hazır ayarı okur. Uygulandığı şeyler -- "
+       "dosyalar ve çıktı klasörü -- olduğu gibi kalır."));
+SS_MSG(chk_nothing_to_do,
+    EN("This row has nothing switched on."),
+    JA("この行は何も有効になっていません。"),
+    ZH_HANS("这一行什么都没启用。"),
+    ZH_HANT("這一列什麼都沒啟用。"),
+    KO("이 행은 아무것도 켜져 있지 않습니다."),
+    DE("In dieser Zeile ist nichts eingeschaltet."),
+    FR("Rien n'est activé dans cette ligne."),
+    ES("En esta fila no hay nada activado."),
+    PT("Nesta linha não há nada ativado."),
+    IT("In questa riga non è attivo nulla."),
+    NL("In deze rij staat niets aan."),
+    RU("В этой строке ничего не включено."),
+    TR("Bu satırda hiçbir şey açık değil."));
+SS_MSG(chk_sources_empty,
+    EN("This row builds a dataset but has nothing to build it from."),
+    JA("この行はデータセットを作りますが、材料が指定されていません。"),
+    ZH_HANS("这一行要建数据集，却没有可用的素材。"),
+    ZH_HANT("這一列要建資料集，卻沒有可用的素材。"),
+    KO("이 행은 데이터셋을 만들지만 재료가 없습니다."),
+    DE("Diese Zeile baut einen Datensatz, hat aber nichts, woraus."),
+    FR("Cette ligne construit un jeu de données mais n'a rien à partir de "
+       "quoi."),
+    ES("Esta fila construye un conjunto de datos pero no tiene con qué."),
+    PT("Esta linha constrói um conjunto de dados mas não tem com o quê."),
+    IT("Questa riga costruisce un set di dati ma non ha da cosa."),
+    NL("Deze rij bouwt een dataset maar heeft niets om die van te bouwen."),
+    RU("Эта строка собирает набор данных, но собирать его не из чего."),
+    TR("Bu satır bir veri kümesi kuruyor ama kuracak bir şeyi yok."));
+SS_MSG(chk_source_missing,
+    EN("This input does not exist: {0}"),
+    JA("この入力は存在しません: {0}"),
+    ZH_HANS("这个输入不存在: {0}"),
+    ZH_HANT("這個輸入不存在: {0}"),
+    KO("이 입력은 없습니다: {0}"),
+    DE("Diese Eingabe gibt es nicht: {0}"),
+    FR("Cette entrée n'existe pas : {0}"),
+    ES("Esta entrada no existe: {0}"),
+    PT("Esta entrada não existe: {0}"),
+    IT("Questo ingresso non esiste: {0}"),
+    NL("Deze invoer bestaat niet: {0}"),
+    RU("Этого файла нет: {0}"),
+    TR("Bu girdi yok: {0}"));
+SS_MSG(chk_source_no_images,
+    EN("This folder holds no images: {0}"),
+    JA("このフォルダーに画像がありません: {0}"),
+    ZH_HANS("这个文件夹里没有图像: {0}"),
+    ZH_HANT("這個資料夾裡沒有影像: {0}"),
+    KO("이 폴더에는 이미지가 없습니다: {0}"),
+    DE("Dieser Ordner enthält keine Bilder: {0}"),
+    FR("Ce dossier ne contient aucune image : {0}"),
+    ES("Esta carpeta no contiene imágenes: {0}"),
+    PT("Esta pasta não contém imagens: {0}"),
+    IT("Questa cartella non contiene immagini: {0}"),
+    NL("Deze map bevat geen afbeeldingen: {0}"),
+    RU("В этой папке нет изображений: {0}"),
+    TR("Bu klasörde görüntü yok: {0}"));
+SS_MSG(chk_source_unsupported,
+    EN("This file is not a video this program can read: {0}"),
+    JA("このファイルはこのプログラムが読める動画ではありません: {0}"),
+    ZH_HANS("这个文件不是本程序能读的视频: {0}"),
+    ZH_HANT("這個檔案不是本程式能讀的影片: {0}"),
+    KO("이 파일은 이 프로그램이 읽을 수 있는 동영상이 아닙니다: {0}"),
+    DE("Diese Datei ist kein Video, das dieses Programm lesen kann: {0}"),
+    FR("Ce fichier n'est pas une vidéo que ce programme sait lire : {0}"),
+    ES("Este archivo no es un vídeo que este programa pueda leer: {0}"),
+    PT("Este arquivo não é um vídeo que este programa consiga ler: {0}"),
+    IT("Questo file non è un video che questo programma sappia leggere: {0}"),
+    NL("Dit bestand is geen video die dit programma kan lezen: {0}"),
+    RU("Этот файл не является видео, которое программа умеет читать: {0}"),
+    TR("Bu dosya bu programın okuyabileceği bir video değil: {0}"));
+SS_MSG(chk_engine_unavailable,
+    EN("The reconstruction this row asks for is not available in this build."),
+    JA("この行が求める再構成は、このビルドでは使えません。"),
+    ZH_HANS("这一行要用的重建方式在本版本里不可用。"),
+    ZH_HANT("這一列要用的重建方式在本版本裡不可用。"),
+    KO("이 행이 요구하는 재구성은 이 빌드에서 쓸 수 없습니다."),
+    DE("Die Rekonstruktion, die diese Zeile verlangt, gibt es in diesem Build "
+       "nicht."),
+    FR("La reconstruction demandée par cette ligne n'est pas disponible dans "
+       "cette version."),
+    ES("La reconstrucción que pide esta fila no está disponible en esta "
+       "compilación."),
+    PT("A reconstrução que esta linha pede não está disponível nesta "
+       "compilação."),
+    IT("La ricostruzione richiesta da questa riga non è disponibile in questa "
+       "build."),
+    NL("De reconstructie die deze rij vraagt, is niet beschikbaar in deze "
+       "build."),
+    RU("Реконструкция, которую требует эта строка, недоступна в этой сборке."),
+    TR("Bu satırın istediği yeniden oluşturma bu derlemede yok."));
+SS_MSG(chk_masking_unavailable,
+    EN("This build cannot mask: segmentation was not compiled in."),
+    JA("このビルドはマスクを作れません。セグメンテーションが組み込まれていません。"),
+    ZH_HANS("本版本无法做遮罩：没有编入分割功能。"),
+    ZH_HANT("本版本無法做遮罩：沒有編入分割功能。"),
+    KO("이 빌드는 마스크를 만들 수 없습니다: 분할 기능이 포함되지 않았습니다."),
+    DE("Dieser Build kann nicht maskieren: Die Segmentierung ist nicht "
+       "einkompiliert."),
+    FR("Cette version ne sait pas masquer : la segmentation n'a pas été "
+       "compilée."),
+    ES("Esta compilación no puede enmascarar: la segmentación no está "
+       "incluida."),
+    PT("Esta compilação não consegue mascarar: a segmentação não foi incluída."),
+    IT("Questa build non sa mascherare: la segmentazione non è stata "
+       "compilata."),
+    NL("Deze build kan niet maskeren: segmentatie is niet meegecompileerd."),
+    RU("Эта сборка не умеет делать маски: сегментация не включена при "
+       "компиляции."),
+    TR("Bu derleme maskeleme yapamaz: bölütleme derlemeye dahil edilmedi."));
+SS_MSG(chk_mask_no_prompt,
+    EN("Masking is on but the preset carries no prompt, and a batch cannot be "
+       "prompted with clicks."),
+    JA("マスクが有効ですが、プリセットにプロンプトがありません。バッチではクリックで指示できません。"),
+    ZH_HANS("遮罩已开启，但预设里没有提示词；批处理里也无法用点击来指定。"),
+    ZH_HANT("遮罩已開啟，但預設裡沒有提示詞；批次處理裡也無法用點擊來指定。"),
+    KO("마스크가 켜져 있지만 프리셋에 프롬프트가 없습니다. 일괄 처리에서는 클릭으로 지정할 수 없습니다."),
+    DE("Maskierung ist an, aber die Voreinstellung trägt keinen Prompt, und "
+       "ein Stapel lässt sich nicht per Klick anweisen."),
+    FR("Le masquage est activé mais le préréglage ne porte aucune invite, et "
+       "un lot ne peut pas être guidé par des clics."),
+    ES("El enmascarado está activado pero el ajuste no lleva ninguna "
+       "indicación, y un lote no se puede guiar con clics."),
+    PT("O mascaramento está ligado mas a predefinição não traz nenhum texto, e "
+       "um lote não pode ser guiado por cliques."),
+    IT("Il mascheramento è attivo ma la preimpostazione non porta alcun "
+       "prompt, e un batch non si può guidare con i clic."),
+    NL("Maskeren staat aan maar de voorinstelling bevat geen prompt, en een "
+       "batch kan niet met klikken worden aangestuurd."),
+    RU("Маскирование включено, но в пресете нет запроса, а кликами пакет "
+       "указать нельзя."),
+    TR("Maskeleme açık ama hazır ayarda bir istem yok ve toplu işte tıklamayla "
+       "yön verilemez."));
+SS_MSG(chk_mask_model_missing,
+    EN("The segmentation checkpoint has not been downloaded: {0}"),
+    JA("セグメンテーションのチェックポイントが未ダウンロードです: {0}"),
+    ZH_HANS("分割模型的权重还没有下载: {0}"),
+    ZH_HANT("分割模型的權重還沒有下載: {0}"),
+    KO("분할 체크포인트를 아직 내려받지 않았습니다: {0}"),
+    DE("Der Segmentierungs-Checkpoint wurde nicht heruntergeladen: {0}"),
+    FR("Le point de contrôle de segmentation n'a pas été téléchargé : {0}"),
+    ES("El punto de control de segmentación no se ha descargado: {0}"),
+    PT("O checkpoint de segmentação não foi baixado: {0}"),
+    IT("Il checkpoint di segmentazione non è stato scaricato: {0}"),
+    NL("Het segmentatie-checkpoint is niet gedownload: {0}"),
+    RU("Контрольная точка сегментации не загружена: {0}"),
+    TR("Bölütleme kontrol noktası indirilmedi: {0}"));
+SS_MSG(chk_geometry_unavailable,
+    EN("This build cannot estimate depth and normals."),
+    JA("このビルドは深度と法線を推定できません。"),
+    ZH_HANS("本版本无法估计深度和法线。"),
+    ZH_HANT("本版本無法估計深度與法線。"),
+    KO("이 빌드는 깊이와 법선을 추정할 수 없습니다."),
+    DE("Dieser Build kann keine Tiefe und Normalen schätzen."),
+    FR("Cette version ne sait pas estimer la profondeur et les normales."),
+    ES("Esta compilación no puede estimar profundidad ni normales."),
+    PT("Esta compilação não consegue estimar profundidade e normais."),
+    IT("Questa build non sa stimare profondità e normali."),
+    NL("Deze build kan geen diepte en normalen schatten."),
+    RU("Эта сборка не умеет оценивать глубину и нормали."),
+    TR("Bu derleme derinlik ve normalleri kestiremez."));
+SS_MSG(chk_geometry_model_missing,
+    EN("The geometry checkpoint has not been downloaded: {0}"),
+    JA("ジオメトリのチェックポイントが未ダウンロードです: {0}"),
+    ZH_HANS("几何模型的权重还没有下载: {0}"),
+    ZH_HANT("幾何模型的權重還沒有下載: {0}"),
+    KO("지오메트리 체크포인트를 아직 내려받지 않았습니다: {0}"),
+    DE("Der Geometrie-Checkpoint wurde nicht heruntergeladen: {0}"),
+    FR("Le point de contrôle de géométrie n'a pas été téléchargé : {0}"),
+    ES("El punto de control de geometría no se ha descargado: {0}"),
+    PT("O checkpoint de geometria não foi baixado: {0}"),
+    IT("Il checkpoint di geometria non è stato scaricato: {0}"),
+    NL("Het geometrie-checkpoint is niet gedownload: {0}"),
+    RU("Контрольная точка геометрии не загружена: {0}"),
+    TR("Geometri kontrol noktası indirilmedi: {0}"));
+SS_MSG(chk_dense_model_missing,
+    EN("The dense matching checkpoint has not been downloaded: {0}"),
+    JA("密な照合のチェックポイントが未ダウンロードです: {0}"),
+    ZH_HANS("稠密匹配模型的权重还没有下载: {0}"),
+    ZH_HANT("稠密匹配模型的權重還沒有下載: {0}"),
+    KO("밀집 매칭 체크포인트를 아직 내려받지 않았습니다: {0}"),
+    DE("Der Checkpoint für dichten Abgleich wurde nicht heruntergeladen: {0}"),
+    FR("Le point de contrôle d'appariement dense n'a pas été téléchargé : {0}"),
+    ES("El punto de control de emparejamiento denso no se ha descargado: {0}"),
+    PT("O checkpoint de correspondência densa não foi baixado: {0}"),
+    IT("Il checkpoint di corrispondenza densa non è stato scaricato: {0}"),
+    NL("Het checkpoint voor dichte koppeling is niet gedownload: {0}"),
+    RU("Контрольная точка плотного сопоставления не загружена: {0}"),
+    TR("Yoğun eşleştirme kontrol noktası indirilmedi: {0}"));
+SS_MSG(chk_dataset_has_model,
+    EN("This folder already holds a reconstruction, so the run adds to it "
+       "rather than building one: {0}"),
+    JA("このフォルダーには既に再構成があります。実行はそれを作り直さず、付け足します: {0}"),
+    ZH_HANS("这个文件夹里已经有重建结果，运行会在其基础上补充，而不是重建: {0}"),
+    ZH_HANT("這個資料夾裡已經有重建結果，執行會在其基礎上補充，而不是重建: {0}"),
+    KO("이 폴더에는 이미 재구성 결과가 있어, 실행은 새로 만들지 않고 덧붙입니다: {0}"),
+    DE("Dieser Ordner enthält bereits eine Rekonstruktion; der Lauf ergänzt "
+       "sie, statt eine zu bauen: {0}"),
+    FR("Ce dossier contient déjà une reconstruction : l'exécution la complète "
+       "au lieu d'en construire une : {0}"),
+    ES("Esta carpeta ya contiene una reconstrucción: la ejecución la completa "
+       "en lugar de construir una: {0}"),
+    PT("Esta pasta já contém uma reconstrução: a execução a complementa em vez "
+       "de construir uma: {0}"),
+    IT("Questa cartella contiene già una ricostruzione: l'esecuzione la "
+       "completa invece di costruirne una: {0}"),
+    NL("Deze map bevat al een reconstructie: de run vult die aan in plaats van "
+       "er een te bouwen: {0}"),
+    RU("В этой папке уже есть реконструкция: запуск дополнит её, а не построит "
+       "заново: {0}"),
+    TR("Bu klasörde zaten bir yeniden oluşturma var: çalıştırma yenisini "
+       "kurmak yerine ona ekleme yapar: {0}"));
+SS_MSG(chk_capture_is_photos,
+    EN("The preset was made for video, but this row's inputs are photographs."),
+    JA("このプリセットは動画向けですが、この行の入力は写真です。"),
+    ZH_HANS("这个预设是给视频用的，但这一行的输入是照片。"),
+    ZH_HANT("這個預設是給影片用的，但這一列的輸入是照片。"),
+    KO("이 프리셋은 동영상용인데, 이 행의 입력은 사진입니다."),
+    DE("Die Voreinstellung ist für Video gemacht, die Eingaben dieser Zeile "
+       "sind aber Fotos."),
+    FR("Le préréglage est fait pour la vidéo, mais les entrées de cette ligne "
+       "sont des photos."),
+    ES("El ajuste está hecho para vídeo, pero las entradas de esta fila son "
+       "fotos."),
+    PT("A predefinição foi feita para vídeo, mas as entradas desta linha são "
+       "fotos."),
+    IT("La preimpostazione è fatta per il video, ma gli ingressi di questa "
+       "riga sono foto."),
+    NL("De voorinstelling is voor video gemaakt, maar de invoer van deze rij "
+       "is foto's."),
+    RU("Пресет сделан для видео, но на входе этой строки фотографии."),
+    TR("Hazır ayar video için yapılmış ama bu satırın girdileri fotoğraf."));
+SS_MSG(chk_workspace_empty,
+    EN("There is nowhere to put the dataset this row builds."),
+    JA("この行が作るデータセットの置き場所がありません。"),
+    ZH_HANS("这一行建出来的数据集没有地方放。"),
+    ZH_HANT("這一列建出來的資料集沒有地方放。"),
+    KO("이 행이 만드는 데이터셋을 둘 곳이 없습니다."),
+    DE("Für den Datensatz dieser Zeile gibt es keinen Ort."),
+    FR("Il n'y a nulle part où mettre le jeu de données construit par cette "
+       "ligne."),
+    ES("No hay dónde poner el conjunto de datos que construye esta fila."),
+    PT("Não há onde colocar o conjunto de dados que esta linha constrói."),
+    IT("Non c'è dove mettere il set di dati costruito da questa riga."),
+    NL("Er is geen plek voor de dataset die deze rij bouwt."),
+    RU("Некуда положить набор данных, который соберёт эта строка."),
+    TR("Bu satırın kuracağı veri kümesini koyacak bir yer yok."));
+SS_MSG(chk_dataset_collision,
+    EN("Another row builds a dataset into this same folder: {0}"),
+    JA("別の行が同じフォルダーにデータセットを作ります: {0}"),
+    ZH_HANS("另一行会往同一个文件夹里建数据集: {0}"),
+    ZH_HANT("另一列會往同一個資料夾裡建資料集: {0}"),
+    KO("다른 행이 같은 폴더에 데이터셋을 만듭니다: {0}"),
+    DE("Eine andere Zeile baut einen Datensatz in denselben Ordner: {0}"),
+    FR("Une autre ligne construit un jeu de données dans ce même dossier : {0}"),
+    ES("Otra fila construye un conjunto de datos en esta misma carpeta: {0}"),
+    PT("Outra linha constrói um conjunto de dados nesta mesma pasta: {0}"),
+    IT("Un'altra riga costruisce un set di dati in questa stessa cartella: {0}"),
+    NL("Een andere rij bouwt een dataset in dezelfde map: {0}"),
+    RU("Другая строка собирает набор данных в ту же папку: {0}"),
+    TR("Başka bir satır aynı klasöre veri kümesi kuruyor: {0}"));
+SS_MSG(chk_dataset_made_later,
+    EN("A later row builds this dataset, so it will not be there yet: {0}"),
+    JA("このデータセットは後の行が作るため、この時点ではまだありません: {0}"),
+    ZH_HANS("这个数据集由后面的行来建，所以那时它还不存在: {0}"),
+    ZH_HANT("這個資料集由後面的列來建，所以那時它還不存在: {0}"),
+    KO("이 데이터셋은 뒤쪽 행이 만들므로, 그때는 아직 없습니다: {0}"),
+    DE("Eine spätere Zeile baut diesen Datensatz, er ist dann noch nicht da: "
+       "{0}"),
+    FR("Une ligne ultérieure construit ce jeu de données : il ne sera pas "
+       "encore là : {0}"),
+    ES("Una fila posterior construye este conjunto de datos, así que todavía "
+       "no estará: {0}"),
+    PT("Uma linha posterior constrói este conjunto de dados, então ele ainda "
+       "não estará lá: {0}"),
+    IT("Una riga successiva costruisce questo set di dati, quindi non ci sarà "
+       "ancora: {0}"),
+    NL("Een latere rij bouwt deze dataset, dus die is er dan nog niet: {0}"),
+    RU("Этот набор данных собирает более поздняя строка, значит его ещё не "
+       "будет: {0}"),
+    TR("Bu veri kümesini daha sonraki bir satır kuruyor, o sırada henüz "
+       "olmayacak: {0}"));
+SS_MSG(chk_mesh_no_model,
+    EN("There is nothing to mesh: the row neither names a model nor trains "
+       "one."),
+    JA("メッシュ化する対象がありません。この行はモデルを指定も学習もしていません。"),
+    ZH_HANS("没有可生成网格的对象：这一行既没指定模型，也不训练模型。"),
+    ZH_HANT("沒有可產生網格的對象：這一列既沒指定模型，也不訓練模型。"),
+    KO("메시를 만들 대상이 없습니다: 이 행은 모델을 지정하지도, 학습하지도 않습니다."),
+    DE("Es gibt nichts zu meshen: Die Zeile nennt kein Modell und trainiert "
+       "auch keines."),
+    FR("Il n'y a rien à mailler : la ligne ne nomme aucun modèle et n'en "
+       "entraîne aucun."),
+    ES("No hay nada que mallar: la fila ni nombra un modelo ni entrena uno."),
+    PT("Não há nada para malhar: a linha não nomeia um modelo nem treina um."),
+    IT("Non c'è nulla da trasformare in mesh: la riga non nomina né addestra "
+       "un modello."),
+    NL("Er is niets om te meshen: de rij noemt geen model en traint er ook "
+       "geen."),
+    RU("Нечего превращать в полигоны: строка не называет модель и не обучает "
+       "её."),
+    TR("Ağ oluşturulacak bir şey yok: satır ne bir model belirtiyor ne de "
+       "eğitiyor."));
+SS_MSG(chk_mesh_model_missing,
+    EN("The model to mesh does not exist: {0}"),
+    JA("メッシュ化するモデルが存在しません: {0}"),
+    ZH_HANS("要生成网格的模型不存在: {0}"),
+    ZH_HANT("要產生網格的模型不存在: {0}"),
+    KO("메시를 만들 모델이 없습니다: {0}"),
+    DE("Das zu meshende Modell gibt es nicht: {0}"),
+    FR("Le modèle à mailler n'existe pas : {0}"),
+    ES("El modelo que mallar no existe: {0}"),
+    PT("O modelo a malhar não existe: {0}"),
+    IT("Il modello da trasformare in mesh non esiste: {0}"),
+    NL("Het te meshen model bestaat niet: {0}"),
+    RU("Модели для построения полигонов нет: {0}"),
+    TR("Ağ oluşturulacak model yok: {0}"));
+SS_MSG(chk_mesh_no_dataset,
+    EN("Meshing has no photographs to work from, so the surface will be the "
+       "rougher, density-only kind."),
+    JA("メッシュ化に使える写真がないため、密度だけから作る粗い面になります。"),
+    ZH_HANS("生成网格时没有照片可用，得到的将是只靠密度的、比较粗糙的表面。"),
+    ZH_HANT("產生網格時沒有照片可用，得到的將是只靠密度的、比較粗糙的表面。"),
+    KO("메시를 만들 사진이 없어, 밀도만으로 만든 거친 표면이 됩니다."),
+    DE("Dem Meshen fehlen die Fotos, also wird die Oberfläche die gröbere, nur "
+       "aus der Dichte gewonnene."),
+    FR("Le maillage n'a pas de photos à exploiter : la surface sera la version "
+       "plus grossière, tirée de la seule densité."),
+    ES("El mallado no tiene fotos con las que trabajar: la superficie será la "
+       "más tosca, hecha solo con la densidad."),
+    PT("A geração de malha não tem fotos com que trabalhar: a superfície será "
+       "a mais grosseira, feita só com a densidade."),
+    IT("La mesh non ha foto su cui lavorare: la superficie sarà quella più "
+       "grezza, ricavata dalla sola densità."),
+    NL("Het meshen heeft geen foto's om mee te werken, dus het oppervlak wordt "
+       "de ruwere soort, alleen uit de dichtheid."),
+    RU("Для построения полигонов нет фотографий, поэтому поверхность будет "
+       "более грубой, только по плотности."),
+    TR("Ağ oluşturmanın çalışacağı fotoğraf yok, bu yüzden yüzey yalnızca "
+       "yoğunluktan çıkan daha kaba türden olacak."));
+
+SS_MSG(batch_busy_elsewhere,
+    EN("Something else is running. Wait for it, or stop it, then start the "
+       "batch."),
+    JA("ほかの処理が動いています。終わるか停止するまで待ってから、バッチを開始してください。"),
+    ZH_HANS("有别的任务在跑。等它结束或先停掉，再开始批处理。"),
+    ZH_HANT("有別的工作在跑。等它結束或先停掉，再開始批次處理。"),
+    KO("다른 작업이 실행 중입니다. 끝나거나 멈춘 뒤에 일괄 처리를 시작하세요."),
+    DE("Es läuft schon etwas anderes. Abwarten oder stoppen, dann den Stapel "
+       "starten."),
+    FR("Autre chose est en cours. Attendez la fin ou arrêtez-la, puis lancez "
+       "le lot."),
+    ES("Hay otra cosa en marcha. Espera a que acabe o párala, y luego inicia "
+       "el lote."),
+    PT("Outra coisa está em execução. Espere ou pare, e então inicie o lote."),
+    IT("È in corso qualcos'altro. Attendi o fermalo, poi avvia il batch."),
+    NL("Er draait al iets anders. Wacht af of stop het, en start dan de batch."),
+    RU("Уже выполняется что-то другое. Дождитесь окончания или остановите, а "
+       "затем запустите пакет."),
+    TR("Başka bir şey çalışıyor. Bitmesini bekleyin ya da durdurun, sonra "
+       "toplu işi başlatın."));
+
+SS_MSG(batch_run_mesh_help,
+    EN("Mesh what this run produces. A run trained for its appearance can be "
+       "far too large to mesh; tick the cheaper one trained beside it instead."),
+    JA("この実行の結果をメッシュ化します。見た目のために学習した実行はメッシュ化には大きすぎることがあります。その場合は隣で学習した軽いほうにチェックを入れてください。"),
+    ZH_HANS("对这次运行的结果做网格。为外观训练的运行往往太大，做不出网格；这时改勾旁边那个更省资源的运行。"),
+    ZH_HANT("對這次執行的結果做網格。為外觀訓練的執行往往太大，做不出網格；這時改勾旁邊那個較省資源的執行。"),
+    KO("이 실행의 결과로 메시를 만듭니다. 외형을 위해 학습한 실행은 메시로 만들기에 너무 클 수 있으니, 그럴 때는 옆에서 함께 "
+       "학습한 가벼운 쪽을 선택하세요."),
+    DE("Aus dem Ergebnis dieses Laufs ein Netz erzeugen. Ein auf Aussehen "
+       "trainierter Lauf kann dafür viel zu groß sein; haken Sie dann den "
+       "daneben trainierten günstigeren an."),
+    FR("Mailler ce que produit cette exécution. Une exécution entraînée pour "
+       "son apparence peut être bien trop lourde à mailler ; cochez plutôt "
+       "celle, moins coûteuse, entraînée à côté."),
+    ES("Generar la malla de lo que produce esta ejecución. Una ejecución "
+       "entrenada por su apariencia puede ser demasiado grande para mallar; "
+       "marque entonces la más económica entrenada junto a ella."),
+    PT("Gerar a malha do que esta execução produz. Uma execução treinada pela "
+       "aparência pode ser grande demais para malhar; marque então a mais "
+       "barata treinada ao lado."),
+    IT("Crea la mesh da ciò che produce questa esecuzione. Un'esecuzione "
+       "addestrata per l'aspetto può essere troppo grande da convertire; "
+       "spunta invece quella più leggera addestrata accanto."),
+    NL("Maak een mesh van wat deze run oplevert. Een run die op uiterlijk is "
+       "getraind kan veel te groot zijn om te meshen; vink dan de goedkopere "
+       "run ernaast aan."),
+    RU("Строить меш по результату этого прогона. Прогон, обученный ради "
+       "внешнего вида, может быть слишком велик для меша; тогда отметьте более "
+       "дешёвый, обученный рядом."),
+    TR("Bu çalıştırmanın sonucundan ağ oluştur. Görünüm için eğitilen bir "
+       "çalıştırma ağ oluşturmak için fazla büyük olabilir; o zaman yanında "
+       "eğitilen ucuz olanı işaretleyin."));
+
+SS_MSG(batch_mesh_override_help,
+    EN("What this row writes, whatever its preset says. Tick nothing to leave "
+       "the preset alone."),
+    JA("プリセットの指定にかかわらず、この行が書き出すものです。何もチェックしなければプリセットのままになります。"),
+    ZH_HANS("不管预设怎么说，这一行要写出的东西。什么都不勾就按预设来。"),
+    ZH_HANT("不管預設怎麼說，這一列要寫出的東西。什麼都不勾就照預設。"),
+    KO("프리셋이 무엇이라 하든 이 행이 써 내보낼 것. 아무것도 선택하지 않으면 프리셋 그대로입니다."),
+    DE("Was diese Zeile schreibt, unabhängig von ihrer Voreinstellung. Nichts "
+       "anhaken lässt die Voreinstellung unberührt."),
+    FR("Ce que cette ligne écrit, quoi que dise son préréglage. Ne rien cocher "
+       "laisse le préréglage tel quel."),
+    ES("Lo que escribe esta fila, diga lo que diga su ajuste. No marcar nada "
+       "deja el ajuste como está."),
+    PT("O que esta linha escreve, diga o que disser a sua predefinição. Não "
+       "marcar nada deixa a predefinição como está."),
+    IT("Ciò che questa riga scrive, qualunque cosa dica la sua "
+       "preimpostazione. Non spuntare nulla la lascia intatta."),
+    NL("Wat deze rij schrijft, wat de voorinstelling ook zegt. Niets aanvinken "
+       "laat de voorinstelling met rust."),
+    RU("Что записывает эта строка, что бы ни говорил её пресет. Если ничего не "
+       "отмечено, пресет остаётся как есть."),
+    TR("Hazır ayarı ne derse desin, bu satırın yazacağı şey. Hiçbirini "
+       "işaretlemezseniz hazır ayar olduğu gibi kalır."));
+
+SS_MSG(batch_eta_total,
+    EN("Estimated time left: {0}"),
+    JA("残り時間の見込み: {0}"),
+    ZH_HANS("预计剩余时间：{0}"),
+    ZH_HANT("預計剩餘時間：{0}"),
+    KO("남은 시간 예상: {0}"),
+    DE("Geschätzte Restzeit: {0}"),
+    FR("Temps restant estimé : {0}"),
+    ES("Tiempo restante estimado: {0}"),
+    PT("Tempo restante estimado: {0}"),
+    IT("Tempo residuo stimato: {0}"),
+    NL("Geschatte resterende tijd: {0}"),
+    RU("Осталось примерно: {0}"),
+    TR("Tahmini kalan süre: {0}"));
+
+SS_MSG(batch_eta_task,
+    EN("This step: {0} so far, about {1} left"),
+    JA("この工程: これまで {0}、残りおよそ {1}"),
+    ZH_HANS("本步骤：已用 {0}，约剩 {1}"),
+    ZH_HANT("本步驟：已用 {0}，約剩 {1}"),
+    KO("이 단계: 지금까지 {0}, 남은 시간 약 {1}"),
+    DE("Dieser Schritt: bisher {0}, noch etwa {1}"),
+    FR("Cette étape : {0} écoulées, environ {1} restantes"),
+    ES("Este paso: {0} hasta ahora, unos {1} restantes"),
+    PT("Esta etapa: {0} até agora, cerca de {1} restantes"),
+    IT("Questo passaggio: {0} finora, circa {1} rimanenti"),
+    NL("Deze stap: {0} tot nu toe, nog ongeveer {1}"),
+    RU("Этот шаг: прошло {0}, осталось около {1}"),
+    TR("Bu adım: şu ana kadar {0}, yaklaşık {1} kaldı"));
+
+SS_MSG(mesh_color_help,
+    EN("Tick more than one to get the same surface several ways. It is "
+       "extracted once either way; only the color is redone."),
+    JA("複数にチェックすると、同じ面をいくつもの形で書き出せます。面の抽出は一度きりで、やり直すのは色だけです。"),
+    ZH_HANS("可以勾多项，把同一个面以多种方式写出。面只提取一次，重做的只有颜色。"),
+    ZH_HANT("可以勾多項，把同一個面以多種方式寫出。面只擷取一次，重做的只有顏色。"),
+    KO("여러 개를 선택하면 같은 표면을 여러 방식으로 얻습니다. 표면은 한 번만 추출하고, 다시 하는 것은 색뿐입니다."),
+    DE("Mehrere anhaken, um dieselbe Oberfläche mehrfach zu erhalten. Sie wird "
+       "ohnehin nur einmal extrahiert; wiederholt wird nur die Farbe."),
+    FR("Cochez-en plusieurs pour obtenir la même surface de plusieurs façons. "
+       "Elle n'est extraite qu'une fois ; seule la couleur est refaite."),
+    ES("Marque varias para obtener la misma superficie de varias formas. Se "
+       "extrae una sola vez; solo se rehace el color."),
+    PT("Marque várias para obter a mesma superfície de várias formas. Ela é "
+       "extraída uma só vez; apenas a cor é refeita."),
+    IT("Spuntane più di una per ottenere la stessa superficie in più modi. "
+       "Viene estratta una volta sola; si rifà solo il colore."),
+    NL("Vink er meerdere aan om hetzelfde oppervlak op meerdere manieren te "
+       "krijgen. Het wordt maar één keer geëxtraheerd; alleen de kleur wordt "
+       "opnieuw gedaan."),
+    RU("Отметьте несколько, чтобы получить одну и ту же поверхность в разных "
+       "видах. Извлекается она всё равно один раз; заново делается только "
+       "цвет."),
+    TR("Aynı yüzeyi birkaç biçimde almak için birden fazlasını işaretleyin. "
+       "Yüzey yine bir kez çıkarılır; yalnızca renk yeniden yapılır."));
+
+SS_MSG(mesh_no_output_warn,
+    EN("Nothing would be written: no ticked format can carry a ticked color."),
+    JA("何も書き出せません。チェックした形式のどれも、チェックした色を持てません。"),
+    ZH_HANS("什么都写不出：勾选的格式都装不下勾选的颜色。"),
+    ZH_HANT("什麼都寫不出：勾選的格式都裝不下勾選的顏色。"),
+    KO("아무것도 쓰이지 않습니다. 선택한 형식 중 선택한 색을 담을 수 있는 것이 없습니다."),
+    DE("Es würde nichts geschrieben: kein angehaktes Format kann eine "
+       "angehakte Farbe tragen."),
+    FR("Rien ne serait écrit : aucun format coché ne peut porter une couleur "
+       "cochée."),
+    ES("No se escribiría nada: ningún formato marcado puede llevar un color "
+       "marcado."),
+    PT("Nada seria escrito: nenhum formato marcado consegue levar uma cor "
+       "marcada."),
+    IT("Non verrebbe scritto nulla: nessun formato spuntato può portare un "
+       "colore spuntato."),
+    NL("Er zou niets worden geschreven: geen aangevinkt formaat kan een "
+       "aangevinkte kleur dragen."),
+    RU("Ничего не будет записано: ни один отмеченный формат не несёт "
+       "отмеченный цвет."),
+    TR("Hiçbir şey yazılmaz: işaretli biçimlerin hiçbiri işaretli bir rengi "
+       "taşıyamaz."));
+
+SS_MSG(chk_mesh_no_runs,
+    EN("Meshing is on, but no training run is ticked for it."),
+    JA("メッシュ化が有効ですが、対象の学習実行が一つも選ばれていません。"),
+    ZH_HANS("开了网格生成，但没有勾选任何训练运行。"),
+    ZH_HANT("開了網格生成，但沒有勾選任何訓練執行。"),
+    KO("메시 생성이 켜져 있지만, 대상으로 선택된 학습 실행이 없습니다."),
+    DE("Netzerzeugung ist an, aber kein Trainingslauf ist dafür angehakt."),
+    FR("Le maillage est activé, mais aucune exécution d'entraînement n'est "
+       "cochée pour lui."),
+    ES("El mallado está activado, pero no hay ninguna ejecución de "
+       "entrenamiento marcada."),
+    PT("A malha está ativada, mas nenhuma execução de treino está marcada para "
+       "ela."),
+    IT("La mesh è attiva, ma nessuna esecuzione di addestramento è spuntata "
+       "per essa."),
+    NL("Meshen staat aan, maar er is geen trainingsrun voor aangevinkt."),
+    RU("Построение меша включено, но ни один прогон обучения для него не "
+       "отмечен."),
+    TR("Ağ oluşturma açık, ama bunun için hiçbir eğitim çalıştırması "
+       "işaretlenmedi."));
+
+SS_MSG(chk_mesh_no_output,
+    EN("The colors and formats ticked for meshing have no combination between "
+       "them."),
+    JA("メッシュ化で選んだ色と形式に、組み合わせられるものがありません。"),
+    ZH_HANS("为网格生成勾选的颜色和格式之间没有可用的组合。"),
+    ZH_HANT("為網格生成勾選的顏色與格式之間沒有可用的組合。"),
+    KO("메시 생성에 선택한 색과 형식 사이에 가능한 조합이 없습니다."),
+    DE("Die für die Netzerzeugung angehakten Farben und Formate haben keine "
+       "gemeinsame Kombination."),
+    FR("Les couleurs et les formats cochés pour le maillage n'ont aucune "
+       "combinaison possible."),
+    ES("Los colores y formatos marcados para el mallado no tienen ninguna "
+       "combinación posible."),
+    PT("As cores e os formatos marcados para a malha não têm nenhuma "
+       "combinação possível."),
+    IT("I colori e i formati spuntati per la mesh non hanno alcuna "
+       "combinazione possibile."),
+    NL("De voor het meshen aangevinkte kleuren en formaten hebben geen enkele "
+       "combinatie."),
+    RU("У отмеченных для меша цветов и форматов нет ни одной допустимой "
+       "комбинации."),
+    TR("Ağ oluşturma için işaretlenen renkler ve biçimler arasında hiçbir "
+       "birleşim yok."));
+
+SS_MSG(batch_plan_mesh_run,
+    EN("{0}. Mesh the run trained with {1}"),
+    JA("{0}. {1} で学習した実行をメッシュ化する"),
+    ZH_HANS("{0}. 为用 {1} 训练的那次运行生成网格"),
+    ZH_HANT("{0}. 為用 {1} 訓練的那次執行產生網格"),
+    KO("{0}. {1} 로 학습한 실행으로 메시 만들기"),
+    DE("{0}. Den mit {1} trainierten Lauf vernetzen"),
+    FR("{0}. Mailler l'exécution entraînée avec {1}"),
+    ES("{0}. Mallar la ejecución entrenada con {1}"),
+    PT("{0}. Malhar a execução treinada com {1}"),
+    IT("{0}. Crea la mesh dell'esecuzione addestrata con {1}"),
+    NL("{0}. Mesh maken van de run getraind met {1}"),
+    RU("{0}. Построить меш по прогону, обученному с {1}"),
+    TR("{0}. {1} ile eğitilen çalıştırmadan ağ oluştur"));
+
+
+// ===========================================================================
+// The navigation gizmo
+// ===========================================================================
+
+SS_MSG(gizmo_help,
+    EN("Drag to orbit. Click an axis to look along it; click it again for the far side."),
+    JA("ドラッグで視点を回転します。軸をクリックするとその軸方向から見ます。もう一度クリックすると反対側からになります。"),
+    ZH_HANS("拖动以环绕视角。点击某个轴可沿该轴观察，再点一次则从另一侧观察。"),
+    ZH_HANT("拖曳以環繞視角。點選某個軸可沿該軸觀看，再點一次則從另一側觀看。"),
+    KO("드래그하면 시점이 회전합니다. 축을 클릭하면 그 축 방향에서 보고, 다시 클릭하면 반대쪽에서 봅니다."),
+    DE("Ziehen dreht die Ansicht. Ein Klick auf eine Achse blickt entlang dieser Achse, ein zweiter Klick von der Gegenseite."),
+    FR("Faites glisser pour tourner autour. Cliquez sur un axe pour regarder le long de celui-ci, et une seconde fois pour le côté opposé."),
+    ES("Arrastra para orbitar. Haz clic en un eje para mirar a lo largo de él; otro clic para el lado opuesto."),
+    PT("Arraste para orbitar. Clique em um eixo para olhar ao longo dele; clique de novo para o lado oposto."),
+    IT("Trascina per orbitare. Fai clic su un asse per guardare lungo di esso; un altro clic per il lato opposto."),
+    NL("Sleep om rond het model te draaien. Klik op een as om erlangs te kijken; klik nogmaals voor de andere kant."),
+    RU("Перетащите, чтобы вращать вид. Щёлкните по оси, чтобы смотреть вдоль неё; ещё раз — с обратной стороны."),
+    TR("Yörüngede dönmek için sürükleyin. Bir eksene tıklayınca o eksen boyunca bakılır; yeniden tıklayınca karşı taraftan."));
+
+SS_MSG(gizmo_zoom_help,
+    EN("Drag up or down to zoom."),
+    JA("上下にドラッグしてズームします。"),
+    ZH_HANS("上下拖动以缩放。"),
+    ZH_HANT("上下拖曳以縮放。"),
+    KO("위아래로 드래그해 확대·축소합니다."),
+    DE("Zum Zoomen nach oben oder unten ziehen."),
+    FR("Faites glisser vers le haut ou le bas pour zoomer."),
+    ES("Arrastra hacia arriba o abajo para acercar o alejar."),
+    PT("Arraste para cima ou para baixo para aproximar ou afastar."),
+    IT("Trascina in alto o in basso per ingrandire o ridurre."),
+    NL("Sleep omhoog of omlaag om te zoomen."),
+    RU("Перетащите вверх или вниз, чтобы приблизить или отдалить."),
+    TR("Yakınlaştırmak için yukarı ya da aşağı sürükleyin."));
+
+SS_MSG(gizmo_pan_help,
+    EN("Drag to pan."),
+    JA("ドラッグして視点を平行移動します。"),
+    ZH_HANS("拖动以平移视角。"),
+    ZH_HANT("拖曳以平移視角。"),
+    KO("드래그해 시점을 평행 이동합니다."),
+    DE("Zum Verschieben der Ansicht ziehen."),
+    FR("Faites glisser pour déplacer la vue."),
+    ES("Arrastra para desplazar la vista."),
+    PT("Arraste para deslocar a vista."),
+    IT("Trascina per spostare la vista."),
+    NL("Sleep om het beeld te verschuiven."),
+    RU("Перетащите, чтобы сдвинуть вид."),
+    TR("Görünümü kaydırmak için sürükleyin."));
+
+SS_MSG(gizmo_to_ortho,
+    EN("Switch to the orthographic view (numeric-pad 5)."),
+    JA("平行投影に切り替えます（テンキーの 5）。"),
+    ZH_HANS("切换到正交视图（数字键盘 5）。"),
+    ZH_HANT("切換到正交視圖（數字鍵盤 5）。"),
+    KO("직교 투영으로 전환합니다(숫자 패드 5)."),
+    DE("Zur orthografischen Ansicht wechseln (Ziffernblock 5)."),
+    FR("Passer à la vue orthographique (pavé numérique 5)."),
+    ES("Cambiar a la vista ortográfica (teclado numérico 5)."),
+    PT("Mudar para a vista ortográfica (teclado numérico 5)."),
+    IT("Passa alla vista ortografica (tastierino numerico 5)."),
+    NL("Overschakelen naar orthografische weergave (numeriek toetsenblok 5)."),
+    RU("Переключиться на ортографический вид (цифровая клавиатура 5)."),
+    TR("Ortografik görünüme geç (sayısal tuş takımı 5)."));
+
+SS_MSG(gizmo_to_perspective,
+    EN("Switch to the perspective view (numeric-pad 5)."),
+    JA("透視投影に切り替えます（テンキーの 5）。"),
+    ZH_HANS("切换到透视视图（数字键盘 5）。"),
+    ZH_HANT("切換到透視視圖（數字鍵盤 5）。"),
+    KO("원근 투영으로 전환합니다(숫자 패드 5)."),
+    DE("Zur perspektivischen Ansicht wechseln (Ziffernblock 5)."),
+    FR("Passer à la vue en perspective (pavé numérique 5)."),
+    ES("Cambiar a la vista en perspectiva (teclado numérico 5)."),
+    PT("Mudar para a vista em perspectiva (teclado numérico 5)."),
+    IT("Passa alla vista prospettica (tastierino numerico 5)."),
+    NL("Overschakelen naar perspectiefweergave (numeriek toetsenblok 5)."),
+    RU("Переключиться на перспективный вид (цифровая клавиатура 5)."),
+    TR("Perspektif görünüme geç (sayısal tuş takımı 5)."));
+
+
+
+// ===========================================================================
+// Saving under a name that gained its extension
+// ===========================================================================
+
+SS_MSG(fd_replace_title,
+    EN("Replace the file?"),
+    JA("ファイルを置き換えますか？"),
+    ZH_HANS("要替换文件吗？"),
+    ZH_HANT("要取代檔案嗎？"),
+    KO("파일을 바꿀까요?"),
+    DE("Datei ersetzen?"),
+    FR("Remplacer le fichier ?"),
+    ES("¿Reemplazar el archivo?"),
+    PT("Substituir o arquivo?"),
+    IT("Sostituire il file?"),
+    NL("Bestand vervangen?"),
+    RU("Заменить файл?"),
+    TR("Dosya değiştirilsin mi?"));
+
+SS_MSG(fd_replace_body,
+    EN("{0} already exists. Replace it?"),
+    JA("{0} は既に存在します。置き換えますか？"),
+    ZH_HANS("{0} 已经存在。要替换它吗？"),
+    ZH_HANT("{0} 已經存在。要取代它嗎？"),
+    KO("{0}이(가) 이미 있습니다. 바꿀까요?"),
+    DE("{0} existiert bereits. Ersetzen?"),
+    FR("{0} existe déjà. Le remplacer ?"),
+    ES("{0} ya existe. ¿Reemplazarlo?"),
+    PT("{0} já existe. Substituí-lo?"),
+    IT("{0} esiste già. Sostituirlo?"),
+    NL("{0} bestaat al. Vervangen?"),
+    RU("{0} уже существует. Заменить?"),
+    TR("{0} zaten var. Değiştirilsin mi?"));
+
+SS_MSG(fd_replace_yes,
+    EN("Replace"),
+    JA("置き換える"),
+    ZH_HANS("替换"),
+    ZH_HANT("取代"),
+    KO("바꾸기"),
+    DE("Ersetzen"),
+    FR("Remplacer"),
+    ES("Reemplazar"),
+    PT("Substituir"),
+    IT("Sostituisci"),
+    NL("Vervangen"),
+    RU("Заменить"),
+    TR("Değiştir"));
+
+
+SS_MSG(seed_choice,
+    EN("Starting points"), JA("初期点群"), ZH_HANS("初始点云"), ZH_HANT("初始點雲"), KO("시작 점 구름"),
+    DE("Startpunkte"), FR("Points de départ"), ES("Puntos iniciales"), PT("Pontos iniciais"),
+    IT("Punti iniziali"), NL("Startpunten"), RU("Начальные точки"), TR("Başlangıç noktaları"));
+SS_MSG(seed_choice_dense,
+    EN("Dense cloud"), JA("高密度点群"), ZH_HANS("稠密点云"), ZH_HANT("稠密點雲"), KO("고밀도 점 구름"),
+    DE("Dichte Punktwolke"), FR("Nuage dense"), ES("Nube densa"), PT("Nuvem densa"), IT("Nuvola densa"),
+    NL("Dichte puntenwolk"), RU("Плотное облако"), TR("Yoğun bulut"));
+SS_MSG(seed_choice_sparse,
+    EN("Sparse points"), JA("疎な点群"), ZH_HANS("稀疏点云"), ZH_HANT("稀疏點雲"), KO("희소 점 구름"),
+    DE("Dünne Punktwolke"), FR("Points épars"), ES("Puntos dispersos"), PT("Pontos esparsos"), IT("Punti sparsi"),
+    NL("IJle punten"), RU("Разреженные точки"), TR("Seyrek noktalar"));
+SS_MSG(seed_choice_other,
+    EN("Other PLY file"), JA("その他の PLY ファイル"), ZH_HANS("其他 PLY 文件"), ZH_HANT("其他 PLY 檔案"),
+    KO("다른 PLY 파일"), DE("Andere PLY-Datei"), FR("Autre fichier PLY"), ES("Otro archivo PLY"),
+    PT("Outro arquivo PLY"), IT("Altro file PLY"), NL("Ander PLY-bestand"), RU("Другой файл PLY"),
+    TR("Başka bir PLY dosyası"));
+SS_MSG(seed_choice_help,
+    EN("The points training starts from. The dense cloud comes from dense reconstruction and usually "
+       "gives finer detail sooner; the sparse points come from camera reconstruction."),
+    JA("学習の出発点となる点群。高密度点群は高密度再構成の結果で、通常は細部がより早く出ます。"
+       "疎な点群はカメラ推定で得られたものです。"),
+    ZH_HANS("训练的起始点云。稠密点云来自稠密重建，通常能更快得到更细的细节；稀疏点云来自相机重建。"),
+    ZH_HANT("訓練的起始點雲。稠密點雲來自稠密重建，通常能更快得到更細的細節；稀疏點雲來自相機重建。"),
+    KO("학습을 시작할 점 구름입니다. 고밀도 점 구름은 고밀도 재구성 결과로 보통 세부가 더 빨리 "
+       "살아나며, 희소 점 구름은 카메라 재구성에서 나옵니다."),
+    DE("Die Punkte, mit denen das Training beginnt. Die dichte Punktwolke stammt aus der dichten "
+       "Rekonstruktion und liefert meist schneller feine Details; die dünne aus der Kamerarekonstruktion."),
+    FR("Les points de départ de l'entraînement. Le nuage dense vient de la reconstruction dense et donne "
+       "en général des détails fins plus tôt ; les points épars viennent de la reconstruction des caméras."),
+    ES("Los puntos desde los que empieza el entrenamiento. La nube densa viene de la reconstrucción densa "
+       "y suele dar detalle fino antes; los puntos dispersos vienen de la reconstrucción de cámaras."),
+    PT("Os pontos de onde o treinamento parte. A nuvem densa vem da reconstrução densa e costuma dar "
+       "detalhes finos mais cedo; os pontos esparsos vêm da reconstrução das câmeras."),
+    IT("I punti da cui parte l'addestramento. La nuvola densa viene dalla ricostruzione densa e di solito "
+       "dà dettagli fini prima; i punti sparsi vengono dalla ricostruzione delle fotocamere."),
+    NL("De punten waarmee de training begint. De dichte puntenwolk komt uit de dichte reconstructie en "
+       "geeft meestal sneller fijn detail; de ijle punten komen uit de camerareconstructie."),
+    RU("Точки, с которых начинается обучение. Плотное облако получено плотной реконструкцией и обычно "
+       "быстрее даёт мелкие детали; разреженные точки — из реконструкции камер."),
+    TR("Eğitimin başladığı noktalar. Yoğun bulut yoğun yeniden yapılandırmadan gelir ve genellikle ince "
+       "ayrıntıyı daha erken verir; seyrek noktalar kamera yeniden yapılandırmasından gelir."));
+SS_MSG(seed_source_random,
+    EN("Point source: random initialization."), JA("点群の読み込み元：ランダム初期化。"),
+    ZH_HANS("点云来源：随机初始化。"), ZH_HANT("點雲來源：隨機初始化。"), KO("점 구름 출처: 무작위 초기화."),
+    DE("Punktquelle: zufällige Initialisierung."), FR("Source des points : initialisation aléatoire."),
+    ES("Origen de puntos: inicialización aleatoria."), PT("Origem dos pontos: inicialização aleatória."),
+    IT("Origine dei punti: inizializzazione casuale."), NL("Puntbron: willekeurige initialisatie."),
+    RU("Источник точек: случайная инициализация."), TR("Nokta kaynağı: rastgele başlatma."));
+SS_MSG(seed_source_resume,
+    EN("Initialization: restore Gaussians from the checkpoint."), JA("初期化：チェックポイントのガウシアンを復元します。"),
+    ZH_HANS("初始化来源：恢复检查点中的高斯。"), ZH_HANT("初始化來源：恢復檢查點中的高斯。"), KO("초기화: 체크포인트의 가우시안을 복원합니다."),
+    DE("Initialisierung: Gaussians aus dem Checkpoint wiederherstellen."), FR("Initialisation : restaurer les gaussiennes du checkpoint."),
+    ES("Inicialización: restaurar gaussianas del checkpoint."), PT("Inicialização: restaurar gaussianas do checkpoint."),
+    IT("Inizializzazione: ripristina le gaussiane dal checkpoint."), NL("Initialisatie: Gaussians uit checkpoint herstellen."),
+    RU("Инициализация: восстановление гауссиан из контрольной точки."), TR("Başlatma: kontrol noktasından Gaussianları geri yükle."));
+SS_MSG(seed_source_splat,
+    EN("Initialization: existing Gaussian PLY."), JA("初期化：既存のガウシアン PLY。"),
+    ZH_HANS("初始化来源：已有高斯 PLY。"), ZH_HANT("初始化來源：已有高斯 PLY。"), KO("초기화: 기존 가우시안 PLY."),
+    DE("Initialisierung: vorhandenes Gaussian-PLY."), FR("Initialisation : PLY gaussien existant."),
+    ES("Inicialización: PLY gaussiano existente."), PT("Inicialização: PLY gaussiano existente."),
+    IT("Inizializzazione: PLY gaussiano esistente."), NL("Initialisatie: bestaand Gaussian-PLY."),
+    RU("Инициализация: существующий PLY гауссиан."), TR("Başlatma: mevcut Gaussian PLY."));
+SS_MSG(seed_source_splat_add,
+    EN("Initialization: existing Gaussian PLY plus point seeds."), JA("初期化：既存のガウシアン PLY に初期点群を追加します。"),
+    ZH_HANS("初始化来源：已有高斯 PLY，同时追加点云。"), ZH_HANT("初始化來源：已有高斯 PLY，同時追加點雲。"), KO("초기화: 기존 가우시안 PLY에 초기 점 구름 추가."),
+    DE("Initialisierung: vorhandenes Gaussian-PLY mit zusätzlichen Startpunkten."),
+    FR("Initialisation : PLY gaussien existant et points initiaux supplémentaires."),
+    ES("Inicialización: PLY gaussiano existente y puntos iniciales adicionales."),
+    PT("Inicialização: PLY gaussiano existente e pontos iniciais adicionais."),
+    IT("Inizializzazione: PLY gaussiano esistente e punti iniziali aggiuntivi."),
+    NL("Initialisatie: bestaand Gaussian-PLY plus startpunten."),
+    RU("Инициализация: существующий PLY гауссиан с добавлением начальных точек."), TR("Başlatma: mevcut Gaussian PLY ve ek başlangıç noktaları."));
+SS_MSG(seed_cloud_unused,
+    EN("The selected external cloud is not used for this initialization."), JA("選択した外部点群は今回の初期化には使われません。"),
+    ZH_HANS("所选外部点云不参与本次初始化。"), ZH_HANT("所選外部點雲不參與本次初始化。"), KO("선택한 외부 점 구름은 이번 초기화에 사용되지 않습니다."),
+    DE("Die gewählte externe Punktwolke wird für diese Initialisierung nicht verwendet."),
+    FR("Le nuage externe sélectionné n'est pas utilisé pour cette initialisation."),
+    ES("La nube externa seleccionada no se usa en esta inicialización."),
+    PT("A nuvem externa selecionada não é usada nesta inicialização."),
+    IT("La nuvola esterna selezionata non viene usata per questa inizializzazione."),
+    NL("De geselecteerde externe puntenwolk wordt niet voor deze initialisatie gebruikt."),
+    RU("Выбранное внешнее облако не используется для этой инициализации."), TR("Seçilen harici bulut bu başlatmada kullanılmaz."));
+
+SS_MSG(resume_training,
+    EN("Resume Training..."),
+    JA("学習を再開…"),
+    ZH_HANS("继续训练…"),
+    ZH_HANT("繼續訓練…"),
+    KO("학습 재개…"),
+    DE("Training fortsetzen …"),
+    FR("Reprendre l'entraînement…"),
+    ES("Reanudar entrenamiento…"),
+    PT("Retomar treinamento…"),
+    IT("Riprendi addestramento…"),
+    NL("Training hervatten…"),
+    RU("Продолжить обучение…"),
+    TR("Eğitime devam et…"));
+SS_MSG(resume_training_help,
+    EN("Pick a training run folder saved by Stop and Save, or one of its step checkpoint folders. The run's dataset and settings are restored, and Start continues from the saved step toward its original step count. A run stopped before its last step can always be continued."),
+    JA("「停止して保存」で保存した学習フォルダー、またはそのステップのチェックポイントフォルダーを選びます。データセットと設定が復元され、開始すると保存したステップから元のステップ数まで続けます。最後のステップ前に停止した学習はいつでも続けられます。"),
+    ZH_HANS("选择通过“停止并保存”保存的训练运行文件夹，或其中某一步的检查点文件夹。会恢复该运行的数据集和设置，点击开始后从保存的步数继续，直到原定步数。在最后一步之前停止的运行总是可以继续。"),
+    ZH_HANT("選擇透過「停止並儲存」儲存的訓練執行資料夾，或其中某一步的檢查點資料夾。會恢復該執行的資料集和設定，按下開始後從儲存的步數繼續，直到原定步數。在最後一步之前停止的執行總是可以繼續。"),
+    KO("'멈추고 저장'으로 저장한 학습 실행 폴더나 그 안의 단계 체크포인트 폴더를 고릅니다. 데이터셋과 설정이 복원되고, 시작을 누르면 저장된 단계부터 원래 단계 수까지 이어 갑니다. 마지막 단계 전에 중지한 실행은 언제든 이어서 할 수 있습니다."),
+    DE("Einen mit „Anhalten und speichern“ gesicherten Trainingsordner oder einen seiner Schritt-Prüfpunktordner wählen. Datensatz und Einstellungen werden wiederhergestellt, und Start setzt ab dem gespeicherten Schritt bis zur ursprünglichen Schrittzahl fort. Ein vor dem letzten Schritt gestopptes Training lässt sich immer fortsetzen."),
+    FR("Choisir un dossier d'entraînement enregistré par Arrêter et enregistrer, ou l'un de ses dossiers de point de sauvegarde. Le jeu de données et les réglages sont restaurés, et Démarrer reprend à l'étape enregistrée jusqu'au nombre d'étapes prévu. Un entraînement arrêté avant sa dernière étape peut toujours être repris."),
+    ES("Elija una carpeta de entrenamiento guardada con Detener y guardar, o una de sus carpetas de punto de control. Se restauran el conjunto de datos y los ajustes, e Iniciar continúa desde el paso guardado hasta el número de pasos original. Un entrenamiento detenido antes de su último paso siempre puede continuarse."),
+    PT("Escolha uma pasta de treinamento salva com Parar e salvar, ou uma de suas pastas de ponto de verificação. O conjunto de dados e as configurações são restaurados, e Iniciar continua a partir do passo salvo até o número de passos original. Um treinamento parado antes do último passo sempre pode ser continuado."),
+    IT("Scegli una cartella di addestramento salvata con Ferma e salva, o una delle sue cartelle di punto di controllo. Set di dati e impostazioni vengono ripristinati, e Avvia riprende dal passo salvato fino al numero di passi originale. Un addestramento fermato prima dell'ultimo passo si può sempre riprendere."),
+    NL("Kies een trainingsmap die met Stoppen en opslaan is bewaard, of een van de checkpointmappen daarin. Dataset en instellingen worden hersteld, en Start gaat verder vanaf de opgeslagen stap tot het oorspronkelijke aantal stappen. Een training die vóór de laatste stap is gestopt, kan altijd worden hervat."),
+    RU("Выберите папку обучения, сохранённую кнопкой «Остановить и сохранить», или одну из её папок контрольных точек. Набор данных и настройки восстанавливаются, и «Старт» продолжает с сохранённого шага до исходного числа шагов. Обучение, остановленное до последнего шага, всегда можно продолжить."),
+    TR("Durdur ve kaydet ile kaydedilmiş bir eğitim klasörünü veya içindeki adım denetim noktası klasörlerinden birini seçin. Veri kümesi ve ayarlar geri yüklenir; Başlat kaydedilen adımdan özgün adım sayısına kadar devam eder. Son adımından önce durdurulan bir eğitime her zaman devam edilebilir."));
+SS_MSG(resume_failed_title,
+    EN("Cannot resume training"),
+    JA("学習を再開できません"),
+    ZH_HANS("无法继续训练"),
+    ZH_HANT("無法繼續訓練"),
+    KO("학습을 재개할 수 없습니다"),
+    DE("Training kann nicht fortgesetzt werden"),
+    FR("Impossible de reprendre l'entraînement"),
+    ES("No se puede reanudar el entrenamiento"),
+    PT("Não é possível retomar o treinamento"),
+    IT("Impossibile riprendere l'addestramento"),
+    NL("Training kan niet worden hervat"),
+    RU("Не удаётся продолжить обучение"),
+    TR("Eğitime devam edilemiyor"));
+SS_MSG(resume_failed,
+    EN("This folder cannot be resumed: {0}"),
+    JA("このフォルダーは再開できません: {0}"),
+    ZH_HANS("无法从此文件夹继续：{0}"),
+    ZH_HANT("無法從此資料夾繼續：{0}"),
+    KO("이 폴더에서 재개할 수 없습니다: {0}"),
+    DE("Dieser Ordner kann nicht fortgesetzt werden: {0}"),
+    FR("Ce dossier ne peut pas être repris : {0}"),
+    ES("No se puede reanudar desde esta carpeta: {0}"),
+    PT("Não é possível retomar a partir desta pasta: {0}"),
+    IT("Impossibile riprendere da questa cartella: {0}"),
+    NL("Deze map kan niet worden hervat: {0}"),
+    RU("Невозможно продолжить из этой папки: {0}"),
+    TR("Bu klasörden devam edilemiyor: {0}"));
+SS_MSG(resume_failed_close,
+    EN("OK"),
+    JA("OK"),
+    ZH_HANS("确定"),
+    ZH_HANT("確定"),
+    KO("확인"),
+    DE("OK"),
+    FR("OK"),
+    ES("Aceptar"),
+    PT("OK"),
+    IT("OK"),
+    NL("OK"),
+    RU("ОК"),
+    TR("Tamam"));
+
+// ---- saved views ----
+
+SS_MSG(viewport_views,
+    EN("Views"),         JA("ビュー"),        ZH_HANS("视角"),
+    ZH_HANT("視角"),      KO("뷰"),            DE("Ansichten"),
+    FR("Vues"),          ES("Vistas"),       PT("Vistas"),
+    IT("Viste"),         NL("Weergaven"),    RU("Виды"),
+    TR("Görünümler"));
+
+SS_MSG(view_default_name,
+    EN("View {0}"),      JA("ビュー {0}"),    ZH_HANS("视角 {0}"),
+    ZH_HANT("視角 {0}"),  KO("뷰 {0}"),        DE("Ansicht {0}"),
+    FR("Vue {0}"),       ES("Vista {0}"),    PT("Vista {0}"),
+    IT("Vista {0}"),     NL("Weergave {0}"), RU("Вид {0}"),
+    TR("Görünüm {0}"));
+
+SS_MSG(view_orthographic,
+    EN("Orthographic"),  JA("平行投影"),      ZH_HANS("正交"),
+    ZH_HANT("正交"),      KO("직교"),          DE("Orthografisch"),
+    FR("Orthographique"), ES("Ortográfica"), PT("Ortográfica"),
+    IT("Ortografica"),   NL("Orthografisch"), RU("Ортографическая"),
+    TR("Ortografik"));
+
+SS_MSG(view_slot_help,
+    EN("{0}: {1}, {2}. Saved {3}. Click or {4} goes there, {5} saves the "
+       "current view over it; right-click for more."),
+    JA("{0}: {1}、{2}。保存日時 {3}。クリックまたは {4} で移動、{5} で現在の"
+       "ビューを上書き保存します。右クリックでその他の操作。"),
+    ZH_HANS("{0}：{1}，{2}。保存于 {3}。单击或按 {4} 前往，按 {5} 用当前视角"
+            "覆盖保存；右键单击查看更多。"),
+    ZH_HANT("{0}：{1}，{2}。儲存於 {3}。按一下或按 {4} 前往，按 {5} 以目前視角"
+            "覆蓋儲存；按右鍵查看更多。"),
+    KO("{0}: {1}, {2}. 저장: {3}. 클릭하거나 {4}를 누르면 이동하고, {5}는 현재 "
+       "뷰로 덮어씁니다. 더 많은 작업은 오른쪽 클릭."),
+    DE("{0}: {1}, {2}. Gespeichert {3}. Klick oder {4} springt dorthin, {5} "
+       "überschreibt sie mit der aktuellen Ansicht; Rechtsklick für mehr."),
+    FR("{0} : {1}, {2}. Enregistrée le {3}. Un clic ou {4} y va, {5} la "
+       "remplace par la vue actuelle ; clic droit pour plus."),
+    ES("{0}: {1}, {2}. Guardada el {3}. Un clic o {4} va allí, {5} la "
+       "sustituye por la vista actual; clic derecho para más."),
+    PT("{0}: {1}, {2}. Salva em {3}. Um clique ou {4} vai até ela, {5} a "
+       "substitui pela vista atual; clique direito para mais."),
+    IT("{0}: {1}, {2}. Salvata il {3}. Un clic o {4} la raggiunge, {5} la "
+       "sostituisce con la vista attuale; clic destro per altro."),
+    NL("{0}: {1}, {2}. Opgeslagen {3}. Klik of {4} gaat erheen, {5} "
+       "overschrijft hem met de huidige weergave; rechtsklik voor meer."),
+    RU("{0}: {1}, {2}. Сохранён {3}. Щелчок или {4} переходит к нему, {5} "
+       "заменяет его текущим видом; правый щелчок — другие действия."),
+    TR("{0}: {1}, {2}. Kaydedildi: {3}. Tıklama veya {4} oraya gider, {5} "
+       "mevcut görünümle üzerine yazar; daha fazlası için sağ tıklayın."));
+
+SS_MSG(view_empty_help,
+    EN("Empty. Click or {0} saves the current view here."),
+    JA("空きスロット。クリックまたは {0} で現在のビューをここに保存します。"),
+    ZH_HANS("空位。单击或按 {0} 将当前视角保存到这里。"),
+    ZH_HANT("空位。按一下或按 {0} 將目前視角儲存到這裡。"),
+    KO("비어 있음. 클릭하거나 {0}를 누르면 현재 뷰를 여기에 저장합니다."),
+    DE("Leer. Klick oder {0} speichert die aktuelle Ansicht hier."),
+    FR("Vide. Un clic ou {0} enregistre ici la vue actuelle."),
+    ES("Vacía. Un clic o {0} guarda aquí la vista actual."),
+    PT("Vazia. Um clique ou {0} salva aqui a vista atual."),
+    IT("Vuota. Un clic o {0} salva qui la vista attuale."),
+    NL("Leeg. Klik of {0} slaat de huidige weergave hier op."),
+    RU("Пусто. Щелчок или {0} сохраняет сюда текущий вид."),
+    TR("Boş. Tıklama veya {0} mevcut görünümü buraya kaydeder."));
+
+SS_MSG(view_save_here,
+    EN("Save current view here"),       JA("現在のビューをここに保存"),
+    ZH_HANS("将当前视角保存到这里"),      ZH_HANT("將目前視角儲存到這裡"),
+    KO("현재 뷰를 여기에 저장"),          DE("Aktuelle Ansicht hier speichern"),
+    FR("Enregistrer la vue actuelle ici"), ES("Guardar aquí la vista actual"),
+    PT("Salvar aqui a vista atual"),    IT("Salva qui la vista attuale"),
+    NL("Huidige weergave hier opslaan"), RU("Сохранить сюда текущий вид"),
+    TR("Mevcut görünümü buraya kaydet"));
+
+SS_MSG(view_rename,
+    EN("Rename"),        JA("名前を変更"),    ZH_HANS("重命名"),
+    ZH_HANT("重新命名"),  KO("이름 바꾸기"),   DE("Umbenennen"),
+    FR("Renommer"),      ES("Renombrar"),    PT("Renomear"),
+    IT("Rinomina"),      NL("Hernoemen"),    RU("Переименовать"),
+    TR("Yeniden adlandır"));
+
+SS_MSG(view_clear,
+    EN("Clear"),         JA("消去"),          ZH_HANS("清除"),
+    ZH_HANT("清除"),      KO("지우기"),        DE("Löschen"),
+    FR("Effacer"),       ES("Borrar"),       PT("Limpar"),
+    IT("Cancella"),      NL("Wissen"),       RU("Очистить"),
+    TR("Temizle"));
+
+SS_MSG(view_save_failed,
+    EN("Could not save the views: {0}"),
+    JA("ビューを保存できませんでした: {0}"),
+    ZH_HANS("无法保存视角：{0}"),
+    ZH_HANT("無法儲存視角：{0}"),
+    KO("뷰를 저장할 수 없습니다: {0}"),
+    DE("Ansichten konnten nicht gespeichert werden: {0}"),
+    FR("Impossible d'enregistrer les vues : {0}"),
+    ES("No se pudieron guardar las vistas: {0}"),
+    PT("Não foi possível salvar as vistas: {0}"),
+    IT("Impossibile salvare le viste: {0}"),
+    NL("Kan de weergaven niet opslaan: {0}"),
+    RU("Не удалось сохранить виды: {0}"),
+    TR("Görünümler kaydedilemedi: {0}"));
+
+// ---- screenshots ----
+
+SS_MSG(screenshot,
+    EN("Screenshot"),    JA("スクリーンショット"), ZH_HANS("截图"),
+    ZH_HANT("截圖"),      KO("스크린샷"),       DE("Screenshot"),
+    FR("Capture"),       ES("Captura"),      PT("Captura"),
+    IT("Screenshot"),    NL("Schermafbeelding"), RU("Снимок"),
+    TR("Ekran görüntüsü"));
+
+SS_MSG(screenshot_help,
+    EN("Render the current view at {0} x {1} and save it in {2}. Training "
+       "keeps running."),
+    JA("現在のビューを {0} x {1} でレンダリングし、{2} に保存します。学習は"
+       "そのまま続きます。"),
+    ZH_HANS("以 {0} x {1} 渲染当前视角并保存到 {2}。训练不会中断。"),
+    ZH_HANT("以 {0} x {1} 算繪目前視角並儲存到 {2}。訓練不會中斷。"),
+    KO("현재 뷰를 {0} x {1}로 렌더링해 {2}에 저장합니다. 학습은 계속됩니다."),
+    DE("Rendert die aktuelle Ansicht mit {0} x {1} und speichert sie in {2}. "
+       "Das Training läuft weiter."),
+    FR("Rend la vue actuelle en {0} x {1} et l'enregistre dans {2}. "
+       "L'entraînement continue."),
+    ES("Renderiza la vista actual a {0} x {1} y la guarda en {2}. El "
+       "entrenamiento sigue."),
+    PT("Renderiza a vista atual em {0} x {1} e a salva em {2}. O treino "
+       "continua."),
+    IT("Esegue il rendering della vista attuale a {0} x {1} e la salva in {2}. "
+       "L'addestramento continua."),
+    NL("Rendert de huidige weergave op {0} x {1} en slaat die op in {2}. De "
+       "training loopt door."),
+    RU("Рендерит текущий вид в {0} x {1} и сохраняет в {2}. Обучение "
+       "продолжается."),
+    TR("Mevcut görünümü {0} x {1} olarak işler ve {2} içine kaydeder. Eğitim "
+       "sürer."));
+
+SS_MSG(screenshot_unavailable,
+    EN("Available in the 3D view once training has started."),
+    JA("学習を開始すると 3D ビューで使えます。"),
+    ZH_HANS("训练开始后可在 3D 视图中使用。"),
+    ZH_HANT("訓練開始後可在 3D 檢視中使用。"),
+    KO("학습을 시작하면 3D 뷰에서 쓸 수 있습니다."),
+    DE("Verfügbar in der 3D-Ansicht, sobald das Training läuft."),
+    FR("Disponible dans la vue 3D une fois l'entraînement lancé."),
+    ES("Disponible en la vista 3D cuando el entrenamiento ha empezado."),
+    PT("Disponível na vista 3D depois que o treino começa."),
+    IT("Disponibile nella vista 3D una volta avviato l'addestramento."),
+    NL("Beschikbaar in de 3D-weergave zodra de training loopt."),
+    RU("Доступно в 3D-виде после начала обучения."),
+    TR("Eğitim başladıktan sonra 3B görünümde kullanılabilir."));
+
+SS_MSG(screenshot_settings,
+    EN("Screenshot settings"),          JA("スクリーンショットの設定"),
+    ZH_HANS("截图设置"),                  ZH_HANT("截圖設定"),
+    KO("스크린샷 설정"),                   DE("Screenshot-Einstellungen"),
+    FR("Réglages de capture"),          ES("Ajustes de captura"),
+    PT("Configurações de captura"),     IT("Impostazioni screenshot"),
+    NL("Instellingen schermafbeelding"), RU("Настройки снимка"),
+    TR("Ekran görüntüsü ayarları"));
+
+SS_MSG(screenshot_folder,
+    EN("Folder"),        JA("フォルダー"),    ZH_HANS("文件夹"),
+    ZH_HANT("資料夾"),    KO("폴더"),          DE("Ordner"),
+    FR("Dossier"),       ES("Carpeta"),      PT("Pasta"),
+    IT("Cartella"),      NL("Map"),          RU("Папка"),
+    TR("Klasör"));
+
+SS_MSG(screenshot_folder_help,
+    EN("A relative folder starts in the dataset folder. Wildcards: {dataset}, "
+       "{run}."),
+    JA("相対パスはデータセットのフォルダーが起点です。ワイルドカード: "
+       "{dataset}、{run}。"),
+    ZH_HANS("相对路径从数据集文件夹开始。通配符：{dataset}、{run}。"),
+    ZH_HANT("相對路徑從資料集資料夾開始。萬用字元：{dataset}、{run}。"),
+    KO("상대 경로는 데이터셋 폴더에서 시작합니다. 와일드카드: {dataset}, {run}."),
+    DE("Ein relativer Ordner beginnt im Datensatzordner. Platzhalter: "
+       "{dataset}, {run}."),
+    FR("Un dossier relatif part du dossier du jeu de données. Jokers : "
+       "{dataset}, {run}."),
+    ES("Una carpeta relativa parte de la carpeta del conjunto de datos. "
+       "Comodines: {dataset}, {run}."),
+    PT("Uma pasta relativa parte da pasta do conjunto de dados. Curingas: "
+       "{dataset}, {run}."),
+    IT("Una cartella relativa parte dalla cartella del dataset. Segnaposto: "
+       "{dataset}, {run}."),
+    NL("Een relatieve map begint in de datasetmap. Jokertekens: {dataset}, "
+       "{run}."),
+    RU("Относительная папка отсчитывается от папки набора данных. Шаблоны: "
+       "{dataset}, {run}."),
+    TR("Göreli bir klasör veri kümesi klasöründen başlar. Joker karakterler: "
+       "{dataset}, {run}."));
+
+SS_MSG(screenshot_name,
+    EN("File name"),     JA("ファイル名"),    ZH_HANS("文件名"),
+    ZH_HANT("檔名"),      KO("파일 이름"),     DE("Dateiname"),
+    FR("Nom du fichier"), ES("Nombre de archivo"), PT("Nome do arquivo"),
+    IT("Nome file"),     NL("Bestandsnaam"), RU("Имя файла"),
+    TR("Dosya adı"));
+
+SS_MSG(screenshot_name_help,
+    EN("Wildcards: {run} run folder, {view} saved view the camera is on (left "
+       "out when there is none), {n} running number, {step} training step, "
+       "{dataset} dataset folder, {date}, {time}."),
+    JA("ワイルドカード: {run} 実行フォルダー、{view} カメラがいる保存ビュー"
+       "（なければ省略）、{n} 連番、{step} 学習ステップ、{dataset} データセット"
+       "のフォルダー、{date}、{time}。"),
+    ZH_HANS("通配符：{run} 运行文件夹，{view} 相机所在的已存视角（没有则省略），"
+            "{n} 序号，{step} 训练步数，{dataset} 数据集文件夹，{date}，{time}。"),
+    ZH_HANT("萬用字元：{run} 執行資料夾，{view} 相機所在的已存視角（沒有則省略），"
+            "{n} 序號，{step} 訓練步數，{dataset} 資料集資料夾，{date}，{time}。"),
+    KO("와일드카드: {run} 실행 폴더, {view} 카메라가 있는 저장된 뷰(없으면 "
+       "생략), {n} 일련번호, {step} 학습 단계, {dataset} 데이터셋 폴더, "
+       "{date}, {time}."),
+    DE("Platzhalter: {run} Lauf-Ordner, {view} gespeicherte Ansicht, auf der "
+       "die Kamera steht (entfällt, wenn keine), {n} laufende Nummer, {step} "
+       "Trainingsschritt, {dataset} Datensatzordner, {date}, {time}."),
+    FR("Jokers : {run} dossier de l'exécution, {view} vue enregistrée où se "
+       "trouve la caméra (omis s'il n'y en a pas), {n} numéro d'ordre, {step} "
+       "étape d'entraînement, {dataset} dossier du jeu de données, {date}, "
+       "{time}."),
+    ES("Comodines: {run} carpeta de la ejecución, {view} vista guardada en la "
+       "que está la cámara (se omite si no hay), {n} número correlativo, "
+       "{step} paso de entrenamiento, {dataset} carpeta del conjunto de "
+       "datos, {date}, {time}."),
+    PT("Curingas: {run} pasta da execução, {view} vista salva em que a câmera "
+       "está (omitido se não houver), {n} número sequencial, {step} passo de "
+       "treino, {dataset} pasta do conjunto de dados, {date}, {time}."),
+    IT("Segnaposto: {run} cartella dell'esecuzione, {view} vista salvata su "
+       "cui si trova la camera (omesso se non c'è), {n} numero progressivo, "
+       "{step} passo di addestramento, {dataset} cartella del dataset, "
+       "{date}, {time}."),
+    NL("Jokertekens: {run} run-map, {view} opgeslagen weergave waarop de "
+       "camera staat (weggelaten als er geen is), {n} volgnummer, {step} "
+       "trainingsstap, {dataset} datasetmap, {date}, {time}."),
+    RU("Шаблоны: {run} папка запуска, {view} сохранённый вид, на котором "
+       "стоит камера (опускается, если его нет), {n} порядковый номер, "
+       "{step} шаг обучения, {dataset} папка набора данных, {date}, {time}."),
+    TR("Joker karakterler: {run} çalıştırma klasörü, {view} kameranın "
+       "bulunduğu kayıtlı görünüm (yoksa atlanır), {n} sıra numarası, {step} "
+       "eğitim adımı, {dataset} veri kümesi klasörü, {date}, {time}."));
+
+SS_MSG(screenshot_format,
+    EN("Format"),        JA("形式"),          ZH_HANS("格式"),
+    ZH_HANT("格式"),      KO("형식"),          DE("Format"),
+    FR("Format"),        ES("Formato"),      PT("Formato"),
+    IT("Formato"),       NL("Formaat"),      RU("Формат"),
+    TR("Biçim"));
+
+SS_MSG(screenshot_quality,
+    EN("JPG quality"),   JA("JPG 品質"),      ZH_HANS("JPG 质量"),
+    ZH_HANT("JPG 品質"),  KO("JPG 품질"),      DE("JPG-Qualität"),
+    FR("Qualité JPG"),   ES("Calidad JPG"),  PT("Qualidade JPG"),
+    IT("Qualità JPG"),   NL("JPG-kwaliteit"), RU("Качество JPG"),
+    TR("JPG kalitesi"));
+
+SS_MSG(screenshot_size,
+    EN("Size in pixels"), JA("サイズ（ピクセル）"), ZH_HANS("尺寸（像素）"),
+    ZH_HANT("尺寸（像素）"), KO("크기(픽셀)"),   DE("Größe in Pixeln"),
+    FR("Taille en pixels"), ES("Tamaño en píxeles"), PT("Tamanho em pixels"),
+    IT("Dimensione in pixel"), NL("Grootte in pixels"), RU("Размер в пикселях"),
+    TR("Piksel cinsinden boyut"));
+
+SS_MSG(screenshot_overlay,
+    EN("Info overlay"),  JA("情報オーバーレイ"), ZH_HANS("信息叠加"),
+    ZH_HANT("資訊疊加"),  KO("정보 오버레이"), DE("Info-Einblendung"),
+    FR("Encart d'infos"), ES("Recuadro de datos"), PT("Quadro de dados"),
+    IT("Riquadro info"), NL("Info-overlay"), RU("Инфо-плашка"),
+    TR("Bilgi kutusu"));
+
+SS_MSG(screenshot_overlay_help,
+    EN("Steps, splats and VRAM in the bottom-right corner of the image."),
+    JA("画像の右下にステップ数、スプラット数、VRAM を表示します。"),
+    ZH_HANS("在图像右下角显示步数、泼溅数和显存。"),
+    ZH_HANT("在影像右下角顯示步數、潑濺數和顯示記憶體。"),
+    KO("이미지 오른쪽 아래에 단계, 스플랫, VRAM을 표시합니다."),
+    DE("Schritte, Splats und VRAM in der rechten unteren Bildecke."),
+    FR("Étapes, splats et VRAM dans le coin inférieur droit de l'image."),
+    ES("Pasos, splats y VRAM en la esquina inferior derecha de la imagen."),
+    PT("Passos, splats e VRAM no canto inferior direito da imagem."),
+    IT("Passi, splat e VRAM nell'angolo in basso a destra dell'immagine."),
+    NL("Stappen, splats en VRAM in de rechteronderhoek van het beeld."),
+    RU("Шаги, сплаты и видеопамять в правом нижнем углу изображения."),
+    TR("Görüntünün sağ alt köşesinde adımlar, splat'ler ve VRAM."));
+
+SS_MSG(screenshot_defaults,
+    EN("Reset to defaults"),            JA("既定に戻す"),
+    ZH_HANS("恢复默认值"),                ZH_HANT("還原預設值"),
+    KO("기본값으로 재설정"),               DE("Auf Standard zurücksetzen"),
+    FR("Valeurs par défaut"),           ES("Restablecer valores"),
+    PT("Restaurar padrões"),            IT("Ripristina predefiniti"),
+    NL("Standaard herstellen"),         RU("Сбросить по умолчанию"),
+    TR("Varsayılanlara dön"));
+
+SS_MSG(screenshot_saved,
+    EN("Screenshot saved: {0}"),        JA("スクリーンショットを保存しました: {0}"),
+    ZH_HANS("截图已保存：{0}"),           ZH_HANT("截圖已儲存：{0}"),
+    KO("스크린샷 저장됨: {0}"),            DE("Screenshot gespeichert: {0}"),
+    FR("Capture enregistrée : {0}"),    ES("Captura guardada: {0}"),
+    PT("Captura salva: {0}"),           IT("Screenshot salvato: {0}"),
+    NL("Schermafbeelding opgeslagen: {0}"), RU("Снимок сохранён: {0}"),
+    TR("Ekran görüntüsü kaydedildi: {0}"));
+
+SS_MSG(screenshot_failed,
+    EN("Screenshot failed: {0}"),       JA("スクリーンショットに失敗しました: {0}"),
+    ZH_HANS("截图失败：{0}"),             ZH_HANT("截圖失敗：{0}"),
+    KO("스크린샷 실패: {0}"),              DE("Screenshot fehlgeschlagen: {0}"),
+    FR("Échec de la capture : {0}"),    ES("Error en la captura: {0}"),
+    PT("Falha na captura: {0}"),        IT("Screenshot non riuscito: {0}"),
+    NL("Schermafbeelding mislukt: {0}"), RU("Не удалось сделать снимок: {0}"),
+    TR("Ekran görüntüsü alınamadı: {0}"));
+
+SS_MSG(screenshot_viewer_help,
+    EN("Render every open splat model at {0} x {1} from the current view and "
+       "save each in its own dataset's screenshot folder. Step and splat cap "
+       "come from the run folder the file is in."),
+    JA("開いているすべてのスプラットモデルを現在のビューから {0} x {1} で"
+       "レンダリングし、それぞれのデータセットのスクリーンショットフォルダーに"
+       "保存します。ステップとスプラット上限はファイルのある実行フォルダーから"
+       "取得します。"),
+    ZH_HANS("以 {0} x {1} 从当前视角渲染每个打开的泼溅模型，并分别保存到各自"
+            "数据集的截图文件夹。步数和泼溅上限取自文件所在的运行文件夹。"),
+    ZH_HANT("以 {0} x {1} 從目前視角算繪每個開啟的潑濺模型，並分別儲存到各自"
+            "資料集的截圖資料夾。步數和潑濺上限取自檔案所在的執行資料夾。"),
+    KO("열려 있는 모든 스플랫 모델을 현재 뷰에서 {0} x {1}로 렌더링해 각 "
+       "데이터셋의 스크린샷 폴더에 저장합니다. 단계와 스플랫 상한은 파일이 있는 "
+       "실행 폴더에서 가져옵니다."),
+    DE("Rendert jedes geöffnete Splat-Modell mit {0} x {1} aus der aktuellen "
+       "Ansicht und speichert es im Screenshot-Ordner seines eigenen "
+       "Datensatzes. Schritt und Splat-Obergrenze stammen aus dem Lauf-Ordner "
+       "der Datei."),
+    FR("Rend chaque modèle de splats ouvert en {0} x {1} depuis la vue "
+       "actuelle et l'enregistre dans le dossier de captures de son propre jeu "
+       "de données. L'étape et la limite de splats viennent du dossier "
+       "d'exécution du fichier."),
+    ES("Renderiza cada modelo de splats abierto a {0} x {1} desde la vista "
+       "actual y lo guarda en la carpeta de capturas de su propio conjunto de "
+       "datos. El paso y el límite de splats vienen de la carpeta de ejecución "
+       "del archivo."),
+    PT("Renderiza cada modelo de splats aberto em {0} x {1} a partir da vista "
+       "atual e o salva na pasta de capturas do próprio conjunto de dados. O "
+       "passo e o limite de splats vêm da pasta de execução do arquivo."),
+    IT("Esegue il rendering di ogni modello di splat aperto a {0} x {1} dalla "
+       "vista attuale e lo salva nella cartella screenshot del proprio "
+       "dataset. Passo e limite di splat vengono dalla cartella "
+       "dell'esecuzione del file."),
+    NL("Rendert elk geopend splat-model op {0} x {1} vanuit de huidige "
+       "weergave en slaat het op in de screenshotmap van de eigen dataset. "
+       "Stap en splat-limiet komen uit de run-map van het bestand."),
+    RU("Рендерит каждую открытую модель сплатов в {0} x {1} из текущего вида "
+       "и сохраняет её в папку снимков её набора данных. Шаг и предел сплатов "
+       "берутся из папки запуска, где лежит файл."),
+    TR("Açık her splat modelini mevcut görünümden {0} x {1} olarak işler ve "
+       "her birini kendi veri kümesinin ekran görüntüsü klasörüne kaydeder. "
+       "Adım ve splat sınırı dosyanın bulunduğu çalıştırma klasöründen alınır."));
+
+SS_MSG(screenshot_viewer_unavailable,
+    EN("Open a splat model first."),    JA("先にスプラットモデルを開いてください。"),
+    ZH_HANS("请先打开一个泼溅模型。"),      ZH_HANT("請先開啟一個潑濺模型。"),
+    KO("먼저 스플랫 모델을 여세요."),       DE("Zuerst ein Splat-Modell öffnen."),
+    FR("Ouvrez d'abord un modèle de splats."), ES("Abre primero un modelo de splats."),
+    PT("Abra primeiro um modelo de splats."), IT("Apri prima un modello di splat."),
+    NL("Open eerst een splat-model."),  RU("Сначала откройте модель сплатов."),
+    TR("Önce bir splat modeli açın."));
 
 }  // namespace gui
 }  // namespace msg

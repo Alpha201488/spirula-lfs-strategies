@@ -2,10 +2,12 @@
 
 #include "app/webviewer/RenderWorker.h"
 
+#include "backend/api/BackendRuntime.h"
 #include "engine/Engine.h"    // engine render + viewer entry points
 #include "core/Camera.h"    // camera_model_from_name
 #include "app/DepthColor.h"  // error_scale -- shared with the error pane
 #include "data/FrustumSize.h"
+#include "app/webviewer/RegionOverlay.h"
 
 #include <algorithm>
 #include <atomic>
@@ -27,6 +29,11 @@ TorchTensorView tvp(const void* p, uint32_t elem_size, std::vector<int64_t> shap
     return {(uint64_t)(uintptr_t)p, elem_size, std::move(shape)};
 }
 TorchTensorView tv_null() { return {0, 0, {}}; }
+
+bool remaps(const std::array<float, 16>& T) {
+    static const std::array<float, 16> kI{1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+    return T != kI;
+}
 
 // Grow-only device buffer (viewer scratch; a handful per worker, so no pool).
 struct DevBuf {
@@ -75,6 +82,8 @@ struct RenderWorker::Impl {
     bool has_pending = false;
     PendingReq pending;
     ViewResult result;
+    std::vector<float> raw_rgb, raw_ts;   // the worker thread's own
+    std::shared_ptr<const spirula::RegionOverlay> overlay;   // under mu
     uint64_t next_id = 1;
 
     // Device scratch (worker thread only).
@@ -112,6 +121,17 @@ struct RenderWorker::Impl {
         return true;
     }
 
+    bool take_result(uint64_t id, ViewResult& out, double timeout_s) {
+        std::unique_lock<std::mutex> lk(mu);
+        if (timeout_s > 0.0)
+            cv_result.wait_for(lk, std::chrono::duration<double>(timeout_s),
+                               [&] { return result.id == id; });
+        if (result.id != id) return false;
+        out = std::move(result);
+        result = ViewResult{};
+        return true;
+    }
+
     void worker_loop() {
         while (running) {
             PendingReq p;
@@ -128,7 +148,14 @@ struct RenderWorker::Impl {
             res.H = p.q.H;
             const auto t0 = std::chrono::steady_clock::now();
             try {
-                res.rgb8 = render_once(p.q, res);
+#ifndef SS_BACKEND_VULKAN
+                // CUDA current-device state is per thread; bind before device work.
+                if (!backend::device_bind())
+                    throw std::runtime_error(
+                        "viewer: the selected GPU is not usable on this thread");
+#endif
+                if (p.q.raw) res.rgba8 = render_raw(p.q);
+                else res.rgb8 = render_once(p.q, res);
             } catch (const std::exception& e) {
                 std::fprintf(stderr, "[viewer] render error: %s\n", e.what());
                 res.error = e.what();
@@ -148,6 +175,91 @@ struct RenderWorker::Impl {
         }
     }
 
+    // c2w (client frame, OpenGL axes) -> the engine's world-to-camera, with
+    // the train-frame remap and the relative scale applied.
+    void engine_viewmat(const float in_c2w[12], float vm[16]) const {
+        static const float D[3] = {1.f, -1.f, -1.f};
+        float c2w[12];
+        std::memcpy(c2w, in_c2w, sizeof c2w);
+        if (remaps(cfg.train_to_normalized)) {
+            const auto& T = cfg.train_to_normalized;
+            double s = std::sqrt((double)T[0]*T[0] + (double)T[4]*T[4] + (double)T[8]*T[8]);
+            for (int r = 0; r < 3; r++) {
+                for (int c = 0; c < 3; c++) {
+                    double v = 0.0;
+                    for (int m = 0; m < 3; m++) v += (double)T[r*4 + m] / s * in_c2w[m*4 + c];
+                    c2w[r*4 + c] = (float)v;
+                }
+                double t = T[r*4 + 3];
+                for (int m = 0; m < 3; m++) t += (double)T[r*4 + m] * in_c2w[m*4 + 3];
+                c2w[r*4 + 3] = (float)t;
+            }
+        }
+        double t[3] = {c2w[3], c2w[7], c2w[11]};
+        if (cfg.relative_scale.has_value())
+            for (auto& v : t) v *= *cfg.relative_scale;
+        std::memset(vm, 0, 16 * sizeof(float));
+        for (int r = 0; r < 3; r++) {
+            double ti = 0.0;
+            for (int c = 0; c < 3; c++) {
+                const double rf = c2w[c*4 + r] * D[r];
+                vm[r*4 + c] = (float)rf;
+                ti -= rf * t[c];
+            }
+            vm[r*4 + 3] = (float)ti;
+        }
+        vm[15] = 1.f;
+    }
+
+    std::vector<uint8_t> render_raw(const ViewRequest& q) {
+        const int W = q.W, H = q.H;
+        const int64_t npx = (int64_t)W * H;
+        float vm[16];
+        engine_viewmat(q.c2w, vm);
+        float intr[4] = {q.fx, q.fy, q.cx, q.cy};
+        float dist[8];
+        std::memcpy(dist, q.dist, sizeof dist);
+        const int sh_deg = q.sh_degree >= 0 ? q.sh_degree : 100;
+        const std::string& primitive = q.primitive.empty() ? cfg.primitive : q.primitive;
+        // Kept between frames: an export asks for hundreds at one size.
+        std::vector<float>& rgb = raw_rgb;
+        std::vector<float>& Ts = raw_ts;
+        rgb.resize((size_t)npx * 3);
+        Ts.resize((size_t)npx);
+        {
+            std::lock_guard<std::mutex> lk(*hooks.engine_mutex);
+            if (cfg.scene_slot >= 0) engine_scene_activate(cfg.scene_slot);
+            // The restore has to run whatever the render does.
+            struct After {
+                const std::function<void()>& f;
+                ~After() { if (f) f(); }
+            } after{q.after_render};
+            if (q.before_render) q.before_render();
+            set_camera_params(W, H, q.model, q.distortion,
+                              tvp(vm, 4, {1, 4, 4}),
+                              tvp(intr, 4, {1, 4}),
+                              tvp(dist, 4, {1, 8}));
+            forward_3dgs(primitive, sh_deg, cfg.packed, false, 0);
+            engine_copy_render_to_host(tvp(rgb.data(), 4, {1, H, W, 3}), tv_null(),
+                                       tvp(Ts.data(), 4, {1, H, W, 1}),
+                                       tv_null(), tv_null());
+        }
+        std::vector<uint8_t> out((size_t)npx * 4);
+        auto to8 = [](float v) {
+            return (uint8_t)(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
+        };
+#pragma omp parallel for schedule(static)
+        for (int64_t i = 0; i < npx; i++) {
+            const float a = std::clamp(1.0f - Ts[(size_t)i], 0.0f, 1.0f);
+            // Premultiplied: a colour brighter than its coverage is clamped
+            // to it, or the edge of a faint splat would glow once composited.
+            for (int c = 0; c < 3; c++)
+                out[(size_t)i * 4 + c] = to8(std::min(rgb[(size_t)i * 3 + c], a));
+            out[(size_t)i * 4 + 3] = to8(a);
+        }
+        return out;
+    }
+
     // ---- the actual render (trainer._render + get_outputs viewer subset) ---
 
     std::vector<uint8_t> render_once(const ViewRequest& q, ViewResult& res) {
@@ -160,7 +272,7 @@ struct RenderWorker::Impl {
         // position, unit rotation on the basis.
         float c2w[12];
         std::memcpy(c2w, q.c2w, sizeof c2w);
-        if (cfg.train_frame_scale != 1.0f) {
+        if (remaps(cfg.train_to_normalized)) {
             const auto& T = cfg.train_to_normalized;
             double s = std::sqrt((double)T[0]*T[0] + (double)T[4]*T[4] + (double)T[8]*T[8]);
             float out[12];
@@ -182,7 +294,7 @@ struct RenderWorker::Impl {
         float grid_dist = q.grid_dist * cfg.train_frame_scale;
         float grid_target[3] = {q.grid_target[0], q.grid_target[1],
                                 q.grid_target[2]};
-        if (cfg.train_frame_scale != 1.0f) {
+        if (remaps(cfg.train_to_normalized)) {
             const auto& T = cfg.train_to_normalized;
             for (int r = 0; r < 3; r++)
                 grid_target[r] = T[r*4+0]*q.grid_target[0] +
@@ -306,7 +418,7 @@ struct RenderWorker::Impl {
                                                  c2w[r*4+2]*dcv[2]);
                     // Train -> client normalized frame (inverse similarity,
                     // same gating as the forward remap above).
-                    if (cfg.train_frame_scale != 1.0f) {
+                    if (remaps(cfg.train_to_normalized)) {
                         const auto& T = cfg.train_to_normalized;
                         double s2 = (double)T[0]*T[0] + (double)T[4]*T[4] +
                                     (double)T[8]*T[8];
@@ -432,6 +544,19 @@ struct RenderWorker::Impl {
                                  backend::MemcpyKind::DeviceToHost);
             if (backend::last_error())
                 throw std::runtime_error("viewer: blit D2H failed");
+            std::shared_ptr<const spirula::RegionOverlay> ov;
+            if (q.show_roi && q.model == "PINHOLE") {
+                std::lock_guard<std::mutex> lk(mu);
+                ov = overlay;
+            }
+            if (ov) {
+                std::vector<float> scene((size_t)npx);
+                for (int64_t i = 0; i < npx; i++) {
+                    const float a = alpha3[(size_t)i * 3];
+                    scene[(size_t)i] = a > 0.1f ? depth[(size_t)i] / std::min(a / 0.5f, 1.0f) : 0.0f;
+                }
+                spirula::draw_region_overlay(*ov, out_host.data(), W, H, scene.data(), c2w, q.fx, q.fy, q.cx, q.cy);
+            }
         }
         return out_host;
     }
@@ -470,7 +595,16 @@ bool RenderWorker::try_get_result(uint64_t id, ViewResult& out) {
     return _impl->try_get_result(id, out);
 }
 
+bool RenderWorker::take_result(uint64_t id, ViewResult& out, double timeout_s) {
+    return _impl->take_result(id, out, timeout_s);
+}
+
 const ViewerRenderConfig& RenderWorker::config() const { return _impl->cfg; }
+
+void RenderWorker::set_region_overlay(std::shared_ptr<const spirula::RegionOverlay> ov) {
+    std::lock_guard<std::mutex> lk(_impl->mu);
+    _impl->overlay = std::move(ov);
+}
 
 std::vector<std::string> RenderWorker::buffer_keys() const {
     std::vector<std::string> keys = {"rgb"};
@@ -547,6 +681,38 @@ bool viewer_pixel_ray(int camera_model, float u, float v, float dir[3]) {
     dir[0] = u / n;
     dir[1] = v / n;
     dir[2] = 1.0f / n;
+    return true;
+}
+
+bool viewer_ray_pixel(int camera_model, const float dir[3], float& u, float& v) {
+    constexpr float kPi = 3.14159265358979323846f;
+    const float x = dir[0], y = dir[1], z = dir[2];
+    const float len = std::sqrt(x*x + y*y + z*z);
+    if (!(len > 0.0f)) return false;
+    if (camera_model == 3) {                       // equirectangular
+        u = std::atan2(x, z);
+        v = std::asin(std::clamp(y / len, -1.0f, 1.0f));
+        return true;
+    }
+    if (camera_model == 0) {                       // pinhole
+        if (z <= 1e-9f) return false;
+        u = x / z;
+        v = y / z;
+        return true;
+    }
+    const float r_xy = std::sqrt(x*x + y*y);
+    const float theta = std::atan2(r_xy, z);       // angle off the axis
+    float r;
+    if (camera_model == 1) {                       // fisheye (equidistant)
+        if (theta >= kPi) return false;
+        r = theta;
+    } else {                                       // equisolid
+        r = 2.0f * std::sin(0.5f * theta);
+        if (r >= 2.0f) return false;
+    }
+    const float s = r_xy > 1e-12f ? r / r_xy : 0.0f;
+    u = x * s;
+    v = y * s;
     return true;
 }
 

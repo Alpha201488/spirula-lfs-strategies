@@ -1353,6 +1353,48 @@ SS_MSG(help_data_format,
     RU("colmap|nerfstudio|metashape (по умолчанию: определить самому)"),
     TR("colmap|nerfstudio|metashape (varsayılan: kendi bulsun)"));
 
+SS_MSG(help_device,
+    EN("GPU to run on: an index, part of a name, `auto`, or\n"
+       "uuid:<32 hex digits> (default: the environment, then auto)"),
+    JA("使用する GPU: 番号、名前の一部、`auto`、\n"
+       "または uuid:<32 桁の 16 進数>（既定: 環境変数、次に自動）"),
+    ZH_HANS("要使用的 GPU：序号、名称的一部分、`auto`，\n"
+            "或 uuid:<32 位十六进制>（默认：环境变量，然后自动）"),
+    ZH_HANT("要使用的 GPU：序號、名稱的一部分、`auto`，\n"
+            "或 uuid:<32 位十六進位>（預設：環境變數，然後自動）"),
+    KO("사용할 GPU: 번호, 이름의 일부, `auto`, 또는\n"
+       "uuid:<32자리 16진수> (기본값: 환경 변수, 그다음 자동)"),
+    DE("GPU, auf der gerechnet wird: ein Index, ein Teil des Namens, `auto` "
+       "oder\nuuid:<32 Hexziffern> (Vorgabe: die Umgebung, dann automatisch)"),
+    FR("GPU à utiliser : un indice, une partie d'un nom, `auto`, ou\n"
+       "uuid:<32 chiffres hexadécimaux> (défaut : l'environnement, puis auto)"),
+    ES("GPU que se usará: un índice, parte de un nombre, `auto`, o\n"
+       "uuid:<32 dígitos hexadecimales> (por defecto: el entorno, luego auto)"),
+    PT("GPU a usar: um índice, parte de um nome, `auto`, ou\n"
+       "uuid:<32 dígitos hexadecimais> (padrão: o ambiente, depois auto)"),
+    IT("GPU da usare: un indice, parte di un nome, `auto`, o\n"
+       "uuid:<32 cifre esadecimali> (predefinito: l'ambiente, poi automatico)"),
+    NL("GPU om op te rekenen: een index, deel van een naam, `auto`, of\n"
+       "uuid:<32 hexcijfers> (standaard: de omgeving, dan automatisch)"),
+    RU("GPU для работы: номер, часть имени, `auto` или\n"
+       "uuid:<32 шестнадцатеричные цифры> (по умолчанию: окружение, затем авто)"),
+    TR("Üzerinde çalışılacak GPU: bir sıra, adın bir parçası, `auto` veya\n"
+       "uuid:<32 onaltılık basamak> (varsayılan: ortam, sonra otomatik)"));
+SS_MSG(help_device_cuda,
+    EN("CUDA device index to run on (default: the current CUDA device)"),
+    JA("使用する CUDA デバイス番号（既定: 現在の CUDA デバイス）"),
+    ZH_HANS("要使用的 CUDA 设备序号（默认：当前 CUDA 设备）"),
+    ZH_HANT("要使用的 CUDA 裝置序號（預設：目前 CUDA 裝置）"),
+    KO("사용할 CUDA 장치 번호(기본값: 현재 CUDA 장치)"),
+    DE("CUDA-Geräteindex für die Ausführung (Vorgabe: aktuelles CUDA-Gerät)"),
+    FR("indice du périphérique CUDA à utiliser (défaut : périphérique CUDA courant)"),
+    ES("índice del dispositivo CUDA que se usará (por defecto: dispositivo CUDA actual)"),
+    PT("índice do dispositivo CUDA a usar (padrão: dispositivo CUDA atual)"),
+    IT("indice del dispositivo CUDA da usare (predefinito: dispositivo CUDA corrente)"),
+    NL("CUDA-apparaatindex om op te draaien (standaard: huidige CUDA-apparaat)"),
+    RU("индекс CUDA-устройства (по умолчанию: текущее CUDA-устройство)"),
+    TR("çalıştırılacak CUDA aygıtı dizini (varsayılan: geçerli CUDA aygıtı)"));
+
 SS_MSG(help_output,
     EN("output base path (default: <checkpoint>/mesh);\n"
        "a known extension is stripped"),
@@ -1382,86 +1424,104 @@ SS_MSG(help_output,
        "bilinen bir uzantı kırpılır"));
 
 SS_MSG(help_format,
-    EN("comma-separated: ply,obj,gltf,glb [{0}].\n"
+    EN("comma-separated: ply,obj,gltf,glb,stl [{0}].\n"
        "With --color texture a format may carry a texture\n"
        "encoding: glb+png (default), glb+jpg (JPEG q95),\n"
        "glb+jpeg75 (JPEG q75)"),
-    JA("カンマ区切り: ply,obj,gltf,glb [{0}]。\n"
+    JA("カンマ区切り: ply,obj,gltf,glb,stl [{0}]。\n"
        "--color texture のときは形式にテクスチャの符号化を\n"
        "付けられます: glb+png（既定）、glb+jpg（JPEG q95）、\n"
        "glb+jpeg75（JPEG q75）"),
-    ZH_HANS("逗号分隔：ply,obj,gltf,glb [{0}]。\n"
+    ZH_HANS("逗号分隔：ply,obj,gltf,glb,stl [{0}]。\n"
             "配合 --color texture 时，格式后可加纹理编码：\n"
             "glb+png（默认）、glb+jpg（JPEG q95）、\n"
             "glb+jpeg75（JPEG q75）"),
-    ZH_HANT("逗號分隔：ply,obj,gltf,glb [{0}]。\n"
+    ZH_HANT("逗號分隔：ply,obj,gltf,glb,stl [{0}]。\n"
             "搭配 --color texture 時，格式後可加紋理編碼：\n"
             "glb+png（預設）、glb+jpg（JPEG q95）、\n"
             "glb+jpeg75（JPEG q75）"),
-    KO("쉼표로 구분: ply,obj,gltf,glb [{0}].\n"
+    KO("쉼표로 구분: ply,obj,gltf,glb,stl [{0}].\n"
        "--color texture 일 때는 형식에 텍스처 부호화를 붙일 수\n"
        "있습니다: glb+png(기본), glb+jpg(JPEG q95),\n"
        "glb+jpeg75(JPEG q75)"),
-    DE("kommagetrennt: ply,obj,gltf,glb [{0}].\n"
+    DE("kommagetrennt: ply,obj,gltf,glb,stl [{0}].\n"
        "Mit --color texture kann ein Format eine\n"
        "Texturkodierung tragen: glb+png (Vorgabe),\n"
        "glb+jpg (JPEG q95), glb+jpeg75 (JPEG q75)"),
-    FR("séparés par des virgules : ply,obj,gltf,glb [{0}].\n"
+    FR("séparés par des virgules : ply,obj,gltf,glb,stl [{0}].\n"
        "Avec --color texture, un format peut porter un\n"
        "encodage de texture : glb+png (défaut),\n"
        "glb+jpg (JPEG q95), glb+jpeg75 (JPEG q75)"),
-    ES("separados por comas: ply,obj,gltf,glb [{0}].\n"
+    ES("separados por comas: ply,obj,gltf,glb,stl [{0}].\n"
        "Con --color texture, un formato puede llevar una\n"
        "codificación de textura: glb+png (por defecto),\n"
        "glb+jpg (JPEG q95), glb+jpeg75 (JPEG q75)"),
-    PT("separados por vírgulas: ply,obj,gltf,glb [{0}].\n"
+    PT("separados por vírgulas: ply,obj,gltf,glb,stl [{0}].\n"
        "Com --color texture, um formato pode levar uma\n"
        "codificação de textura: glb+png (padrão),\n"
        "glb+jpg (JPEG q95), glb+jpeg75 (JPEG q75)"),
-    IT("separati da virgole: ply,obj,gltf,glb [{0}].\n"
+    IT("separati da virgole: ply,obj,gltf,glb,stl [{0}].\n"
        "Con --color texture un formato può portare una\n"
        "codifica di texture: glb+png (predefinito),\n"
        "glb+jpg (JPEG q95), glb+jpeg75 (JPEG q75)"),
-    NL("kommagescheiden: ply,obj,gltf,glb [{0}].\n"
+    NL("kommagescheiden: ply,obj,gltf,glb,stl [{0}].\n"
        "Met --color texture kan een formaat een\n"
        "textuurcodering dragen: glb+png (standaard),\n"
        "glb+jpg (JPEG q95), glb+jpeg75 (JPEG q75)"),
-    RU("через запятую: ply,obj,gltf,glb [{0}].\n"
+    RU("через запятую: ply,obj,gltf,glb,stl [{0}].\n"
        "С --color texture формат может нести кодировку\n"
        "текстуры: glb+png (по умолчанию), glb+jpg (JPEG q95),\n"
        "glb+jpeg75 (JPEG q75)"),
-    TR("virgülle ayrılmış: ply,obj,gltf,glb [{0}].\n"
+    TR("virgülle ayrılmış: ply,obj,gltf,glb,stl [{0}].\n"
        "--color texture ile bir biçim doku kodlaması\n"
        "taşıyabilir: glb+png (varsayılan), glb+jpg (JPEG q95),\n"
        "glb+jpeg75 (JPEG q75)"));
 
 SS_MSG(help_color,
-    EN("none|vertex|texture [{0}]\n"
-       "(PLY with a texture, and OBJ with vertex colors, are refused)"),
-    JA("none|vertex|texture [{0}]\n"
-       "（PLY にテクスチャ、OBJ に頂点色の組み合わせは拒否されます）"),
-    ZH_HANS("none|vertex|texture [{0}]\n"
-            "（PLY 配纹理、OBJ 配顶点色都会被拒绝）"),
-    ZH_HANT("none|vertex|texture [{0}]\n"
-            "（PLY 配紋理、OBJ 配頂點色都會被拒絕）"),
-    KO("none|vertex|texture [{0}]\n"
-       "(텍스처를 붙인 PLY, 정점 색을 붙인 OBJ 는 거부됩니다)"),
-    DE("none|vertex|texture [{0}]\n"
-       "(PLY mit Textur und OBJ mit Eckenfarben werden abgelehnt)"),
-    FR("none|vertex|texture [{0}]\n"
-       "(PLY avec texture, et OBJ avec couleurs de sommets, sont refusés)"),
-    ES("none|vertex|texture [{0}]\n"
-       "(se rechazan PLY con textura y OBJ con colores de vértice)"),
-    PT("none|vertex|texture [{0}]\n"
-       "(PLY com textura, e OBJ com cores de vértice, são recusados)"),
-    IT("none|vertex|texture [{0}]\n"
-       "(PLY con texture e OBJ con colori per vertice sono rifiutati)"),
-    NL("none|vertex|texture [{0}]\n"
-       "(PLY met textuur en OBJ met hoekpuntkleuren worden geweigerd)"),
-    RU("none|vertex|texture [{0}]\n"
-       "(PLY с текстурой и OBJ с цветами вершин отклоняются)"),
-    TR("none|vertex|texture [{0}]\n"
-       "(dokulu PLY ve köşe renkli OBJ kabul edilmez)"));
+    EN("comma-separated: none,vertex,texture [{0}]\n"
+       "(one run may write several; a pair no format can\n"
+       "carry, such as PLY with a texture, is skipped)"),
+    JA("カンマ区切り: none,vertex,texture [{0}]\n"
+       "（1 回の実行で複数書けます。PLY にテクスチャのように\n"
+       "形式が持てない組み合わせは飛ばします）"),
+    ZH_HANS("逗号分隔：none,vertex,texture [{0}]\n"
+            "（一次运行可写多个；格式装不下的组合，\n"
+            "例如 PLY 配纹理，会跳过）"),
+    ZH_HANT("逗號分隔：none,vertex,texture [{0}]\n"
+            "（一次執行可寫多個；格式裝不下的組合，\n"
+            "例如 PLY 配紋理，會跳過）"),
+    KO("쉼표로 구분: none,vertex,texture [{0}]\n"
+       "(한 번의 실행으로 여러 개를 쓸 수 있으며, 텍스처를 붙인\n"
+       "PLY 처럼 형식이 담을 수 없는 조합은 건너뜁니다)"),
+    DE("kommagetrennt: none,vertex,texture [{0}]\n"
+       "(ein Lauf kann mehrere schreiben; ein Paar, das kein\n"
+       "Format tragen kann, etwa PLY mit Textur, wird\n"
+       "übersprungen)"),
+    FR("séparés par des virgules : none,vertex,texture [{0}]\n"
+       "(une exécution peut en écrire plusieurs ; une paire\n"
+       "qu'aucun format ne porte, comme PLY avec texture,\n"
+       "est ignorée)"),
+    ES("separados por comas: none,vertex,texture [{0}]\n"
+       "(una ejecución puede escribir varios; un par que\n"
+       "ningún formato admite, como PLY con textura, se omite)"),
+    PT("separados por vírgulas: none,vertex,texture [{0}]\n"
+       "(uma execução pode escrever vários; um par que nenhum\n"
+       "formato aceita, como PLY com textura, é ignorado)"),
+    IT("separati da virgole: none,vertex,texture [{0}]\n"
+       "(un'esecuzione può scriverne più di uno; una coppia che\n"
+       "nessun formato può portare, come PLY con texture,\n"
+       "viene saltata)"),
+    NL("kommagescheiden: none,vertex,texture [{0}]\n"
+       "(één run kan er meerdere schrijven; een paar dat geen\n"
+       "formaat kan dragen, zoals PLY met textuur, wordt\n"
+       "overgeslagen)"),
+    RU("через запятую: none,vertex,texture [{0}]\n"
+       "(за один запуск можно записать несколько; пара, которую\n"
+       "не несёт ни один формат, например PLY с текстурой,\n"
+       "пропускается)"),
+    TR("virgülle ayrılmış: none,vertex,texture [{0}]\n"
+       "(bir çalıştırma birkaçını yazabilir; hiçbir biçimin\n"
+       "taşıyamadığı bir çift, dokulu PLY gibi, atlanır)"));
 
 SS_MSG(help_texture_size,
     EN("texture atlas resolution; 0 takes it from the\n"

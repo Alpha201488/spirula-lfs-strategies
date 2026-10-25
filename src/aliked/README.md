@@ -100,10 +100,10 @@ numeric path under a kernel that currently has one.
 ## Testing
 
 ```bash
-./build/aliked_test                    # cached checkpoints, or SKIP
-./build/aliked_test --fetch            # download from COLMAP's releases
-./build/aliked_test --image IMG.jpg --out /tmp/ours.bin
-./build/aliked_test --match /tmp/a.bin /tmp/b.bin   # LightGlue on two dumps
+./build_vulkan/aliked_test                    # cached checkpoints, or SKIP
+./build_vulkan/aliked_test --fetch            # download from COLMAP's releases
+./build_vulkan/aliked_test --image IMG.jpg --out /tmp/ours.bin
+./build_vulkan/aliked_test --match /tmp/a.bin /tmp/b.bin   # LightGlue on two dumps
 ```
 
 The checkpoint gate is strict about *shapes* — we do not own these weights and
@@ -116,7 +116,7 @@ ONNX support:
 ```bash
 colmap feature_extractor --database_path /tmp/db.db --image_path IMAGES \
     --FeatureExtraction.type ALIKED_N16ROT
-./build/aliked_test --image IMAGES/x.jpg --out /tmp/ours.bin
+./build_vulkan/aliked_test --image IMAGES/x.jpg --out /tmp/ours.bin
 python3 tools/aliked/compare_colmap.py /tmp/db.db /tmp/ours.bin
 ```
 

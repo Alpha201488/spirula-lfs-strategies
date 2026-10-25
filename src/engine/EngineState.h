@@ -5,6 +5,8 @@
 // Sub-structs group related fields (world, camera, fwd, gt, grad, optim,
 // bilagrid_rgb/depth/normal, ppisp). The singleton lives in EngineState.cpp.
 
+#include "core/ColorBasis.h"
+#include "core/PixelFormat.h"
 #include "core/Tensor.h"
 
 #include "engine/EngineConfig.h"  // StrategyId / DensifyConfig
@@ -48,6 +50,7 @@ inline DistortionType engine_distortion_type(
     if (want_rgb)                return DistortionType::RGB_D;
     return DistortionType::D;
 }
+#include "kernels/pixelwise/PixelWise.cuh"
 #include "kernels/projection/ProjectionBwd.cuh"
 #include "kernels/projection/ProjectionFwd.cuh"
 #include "kernels/projection/ProjectionPackedFwd.cuh"
@@ -120,6 +123,9 @@ struct WorldSplats {
     QuantizedTensor<16, 256> features_sh_quant16_fpbo;
     int  sh_value_bits = 32;
     bool sh_value_quantize_enabled() const { return sh_value_bits != 32; }
+    // features_sh was uploaded with values the codec must take over (lobes,
+    // an --init-ply's bands) rather than the zeros its init assumes.
+    bool features_sh_seeded = false;
 };
 
 // Camera table (re-copied each frame into pool).
@@ -156,6 +162,28 @@ struct ForwardCache {
     DeviceTensor3D<float>             render_median; // [C,H,W] median depth, empty if not requested
     DeviceTensor3D<int32_t>           last_ids;
     RenderOutput::TensorTuple         renders;
+    // The rasterizer's own colour; renders.rgb is what the appearance stages
+    // made of it, and the raster backward needs the former.
+    DeviceTensor3D<float3>            raw_rgb;
+    // A float16 copy of it, made by the appearance chain of a forward that
+    // stores its images compact; the backward then reads only this one.
+    DeviceTensor3D<float3>            raw_rgb16;
+    // Armed by a training step none of whose terms reads the rendered depth,
+    // and cleared by the forward it applies to.
+    bool                              skip_depth_pending = false;
+    // LossConfig::raster_kernel_cut of the training step in flight, for its forward and
+    // backward; 0 outside one, so every other render is the full gaussian.
+    float                             kernel_cut = 0.0f;
+    // Armed like the above by a step that fits the learned densification
+    // score; the forward then renders render_score (else leaves it empty).
+    bool                              score_pending = false;
+    DeviceTensor3D<float>             render_score;  // [C,H,W]
+    // What the stages after the rasterizer write (armed like the above, by a
+    // training step that stores its images compact), and how renders.rgb is
+    // stored now; its shape holds whatever the format.
+    PixelFormat                       image_fmt_pending = PixelFormat::F32;
+    PixelFormat                       image_fmt = PixelFormat::F32;
+    PixelFormat                       rgb_fmt = PixelFormat::F32;
     RenderOutput::TensorTuple         distortions;  // [C,H,W,...] D=W*S-C^2, only the dist_type channels allocated
     DistortionType                    dist_type = DistortionType::None;  // which distortion channels the forward emitted
     DeviceVector<float>               accum_weight; // [max_num_splats] per-splat score from raster bwd
@@ -176,7 +204,9 @@ struct ForwardCache {
 
 // Training ground truth (re-copied each batch).
 struct GTData {
-    DeviceTensor3D<float3> rgb;
+    // [B, H, W, 3] in the form it was decoded in when that needs no colour
+    // conversion, else float32 (core/PixelFormat.h); never widened in place.
+    TorchTensorView        rgb;
     DeviceTensor3D<float>  depth;
     DeviceTensor3D<float3> normal;
     DeviceTensor3D<bool>   alpha;
@@ -262,6 +292,7 @@ struct SplatOptim {
     DeviceVector<float>    radii;                  // [max_N]
     DeviceVector<float2>   accum_buffer;           // [max_N]
     DeviceVector<int32_t>  bias_correction_steps;  // [max_N], or empty
+    DeviceVector<uint32_t> visit_counters;         // [max_N]; core/SplatVisitState.h
     // accum_buffer with DensifyConfig::final_score_power applied to lane 0.
     // Empty when that power is 1, which is when accum_buffer IS the score.
     DeviceVector<float2>   densify_sample_score;   // [cur_N], or empty
@@ -269,6 +300,9 @@ struct SplatOptim {
     // refine, zeroed with accum_buffer. Empty when the oversize split
     // channel is off.
     DeviceVector<float>    densify_oversize;       // [max_N], or empty
+    // What the last refine step found and did, for the step's loss_dict.
+    int64_t last_num_dead      = 0;
+    int64_t last_num_relocated = 0;
 
     // Set per-step from cfg.optim.use_fused_proj_bwd_optim before forward/loss
     // so engine_compute_loss_backward knows to skip projection_*_backward and
@@ -386,6 +420,9 @@ struct BilagridRGB {
     bool        enabled            = false;
     bool        optim_initialized  = false;
     DeviceTensor3D<float3>     fwd_pre;            // pre-bilagrid render
+    PixelFormat                fwd_pre_fmt = PixelFormat::F32;
+    // fwd_pre is the appearance chain's transient output, gone by the backward.
+    bool                       fwd_pre_transient = false;
     std::string type;
     int         C = 0;
 };
@@ -446,13 +483,20 @@ struct BilagridNormal {
 // are the same stateless blend over a different draw; Sh is a trained skybox,
 // SH(world ray dir) + DC color, and carries the only persistent state here.
 struct EngineBackground {
-    enum class Mode { None = 0, Noise = 1, Sh = 2, Pseudorandom = 3 };
+    enum class Mode { None = 0, Noise = 1, Sh = 2, Pseudorandom = 3,
+                      Color = 4, Random = 5 };
     Mode mode    = Mode::None;
     bool enabled = false;
 
     // Common config (set at init time)
     int  splat_transfer = 0;             // noise mode: display -> working space
     bool splat_is_linear = false;
+
+    // Color mode: the user's colour. `color` is what the blend wants (working
+    // space); `color_display` is what the viewer wants back, kept rather than
+    // round-tripped so a clamping transfer cannot move it.
+    float3 color         = {0.0f, 0.0f, 0.0f};
+    float3 color_display = {0.0f, 0.0f, 0.0f};
 
     // SH mode config
     int  sh_degree       = 0;            // 0..4
@@ -474,6 +518,24 @@ struct EngineBackground {
     // (Noise mode) and so the optim step can run after backward (both modes).
     uint32_t cur_seed             = 0;
     float    cur_randomize_weight = 0.0f;
+
+    // The loss pyramid this step, as passed to engine_compute_loss_backward:
+    // the randomized backgrounds draw a cell size uniformly over its levels,
+    // so noise a level of the pyramid would average away still costs something.
+    int      cur_num_loss_scales      = 1;
+    int      cur_loss_scale_min_pixels = 0;
+    // Resolved by the forward (it knows this batch's H/W) and read again by
+    // the backward, which must reconstruct the same background.
+    unsigned cur_block_px         = 0;
+
+    // Per post-split camera slot: the reference image's mean display luma and
+    // the power the randomized draw is raised to. Armed per training forward
+    // (never for a viewer render), consumed into cur_match_luma for the bwd.
+    std::vector<float>  luma_by_cam_host;
+    std::vector<float>  exponent_by_cam_host;
+    DeviceVector<float> exponent_by_cam;
+    bool match_luma_pending = false;
+    bool cur_match_luma     = false;
 };
 
 // Linear / wide-gamut color space conversion.
@@ -518,6 +580,7 @@ struct PpispState {
     bool enabled            = false;
     bool optim_initialized  = false;
     bool use_adagrad        = false;
+    bool exposure_arithmetic_mean = false;
     // Per-iteration mirror of the PpispStepConfig order flags, stashed by the
     // forward path so the backward hooks in EngineLoss.cpp can invert the
     // order they picked. Reset each step.
@@ -527,6 +590,24 @@ struct PpispState {
     // working->display conversion) and cleared there, so an eval or viewer
     // render never picks the transform up off stale cam indices.
     bool forward_pending = false;
+    // The same for PPISP after the encode and ahead of the bilateral grid,
+    // which only the fused appearance chain takes inside the forward.
+    bool forward_pending_after_encode = false;
+};
+
+// What the fused appearance chain did in this step's forward, for the backward
+// to replay. `fused` false means the per-stage kernels ran instead.
+struct AppearanceState {
+    bool fused = false;
+    // Cleared by a step whose color-shift regularizer reads a stage's input,
+    // which the fused chain never stores.
+    bool allow = true;
+    // Armed by a training step whose bilateral grid reads the chain's float16
+    // output: the output is then a tile-intersect slice of the arena, and the
+    // grid's backward replays the chain from the float16 raw render.
+    bool transient_pending = false;
+    DeviceTensor3D<float3> transient_post;
+    AppearanceChainParams params;
 };
 
 
@@ -607,14 +688,27 @@ struct EngineViewerState {
 };
 
 
+// Per post-split camera: the render counters of the splats it contributed to,
+// from its last render. The DataManager turns these into view draw weights.
+struct VisitStats {
+    bool    enabled  = false;
+    int32_t num_post = 0;
+    DeviceVector<float>    cam_sum;   // [num_post]
+    DeviceVector<uint32_t> cam_cnt;   // [num_post]
+};
+
 struct EngineState {
     // Top-level scalars + flags shared across sections.
     std::string primitive;
     int64_t cur_num_splats = 0;
     int64_t max_num_splats = 0;
+    // features_sh row: num_sh float3, the last 2 * sb_lobes of them lobes
+    // (core/ColorBasis.h); sh_degree is the bands the current step evaluates.
     int     num_sh         = 0;
     int     sh_degree      = 0;
+    int     sb_lobes       = 0;
     bool    packed         = false;
+    VisitStats visit;
     // Binning tile edge in pixels the caller asked for, or 0 to let the
     // forward choose from the measured splat footprint (engine_set_bin_tile_size).
     int     bin_tile_request = 0;
@@ -636,6 +730,9 @@ struct EngineState {
         double sum     = 0.0;
         double base    = 0.0;              // bracketing cost at `from`
         double trial   = 0.0;              // cost measured at `from + dir`
+        // Splat-tile pairs per visible splat at `macro_log2`, last measured
+        // outside a trial; gates the coarser probes.
+        double pairs_per_splat = 0.0;
     };
     std::map<uint64_t, BinTileChoice> bin_tile_auto;
     // PoolSlot::EngVLosses (the per-pixel loss cotangent seed) is uploaded
@@ -658,6 +755,42 @@ struct EngineState {
     // Only touched when EngineStrategy is active; engine_reset() clears it.
     StrategyState  strategy;
 
+    // The region a run may grow in (engine_set_region), laid out as
+    // shaders/region.slang reads it, and the per-splat draw weight the test
+    // writes at every refine step. Empty program = no region.
+    struct Region {
+        DeviceVector<float4> program, field_bvh, field_seeds, camera_bvh, camera_seeds, pattern;
+        DeviceVector<float>  weight;    // [max_N]
+        float inside = 1.0f, outside = 1e-4f;
+        float opacity_decay = 1.0f;   // kept share of opacity outside, per refine step
+        bool active() const { return program.data_ptr() != nullptr; }
+    } region;
+
+    // Peak alpha * T per splat for DeadCriterion::MaxWeight, stored times
+    // 2^((step - base_step) / half_life) so that forgetting needs no per-step
+    // pass; densify rebases it to the true value. Empty when not tracked.
+    struct MaxWeight {
+        DeviceVector<float> value;  // [max_N]
+        int   base_step  = 0;
+        float half_life  = 0.0f;
+        float step_scale = 1.0f;    // what this step's raster bwd multiplies by
+    } max_weight;
+
+    // The learned densification score lives in optim.accum_buffer as
+    // (s^power, update count); docs/notes/learned-densify-score.md. A splat
+    // no update has reached renders and starts from exp(log_prior).
+    struct LearnedScore {
+        // Map power x score power: the fit is to the unpowered map.
+        float power     = 1.0f;
+        float log_prior = 0.0f;   // EMA of the mean ln s of updated splats
+        bool  has_prior = false;
+        // This step's map was divided by render_score, so the raster bwd
+        // accumulated the ratio the update wants.
+        bool  ratio_map = false;
+        bool  stats_pending = false;  // issued this run, not read yet
+        DeviceVector<float> stats;  // [2]: sum ln s, count; EngLearnedScoreStats
+    } learned_score;
+
     BilagridRGB    bilagrid_rgb;
     BilagridDepth  bilagrid_depth;
     BilagridNormal bilagrid_normal;
@@ -668,6 +801,7 @@ struct EngineState {
     EngineBackground background;
     PpispState       ppisp;
     ColorSpaceState  color_space;
+    AppearanceState  appearance;
     ColorShiftRegState color_shift_reg;
 
     // Viewer (BVH + thumbnail cache + dataset camera arrays).
@@ -677,6 +811,8 @@ struct EngineState {
     // batching). Set by engine_setup_data_manager(); when present, the new
     // engine_train_step_managed() entrypoint pulls per-step inputs from it.
     std::unique_ptr<DataManager> dm;
+    // Seconds managed steps spent blocked on dm->next_train_step(), since last taken.
+    double data_wait_seconds = 0.0;
 
     // Mean sRGB luma per input camera, filled lazily by the photometric weight
     // normalization (EngineDataManager.cpp) and NaN until measured. An image's
@@ -697,3 +833,8 @@ struct EngineState {
 // Function-local-static singleton. Future evolution: a second instance for
 // eval / viewer / multi-model can be added by swapping the accessor's body.
 EngineState& engine();
+
+// What the projection launches evaluate this step.
+inline ColorBasis engine_color() {
+    return {engine().sh_degree, engine().sb_lobes};
+}

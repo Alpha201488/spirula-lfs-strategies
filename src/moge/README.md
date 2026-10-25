@@ -141,7 +141,10 @@ against Metric3D's 28).
 
 `--num-tokens` is capped at what the image holds: asking for more tokens than
 it has patches would upsample into the network for nothing. At
-`--max-size 1064` a 16:9 frame tops out around 3200.
+`--max-size 1064` a 16:9 frame tops out around 3200. A split face is sized
+to the map it is written into, which on a panorama is about 900 tokens, so
+`app/GeometryModel.h`'s `minFacePixels` raises every face to 1200 patches
+where the frame has the pixels for it (src/metric3d/README.md, "Face size").
 
 RTX 5070 Laptop, a 1064x598 frame, the second call onwards (the first builds
 pipelines and measures the GEMM tiling):
@@ -193,9 +196,9 @@ below 0.5 or the shifted z came out negative.
 ## Testing
 
 ```bash
-./build/nn_ops_test                 # the general ops, vs a scalar CPU reference
-./build/moge_test                   # cached checkpoints, or SKIP
-./build/moge_test --model M --image IMG.jpg --num-tokens 1800 --repeat 3
+./build_vulkan/nn_ops_test                 # the general ops, vs a scalar CPU reference
+./build_vulkan/moge_test                   # cached checkpoints, or SKIP
+./build_vulkan/moge_test --model M --image IMG.jpg --num-tokens 1800 --repeat 3
 spirula geometry --check            # the camera round trip, no network in it
 ```
 
@@ -209,7 +212,7 @@ The gate that matters is parity against onnxruntime:
 ```bash
 pip install onnx onnxruntime numpy
 SS_MOGE_F32_WEIGHTS=1 SS_MOGE_DUMP=/tmp/ours \
-    ./build/moge_test --model moge2-vitb --image IMG.jpg --max-size 448 \
+    ./build_vulkan/moge_test --model moge2-vitb --image IMG.jpg --max-size 448 \
     --num-tokens 800
 python3 tools/moge/compare_ort.py --onnx <the same .onnx> --ours /tmp/ours
 ```

@@ -46,6 +46,8 @@ void engine_reset();
 
 // --- Setup ---
 
+// features_sh is [N, K, 3]: SH bands, then `sb_lobes` lobes at the end of
+// each row (core/ColorBasis.h).
 void set_data_3dgs(
     int64_t num_splats,
     TorchTensorView means,
@@ -53,8 +55,17 @@ void set_data_3dgs(
     TorchTensorView scales,
     TorchTensorView opacities,
     TorchTensorView features_dc,
-    TorchTensorView features_sh
+    TorchTensorView features_sh,
+    int sb_lobes
 );
+
+// The region the run may grow in (data/RegionProgram.h): program [n, 6, 4],
+// field nodes [m, 8] and seeds [k, 4], a camera field (labels = index) for
+// normals, sample pattern [s, 4]; copied now. Empty program clears it.
+void engine_set_region(TorchTensorView program, TorchTensorView field_bvh,
+                       TorchTensorView field_seeds, TorchTensorView camera_bvh,
+                       TorchTensorView camera_seeds, TorchTensorView pattern,
+                       float outside_weight, float outside_opacity_decay = 1.0f);
 
 void set_camera_params(
     int width,
@@ -158,6 +169,7 @@ std::map<std::string, float> engine_compute_loss_backward(
     // loss weights
     std::array<float, (int)LossWeightIndex::length> loss_weights,
     float w_ssim,
+    int perceptual_loss,  // PerceptualLoss: what w_ssim weights
     int num_loss_scales,
     // When positive, overrides num_loss_scales based on the render resolution
     // (see LossConfig::loss_scale_min_pixels). Zero leaves it untouched.
@@ -239,8 +251,11 @@ void engine_bilagrid_optim_step(int step, const BilagridStepConfig& cfg);
 
 // --- PPISP (RGB only; PpispStepConfig picks where in the chain it runs) ---
 // ppisp_param_spec (kernels/pixelwise/PixelWise.cuh) owns the param_type list.
-// exposure_init optionally seeds params[:, 0] with [n_grids] log2 gains.
+
+// exposure_init optionally seeds params[:, 0] with [n_grids] log2 gains;
+// exposure_arithmetic_mean regularizes log2(mean gain), else mean(log2 gain).
 void engine_init_ppisp(int n_grids, std::string param_type, bool use_adagrad,
+                       bool exposure_arithmetic_mean,
                        const std::vector<float>& exposure_init = {});
 
 // Apply PPISP forward in place on the current rendered RGB; saves a pre-PPISP
@@ -255,35 +270,40 @@ void engine_ppisp_forward(TorchTensorView cam_indices);
 void engine_ppisp_optim_step(int step, const PpispStepConfig& cfg);
 
 // --- Background blending (applied BEFORE bilagrid/PPISP) ---
-//
-// Two modes -- exactly one of these init calls activates background blending:
-//   Noise: random per-pixel color, warmup-weighted via cfg.background.randomize_weight.
-//   SH:    skybox = SH(world ray dir), DC (slot 0) seeds the "background_color"
-//          plus higher-order bands; both updated by Adam when train_color=true.
-//
-// dc_color is the linear-space DC color used at SH init time (set slot 0).
+// Exactly one of these init calls activates it; `--background-mode` picks.
+
+// Random color per pixel, warmup-weighted via cfg.background.randomize_weight.
 void engine_init_background_noise(int splat_transfer, bool splat_is_linear);
 // Same blend, but the draw is one of the 8 RGB cube corners per tile instead
 // of per-pixel noise: the extremes cost residual transparency the most, and a
 // tile survives the SSIM window that averages per-pixel noise back to grey.
 void engine_init_background_pseudorandom(int splat_transfer, bool splat_is_linear);
+// Same blend again over one cell covering the whole frame: a flat color that
+// changes every step, warmup-weighted like the other two.
+void engine_init_background_random(int splat_transfer, bool splat_is_linear);
+// `color` is display-referred RGB in [0, 1]; the engine converts it once, and
+// all-black turns the background OFF instead of blending a no-op.
+void engine_init_background_color(const float color[3], int splat_transfer,
+                                  bool splat_is_linear);
+// Skybox = SH(world ray dir); slot 0 is the DC color, and Adam updates the
+// whole table.
 void engine_init_background_sh(
     int sh_degree, int splat_transfer, bool splat_is_linear);
 
-// Per-iter (seed, randomize_weight) for the next forward_3dgs background blend.
-// Training calls this each step; the viewer/eval path can ignore it and reuse
-// the last-stashed values (the engine defaults of 0/0 produce a uniform
-// half-gray noise blend, avoiding per-frame flicker in noise-mode viewer renders).
-void engine_set_background_step_params(uint32_t seed, float randomize_weight);
+// Per-iter values for the next forward_3dgs blend. The loss scale pair is the
+// LossConfig's, because the randomized backgrounds size their cells over the
+// same pyramid. All-zero is the flicker-free viewer/eval default.
+void engine_set_background_step_params(uint32_t seed, float randomize_weight,
+                                       int num_loss_scales,
+                                       int loss_scale_min_pixels);
 
 // Adam step over the SH coefficient table. No-op for Noise mode or when SH
 // training was not enabled at init.
 void engine_background_optim_step(int step, const BackgroundStepConfig& cfg);
 
-// Copy the engine's background image for the current camera setup to a host
-// (..., H, W, 3) float buffer. SH mode: returns the skybox rendered by the
-// most recent forward_3dgs. Noise mode: returns a uniform mean-color image.
-// Returns 1 on success, 0 if no engine background is active.
+// Copy the engine's background for the current cameras into a host
+// (..., H, W, 3) float buffer: SH gives the last forward's skybox, Color and
+// the randomized modes a flat fill. 0 when no background is active.
 int engine_copy_background_to_host(TorchTensorView out_image);
 
 // --- Linear / wide-gamut color space ---
@@ -461,6 +481,11 @@ std::map<std::string, float> engine_train_step_managed(
     bool packed,
     const EngineStepConfig& cfg);
 
+// The progressive-resolution divisor of the last managed step (1 = loaded size).
+int engine_train_resolution_divisor();
+// Seconds managed steps waited for the DataManager since the last call; resets it.
+double engine_take_data_wait_seconds();
+
 // Answer the DataDecodeError a managed step threw: true re-runs the decode
 // the worker is parked on, false abandons the pipeline. See DataManager.h.
 void engine_resolve_data_error(bool retry);
@@ -480,11 +505,11 @@ void engine_resolve_data_error(bool retry);
 int engine_eval_forward(std::string primitive, int sh_degree, bool packed);
 
 // Same, for ONE image by dataset index (the GUI's compare view), rendering one
-// pass of its faces: returns that pass's views, `out_passes` the image's count.
-// Overwrites the GT and camera state a step owns -- BETWEEN steps, under its mutex.
+// pass of its faces as step `cfg` would: returns that pass's views, `out_passes`
+// the image's count. Overwrites a step's GT and camera -- BETWEEN steps, under its mutex.
 int engine_preview_forward(int index, std::string primitive, int sh_degree,
                            bool packed, bool apply_color_correction,
-                           const LossConfig& loss, int pass = 0,
+                           const EngineStepConfig& cfg, int pass = 0,
                            int* out_passes = nullptr);
 
 // --- Debug rendering ---
@@ -498,8 +523,15 @@ void engine_debug_forward(
 // --- Query internal state ---
 
 void engine_copy_accum_buffer(TorchTensorView dst);
+// Per-camera visit stats for deficit view sampling: accumulated after every
+// backward once enabled, read back as [num_post] sums and counts.
+void engine_set_view_stats(bool enabled);
+void engine_read_view_stats(std::vector<float>& cam_sum, std::vector<uint32_t>& cam_cnt);
+
 int64_t engine_get_cur_num_splats();
 int64_t engine_get_max_num_splats();
+int engine_get_num_sh();   // float3 per features_sh row: SH bands, then lobes
+int engine_get_sb_lobes();
 
 // `out_rgb_raw` is the pre-color-space-conversion render (linear / wide-gamut)
 // stashed by the color-space forward hook. Null OK; when the engine has no
@@ -641,7 +673,8 @@ void engine_scene_set_data_3dgs(
     TorchTensorView scales,
     TorchTensorView opacities,
     TorchTensorView features_dc,
-    TorchTensorView features_sh
+    TorchTensorView features_sh,
+    int sb_lobes
 );
 
 // The model's own colour space, applied by engine_scene_activate. Two models
@@ -650,6 +683,12 @@ void engine_scene_set_data_3dgs(
 void engine_scene_set_color_space(int slot, bool enabled, int transfer,
                                   bool is_linear,
                                   std::vector<float> color_matrix);
+
+// Overwrite one attribute array of a loaded slot in place, at the shape
+// engine_scene_set_data_3dgs uploaded it with. `field` names one of means /
+// quats / scales / opacities / features_dc / features_sh.
+void engine_scene_update(int slot, const std::string& field,
+                         TorchTensorView data);
 
 // Bind `slot` to the world buffers. Throws when the slot holds nothing.
 void engine_scene_activate(int slot);
@@ -664,6 +703,12 @@ std::vector<std::tuple<std::string, size_t, size_t>> engine_get_pool_breakdown()
 std::vector<std::tuple<std::string, std::string, size_t, size_t>>
 engine_get_pool_breakdown_categorized();
 size_t engine_get_scratch_bytes();
+
+// GPU seconds the next step spends in its splat stages (forward, raster and
+// projection backward, optimizer, densify) for the trainer's ETA model. Arm
+// before the step, read after; < 0 if not armed or the device has no timer.
+void engine_step_timing_arm();
+double engine_step_timing_read();
 
 // Formatted per-category pool report (SS_PROFILE). Reads the pool's
 // high-water capacities, so it is a peak, not an instantaneous figure.

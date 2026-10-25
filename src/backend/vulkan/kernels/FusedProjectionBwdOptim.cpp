@@ -25,9 +25,9 @@ struct FpboParams {
         nq_opacities_packed, nq_dc_packed;
     uint64_t nq_means_bounds, nq_quats_bounds, nq_scales_bounds,
         nq_opacities_bounds, nq_dc_bounds;
-    uint64_t radii, densify_score, steps;
+    uint64_t radii, densify_score, steps, visit_counters;
     float lr_means, lr_quats, lr_scales, lr_opacs, lr_features_dc,
-        lr_features_sh;
+        lr_features_sh, lr_features_sb;
     float max_gauss_ratio, scale_regularization_weight;
     float mcmc_opacity_reg_weight, mcmc_scale_reg_weight;
     float erank_reg_weight, erank_reg_weight_s3;
@@ -40,9 +40,10 @@ struct FpboParams {
     uint32_t width, height;
     uint32_t wgs_per_row;
     uint32_t num_sh_buffer;
-    uint32_t _pad0;
+    uint32_t has_visit, skip_unrendered_reg;
+    uint32_t sb_base, _pad0;
 };
-static_assert(sizeof(FpboParams) == 47 * 8 + 18 * 4 + 10 * 4,
+static_assert(sizeof(FpboParams) == 48 * 8 + 19 * 4 + 13 * 4,
               "params layout must match the slang struct");
 
 using vkk::or_fallback;
@@ -50,7 +51,7 @@ using vkk::or_fallback;
 void launch_fpbo_vk(
     const bool eval3d, const bool antialiased,
     const int64_t N,
-    const int max_sh_degree,
+    const ColorBasis color,
     std::vector<DeviceTensorFloatND>& splats_world,
     TorchTensorView viewmats, TorchTensorView intrins,
     const uint32_t image_width, const uint32_t image_height,
@@ -68,11 +69,13 @@ void launch_fpbo_vk(
     const std::optional<TorchTensorView>& sh_value_packed,
     const std::optional<TorchTensorView>& sh_value_bounds,
     NonShQuantState non_sh,
+    SplatVisitState visit,
     DeviceVector<float>& radii,
     DeviceVector<float>& densify_score,
     const float lr_means, const float lr_quats, const float lr_scales,
     const float lr_opacs, const float lr_features_dc,
-    const float lr_features_sh, const float max_gauss_ratio,
+    const float lr_features_sh, const float lr_features_sb,
+    const float max_gauss_ratio,
     const float scale_regularization_weight,
     const float mcmc_opacity_reg_weight, const float mcmc_scale_reg_weight,
     const float erank_reg_weight, const float erank_reg_weight_s3,
@@ -98,11 +101,11 @@ void launch_fpbo_vk(
     Vanilla3DGS<0>::WorldBuffer g2b(
         const_cast<std::vector<DeviceTensorFloatND>&>(g2_splats_world));
 
-    // Buffer's SH stride is the model max; the kernel template degree is
-    // capped at the runtime warmup degree (mirrors the CUDA dispatcher).
-    const int buf_sh_deg = wb.sh_degree();
-    const uint32_t num_sh_buffer = (uint32_t)(buf_sh_deg * (buf_sh_deg + 2));
-    int sh_degree = std::min(buf_sh_deg, max_sh_degree);
+    // The row holds the model's every band; the kernel's degree is capped at
+    // the runtime warmup degree (mirrors the CUDA dispatcher).
+    const uint32_t num_sh_buffer = (uint32_t)(wb.raw_stride(5) / 3);
+    const vkk::ColorSpec cs = vkk::color_spec(color, num_sh_buffer);
+    const int sh_degree = (int)cs.sh_degree;
 
     const uint32_t C = (uint32_t)std::get<2>(viewmats)[0];
     const bool packed = (camera_ids.data_ptr() && gaussian_ids.data_ptr());
@@ -119,7 +122,7 @@ void launch_fpbo_vk(
             : 0;
 
     const bool level1 = quantization_level == 1;
-    if (level1 && sh_degree > 0 &&
+    if (level1 && (sh_degree > 0 || cs.sb_lobes > 0) &&
         (!sh_packed.has_value() || !sh_quant_bounds.has_value() ||
          !sh_value_packed.has_value() || !sh_value_bounds.has_value()))
         throw std::runtime_error(
@@ -196,12 +199,16 @@ void launch_fpbo_vk(
     p.radii = or_fallback(radii.data_ptr());
     p.densify_score = or_fallback(densify_score.data_ptr());
     p.steps = or_fallback(steps_ptr);
+    p.visit_counters = or_fallback((uint64_t)visit.counters);
+    p.has_visit = visit.counters ? 1u : 0u;
+    p.skip_unrendered_reg = visit.skip_unrendered_reg ? 1u : 0u;
     p.lr_means = lr_means;
     p.lr_quats = lr_quats;
     p.lr_scales = lr_scales;
     p.lr_opacs = lr_opacs;
     p.lr_features_dc = lr_features_dc;
     p.lr_features_sh = lr_features_sh;
+    p.lr_features_sb = lr_features_sb;
     p.max_gauss_ratio = max_gauss_ratio;
     // Per-splat weights are averaged over N (mirrors the CUDA wrapper).
     p.scale_regularization_weight = scale_regularization_weight / (float)N;
@@ -220,6 +227,7 @@ void launch_fpbo_vk(
     p.has_steps = steps_ptr ? 1u : 0u;
     p.has_densify_score = densify_score.data_ptr() ? 1u : 0u;
     p.num_sh_buffer = num_sh_buffer;
+    p.sb_base = cs.sb_base;
     p.C = C;
     p.N = (uint32_t)N;
     p.width = image_width;
@@ -233,6 +241,7 @@ void launch_fpbo_vk(
         antialiased ? 1u : 0u,
         level1 ? 16u : 0u,  // kShValueBits: level 1 reads SH via the codec
         packed ? 1u : 0u,
+        cs.sb_lobes,
         eval3d ? 1u : 0u,
         use_scale_agnostic_mean ? 1u : 0u,
         color_trust_linear ? 1u : 0u,
@@ -249,14 +258,16 @@ void launch_fpbo_vk(
 /* API definitions matching kernels/optim/FusedProjectionBwdOptim.cuh */
 
 #define _FPBO_ARGS                                                          \
-    num_splats, max_sh_degree, splats_world, viewmats, intrins,             \
+    num_splats, color, splats_world, viewmats, intrins,                     \
         image_width, image_height, camera_model, distortion, dist_coeffs,   \
         camera_ids,                                                         \
         gaussian_ids, aabb, v_splats_world, v_splats_screen,                \
         g1_splats_world, g2_splats_world, sh_packed, sh_quant_bounds,       \
-        sh_value_packed, sh_value_bounds, non_sh, radii, densify_score,     \
+        sh_value_packed, sh_value_bounds, non_sh, visit, radii,             \
+        densify_score,                                                      \
         lr_means, lr_quats, lr_scales, lr_opacs, lr_features_dc,            \
-        lr_features_sh, max_gauss_ratio, scale_regularization_weight,       \
+        lr_features_sh, lr_features_sb, max_gauss_ratio,                    \
+        scale_regularization_weight,                                        \
         mcmc_opacity_reg_weight, mcmc_scale_reg_weight, erank_reg_weight,   \
         erank_reg_weight_s3, quat_norm_reg_weight, dc_reg_weight,           \
         sh_reg_weight, max_screen_size, max_screen_size_penalty,            \
@@ -264,7 +275,7 @@ void launch_fpbo_vk(
         eps_tr, step, quantization_level
 
 #define _FPBO_PARAMS                                                        \
-    const int64_t num_splats, const int max_sh_degree,                      \
+    const int64_t num_splats, const ColorBasis color,                       \
         std::vector<DeviceTensorFloatND> splats_world,                      \
         TorchTensorView viewmats, TorchTensorView intrins,                  \
         const uint32_t image_width, const uint32_t image_height,            \
@@ -280,10 +291,12 @@ void launch_fpbo_vk(
         const std::optional<TorchTensorView> sh_quant_bounds,               \
         const std::optional<TorchTensorView> sh_value_packed,               \
         const std::optional<TorchTensorView> sh_value_bounds,               \
-        NonShQuantState non_sh, DeviceVector<float> radii,                  \
+        NonShQuantState non_sh, SplatVisitState visit,                      \
+        DeviceVector<float> radii,                                          \
         DeviceVector<float> densify_score, const float lr_means,            \
         const float lr_quats, const float lr_scales, const float lr_opacs,  \
         const float lr_features_dc, const float lr_features_sh,             \
+        const float lr_features_sb,                                         \
         const float max_gauss_ratio,                                        \
         const float scale_regularization_weight,                            \
         const float mcmc_opacity_reg_weight,                                \
@@ -296,15 +309,16 @@ void launch_fpbo_vk(
         std::variant<int32_t, TorchTensorView> step, int quantization_level
 
 static void _fpbo_call(bool eval3d, bool antialiased, _FPBO_PARAMS) {
-    launch_fpbo_vk(eval3d, antialiased, num_splats, max_sh_degree,
+    launch_fpbo_vk(eval3d, antialiased, num_splats, color,
                    splats_world, viewmats, intrins, image_width, image_height,
                    camera_model, distortion, dist_coeffs, camera_ids,
                    gaussian_ids, aabb,
                    v_splats_world, v_splats_screen, g1_splats_world,
                    g2_splats_world, sh_packed, sh_quant_bounds,
-                   sh_value_packed, sh_value_bounds, non_sh, radii,
+                   sh_value_packed, sh_value_bounds, non_sh, visit, radii,
                    densify_score, lr_means, lr_quats, lr_scales, lr_opacs,
-                   lr_features_dc, lr_features_sh, max_gauss_ratio,
+                   lr_features_dc, lr_features_sh, lr_features_sb,
+                   max_gauss_ratio,
                    scale_regularization_weight, mcmc_opacity_reg_weight,
                    mcmc_scale_reg_weight, erank_reg_weight,
                    erank_reg_weight_s3, quat_norm_reg_weight, dc_reg_weight,

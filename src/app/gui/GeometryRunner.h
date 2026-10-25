@@ -22,9 +22,11 @@ namespace gui {
 
 struct GeometryJob {
     bool enable = false;
+    // Canonical UUID from the frozen GUI choice; children must not re-rank.
+    std::string device_uuid;
     // A model id (geometry_models()) or a path to an .onnx file.
     std::string model = "moge2-vitb";
-    int  max_size = 1064;         // longest side of one face the network runs
+    int  max_size = 1064;         // longest side of the maps, and of one face
     int  num_tokens = 3600;       // MoGe's ViT budget; Metric3D ignores it
     bool want_normal = true;
     bool want_depth = false;
@@ -34,10 +36,12 @@ struct GeometryJob {
     // 0 auto, 1 yes, 2 no -- `spirula geometry --ray-depth` and `--split`.
     int  ray_depth = 0;
     int  split = 0;
+    int  face_res = 0;            // `--face-res`: 0 output, 1 source
     bool overwrite = false;       // recompute maps that are already on disk
     // The dataset's colour space; frames convert to sRGB before inference.
     std::string image_gamut;
     std::optional<bool> image_is_linear;
+    std::string image_exposure;
 };
 
 // One checkpoint the screen offers, MoGe's three first and each family's
@@ -56,6 +60,15 @@ bool geometry_model_cached(const std::string& id);
 // `id` is a path the user pointed at. vit-giant2 is two files -- the reader
 // resolves the second one by name, so both land in the same directory.
 std::vector<PendingDownload> geometry_model_downloads(const std::string& id);
+
+// The disk an install that is built rather than downloaded (Marigold v2) still
+// needs, beside what it has; `needed` false for every other model.
+struct GeometryDisk {
+    bool needed = false, fits = true;
+    uint64_t disk = 0, free = 0, spare = 0;
+    std::string where;
+};
+GeometryDisk geometry_model_disk(const std::string& id);
 
 // "" when this build can estimate geometry, otherwise why it cannot.
 std::string geometry_availability();

@@ -39,6 +39,8 @@ enum class AttnBias : uint32_t {
     PerKey = 1,   // bias[nk], broadcast over queries and heads (token padding)
     Full = 2,     // bias[n_heads][nq][nk]                      (DETR box RPB)
     Causal = 3,   // key j visible to query i iff j <= i        (text encoder)
+    Window = 4,   // bias[n_heads][nq][nk] + -100 where AttnOpts::labels differ
+                  // between query and key (Swin's shifted-window mask)
 };
 
 // ================
@@ -51,6 +53,10 @@ struct LinearOpts {
     Act     act = Act::None;
     float   alpha = 1.0f;       // scales the matmul before bias/residual
     int64_t x_row_stride = 0;   // 0 -> x.cols(); set when x is a wide-buffer slice
+    // Tensor cores round x to fp16, whose range ends at 65504; x is scaled by
+    // this before the rounding and the product by its inverse after. A power
+    // of two changes nothing else. The fp32 kernels never round x and ignore it.
+    float   x_scale = 1.0f;
 };
 
 // out[M, N] = act(alpha * x[M, K] @ w[N, K]^T + bias + residual)
@@ -82,6 +88,20 @@ enum class GemmTile { Measured, Wide, Narrow };
 void set_gemm_tile(GemmTile t);
 
 // ================
+// Quantized weights
+// ================
+
+// bitsandbytes' NF4, blocksize 64, bit for bit as dequantize_4bit returns it:
+// out[n, k] f16 = row_scale[n] * (bf16(level[code] * absmax) + residual[n, k]).
+// Codes are quantize_4bit's bytes; absmax is one bf16 per block, which is exact.
+struct Nf4Opts {
+    Tensor residual;    // [N, K] f32; a merged LoRA product
+    Tensor row_scale;   // [N] f32; folds a per-output gate into the matrix
+};
+void dequant_nf4(const Tensor& out, const Tensor& codes, const Tensor& absmax,
+                 const Nf4Opts& opts = {});
+
+// ================
 // Normalization
 // ================
 
@@ -89,6 +109,11 @@ void set_gemm_tile(GemmTile t);
 // first -- the post-norm pattern `x = LN(x + sublayer(x))`.
 void layer_norm(const Tensor& out, const Tensor& x, const Tensor& w, const Tensor& b,
                 float eps = 1e-5f, const Tensor& residual = {});
+
+// In-place RMSNorm (weight [head_dim]) of each head of q or k where a fused qkv
+// projection left it: head h of token i starts at i * row_stride + h * head_dim.
+void rms_norm_heads(const Tensor& x, const Tensor& w, int64_t n, int n_heads,
+                    int head_dim, int64_t row_stride, float eps = 1e-6f);
 
 // GroupNorm over the channel (last) dimension of a channel-last map.
 // Needs an arena for the [groups, 2] statistics.
@@ -100,6 +125,7 @@ void group_norm(vk::Arena& arena, const Tensor& out, const Tensor& x, const Tens
 // ================
 
 struct AttnOpts {
+    bool allow_coop = true;
     int   n_heads = 1;
     int   head_dim = 0;
     float scale = 0.0f;          // 0 -> 1/sqrt(head_dim)
@@ -117,6 +143,10 @@ struct AttnOpts {
     // the partial softmaxes are merged in a second pass. Leaving this null just
     // runs the single-pass kernel.
     vk::Arena* arena = nullptr;
+    // AttnBias::Window: [batch, nq] region ids (i32), nq == nk. Swin's shifted
+    // windows mask a pair whose tokens came from different regions of the
+    // un-rolled map; nothing else is masked.
+    Tensor labels;
 };
 
 // out[batch, nq, n_heads*head_dim] = softmax(scale * q k^T + bias) v
@@ -126,10 +156,10 @@ struct AttnOpts {
 void attention(const Tensor& out, const Tensor& q, const Tensor& k, const Tensor& v,
                int64_t nq, int64_t nk, const AttnOpts& opts);
 
-// In-place 2-D axial RoPE on a [batch, n, n_heads*head_dim] tensor.
-// `freqs` is [n, head_dim/2, 2] holding (cos, sin) per complex pair.
+// In-place axial RoPE; freqs[n, head_dim/2, 2] holds (cos, sin).
+// split_half pairs dimensions i and i+head_dim/2 instead of 2i and 2i+1.
 void rope(const Tensor& x, const Tensor& freqs, int n_heads, int head_dim,
-          int64_t n, int batch = 1, int64_t row_stride = 0);
+          int64_t n, int batch = 1, int64_t row_stride = 0, bool split_half = false);
 
 // ================
 // Elementwise
@@ -142,6 +172,10 @@ void copy(const Tensor& dst, const Tensor& src);  // dtype conversion allowed
 void add(const Tensor& out, const Tensor& a, const Tensor& b, float alpha = 1.0f,
          float beta = 1.0f, Act act = Act::None);
 void mul(const Tensor& out, const Tensor& a, const Tensor& b, Act act = Act::None);
+void div(const Tensor& out, const Tensor& a, const Tensor& b);
+// out[r, c] = act(a[r, c] * b[r]): one scalar per row, e.g. a [H*W, 1] gate
+// over a channel-last map.
+void mul_rows(const Tensor& out, const Tensor& a, const Tensor& b, Act act = Act::None);
 
 // out = act(x * pre_scale + pre_bias) * post_scale + post_bias
 void unary(const Tensor& out, const Tensor& x, Act act = Act::None, float pre_scale = 1.0f,
@@ -159,9 +193,12 @@ struct ConvOpts {
     // nn.Conv2d(padding_mode='replicate'), which every 3x3 in MoGe's head uses.
     // Only conv2d honours it; the depthwise and deformable kernels zero-pad.
     bool pad_replicate = false;
+    // [Ho, Wo, Co], added after the bias and before `act`. conv2d only.
+    Tensor residual;
 };
 
-// out[Ho, Wo, Co] = conv2d(in[Hi, Wi, Ci], w[Co, Ci, kh, kw]).
+// out[Ho, Wo, Co] = conv2d(in[Hi, Wi, Ci], w[Co, Ci, kh, kw]), sized by `out`;
+// taps past the edge read zero, so ZeroPad2d((0, 1, 0, 1)) + stride 2 is pad 0.
 // Runs as chunked im2col + GEMM; `arena` supplies the column workspace.
 void conv2d(vk::Arena& arena, const Tensor& out, const Tensor& in, const Tensor& w,
             int kh, int kw, const ConvOpts& opts = {});
@@ -184,6 +221,12 @@ void deform_conv2d(vk::Arena& arena, const Tensor& out, const Tensor& in,
                    const Tensor& offset, const Tensor& w, int kh, int kw,
                    float max_offset = 0.0f, const ConvOpts& opts = {});
 
+// The same with torchvision's `mask` (DCNv2): `mask` is [Ho, Wo, kh*kw] and
+// scales each tap's sample before the GEMM.
+void modulated_deform_conv2d(vk::Arena& arena, const Tensor& out, const Tensor& in,
+                             const Tensor& offset, const Tensor& mask, const Tensor& w,
+                             int kh, int kw, const ConvOpts& opts = {});
+
 // out[N, C*k*k] = the k x k patch of `in` centred on each of N integer
 // (x, y) centres, in the column order conv2d's weight expects. Out-of-range
 // taps read zero. `centers` is an I32 [N, 2] tensor.
@@ -195,6 +238,11 @@ void patch_gather(const Tensor& out, const Tensor& in, const Tensor& centers, in
 // work and a scatter reorders it.
 void conv_transpose2x2(vk::Arena& arena, const Tensor& out, const Tensor& in,
                        const Tensor& w_packed, const Tensor& bias, Act act = Act::None);
+
+// Non-overlapping ConvTranspose2d(kernel=stride=patch), packed [Cout*patch², Cin].
+void conv_transpose_patch(vk::Arena& arena, const Tensor& out, const Tensor& in,
+                          const Tensor& w_packed, const Tensor& bias, int patch,
+                          Act act = Act::None);
 
 // Non-overlapping patch extraction for a ViT stem:
 // out[(H/p)*(W/p), p*p*C] with column order c*p*p + ky*p + kx.
@@ -212,6 +260,9 @@ void resize_bicubic(const Tensor& out, const Tensor& in);
 
 void upsample_nearest2x(const Tensor& out, const Tensor& in);
 void maxpool2x2(const Tensor& out, const Tensor& in);
+// nn.MaxPool2d(kernel, stride) with no padding and ceil_mode=False -- AlexNet's
+// 3x3 stride-2 pool. `out` must be [(Hi - kernel)/stride + 1, ...].
+void maxpool(const Tensor& out, const Tensor& in, int kernel, int stride);
 
 // F.interpolate(scale_factor=(sy, sx), mode='nearest'). Pass the SCALE the
 // reference asked for, not out/in: torch sizes the output floor(in * s) and
@@ -229,6 +280,11 @@ void avgpool(const Tensor& out, const Tensor& in, int kernel, int stride = 0, in
 // padding_mode='zeros'. See the shader for why align_corners matters.
 void grid_sample_points(const Tensor& out, const Tensor& in, const Tensor& pos,
                         bool align_corners = true);
+
+// Warp-centered bilinear correlation, zero padding, channel dot scaled by 1/sqrt(C).
+// out[H,W,(2r+1)^2], window order (dy,dx); warp[H,W,2] uses align_corners=false.
+void local_correlation(const Tensor& out, const Tensor& a, const Tensor& b,
+                       const Tensor& warp, int radius);
 
 // F.normalize(x, p=2, dim=-1). `out` may alias `x`.
 void l2_normalize_rows(const Tensor& out, const Tensor& x, float eps = 1e-12f);
@@ -254,8 +310,40 @@ void gather_rows(const Tensor& out, const Tensor& table, const Tensor& ids);
 void strided_copy(const Tensor& out, const Tensor& in, int64_t rows, int64_t cols,
                   int64_t in_stride, int64_t out_stride);
 
-void window_partition(const Tensor& out, const Tensor& in, int H, int W, int C, int ws);
-void window_unpartition(const Tensor& out, const Tensor& in, int H, int W, int C, int ws);
+// `shift` is Swin's cyclic shift: the map is zero-padded to whole windows and
+// rolled by -shift before partitioning, and by +shift on the way back.
+// `accumulate` adds into `out` instead of overwriting it (the residual).
+void window_partition(const Tensor& out, const Tensor& in, int H, int W, int C, int ws,
+                      int shift = 0);
+void window_unpartition(const Tensor& out, const Tensor& in, int H, int W, int C, int ws,
+                        int shift = 0, bool accumulate = false);
+
+// Swin's PatchMerging gather: [H, W, C] -> [ceil(H/2) * ceil(W/2), 4*C] in the
+// order x[0::2,0::2], x[1::2,0::2], x[0::2,1::2], x[1::2,1::2]; odd edges pad 0.
+void patch_merge(const Tensor& out, const Tensor& in, int H, int W, int C);
+
+// [H, W, C] cut into a gh x gw grid of blocks, stacked as channels:
+// out[h][w][k] = in[gy*H/gh + h][gx*W/gw + w][c], where k is
+enum class BlockOrder {
+    ChannelMajor,      // (c*gh + gy)*gw + gx: einops '(c gh gw)'
+    ColumnsThenRows,   // (gx*gh + gy)*C + c: torch.split over columns, then rows
+};
+void blocks_to_channels(const Tensor& out, const Tensor& in, int H, int W, int C, int gh,
+                        int gw, BlockOrder order = BlockOrder::ChannelMajor);
+
+// The level table of a multi-scale deformable attention: `value` stacks the
+// levels' [h, w] maps row-major, level 0 first.
+struct MsDeformLevels {
+    int n = 0;
+    int h[4] = {}, w[4] = {};
+};
+
+// Deformable DETR's MultiScaleDeformableAttention, softmax included. offsets
+// are [nq, heads, levels, points, 2], logits [nq, heads, levels * points], and
+// `refs` normalized [nq, 2] points or [nq, 4] cx,cy,w,h boxes.
+void ms_deform_attn(const Tensor& out, const Tensor& value, const Tensor& offsets,
+                    const Tensor& attn, const Tensor& refs, const MsDeformLevels& levels,
+                    int n_heads, int n_points);
 
 // out[y][x][c] = in[y][x][c] + tile[y % th][x % tw][c]
 void add_tiled(const Tensor& out, const Tensor& in, const Tensor& tile, int H, int W,

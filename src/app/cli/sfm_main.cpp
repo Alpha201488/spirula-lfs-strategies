@@ -1,22 +1,13 @@
 // spirula-sfm: the SfM pipeline CLI. Subcommands are the stage graph
-// (src/sfm/README.md), each reading and writing files on disk so any one of
-// them can be replaced by COLMAP's equivalent to bisect a failure:
-//
-//   spirula-sfm auto    <image_dir> -o <workspace>      all of the below
-//   spirula-sfm extract <image|dir> -o <features>
-//   spirula-sfm match   <features>  -o <matches.bin>
-//   spirula-sfm map     <matches.bin> <features> -o <sparse/>
-//   spirula-sfm merge   <sparse/>   -o <merged/>
-//   spirula-sfm ba      <bal_problem.txt>               solver benchmark
+// (src/sfm/README.md: auto, extract, match, map, merge, ba), each reading and
+// writing files on disk so any one of them can be replaced by COLMAP's
+// equivalent to bisect a failure.
 //
 // This file is presentation and plumbing only: what a flag *means* lives in
 // sfm/SfmConfig.h's descriptor table, which is also what `--help` prints and
-// what the GUI will edit. Flags that do not name one scalar field are parsed
-// here, before the table is offered the token, so a hand-parsed name always
-// wins -- `map --audit` (run an audit pass) has to beat the table's `--audit`
-// / `--no-audit` switch for the audit pass.
-//
-// The self-checks are separate binaries (src/sfm/tests/, one per area).
+// what the GUI edits. Flags that do not name one scalar field are parsed here
+// first, so a hand-parsed name wins -- `map --audit` (run an audit pass) has to
+// beat the table's `--audit` / `--no-audit` switch.
 #include "app/Tools.h"
 #include "sfm/Pipeline.h"
 
@@ -52,6 +43,7 @@
 #include "sfm/core/Features.h"
 #include "sfm/core/Image.h"
 #include "sfm/core/ImageLoader.h"
+#include "sfm/map/Orient.h"
 #include "sfm/core/Mask.h"
 #include "sfm/core/Matches.h"
 #include "sfm/feature/Matcher.h"
@@ -69,6 +61,7 @@
 #include "i18n/catalog/Sfm.h"
 #include "i18n/catalog/Cli.h"
 #include "i18n/catalog/SfmHelp.h"
+#include "i18n/TimeFormat.h"
 
 // `spirula-sfm ba`, in sfm_ba.cpp. It prints its own help.
 int cmdBa(int argc, char** argv);
@@ -89,6 +82,7 @@ struct MergeSummary {
     double seconds = 0, ba_seconds = 0;
 };
 using namespace sfm;
+using spirula::i18n::format_duration;
 
 // Every line this tool prints goes out tagged and translated; see
 // sfm/core/Log.h for the mechanism and for what stays English.
@@ -155,7 +149,8 @@ static void ownOptionsAuto(FILE* out) {
     helpLine(out, "-o, --output DIR", H::word_required.get(),
              H::opt_auto_output.get());
     helpLine(out, "--manifest FILE", "", H::opt_manifest.get());
-    helpLine(out, "--rig PREFIX,PREFIX,...", "", H::opt_rig.get());
+    helpLine(out, "--rig [KIND=]PREFIX,PREFIX,...", "", H::opt_rig.get());
+    helpLine(out, "--sequence PREFIX[,PREFIX...]", "", H::opt_sequence.get());
     helpLine(out, "--no-masks", "", H::opt_no_masks.get());
     helpLine(out, "--no-manage", "", H::opt_no_manage_auto.get());
     helpLine(out, "--progress-dir DIR", "", H::opt_progress_dir.get());
@@ -167,12 +162,14 @@ static void ownOptionsExtract(FILE* out) {
 }
 static void ownOptionsMatch(FILE* out) {
     helpLine(out, "-o, --output FILE", "", H::opt_match_output.get());
+    helpLine(out, "--sequence PREFIX[,PREFIX...]", "", H::opt_sequence.get());
     helpLine(out, "--progress-dir DIR", "", H::opt_progress_dir.get());
     helpLine(out, "-h, --help", "", H::opt_help.get());
 }
 static void ownOptionsMap(FILE* out) {
     helpLine(out, "-o, --output DIR", "", H::opt_map_output.get());
-    helpLine(out, "--rig PREFIX,PREFIX,...", "", H::opt_rig.get());
+    helpLine(out, "--rig [KIND=]PREFIX,PREFIX,...", "", H::opt_rig.get());
+    helpLine(out, "--sequence PREFIX[,PREFIX...]", "", H::opt_sequence.get());
     helpLine(out, "--audit", "", H::opt_map_audit.get());
     helpLine(out, "--no-manage", "", H::opt_no_manage_map.get());
     helpLine(out, "--progress-dir DIR", "", H::opt_progress_dir.get());
@@ -476,6 +473,7 @@ static void modelReprojStats(const Reconstruction& rec, double& mean, double& me
 
 static std::vector<Reconstruction> mergeModels(std::vector<Reconstruction> models,
                                                const MergeOptions& mo, bool refine, int device,
+                                               const std::string& device_selector,
                                                MergeSummary& sum) {
     sum.before = sum.after = models.size();
     if (models.size() < 2) return models;
@@ -491,6 +489,7 @@ static std::vector<Reconstruction> mergeModels(std::vector<Reconstruction> model
             Reconstruction& m = session.modelMut(i);
             BundleOptions bo;
             bo.device = device;
+            bo.device_selector = device_selector;
             bo.verbose = false;
             bo.shared_ctx = &ctx;
             double cost = runGlobalBA(m, bo);
@@ -541,6 +540,12 @@ static bool collectModelDirs(const std::string& input, std::vector<fs::path>& ou
     std::sort(numbered.begin(), numbered.end());
     for (auto& kv : numbered) out.push_back(kv.second);
     return true;
+}
+
+static bool pairsContain(const std::vector<Mapper::SeamPair>& v, const Mapper::SeamPair& p) {
+    for (const Mapper::SeamPair& q : v)
+        if (q.pair == p.pair) return true;
+    return false;
 }
 
 static bool readModels(const std::string& dir, std::vector<Reconstruction>& models, bool verbose) {
@@ -596,13 +601,15 @@ static int cmdExtract(int argc, char** argv) {
     }
     if (std::string err = cfg.finalize(CMD_EXTRACT); !err.empty())
         return usageError("extract", err);
+    if (std::string err = cfg.resolveDevice(); !err.empty())
+        return usageError("extract", err);
     installEventPrinter(cfg);
     if (image.empty())
         return usageError("extract", "an image or a directory of images is required");
 
     // ---- directory (batch) ----
     if (fs::is_directory(image)) {
-        adoptExrColorSpace(cfg, image, seen);
+        adoptFileColorSpace(cfg, image, seen);
         fs::path outdir = output.empty() ? fs::path("features") : fs::path(output);
         ExtractStats st;
         int rc = extractDirectory(image, outdir, cfg, st);
@@ -631,7 +638,8 @@ static int cmdExtract(int argc, char** argv) {
                     {image, cfg.mask_dir});
     }
     GrayImage img = loadGrayImage(image, cfg.max_image_size, /*want_color=*/true, maskpath,
-                                  cfg.image_gamut, cfg.image_is_linear, cfg.flip_mask);
+                                  cfg.image_gamut, cfg.image_is_linear, cfg.flip_mask,
+                                  false, "", cfg.exposure);
     if (cfg.sift.verbose)
         L::err(Tag::Extract, M::extract_to_gray,
                {image, img.width, img.height});
@@ -687,6 +695,14 @@ static int cmdMatch(int argc, char** argv) {
                 return usageError("match", err);
             continue;
         }
+        if (a == "--sequence") {
+            if (i + 1 >= argc) return usageError("match", "--sequence: missing value");
+            SequenceDef d;
+            if (std::string err = parseSequenceArg(argv[++i], d); !err.empty())
+                return usageError("match", err);
+            cfg.sequences.push_back(std::move(d));
+            continue;
+        }
         int r = tableFlag(cfg, CMD_MATCH, "match", a, argc, argv, i, seen);
         if (r < 0) return 1;
         if (r > 0) continue;
@@ -696,11 +712,15 @@ static int cmdMatch(int argc, char** argv) {
     }
     if (std::string err = cfg.finalize(CMD_MATCH); !err.empty())
         return usageError("match", err);
+    if (std::string err = cfg.resolveDevice(); !err.empty())
+        return usageError("match", err);
     installEventPrinter(cfg);
     if (featdir.empty()) return usageError("match", "a feature directory is required");
 
     VerifyCalibration calib;
     calib.setup = cfg.camera;
+    const SensorCaptures sensors = loadSensorCaptures(cfg, !cfg.quiet);
+    calib.sensors = &sensors;
     std::vector<FeatureSet> feats;
     MatchesDatabase db;
     MatchStats stats;
@@ -769,6 +789,14 @@ static int cmdMap(int argc, char** argv) {
             cfg.rigs.push_back(std::move(d));
             continue;
         }
+        if (a == "--sequence") {
+            if (i + 1 >= argc) return usageError("map", "--sequence: missing value");
+            SequenceDef d;
+            if (std::string err = parseSequenceArg(argv[++i], d); !err.empty())
+                return usageError("map", err);
+            cfg.sequences.push_back(std::move(d));
+            continue;
+        }
         int r = tableFlag(cfg, CMD_MAP, "map", a, argc, argv, i, seen);
         if (r < 0) return 1;
         if (r > 0) continue;
@@ -778,11 +806,13 @@ static int cmdMap(int argc, char** argv) {
         else return usageError("map", "unexpected argument '" + a + "'");
     }
     if (std::string err = cfg.finalize(CMD_MAP); !err.empty()) return usageError("map", err);
+    if (std::string err = cfg.resolveDevice(); !err.empty()) return usageError("map", err);
     if (matchesPath.empty() || cfg.feature_dir.empty())
         return usageError("map", "a match database and a feature directory are required");
 
     MapperOptions& opt = cfg.mapper;
     ManagerOptions& mgopt = cfg.manager;
+    opt.seam_order_by_name = cfg.pairs == "sequential";
     const std::string& featdir = cfg.feature_dir;
 
     MatchesDatabase db = readMatches(matchesPath);
@@ -831,6 +861,20 @@ static int cmdMap(int argc, char** argv) {
         compaction.reset();
         if (opt.verbose) reportFeatureCompaction(stats);
     }
+    // As `auto` does: the pair lists and the graph past 256 MB go beside the output, mapped.
+    {
+        size_t n = 0;
+        for (const TwoViewMatches& p : db.pairs) n += p.matches.size();
+        fs::path dir = output.empty() ? fs::path(matchesPath).parent_path() : fs::path(output);
+        if (dir.empty()) dir = ".";
+        std::error_code ec;
+        fs::create_directories(dir, ec);
+        if (fs::is_directory(dir, ec)) {
+            if (n * sizeof(FeatureMatch) > (256ull << 20))
+                spillMatches(db, (dir / ".spirula-matches.spill").string());
+            opt.spill_dir = dir.string();
+        }
+    }
 
     // The camera setup, in order of authority: what the command line asked for,
     // else what verification recorded in matches.bin (D47), else derived here.
@@ -860,7 +904,7 @@ static int cmdMap(int argc, char** argv) {
         size_t stride = std::max<size_t>(1, db.pairs.size() / want);
         for (size_t p = 0; p < db.pairs.size() && sample.size() < want; p += stride) {
             sample.push_back({db.pairs[p].image1, db.pairs[p].image2});
-            sm.push_back(db.pairs[p].matches);
+            sm.push_back(db.pairs[p].matches.toVector());
         }
         bootstrapGroupFocals(feats, cs.ids, sample, sm, cs.cameras, cs.focal_given,
                              cs.focal_measured, TwoViewOptions{}, 200, 0, opt.verbose);
@@ -872,13 +916,27 @@ static int cmdMap(int argc, char** argv) {
     opt.measured_focal_cameras = cs.focal_measured;
 
     RigTable rigs;
+    SequenceTable seqs;
     try {
         rigs = buildRigs(db, cfg, opt.verbose);
+        seqs = buildSequences(db, cfg, opt.verbose);
     } catch (const std::runtime_error& e) {
         L::fail(Tag::Map, M::rig_bad, {e.what()});
         return 1;
     }
-    Mapper mapper(db, feats, opt, cs.ids, &rigs);
+    // The sensors, calibrated against the gyro on the verified pairs.
+    const SensorCaptures sensors = loadSensorCaptures(cfg, opt.verbose);
+    applyMetricGpsAuto(cfg, sensors, cfg.image_dir);
+    std::unique_ptr<TelemetryPriors> priors =
+        cfg.sensor_map ? makeSensorPriors(cfg, sensors, db, cs.ids) : nullptr;
+    if (priors)
+        calibrateSensorPriorsFromDatabase(*priors, db, feats, perImageCameras(cs, feats.size()),
+                                          cfg.twoview, cfg.threads, opt.verbose);
+    std::unique_ptr<ExifGpsPriors> exif_priors =
+        cfg.sensor_map && !priors ? makeExifGpsPriors(cfg, cfg.image_dir, db, cs, opt.verbose)
+                                  : nullptr;
+    PriorSource* mapped = priors ? static_cast<PriorSource*>(priors.get()) : exif_priors.get();
+    Mapper mapper(db, feats, opt, cs.ids, &rigs, &seqs, mapped);
     std::vector<Reconstruction> models;
     AssembleStats ast;
     if (cfg.resume.empty()) {
@@ -937,6 +995,18 @@ static int cmdMap(int argc, char** argv) {
                 if (ss.dropped_images) printf(" (%zu images dropped)", ss.dropped_images);
             }
             printf("\n");
+            size_t strong = 0;
+            std::vector<Mapper::SeamPair> cand;
+            const std::vector<Mapper::SeamPair> open = mapper.openSeams(models[i], &strong, &cand);
+            printf("    open seams: %zu of %zu strong pairs (%zu explained under %.2f)\n",
+                   open.size(), strong, cand.size(), opt.seam_weld_frac);
+            // SS_SFM_MAP_PROF lists every candidate, so an offline scorer can check each term.
+            for (const Mapper::SeamPair& sp : MapProf::enabled() ? cand : open)
+                printf("    seam %s %s-%s explained %zu/%zu, shared neighbours %d, offset %.4f, "
+                       "gap %d, kink ratio %.2f\n",
+                       pairsContain(open, sp) ? "open" : "candidate",
+                       db.images[sp.a].name.c_str(), db.images[sp.b].name.c_str(), sp.explained,
+                       sp.matches, sp.nbr_common, sp.off_depth, sp.gap, sp.kink_ratio);
             DuplicateReport dr =
                 findDuplicateStructure(models[i], mgopt.duplicate, mapper.matchedPredicate());
             printf("    duplicate structure: %zu of %zu co-located pairs share no points "
@@ -1007,10 +1077,15 @@ static int cmdMap(int argc, char** argv) {
         printExtraModels(models, feats);
     }
     std::vector<sfm::ModelGauge> map_gauge;
-    const bool map_metric = fixGauge(models, cfg, cfg.image_dir, opt.verbose, map_gauge);
+    const bool map_metric =
+        fixGauge(models, cfg, cfg.image_dir, opt.verbose, map_gauge, &sensors, mapped);
     recolorPoints(models, cfg);
     splitCamerasBySize(models, feats);
     if (!output.empty()) writeModels(models, output, opt.verbose, map_gauge, &rigs);
+    if (!output.empty() && !ast.pre_weld.empty()) {
+        resolveImageNames(ast.pre_weld, cfg.image_dir);
+        writeModels(ast.pre_weld, fs::path(output) / "pre_weld", opt.verbose, {}, &rigs);
+    }
     return map_metric ? 0 : 4;
 }
 
@@ -1038,6 +1113,7 @@ static int cmdMerge(int argc, char** argv) {
         inputs.push_back(a);
     }
     if (std::string err = cfg.finalize(CMD_MERGE); !err.empty()) return usageError("merge", err);
+    if (std::string err = cfg.resolveDevice(); !err.empty()) return usageError("merge", err);
     if (inputs.empty()) return usageError("merge", "at least one model directory is required");
     if (output.empty() && !cfg.in_place)
         return usageError("merge", "--output is required (or --in-place)");
@@ -1072,10 +1148,13 @@ static int cmdMerge(int argc, char** argv) {
                {d.string(), models.back().numRegistered(),
                 (long long)models.back().points3D.size()});
     }
-    // A metric reference re-gauges a model instead of joining it to another,
-    // which is the one thing this command does that one model can want (D74).
-    const bool metric = cfg.metric_gps != "none" || !cfg.metric_positions.empty() ||
-                        (!cfg.telemetry_inputs.empty() && cfg.sensor_gauge != "none");
+    // A reference re-gauges a model instead of joining it to another, which is
+    // the one thing this command does that one model can want (D74).
+    const SensorCaptures merge_sensors = loadSensorCaptures(cfg, mo.verbose);
+    applyMetricGpsAuto(cfg, merge_sensors, cfg.image_dir);
+    const bool metric = cfg.metricGps() || !cfg.metric_positions.empty() ||
+                        (!cfg.telemetry_inputs.empty() && cfg.sensor_gauge != "none") ||
+                        (cfg.orient && cfg.exif_attitude != "none" && !cfg.image_dir.empty());
     if (models.size() < 2 && !metric) {
         L::fail(Tag::Merge, M::merge_need_two, {(long long)models.size()});
         return 1;
@@ -1085,13 +1164,15 @@ static int cmdMerge(int argc, char** argv) {
         const size_t covered_before = distinctRegistered(models);
 
         MergeSummary sum;
-        models = mergeModels(std::move(models), mo, cfg.merge_ba, cfg.device, sum);
+        models = mergeModels(std::move(models), mo, cfg.merge_ba, cfg.device,
+                             cfg.device_selector, sum);
 
         L::out(Tag::Merge, M::merge_summary,
-               {(long long)sum.before, (long long)sum.after, L::num(sum.seconds, 2),
-                (long long)sum.merges, (long long)sum.refused});
+               {(long long)sum.before, (long long)sum.after,
+                format_duration(sum.seconds), (long long)sum.merges,
+                (long long)sum.refused});
         if (sum.ba_seconds > 0)
-            L::out(Tag::Merge, M::merge_ba_seconds, {L::num(sum.ba_seconds, 2)});
+            L::out(Tag::Merge, M::merge_ba_seconds, {format_duration(sum.ba_seconds)});
         for (size_t i = 0; i < models.size(); i++) {
             double mean = 0, median = 0;
             size_t nobs = 0;
@@ -1108,7 +1189,10 @@ static int cmdMerge(int argc, char** argv) {
     }
 
     std::vector<sfm::ModelGauge> merge_gauge;
-    const bool merge_metric = fixGauge(models, cfg, cfg.image_dir, mo.verbose, merge_gauge);
+    // These models came off disk, which records no Orientation tag.
+    if (cfg.exif_orientation == "orient") fillExifOrientations(models, cfg.image_dir);
+    const bool merge_metric =
+        fixGauge(models, cfg, cfg.image_dir, mo.verbose, merge_gauge, &merge_sensors);
     recolorPoints(models, cfg);
     writeModels(models, fs::path(output), mo.verbose, merge_gauge);
     // In place, the models that were absorbed must not stay behind as stale

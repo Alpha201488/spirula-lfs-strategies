@@ -49,12 +49,24 @@ inline constexpr Stream kDefaultStream = nullptr;
 // A process runs on ONE device, picked lazily on the first device operation.
 // Enumeration is side-effect-free (it does not initialize the backend), so
 // apps can list devices and call device_select before starting work.
+
+// A GPU + driver that passes the feature checks yet is known to fail training.
+enum class DeviceIssue {
+    NoneKnown,
+    // AMD's Windows driver without native fp32 buffer atomic add (Radeon RX
+    // 6000 series and older) and without fp32 atomic exchange to work around
+    // it: training crashes or diverges. Issue #23.
+    AmdWindowsFloatAtomics,
+};
+
 struct DeviceInfo {
     char name[256];       // human-readable device name ("" if index invalid)
     const char* type;     // "discrete"|"integrated"|"virtual"|"cpu"|"other"
                           // (static storage)
+    std::string uuid;     // canonical uuid:<hex>; empty when unavailable
     uint64_t vram_bytes;  // device-local memory
     bool usable;          // meets the backend's feature requirements
+    DeviceIssue issue = DeviceIssue::NoneKnown;
 };
 // Number of devices visible to the backend (0: none / no driver).
 int device_count();
@@ -64,6 +76,32 @@ DeviceInfo device_info(int index);
 // first device operation. Returns false if `index` is out of range or not
 // usable, or if the backend already initialized on a different device.
 bool device_select(int index);
+#ifndef SS_BACKEND_VULKAN
+// CUDA current-device state is per thread; each worker must bind before device
+// work. Returns false when the selected device can no longer be made current.
+bool device_bind();
+#endif
+#ifdef SS_BACKEND_VULKAN
+// Selects by a Vulkan selector; prefer it over device_select, since an ordinal
+// is reinterpreted by every enumeration. Returns false on an unknown,
+// ambiguous or unusable selector.
+bool device_select_identity(const char* selector);
+// Detail from the last failed identity selection, or empty after success.
+std::string device_selection_error();
+// Canonical selector of device `index`, "" when the index is invalid or the
+// driver reported no UUID (the only case a caller must fall back to an ordinal).
+std::string device_selector(int index);
+// Canonical selector of the device in use -- or, before initialization, of the
+// one that would be picked.
+std::string device_current_selector();
+// True when `selector` resolves to the device already in use. False before the
+// backend initializes.
+bool device_identity_matches_current(const char* selector);
+// Index of the device a request would select, without selecting it: `selector`
+// as the user gave it ("" is Auto), or with `explicit_set` false SS_VK_DEVICE
+// first. -1 when nothing usable matches.
+int device_resolve(const std::string& selector, bool explicit_set);
+#endif
 // Index of the device in use — or, before the backend initializes, the one
 // it would pick (explicit selection, then backend env override, then
 // auto-score). -1 if no usable device.

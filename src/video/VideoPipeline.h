@@ -34,6 +34,18 @@ struct FrameHandle {
 struct ConvertOpts {
     float scale = 1.0f;   // < 1 downscales; 1.0 is a straight copy
     int   rotate = 0;     // 0, 90, 180 or 270, clockwise
+    // H.273 matrix_coefficients and range, for a container that overrides the
+    // bitstream's VUI (HEIF's colr); -1 keeps the stream's.
+    int   matrix_coefficients = -1;
+    int   full_range = -1;
+    // A 3D colour LUT over the RGB result, mapped before it is rounded to 8
+    // bits (tetrahedral, as app::apply_cube_lut); null = none. A new
+    // `lut_serial` is what makes the pipeline upload the table again.
+    const float* lut = nullptr;   // lut_size^3 RGB triples, red varying fastest
+    int      lut_size = 0;
+    float    lut_min[3] = {0, 0, 0};
+    float    lut_max[3] = {1, 1, 1};
+    uint64_t lut_serial = 0;
 };
 
 class VideoPipeline {
@@ -49,6 +61,9 @@ public:
     // `lookahead` is how many decoded frames the caller may hold at once (the
     // motion-blur window); the picture pool is sized from it.
     bool open(const std::string& path, int track, int lookahead, std::string& error);
+    // Over packets from anywhere; `name` is what an error calls the source.
+    bool open(std::unique_ptr<Demuxer> demux, const std::string& name, int track,
+              int lookahead, std::string& error);
 
     const std::vector<TrackInfo>& tracks() const;
     const TrackInfo&              track() const;
@@ -59,15 +74,29 @@ public:
     bool next(FrameHandle& out, std::string& error);
     void release(FrameHandle& h);
 
+    // To the sync sample at or before `index`, reporting the frame the next
+    // next() hands back; false where the container carries no index, leaving
+    // the pipeline as it was. Release every FrameHandle first.
+    bool seek(int64_t index, int64_t& landed, std::string& error);
+
     // Records the sharpness reduction for a live frame. Values become readable
     // after flushSharpness(), which costs one queue sync for the whole batch.
     void  queueSharpness(const FrameHandle& h);
     void  flushSharpness();
     float sharpness(const FrameHandle& h) const;
 
+    // A box-filtered grey copy of the frame at `w` x `h`, on the host. What
+    // motion analysis reads: the GPU does the reduction, so a frame costs a
+    // dispatch and a few tens of kilobytes over the bus rather than a download.
+    bool toGray(const FrameHandle& h, int w, int h_out, std::vector<uint8_t>& out,
+                std::string& error);
+
     // Converts to host RGB. Blocks until the frame is ready.
     bool toImage(const FrameHandle& h, const ConvertOpts& opts, nn::Image& out,
                  std::string& error);
+    // The last toImage()'s pixels as they are still on the device, tightly
+    // packed RGB8 (a VkDeviceAddress); valid until the next call, 0 before one.
+    uint64_t rgbDevice() const;
     // Output geometry for `opts`, so a caller can size buffers up front.
     void outputSize(const ConvertOpts& opts, int& w, int& h) const;
 

@@ -25,10 +25,14 @@ struct Raster2dBwdParams {
     uint64_t v_out_rgb, v_out_depth, v_render_Ts, v_median, v_dist_rgb,
         v_dist_depth;
     uint64_t v_s_screen;
-    uint64_t o_accum_weight, o_accum_weight_den;
+    uint64_t o_accum_weight, o_accum_weight_den, o_max_weight;
     uint32_t I, N, n_isects, width, height, tile_width, tile_height, macro_log2;
+    float v_dist_rgb_per_depth;
+    uint32_t state_flags;
+    float max_weight_scale;
+    float kernel_cut;
 };
-static_assert(sizeof(Raster2dBwdParams) == 20 * 8 + 8 * 4,
+static_assert(sizeof(Raster2dBwdParams) == 21 * 8 + 12 * 4,
               "params layout must match the slang struct");
 
 // Mirrors Raster3dgutBwdParams.
@@ -40,10 +44,14 @@ struct Raster3dgutBwdParams {
     uint64_t v_out_rgb, v_out_depth, v_render_Ts, v_median, v_dist_rgb,
         v_dist_depth;
     uint64_t v_means, v_quats, v_scales, v_s_screen;
-    uint64_t o_accum_weight, o_accum_weight_den, v_viewmats;
+    uint64_t o_accum_weight, o_accum_weight_den, o_max_weight, v_viewmats;
     uint32_t I, N, n_isects, width, height, tile_width, tile_height, macro_log2;
+    float v_dist_rgb_per_depth;
+    uint32_t state_flags;
+    float max_weight_scale;
+    uint32_t _pad0;
 };
-static_assert(sizeof(Raster3dgutBwdParams) == 31 * 8 + 8 * 4,
+static_assert(sizeof(Raster3dgutBwdParams) == 32 * 8 + 12 * 4,
               "params layout must match the slang struct");
 
 uint32_t dist_spec_bwd(DistortionType dist_type) {
@@ -56,6 +64,21 @@ uint32_t dist_spec_bwd(DistortionType dist_type) {
                 "rasterize_to_pixels_bwd: distortion type not instantiated "
                 "(normal needs a normal-rendering primitive)");
     }
+}
+
+// rasterize_bwd.slang's kRbDepthBound / kRbDistRgbFromDepth.
+uint32_t raster_bwd_state_flags(
+    const RenderOutput::TensorTuple& render_outputs,
+    const RenderOutput::TensorTuple& v_render_outputs,
+    const std::optional<RenderOutput::TensorTuple>& v_distortion_outputs) {
+    uint32_t f = 0;
+    if (std::get<1>(render_outputs).data_ptr() &&
+        std::get<1>(v_render_outputs).data_ptr())
+        f |= 1u;
+    if (v_distortion_outputs.has_value() &&
+        !std::get<0>(v_distortion_outputs.value()).data_ptr())
+        f |= 2u;
+    return f;
 }
 
 }  // namespace
@@ -82,10 +105,14 @@ std::tuple<
     DistortionType dist_type,
     DeviceTensor3D<float> accum_weight_map,
     DensifyAccumMode accum_mode,
+    DeviceVector<float> max_weight,
+    float max_weight_scale,
+    float kernel_cut,
     RenderOutput::TensorTuple v_render_outputs,
     const DeviceTensor3D<float> v_render_Ts,
     const DeviceTensor3D<float> v_median,
     std::optional<RenderOutput::TensorTuple> v_distortion_outputs,
+    float v_dist_rgb_per_depth,
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_w,
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_s
 ) {
@@ -95,6 +122,7 @@ std::tuple<
     const bool aw = accum_any(accum_mode);
     const bool md = v_median.data_ptr() != nullptr;
     const bool packed = gaussian_ids.data_ptr() != nullptr;
+    const bool mw = max_weight.data_ptr() != nullptr;
 
     // Opens the raster-backward phase: the screen-gradient buffer below shares
     // the tile intersector's arena (POOL_ALIAS_TABLE, core/PoolSlots.h).
@@ -129,7 +157,7 @@ std::tuple<
         p.render_Ts = (uint64_t)render_Ts.data_ptr();
         p.last_ids = (uint64_t)last_ids.data_ptr();
         p.out_rgb = (uint64_t)std::get<0>(render_outputs_tuple).data_ptr();
-        p.out_depth = (uint64_t)std::get<1>(render_outputs_tuple).data_ptr();
+        p.out_depth = vkk::or_fallback(std::get<1>(render_outputs_tuple).data_ptr());
         if (distortion_fwd_outputs.has_value()) {
             p.dist_rgb = vkk::or_fallback(
                 std::get<0>(distortion_fwd_outputs.value()).data_ptr());
@@ -141,7 +169,7 @@ std::tuple<
         }
         p.awmap = vkk::or_fallback(accum_weight_map.data_ptr());
         p.v_out_rgb = (uint64_t)std::get<0>(v_render_outputs).data_ptr();
-        p.v_out_depth = (uint64_t)std::get<1>(v_render_outputs).data_ptr();
+        p.v_out_depth = vkk::or_fallback(std::get<1>(v_render_outputs).data_ptr());
         p.v_render_Ts = (uint64_t)v_render_Ts.data_ptr();
         p.v_median = vkk::or_fallback(v_median.data_ptr());
         if (v_distortion_outputs.has_value()) {
@@ -153,11 +181,18 @@ std::tuple<
             p.v_dist_rgb = vkk::null_fallback();
             p.v_dist_depth = vkk::null_fallback();
         }
+        p.v_dist_rgb_per_depth = v_dist_rgb_per_depth;
+        p.state_flags = raster_bwd_state_flags(render_outputs_tuple,
+                                               v_render_outputs,
+                                               v_distortion_outputs);
         p.v_s_screen = (uint64_t)vsb.raw_data();
         p.o_accum_weight = vkk::or_fallback(o_accum_weight.data_ptr());
         p.o_accum_weight_den = vkk::or_fallback(
             accum_mode == DensifyAccumMode::Avg
                 ? o_accum_weight.data_ptr() + num_splats : nullptr);
+        p.o_max_weight = vkk::or_fallback(max_weight.data_ptr());
+        p.max_weight_scale = max_weight_scale;
+        p.kernel_cut = kernel_cut;
         p.I = I;
         p.N = packed ? 0u : (uint32_t)num_splats;
         p.n_isects = n_isects;
@@ -168,13 +203,17 @@ std::tuple<
         p.macro_log2 = (uint32_t)macro_log2;
 
         // Spec IDs: cam(0, unused), dist(1), median(2), accum(3),
-        // viewmat(4, unused), packed(5).
+        // viewmat(4, unused), packed(5), max weight(6).
         backend::vk::SpecList spec{0u,           spec_dist,
                                    md ? 1u : 0u, (uint32_t)accum_mode,
-                                   0u,           packed ? 1u : 0u};
-        vkk::dispatch_ring("rasterize_bwd.rasterize_bwd_2d", spec, I,
-                           tile_height << macro_log2,
-                           tile_width << macro_log2, &p, sizeof(p));
+                                   0u,           packed ? 1u : 0u,
+                                   mw ? 1u : 0u};
+        vkk::dispatch_ring_budgeted(
+            "rasterize_bwd.rasterize_bwd_2d", spec, I,
+            tile_height << macro_log2, tile_width << macro_log2, &p,
+            sizeof(p),
+            vkk::raster_work(n_isects, macro_log2, I, image_width,
+                             image_height));
     }
 
     return std::make_tuple(v_splats_w.value(), v_splats_s.value(),
@@ -211,10 +250,13 @@ std::tuple<
     DeviceTensor3D<float> loss_map,
     DeviceTensor3D<float> accum_weight_map,
     DensifyAccumMode accum_mode,
+    DeviceVector<float> max_weight,
+    float max_weight_scale,
     RenderOutput::TensorTuple v_render_outputs,
     const DeviceTensor3D<float> v_render_Ts,
     const DeviceTensor3D<float> v_median,
     std::optional<RenderOutput::TensorTuple> v_distortion_outputs,
+    float v_dist_rgb_per_depth,
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_w,
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_s,
     bool need_viewmat_grad
@@ -227,6 +269,7 @@ std::tuple<
     const bool aw = accum_any(accum_mode);
     const bool md = v_median.data_ptr() != nullptr;
     const bool packed = gaussian_ids.data_ptr() != nullptr;
+    const bool mw = max_weight.data_ptr() != nullptr;
 
     // Opens the raster-backward phase: the screen-gradient buffer below shares
     // the tile intersector's arena (POOL_ALIAS_TABLE, core/PoolSlots.h).
@@ -278,7 +321,7 @@ std::tuple<
         p.render_Ts = (uint64_t)render_Ts.data_ptr();
         p.last_ids = (uint64_t)last_ids.data_ptr();
         p.out_rgb = (uint64_t)std::get<0>(render_outputs).data_ptr();
-        p.out_depth = (uint64_t)std::get<1>(render_outputs).data_ptr();
+        p.out_depth = vkk::or_fallback(std::get<1>(render_outputs).data_ptr());
         if (distortion_fwd_outputs.has_value()) {
             p.dist_rgb = vkk::or_fallback(
                 std::get<0>(distortion_fwd_outputs.value()).data_ptr());
@@ -290,7 +333,7 @@ std::tuple<
         }
         p.awmap = vkk::or_fallback(accum_weight_map.data_ptr());
         p.v_out_rgb = (uint64_t)std::get<0>(v_render_outputs).data_ptr();
-        p.v_out_depth = (uint64_t)std::get<1>(v_render_outputs).data_ptr();
+        p.v_out_depth = vkk::or_fallback(std::get<1>(v_render_outputs).data_ptr());
         p.v_render_Ts = (uint64_t)v_render_Ts.data_ptr();
         p.v_median = vkk::or_fallback(v_median.data_ptr());
         if (v_distortion_outputs.has_value()) {
@@ -302,6 +345,10 @@ std::tuple<
             p.v_dist_rgb = vkk::null_fallback();
             p.v_dist_depth = vkk::null_fallback();
         }
+        p.v_dist_rgb_per_depth = v_dist_rgb_per_depth;
+        p.state_flags = raster_bwd_state_flags(render_outputs,
+                                               v_render_outputs,
+                                               v_distortion_outputs);
         p.v_means = (uint64_t)vwb.raw_data(0);
         p.v_quats = (uint64_t)vwb.raw_data(1);
         p.v_scales = (uint64_t)vwb.raw_data(2);
@@ -310,6 +357,8 @@ std::tuple<
         p.o_accum_weight_den = vkk::or_fallback(
             accum_mode == DensifyAccumMode::Avg
                 ? o_accum_weight.data_ptr() + num_splats : nullptr);
+        p.o_max_weight = vkk::or_fallback(max_weight.data_ptr());
+        p.max_weight_scale = max_weight_scale;
         p.v_viewmats = vkk::or_fallback(v_viewmats_buf.data_ptr());
         p.I = I;
         p.N = packed ? 0u : (uint32_t)num_splats;
@@ -321,15 +370,18 @@ std::tuple<
         p.macro_log2 = (uint32_t)macro_log2;
 
         // Spec IDs: cam(0), dist(1), median(2), accum(3), viewmat(4),
-        // packed(5), distortion tier(6).
+        // packed(5), max weight(6), distortion tier(7).
         backend::vk::SpecList spec{
             cd.cam,         spec_dist,
             md ? 1u : 0u,   (uint32_t)accum_mode,
             need_viewmat_grad ? 1u : 0u, packed ? 1u : 0u,
-            cd.dist};
-        vkk::dispatch_ring("rasterize_bwd.rasterize_bwd_3dgut", spec, I,
-                           tile_height << macro_log2,
-                           tile_width << macro_log2, &p, sizeof(p));
+            mw ? 1u : 0u,   cd.dist};
+        vkk::dispatch_ring_budgeted(
+            "rasterize_bwd.rasterize_bwd_3dgut", spec, I,
+            tile_height << macro_log2, tile_width << macro_log2, &p,
+            sizeof(p),
+            vkk::raster_work(n_isects, macro_log2, I, image_width,
+                             image_height));
     }
 
     return std::make_tuple(v_splats_w.value(), v_splats_s.value(),

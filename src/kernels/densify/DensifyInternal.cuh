@@ -21,14 +21,15 @@ void quantile_of_positive_finite_elements_internal(
     float* outputs_ptr
 );
 
-// Weighted sampling without replacement (Efraimidis-Spirakis). Returns a
-// pool-allocated int32 index buffer of length `num_sample`; the caller does
-// not own it (PoolSlot-backed).
+// Weighted sampling without replacement (Efraimidis-Spirakis) into a pool-owned
+// [num_sample] index buffer. Only the first `num_eligible` draws (positive
+// weight, admitted by the mask) are real; the rest are zero-weight or masked.
 int32_t* weighted_sample_without_replacement_internal(
     int64_t numel,
     float* weights_ptr,
     int64_t weights_numel,
     bool* masks_ptr,
     uint32_t num_sample,
-    uint32_t seed
+    uint32_t seed,
+    uint32_t* num_eligible = nullptr
 );

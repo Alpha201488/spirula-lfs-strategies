@@ -16,15 +16,20 @@
 #include "mesh/MeshingDevice.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <core/Tensor.h>
 #include <core/Common.cuh>
+#include "core/Camera.h"   // camera_{model,distortion}_to_string
+#include "core/SubmitBudget.h"
 
 #include "backend/api/BackendRuntime.h"
 #include "backend/common/SortScan.h"
@@ -73,6 +78,12 @@ inline TorchTensorView tv(const float* p, std::initializer_list<int64_t> shape) 
     return TorchTensorView((uint64_t)p, 4, shape);
 }
 
+// Bounds on one cull launch; below the pair cap, SubmitBudget sizes it from the
+// launches before. RTX 5070: 2.7M vertices x 530 cameras in one launch took
+// 3.8 s, past the 2 s TDR; 262K vertices x 16 cameras at most 0.11 s.
+constexpr int kCullCamerasPerLaunch = 16;
+constexpr int64_t kCullPairsPerLaunch = 1 << 22;   // vertex x camera tests
+
 // Per-camera progress for the three loops below. Rate-limited to ~50 lines
 // per phase so a 2000-camera capture does not drown the log, and always
 // printing the last one so the phase visibly completes. The GUI's runner reads
@@ -93,8 +104,11 @@ struct RenderContext {
     int C = 0;
     std::vector<int> Ws, Hs;     // per-camera image size
     int Wmax = 0, Hmax = 0;      // max over cameras (scratch-buffer sizing)
-    std::string model;
-    std::string distortion;
+    std::vector<int> models;     // per-camera CameraModelType
+    std::vector<int> dists;      // per-camera CameraDistortionType
+
+    // host copies of the camera rows, gathered per camera group by the cull
+    std::vector<float> h_viewmats, h_intrins, h_dist;
 
     // raw (un-activated) splat params on device
     DBuf<float> d_means;
@@ -138,7 +152,7 @@ RenderContext* render_context_create(
     const float* logit_opac, const float* features_dc, int num_splats,
     const float* viewmats, const float* intrins, const float* dist,
     int num_cameras, const int* widths, const int* heights,
-    const std::string& camera_model, const std::string& distortion,
+    const int* camera_models, const int* distortions,
     int carve_k, bool verbose
 ) {
     RenderContext* ctx = new RenderContext();
@@ -151,8 +165,9 @@ RenderContext* render_context_create(
         ctx->Wmax = std::max(ctx->Wmax, ctx->Ws[c]);
         ctx->Hmax = std::max(ctx->Hmax, ctx->Hs[c]);
     }
-    ctx->model = camera_model;
-    ctx->distortion = distortion;
+    ctx->models.assign(camera_models, camera_models + num_cameras);
+    ctx->dists.assign(num_cameras, (int)CameraDistortionType::None);
+    if (distortions) ctx->dists.assign(distortions, distortions + num_cameras);
     ctx->carve_k = (carve_k < 1) ? 1 : carve_k;
 
     const size_t N = (size_t)num_splats;
@@ -162,9 +177,14 @@ RenderContext* render_context_create(
     ctx->d_logit.alloc_copy(logit_opac, N);
     ctx->d_fdc.alloc_copy(features_dc, N * 3);
 
-    ctx->d_viewmats.alloc_copy(viewmats, (size_t)num_cameras * 16);
-    ctx->d_intrins.alloc_copy(intrins, (size_t)num_cameras * 4);
-    ctx->d_dist.alloc_copy(dist, (size_t)num_cameras * kCameraDistortionParams);  // null -> zeros
+    const size_t ndist = (size_t)num_cameras * kCameraDistortionParams;
+    ctx->h_viewmats.assign(viewmats, viewmats + (size_t)num_cameras * 16);
+    ctx->h_intrins.assign(intrins, intrins + (size_t)num_cameras * 4);
+    ctx->h_dist.assign(ndist, 0.0f);
+    if (dist) ctx->h_dist.assign(dist, dist + ndist);
+    ctx->d_viewmats.alloc_copy(ctx->h_viewmats.data(), ctx->h_viewmats.size());
+    ctx->d_intrins.alloc_copy(ctx->h_intrins.data(), ctx->h_intrins.size());
+    ctx->d_dist.alloc_copy(ctx->h_dist.data(), ndist);
 
     ctx->radii.resize(PoolSlot::MeshingRenderRadii, N);
     return ctx;
@@ -177,6 +197,10 @@ static void render_one(RenderContext* ctx, int cam_idx,
         throw std::runtime_error("render_one: cam_idx out of range");
 
     const uint32_t W = (uint32_t)ctx->Ws[cam_idx], H = (uint32_t)ctx->Hs[cam_idx];
+    const std::string model =
+        camera_model_to_string((CameraModelType)ctx->models[cam_idx]);
+    const std::string distortion =
+        camera_distortion_to_string((CameraDistortionType)ctx->dists[cam_idx]);
     std::vector<DeviceTensorFloatND> in_splats = ctx->in_splats();
 
     // per-camera views (single image, I=1)
@@ -189,8 +213,8 @@ static void render_one(RenderContext* ctx, int cam_idx,
 
     // --- projection (3DGUT, sh_degree = 0 -> DC color only) ---
     auto [aabb_2d, depths_2d, splats_s] = projection_3dgut_forward(
-        (int64_t)ctx->N, /*max_sh_degree=*/0, in_splats,
-        viewmats, intrins, W, H, ctx->model, ctx->distortion, dist,
+        (int64_t)ctx->N, ColorBasis{}, in_splats,
+        viewmats, intrins, W, H, model, distortion, dist,
         ctx->radii,
         std::nullopt, std::nullopt, /*num_sh_buffer=*/0, /*sh_value_bits=*/32,
         /*sh_bounds_stride=*/0);
@@ -208,7 +232,7 @@ static void render_one(RenderContext* ctx, int cam_idx,
     // --- moment (+ rgb) rasterization ---
     rasterize_moments_3dgut_fwd(
         (int64_t)ctx->N, in_splats, splats_s, DeviceVector<int32_t>(),
-        viewmats, intrins, ctx->model, ctx->distortion, dist,
+        viewmats, intrins, model, distortion, dist,
         aabb_2d, W, H, tile_offsets, flatten_ids, macro_log2,
         d_moments, d_rgb);
 }
@@ -237,16 +261,10 @@ void render_evaluate_occupancy(
     DBuf<float3> d_moments(npix);
     DBuf<float> d_occ_kmin((size_t)n * k);
     DBuf<int> d_cnt((size_t)n);
-    {
-        std::vector<float> big((size_t)n * k, 1e30f);
-        backend::memcpy_sync(d_occ_kmin.get(), big.data(),
-                             (size_t)n * k * sizeof(float),
-                             backend::MemcpyKind::HostToDevice);
-        backend::memset_sync(d_cnt.get(), 0, (size_t)n * sizeof(int));
-    }
+    // 0x7f7f7f7f is 3.4e38, the "+inf" padding; finalize never reads it back.
+    backend::memset_sync(d_occ_kmin.get(), 0x7f, (size_t)n * k * sizeof(float));
+    backend::memset_sync(d_cnt.get(), 0, (size_t)n * sizeof(int));
 
-    const int cm = (int)cmt(ctx->model);
-    const int cd = (int)cdt(ctx->distortion);
     for (int ci = 0; ci < num_cams; ++ci) {
         int cam = cam_indices[ci];
         render_one(ctx, cam, d_moments, nullptr);
@@ -255,12 +273,13 @@ void render_evaluate_occupancy(
             d_xyz, n,
             ctx->d_viewmats.get() + (size_t)cam * 16,
             ctx->d_intrins.get() + (size_t)cam * 4,
-            ctx->d_dist.get() + (size_t)cam * kCameraDistortionParams, cm, cd,
+            ctx->d_dist.get() + (size_t)cam * kCameraDistortionParams,
+            ctx->models[cam], ctx->dists[cam],
             d_moments, ctx->Ws[cam], ctx->Hs[cam], k,
             d_occ_kmin, d_cnt);
     }
     launch_finalize_occ(n, d_occ_kmin, d_cnt, k, d_occ);
-    backend::device_synchronize();
+    sync_checked("occupancy");
 }
 
 
@@ -280,8 +299,6 @@ void render_evaluate_color(
     backend::memset_sync(d_num.get(), 0, (size_t)n * sizeof(float3));
     backend::memset_sync(d_den.get(), 0, (size_t)n * sizeof(float));
 
-    const int cm = (int)cmt(ctx->model);
-    const int cd = (int)cdt(ctx->distortion);
     for (int ci = 0; ci < num_cams; ++ci) {
         int cam = cam_indices[ci];
         render_one(ctx, cam, d_moments, d_rgbimg);
@@ -290,12 +307,13 @@ void render_evaluate_color(
             d_xyz, n,
             ctx->d_viewmats.get() + (size_t)cam * 16,
             ctx->d_intrins.get() + (size_t)cam * 4,
-            ctx->d_dist.get() + (size_t)cam * kCameraDistortionParams, cm, cd,
+            ctx->d_dist.get() + (size_t)cam * kCameraDistortionParams,
+            ctx->models[cam], ctx->dists[cam],
             d_moments, d_rgbimg, ctx->Ws[cam], ctx->Hs[cam],
             d_num, d_den);
     }
     launch_finalize_color(n, d_num, d_den, d_rgb);
-    backend::device_synchronize();
+    sync_checked("color");
 }
 
 
@@ -313,8 +331,6 @@ void render_evaluate_view_density(
     DBuf<float3> d_moments(npix);
     backend::memset_sync(d_dens, 0, (size_t)n * sizeof(float));
 
-    const int cm = (int)cmt(ctx->model);
-    const int cd = (int)cdt(ctx->distortion);
     for (int ci = 0; ci < num_cams; ++ci) {
         int cam = cam_indices[ci];
         render_one(ctx, cam, d_moments, nullptr);
@@ -323,11 +339,12 @@ void render_evaluate_view_density(
             d_xyz, n,
             ctx->d_viewmats.get() + (size_t)cam * 16,
             ctx->d_intrins.get() + (size_t)cam * 4,
-            ctx->d_dist.get() + (size_t)cam * kCameraDistortionParams, cm, cd,
+            ctx->d_dist.get() + (size_t)cam * kCameraDistortionParams,
+            ctx->models[cam], ctx->dists[cam],
             d_moments, ctx->Ws[cam], ctx->Hs[cam],
             d_dens);
     }
-    backend::device_synchronize();
+    sync_checked("texel density");
 }
 
 
@@ -348,9 +365,7 @@ void render_cull_unseen_vertices(
 
     DBuf<float> d_verts;    d_verts.alloc_copy(verts, (size_t)nv * 3);
     DBuf<int>   d_faces;    if (nf > 0) d_faces.alloc_copy(faces, (size_t)nf * 3);
-    DBuf<int>   d_W;        d_W.alloc_copy(ctx->Ws.data(), (size_t)ctx->C);
-    DBuf<int>   d_H;        d_H.alloc_copy(ctx->Hs.data(), (size_t)ctx->C);
-    DBuf<uint32_t> d_vis((size_t)nv);
+    DBuf<uint32_t> d_vis;   d_vis.alloc_copy(nullptr, (size_t)nv);
 
     // ---- triangle LBVH over the mesh faces ----
     DBuf<float3> d_leafMin, d_leafMax, d_nodeAABB;
@@ -399,11 +414,53 @@ void render_cull_unseen_vertices(
         }
     }
 
-    launch_cull(d_verts, nv, d_faces, nf,
-                ctx->d_viewmats.get(), ctx->d_intrins.get(), ctx->d_dist.get(),
-                d_W, d_H, (int)cmt(ctx->model), (int)cdt(ctx->distortion), ctx->C,
-                d_leafMin, d_leafMax, d_internal, d_nodeAABB, d_vis);
-    backend::device_synchronize();
+    // The kernel is specialized on (model, tier), so cameras go in groups.
+    std::map<std::pair<int, int>, std::vector<int>> groups;
+    for (int c = 0; c < ctx->C; ++c)
+        groups[{ctx->models[c], ctx->dists[c]}].push_back(c);
+    constexpr int kD = kCameraDistortionParams;
+    spirula::SubmitBudget budget;
+    for (const auto& [key, cams] : groups) {
+        const int G = (int)cams.size();
+        std::vector<float> vm((size_t)G * 16), in((size_t)G * 4), di((size_t)G * kD);
+        std::vector<int> ws(G), hs(G);
+        for (int g = 0; g < G; ++g) {
+            const size_t c = (size_t)cams[g];
+            std::copy_n(&ctx->h_viewmats[c * 16], 16, &vm[(size_t)g * 16]);
+            std::copy_n(&ctx->h_intrins[c * 4], 4, &in[(size_t)g * 4]);
+            std::copy_n(&ctx->h_dist[c * kD], kD, &di[(size_t)g * kD]);
+            ws[g] = ctx->Ws[c];
+            hs[g] = ctx->Hs[c];
+        }
+        DBuf<float> g_vm, g_in, g_di;
+        DBuf<int> g_W, g_H;
+        g_vm.alloc_copy(vm.data(), vm.size());
+        g_in.alloc_copy(in.data(), in.size());
+        g_di.alloc_copy(di.data(), di.size());
+        g_W.alloc_copy(ws.data(), ws.size());
+        g_H.alloc_copy(hs.data(), hs.size());
+
+        for (int c0 = 0; c0 < G; c0 += kCullCamerasPerLaunch) {
+            const int nc = std::min(kCullCamerasPerLaunch, G - c0);
+            for (int v0 = 0; v0 < nv;) {
+                const int64_t pairs =
+                    budget.chunk(kCullPairsPerLaunch / 64, kCullPairsPerLaunch);
+                const int n = (int)std::min<int64_t>(nv - v0, std::max<int64_t>(1, pairs / nc));
+                const auto t0 = std::chrono::steady_clock::now();
+                launch_cull(d_verts, v0, n, d_faces, nf,
+                            g_vm.get() + (size_t)c0 * 16,
+                            g_in.get() + (size_t)c0 * 4,
+                            g_di.get() + (size_t)c0 * kD,
+                            g_W.get() + c0, g_H.get() + c0,
+                            key.first, key.second, nc,
+                            d_leafMin, d_leafMax, d_internal, d_nodeAABB, d_vis);
+                sync_checked("visibility cull");
+                budget.record((double)n * nc, std::chrono::duration<double>(
+                                                  std::chrono::steady_clock::now() - t0).count());
+                v0 += n;
+            }
+        }
+    }
 
     std::vector<uint32_t> h_vis((size_t)nv);
     backend::memcpy_sync(h_vis.data(), d_vis.get(),

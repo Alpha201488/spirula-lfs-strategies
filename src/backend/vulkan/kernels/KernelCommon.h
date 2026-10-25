@@ -11,6 +11,7 @@
 #include "backend/vulkan/VulkanPipelines.h"
 #include "backend/common/SortScan.h"
 
+#include <core/ColorBasis.h>
 #include <core/Common.cuh>
 #include <core/Tensor.h>
 
@@ -49,17 +50,15 @@ inline bool debug_sync_enabled() {
     return v;
 }
 
-// backend::vk::dispatch that throws (with the backend's sticky error detail)
-// instead of returning false. `params` goes straight into push constants —
-// use dispatch_ring for structs above the device push floor.
-inline void dispatch(const char* entry, const backend::vk::SpecList& spec,
-                     uint32_t gx, uint32_t gy, uint32_t gz,
-                     const void* params, uint32_t size) {
+// Runs `record` (a backend::vk dispatch call) and throws, with the backend's
+// sticky error detail, when it returns false.
+template <typename Record>
+inline void checked_dispatch(const char* entry, uint32_t gx, uint32_t gy,
+                             uint32_t gz, Record&& record) {
     if (debug_sync_enabled())
         std::fprintf(stderr, "[vk-sync] %s (%u,%u,%u)...\n", entry, gx, gy,
                      gz);
-    if (!backend::vk::dispatch(backend::kDefaultStream, entry, spec, gx, gy,
-                               gz, params, size)) {
+    if (!record()) {
         const char* detail = backend::last_error();
         throw std::runtime_error(std::string("Vulkan backend: dispatch of ") +
                                  entry + " failed" +
@@ -70,6 +69,33 @@ inline void dispatch(const char* entry, const backend::vk::SpecList& spec,
         const char* err = backend::last_error();
         std::fprintf(stderr, "[vk-sync] %s: %s\n", entry, err ? err : "ok");
     }
+}
+
+// backend::vk::dispatch that throws instead of returning false. `params` goes
+// straight into push constants -- use dispatch_ring for structs above the
+// device push floor.
+inline void dispatch(const char* entry, const backend::vk::SpecList& spec,
+                     uint32_t gx, uint32_t gy, uint32_t gz,
+                     const void* params, uint32_t size) {
+    checked_dispatch(entry, gx, gy, gz, [&] {
+        return backend::vk::dispatch(backend::kDefaultStream, entry, spec, gx,
+                                     gy, gz, params, size);
+    });
+}
+
+// dispatch() through backend::vk::dispatch_budgeted, for a launch that scales
+// with the input and can outlive a GPU watchdog on a slow device. Its
+// workgroups must not depend on each other.
+inline void dispatch_budgeted(const char* entry,
+                              const backend::vk::SpecList& spec, uint32_t gx,
+                              uint32_t gy, uint32_t gz, const void* params,
+                              uint32_t size, double work = 0,
+                              const char* key = nullptr) {
+    checked_dispatch(entry, gx, gy, gz, [&] {
+        return backend::vk::dispatch_budgeted(backend::kDefaultStream, entry,
+                                              spec, gx, gy, gz, params, size,
+                                              work, key);
+    });
 }
 
 // Flat-1D dispatch: folds `total` threads into `block`-wide groups. If
@@ -99,6 +125,56 @@ inline void dispatch_ring(const char* entry,
         throw std::runtime_error("Vulkan backend: params ring failed");
     std::memcpy(mapped, params, size);
     dispatch(entry, spec, gx, gy, gz, &addr, sizeof(addr));
+}
+
+// A tile rasterization's size in dispatch_budgeted units. Every micro tile
+// walks its macro tile's whole list (docs/notes/binning-tile-size.md), so a
+// pair counts 4^macro_log2 times; a pixel counts once.
+inline double raster_work(uint32_t n_isects, int macro_log2, int64_t images,
+                          uint32_t width, uint32_t height) {
+    return (double)n_isects * (double)(1ull << (2 * macro_log2)) +
+           (double)images * width * height;
+}
+
+// dispatch_ring for a budgeted launch: every range of a split one reads the
+// same copy of the params.
+inline void dispatch_ring_budgeted(const char* entry,
+                                   const backend::vk::SpecList& spec,
+                                   uint32_t gx, uint32_t gy, uint32_t gz,
+                                   const void* params, uint32_t size,
+                                   double work = 0,
+                                   const char* key = nullptr) {
+    uint64_t addr = 0;
+    void* mapped = nullptr;
+    if (!backend::vk::params_alloc(size, &addr, &mapped))
+        throw std::runtime_error("Vulkan backend: params ring failed");
+    std::memcpy(mapped, params, size);
+    dispatch_budgeted(entry, spec, gx, gy, gz, &addr, sizeof(addr), work,
+                      key);
+}
+
+// dispatch_flat for a budgeted launch; `work` defaults to the thread count.
+inline void dispatch_flat_budgeted(const char* entry,
+                                   const backend::vk::SpecList& spec,
+                                   int64_t total, uint32_t block, void* params,
+                                   uint32_t size, uint32_t* wgs_per_row_field,
+                                   double work = 0) {
+    if (total <= 0) return;
+    Fold f = fold_1d(total, block);
+    *wgs_per_row_field = f.per_row;
+    dispatch_budgeted(entry, spec, f.per_row, f.rows, 1, params, size,
+                      work > 0 ? work : (double)total);
+}
+
+// dispatch_flat for a params struct that goes through the ring.
+inline void dispatch_ring_flat(const char* entry,
+                               const backend::vk::SpecList& spec,
+                               int64_t total, uint32_t block, void* params,
+                               uint32_t size, uint32_t* wgs_per_row_field) {
+    if (total <= 0) return;
+    Fold f = fold_1d(total, block);
+    *wgs_per_row_field = f.per_row;
+    dispatch_ring(entry, spec, f.per_row, f.rows, 1, params, size);
 }
 
 // Device address of a small zeroed allocation that stands in for null
@@ -197,6 +273,41 @@ inline uint32_t resolve_sh_quant(
     // with sh_quant_addr_w (docs/notes/sh-quant-layout.md).
     *out_stride = sh_bounds_stride;
     return (uint32_t)sh_value_bits;
+}
+
+// The kShDegree / kSbLobes values of a launch and where its lobes start: the
+// bands `color` asks for, capped at those the row stores, and the lobes at
+// the end of a `row_coeffs`-float3 features_sh row (core/ColorBasis.h).
+struct ColorSpec {
+    uint32_t sh_degree, sb_lobes, sb_base;
+};
+
+// float3 coefficients in a world buffer's features_sh row. A value-quantized
+// row keeps its shape on a null tensor, so the stride is there either way.
+template <typename WorldBuffer>
+inline int64_t row_coeffs(const WorldBuffer& wb, uint32_t num_sh_buffer) {
+    const int64_t stride = wb.raw_stride(5);
+    return stride > 0 ? stride / 3 : (int64_t)num_sh_buffer;
+}
+
+inline ColorSpec color_spec(const ColorBasis& color, int64_t row_coeffs) {
+    if (color.sb_lobes < 0 || color.sb_lobes > ColorBasis::kMaxSbLobes)
+        throw std::runtime_error(
+            "spherical beta: " + std::to_string(color.sb_lobes) +
+            " lobes is outside 0.." +
+            std::to_string(ColorBasis::kMaxSbLobes));
+    const int64_t sh_row = row_coeffs - 2 * (int64_t)color.sb_lobes;
+    if (sh_row < 0)
+        throw std::runtime_error(
+            "spherical beta: a features_sh row of " +
+            std::to_string(row_coeffs) + " coefficients cannot hold " +
+            std::to_string(color.sb_lobes) + " lobes");
+    int stored = 0;
+    while (stored < ColorBasis::kMaxShDegree &&
+           ColorBasis::sh_coeffs_of(stored + 1) <= sh_row)
+        stored++;
+    return {(uint32_t)std::max(0, std::min(stored, color.sh_degree)),
+            (uint32_t)color.sb_lobes, (uint32_t)sh_row};
 }
 
 // Per-splat [N+1] intersection ranges for the grad-quant and FPBO projection

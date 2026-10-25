@@ -191,16 +191,19 @@ void launch_tri_prep(
     float3 bmin, float3 inv_ext,
     float3* leafMin, float3* leafMax, uint64_t* morton, int* iota);
 
-// visible[i] = 1 when some camera sees vertex i (in frame, and the segment to
-// that camera is not blocked by a triangle that does not contain it).
-// uint32 rather than a byte buffer: the seam avoids sub-word stores, which
-// cost the Vulkan backend an optional device capability for nothing here.
+// Sets visible[i] = 1 for each i in [first, first+count) one of the C cameras
+// sees unoccluded and leaves the rest, so launches accumulate into one zeroed
+// buffer. uint32, not bytes: sub-word stores need a Vulkan device capability.
 void launch_cull(
-    const float* verts, int nv, const int* faces, int nf,
+    const float* verts, int first, int count, const int* faces, int nf,
     const float* viewmats, const float* intrins, const float* dist,
     const int* Ws, const int* Hs, int camera_model, int distortion, int C,
     const float3* leafMin, const float3* leafMax,
     const int2* internal, const float3* nodeAABB,
     uint32_t* visible);
+
+// device_synchronize(), then throw if the backend recorded an error. Vulkan
+// reports a lost device only that way; unchecked, readbacks return garbage.
+void sync_checked(const char* stage);
 
 }  // namespace meshing

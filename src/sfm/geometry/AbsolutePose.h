@@ -1,18 +1,23 @@
-// Absolute pose (PnP): recover a camera pose from 2D-3D correspondences
-// (src/sfm/README.md).
+// Absolute pose (PnP): one camera's pose from its 2D-3D correspondences, and a
+// rig's pose from every lens's at once (src/sfm/README.md,
+// docs/notes/sfm-rig-constraints.md).
 //
-// MVP: a normalized DLT solver (>= 6 points) inside LO-RANSAC. The Nister-style
-// P3P minimal solver is deferred (D9); DLT is robust enough here because
-// register-next selects the image with the most 2D-3D matches, i.e. a high
-// inlier ratio, and global BA refines the pose afterward. Works in normalized
-// image coordinates (K^-1 applied), so it returns [R|t] directly.
+// Both run LO-RANSAC. The minimal solver is P3P for a camera and gp3p for a
+// rig; the local optimization refits by DLT (>= 6 points) or, for a rig,
+// refines the incumbent over its inliers. Correspondences are given as unit
+// bearings, so a fisheye needs no special case and residuals come out in
+// normalized units.
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <random>
 #include <vector>
 
 #include "sfm/core/Pose.h"
 #include "sfm/geometry/Essential.h"
+#include "sfm/geometry/GP3P.h"
 #include "sfm/geometry/LinAlg.h"
 #include "sfm/geometry/P3P.h"
 #include "sfm/optim/Ransac.h"
@@ -81,14 +86,10 @@ inline std::vector<Pose> estimatePoseDLT(const std::vector<Vec3>& X, const std::
     return {pose};
 }
 
-// Squared PnP residual for an observed unit bearing `b`. For a forward ray
-// (b.z above the threshold -- every rectilinear lens) this is the classic
-// normalized-plane error, bit-identical to the pre-bearing code. A wide/fisheye
-// bearing uses sin^2 of the angle between the predicted ray and `b`, which has
-// the same small-angle scale (so the same max_error/focal threshold applies) and
-// is defined for points at or past 90 deg from the axis (p.z <= 0).
-inline double pnpResidualSq(const Pose& pose, const Vec3& X, const Vec3& b) {
-    Vec3 p = mul(pose.R, X) + pose.t;
+// Squared PnP residual of a camera-frame point against a unit bearing: the
+// normalized-plane error for a forward ray, sin^2 of the angle for a wide one
+// -- same small-angle scale, and defined past 90 deg off axis, where p.z <= 0.
+inline double pnpResidualSqAt(const Vec3& p, const Vec3& b) {
     if (b.z > 0.1) {
         if (p.z < 1e-8) return 1e30;  // cheirality (forward hemisphere)
         double du = p.x / p.z - b.x / b.z, dv = p.y / p.z - b.y / b.z;
@@ -98,6 +99,10 @@ inline double pnpResidualSq(const Pose& pose, const Vec3& X, const Vec3& b) {
     Vec3 ph = p.normalized();         // b is already unit
     Vec3 cr = ph.cross(b);
     return cr.dot(cr);                // sin^2(angle)
+}
+
+inline double pnpResidualSq(const Pose& pose, const Vec3& X, const Vec3& b) {
+    return pnpResidualSqAt(mul(pose.R, X) + pose.t, b);
 }
 
 struct PnPResult {
@@ -248,13 +253,15 @@ inline bool refinePose(const std::vector<Vec3>& X, const std::vector<Vec3>& b,
     return ok;
 }
 
-// One member of a rig frame: its correspondences, which of them count, and
-// where it sits on the rig.
+// One member of a rig frame: its correspondences, which of them count, where
+// it sits on the rig, and a `weight` of 1/inlier-radius, which puts lenses of
+// different focal length on one residual scale.
 struct FrameMember {
     const std::vector<Vec3>* X;
     const std::vector<Vec3>* b;
     const std::vector<char>* mask;
     Pose cam_from_rig;
+    double weight = 1.0;
 };
 
 // The same refinement over a whole frame: one pose (rig_from_world) explains
@@ -271,6 +278,10 @@ inline bool refineFramePose(const std::vector<FrameMember>& members, Pose& rig_f
         const FrameMember& m = members[idx[j].first];
         const int i = idx[j].second;
         pose_detail::residualPair(composePose(m.cam_from_rig, F), (*m.X)[i], (*m.b)[i], s, r);
+        if (r[0] < 1e3) {  // 1e3 is the cheirality marker, and carries no scale
+            r[0] *= m.weight;
+            r[1] *= m.weight;
+        }
     };
     double s0 = 1.0;
     return pose_detail::lmRefine((int)idx.size(), resid, 6, rig_from_world, s0, max_iters);
@@ -307,6 +318,113 @@ inline PnPResult ransacPnP(const std::vector<Vec3>& X, const std::vector<Vec3>& 
     out.inlier_mask = rep.inlier_mask;
     out.num_inliers = rep.num_inliers;
     out.success = rep.success;
+    return out;
+}
+
+// ---- generalized (rig) PnP -------------------------------------------------
+
+// What one member brings to its frame's registration: the world points its
+// features saw, their unit bearings in its own camera frame, its place on the
+// rig, and its lens's inlier radius (`errRad`).
+struct RigPnPMember {
+    const std::vector<Vec3>* X;
+    const std::vector<Vec3>* b;
+    Pose cam_from_rig;
+    double max_error = 0;
+};
+
+struct RigPnPResult {
+    Pose rig_from_world;
+    int num_inliers = 0;
+    bool success = false;
+};
+
+// LO-RANSAC over every member's correspondences at once: the frame, not a
+// lens, is what a hypothesis has to explain, and a sample whose rays miss a
+// common centre solves as a generalized camera (gp3p, D78).
+inline RigPnPResult ransacRigPnP(const std::vector<RigPnPMember>& members, unsigned seed = 0,
+                                 int max_trials = 3000) {
+    RigPnPResult out;
+    struct Entry {
+        int m;
+        int i;
+        RigRay ray;
+    };
+    std::vector<Entry> pool;
+    std::vector<double> inv2(members.size(), 0.0);
+    std::vector<int> start(members.size(), 0), count(members.size(), 0);
+    for (size_t m = 0; m < members.size(); m++) {
+        const RigPnPMember& mem = members[m];
+        start[m] = (int)pool.size();
+        if (!(mem.max_error > 0)) continue;
+        inv2[m] = 1.0 / (mem.max_error * mem.max_error);
+        const Mat3 rig_from_cam = transpose(mem.cam_from_rig.R);
+        const Vec3 centre = cameraCenter(mem.cam_from_rig);
+        for (size_t i = 0; i < mem.X->size(); i++)
+            pool.push_back({(int)m, (int)i, {centre, mul(rig_from_cam, (*mem.b)[i]).normalized()}});
+        count[m] = (int)pool.size() - start[m];
+    }
+    if (pool.size() < 3) return out;
+
+    auto res = [&](const Pose& F, int k) {
+        const Entry& e = pool[k];
+        const RigPnPMember& mem = members[e.m];
+        const Vec3 rig = mul(F.R, (*mem.X)[e.i]) + F.t;
+        return pnpResidualSqAt(mul(mem.cam_from_rig.R, rig) + mem.cam_from_rig.t,
+                               (*mem.b)[e.i]) *
+               inv2[e.m];
+    };
+    // The lens the first draw landed on fills the sample when it can: a rig
+    // estimated from a reconstruction is good to a degree, not to a pixel, and
+    // only one lens's own rays are exact of it (docs/notes/sfm-rig-constraints.md).
+    std::mt19937 sampler(seed + 1);
+    auto fit = [&](const std::vector<int>& s) {
+        int take[3] = {s[0], s[1], s[2]};
+        const int m = pool[s[0]].m;
+        if (count[m] >= 3) {
+            std::uniform_int_distribution<int> own(start[m], start[m] + count[m] - 1);
+            for (int k = 1; k < 3; k++) {
+                do take[k] = own(sampler);
+                while (take[k] == take[0] || (k == 2 && take[k] == take[1]));
+            }
+        }
+        std::array<RigRay, 3> rays;
+        std::array<Vec3, 3> Xs;
+        for (int k = 0; k < 3; k++) {
+            const Entry& e = pool[take[k]];
+            rays[k] = e.ray;
+            Xs[k] = (*members[e.m].X)[e.i];
+        }
+        return gp3p(rays, Xs);
+    };
+    std::vector<std::vector<char>> masks(members.size());
+    std::vector<FrameMember> fm(members.size());
+    for (size_t m = 0; m < members.size(); m++) {
+        masks[m].resize(members[m].X->size());
+        fm[m] = {members[m].X, members[m].b, &masks[m], members[m].cam_from_rig,
+                 inv2[m] > 0 ? 1.0 / members[m].max_error : 1.0};
+    }
+    auto refit = [&](const std::vector<int>& idx, const Pose& seed) {
+        for (std::vector<char>& v : masks) std::fill(v.begin(), v.end(), 0);
+        for (int k : idx) masks[pool[k].m][pool[k].i] = 1;
+        Pose F = seed;
+        std::vector<Pose> got;
+        // 10 LM iterations, not the default 30: this runs on every improvement
+        // and the numeric Jacobian costs 13 residuals per point per iteration.
+        if (refineFramePose(fm, F, 10)) got.push_back(F);
+        return got;
+    };
+
+    RansacOptions ro;
+    ro.max_error = 1.0;  // `res` already divides by the member's own radius
+    ro.seed = seed;
+    ro.min_num_trials = std::min(100, max_trials);
+    ro.max_num_trials = max_trials;
+    RansacReport<Pose> rep = loransac<Pose>((int)pool.size(), 3, fit, refit, res, ro);
+    if (!rep.success) return out;
+    out.rig_from_world = rep.model;
+    out.num_inliers = rep.num_inliers;
+    out.success = true;
     return out;
 }
 

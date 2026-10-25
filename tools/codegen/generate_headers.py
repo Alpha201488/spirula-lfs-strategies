@@ -130,7 +130,8 @@ HEADER_SOURCES = dict([
          "DensifyScoring.cu",      # covariance scale init, param update
          "Relocation.cu",
          "McmcRelocation.cu",      # MCMC relocation + noise
-         "DensifySplitFilter.cu"), # long-axis split, image edge filters
+         "DensifySplitFilter.cu",  # long-axis split, image edge filters
+         "RegionWeight.cu"),       # the region test that gates the draw
 
     # LFS-style strategy kernels (IGS+ / MRNF / MCMC port).
     _fam("kernels/strategy", "StrategyOps", "StrategyOps.cu"),
@@ -142,6 +143,7 @@ HEADER_SOURCES = dict([
 HEADER_SOURCES["kernels/pixelwise/PixelWise"] = [
     "kernels/pixelwise/ImageConvert.cu",      # uint8/uint16 -> float; rendered -> expected depth
     "kernels/pixelwise/ImageColorOps.cu",     # background blending, log map, overexposure reg
+    "kernels/pixelwise/AppearanceChain.cu",   # blend + PPISP + display encode, fused
     "kernels/pixelwise/DepthGeometry.cu",     # depth -> points/normal, depth-normal loss,
                                               #   ray <-> linear depth
     "kernels/pixelwise/ImageDistort.cu",      # distort / undistort

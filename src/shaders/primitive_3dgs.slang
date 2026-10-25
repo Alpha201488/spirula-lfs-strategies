@@ -89,8 +89,8 @@ bool persp_proj_3dgs<D : ICameraDistortion, let assume_valid : bool>(
     float rz = 1.f / mean3d.z;
     float max_Jxz = -(-lim_x_neg - cx) * rz;
     float min_Jxz = -(lim_x_pos - cx) * rz;
-    float max_Jyz = -(-lim_x_neg - cy) * rz;
-    float min_Jyz = -(lim_x_pos - cy) * rz;
+    float max_Jyz = -(-lim_y_neg - cy) * rz;
+    float min_Jyz = -(lim_y_pos - cy) * rz;
     J[0][2] = clamp(J[0][2], min_Jxz, max_Jxz);
     J[1][2] = clamp(J[1][2], min_Jyz, max_Jyz);
 
@@ -436,6 +436,8 @@ void projection_3dgs<
     float cull_z = (camera_model == CameraModelType::PINHOLE) ?
         mean_c.z : length(mean_c);
     depth = length(mean_c);
+    // Center only, as gsplat and PlayCanvas cull. A size-aware cull hides near splats from training that every
+    // other renderer still draws: -0.76 dB in gsplat on Mip-NeRF 360 room.
     if (!assume_valid && cull_z <= 0.0f) {
         aabb_xyxy = float4(0.0f);
         return;

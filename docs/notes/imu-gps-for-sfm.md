@@ -32,6 +32,9 @@ on. Skip it if you know what a gyro bias is.
 - **DJI Osmo 360 `.OSV` files carry a 1 kHz fused attitude quaternion and one
   accelerometer reading per frame**, plus the lens intrinsics. No raw gyro is
   written and there is no GPS.
+- **A Kandao QooCam 3 Ultra `.mp4` carries a 0.83 to 1 kHz gyro+accelerometer
+  log** and a timestamp per frame on the same clock, and from firmware 1.0.1 a
+  1 Hz GPS log that moves (section 2.4, seven clips).
 - The three makers put the sensor axes in three different frames, and GoPro
   puts two of its own streams in different frames from a third. None of them
   documents the rotation from the IMU to the lens. That rotation is the one
@@ -87,6 +90,18 @@ the MP4 movie header's creation time, which on the X5 matches the first GPS
 fix to the second; the metadata's own `creation_time` is a decimal
 YYYYMMDDHHMMSS in local time and is not usable as an epoch.
 
+**Antigravity A1** (`VID_*.insv`, one file, both lenses as two 3840² tracks)
+writes the same records as an X5 at the same rates (raw int16, 2000 deg/s and
+32 g full scale; GPS from the drone's own receiver, ~0.6 Hz, 100 % fix on a
+119 s flight), but lays the trailer out differently: each record starts a
+256 KiB slot and nothing follows it, so the offsets table is the only index
+and the X5's per-record descriptors cannot be checked against it. The
+`PRX_*.prx` proxy beside it (2560x1280, both circles side by side) carries the
+metadata and a thumbnail but no IMU or GPS; it shares the VID file's
+`first_frame_timestamp`, so `telemetry_read(path)` takes the records from
+`VID_<same stamp>.insv` when that file has the same serial and first frame.
+Counts and times agree with telemetry-parser on both files.
+
 ### 2.2 GoPro MAX (`.360`) and any GoPro `.mp4`
 
 | stream | rate | frame | notes |
@@ -130,7 +145,7 @@ first reported) drops it, leaving a 1.16 km path where the raw numbers said
 the file from being usable; both say the DOP is not enough of a gate on its
 own.
 
-### 2.3 DJI Osmo 360 (`.OSV`)
+### 2.3 DJI Osmo 360 and Avata 360 (`.OSV`)
 
 | stream | rate | notes |
 |---|---|---|
@@ -148,11 +163,168 @@ quaternion gives a world vector steady to 2.8 degrees over a 146 s handheld
 clip, so the quaternion maps sensor to world and the accelerometer shares its
 frame. No GPS.
 
-### 2.4 What the reader does with all this
+**DJI Avata 360** (`dvtm_AVATA360`) writes the same message tree with its own
+field numbers; `read_dji` picks the numbers from the clip header's proto name.
+Field paths below are from the djmd sample root. The GPS, altitude and
+exposure rows were checked frame by frame against the SRT of a 139 s flight
+(8354 frames, packet p = SRT `FrameCnt` p+1): lat/lon within 5e-7 deg,
+altitudes within 1 mm, ISO and colour temperature exact, shutter within the
+SRT's 1/3-stop rounding. The rate matches the sample count (557781 attitude
+samples over 139.4 s is 4000 Hz).
+
+| quantity | Osmo (`dvtm_oq101`) | Avata (`dvtm_AVATA360`) | wire, unit |
+|---|---|---|---|
+| IMU fusion rate | `1.10.1` | `1.8.1` | varint Hz (4000) |
+| sensor fps | `1.11.1` | `1.9.1` | f32 (59.909) |
+| focal | `1.8.1` | none (`1.6` is empty) | f32 px |
+| accel per frame | `3.2.10.{2,3,4}` | none (`3.2.10.1` is a constant 4-byte pair) | f32 g |
+| attitude | `3.3.2.1.{1,2,3,4}` | same, no offset field 4; 66-67 quaternions per frame | f32 w,x,y,z |
+| GPS lat/lon | `3.4.2.1.{1 unit,2,3}` | `3.4.4.1.{2,3}`, no unit field | f64 degrees |
+| abs altitude | `3.4.2.2` | `3.4.4.2` | varint mm |
+| rel altitude | none | `3.4.5.1` | f32 mm, above take-off |
+| GPS status | `3.4.2.3` | not known (`3.4.4.4` = 1 always); every fix is kept, so the fix fraction says nothing here | |
+| ISO | none | `3.2.3.1` | f32 |
+| shutter | none | `3.2.4.1` | bytes holding two varints n, d: n/d s |
+| colour temperature | none | `3.2.6.1` | varint K |
+
+`1.10.1` (int64 -555) and `1.11.1` (4207) mean something else on the Avata
+and are not read. Aperture and EV are not read: both flights' SRTs carry one
+constant value (f/1.9, EV 0), so no field can be told apart. No accelerometer
+is written, so the report says `IMU absent` and the attitude alone gives
+rotation but not up; a hover also reads `GPS not usable` (no spread), which is
+the right answer. The `.LRF` proxy carries the same metadata at 30 fps; its
+second attitude batch (`3.3.2.2`) is not read.
+
+With no accelerometer nothing in the file says which way the attitude
+quaternion maps, or which way is up in its world. The hand-eye fit therefore
+tries both senses (the quaternion and its conjugate) and keeps the one that
+agrees with the poses. The vertical is declared by the reader: for
+`dvtm_AVATA360` the attitude world is z-down. That rests on one flight, where
+the up it gives came out 0.23 deg from the GPS-levelled model. A carrier with
+an accelerometer never takes either path, and an accelerometer-less attitude
+with no declared vertical gives no up vote.
+
+**Avata 360 lens calibration.** Sample 0's StreamMeta carries `PanoDewarpParams`
+at `2.5`: 24 `DewarpParams` entries, of which only `2.5.3`
+(`native_refine_far_slave`) and `2.5.4` (`native_refine_far_master`) are
+filled on every clip read (entries 1-2 hold a temperature, the rest nothing).
+Both djmd tracks carry the same pair. Per entry, all f32:
+
+| field | meaning |
+|---|---|
+| 1, 2, 3, 4 | fx, fy, cx, cy in pixels of the 3840 x 3840 frame (fx = fy to 0.02%) |
+| 5, 6, 7, 8, 15 | k1..k5: theta_d = theta (1 + k1 theta^2 + ... + k5 theta^10), r = f theta_d |
+| 20 (packed, 2) | p1, p2, on the equidistant coordinates as THIN_PRISM_FISHEYE's |
+| 10, 11 | width, height (3840, 3840) |
+| 12, 13, 14 | yaw, pitch, roll in degrees; 26, 28 quaternions (not read) |
+| 24 | lens_model, 8 on every clip; the reader takes only 8 |
+| 25, 31 | temperature (C), temperature-compensation k |
+
+k1..k5 and p are identical across the five clips read; fx, cx, cy (and the
+slave's yaw) move by up to 1 px and 3 px from clip to clip, so each clip's own
+header is used. Measured, on real frames:
+
+- **k5 is a fifth radial term.** Without it the polynomial turns over at 86.9
+  (master) and 90.1 deg (slave), short of the image circle; with it r(100 deg)
+  = 1917 and 1920 px, the frame's half width.
+- **Master is video track 0 (cam0), slave is track 1.** Against DJI Studio's
+  equirect export of the same frame (one hover clip, 2200 SIFT matches per lens,
+  one rotation fitted per candidate): master on track 0 0.55 px median, the
+  slave's set 2.2 px; slave on track 1 1.07 px, the master's set 4.6 px. Lens
+  to lens with no stitch involved (a flight at 37 m, rim overlap, 2500 and
+  1700 matches): 0.88 and 0.90 px, swapped 6.2 and 8.4 px.
+- **p is tangential, in that order and sign**: without it 2.0-2.2 px lens to
+  lens, swapped 1.4-1.7x worse, negated 2-3x worse. A 0.5 px shift of the
+  principal point is not resolved (0.55 against 0.57 px), so the pixel-centre
+  convention is taken from the code: keypoints put pixel i's centre at i.
+
+spirula's fisheye models stop at k4, so `sfm/core/LensCalibration.h` refits
+the radial curve (focal free) out to the inscribed circle: at worst 1.97 px
+(master) and 1.22 px (slave), and 0.98 against 0.88 px median lens to lens.
+A lens folder gets it as a #119 params override only when no setting a
+person gave covers it; the run prints which, and why not.
+
+### 2.4 Kandao QooCam 3 Ultra (`.mp4`)
+
+Added 2026-10-12, from one 106 s handheld clip (unstitched 3840x7680, firmware
+V1.1.2.15); six more clips below.
+
+| stream | rate | span | notes |
+|---|---|---|---|
+| gyro | 1000 Hz | starts 2.0 s before the first frame, ends 0.7 s after the last | raw int16 at 2000 deg/s full scale |
+| accel | 1000 Hz | same record | raw int16 at 16 g full scale; norm median 9.77 |
+| frame times | per frame | | `PTS`, microseconds on the IMU's clock |
+| GPS | none in this clip | | `GPS_CAPTIME` is 0 and no `GPS` field is written; see below for clips that have one |
+
+Two top-level boxes follow `moov`: `kfix` (what holds for the clip: model,
+serial, firmware, exposure settings) and `kvar` (what varies: the logs). Both
+are a little-endian u32 field count, then per field a 32-byte name, an 8-byte
+type (`CHAR`, `U8`, `U32`, `U64`, `DOUBLE`, ...), a u32 element count and the
+values. A log is one `U8` field holding its records. No track refers to either
+box, so ffprobe and the demuxer never see them, and a file that was re-muxed
+by something else can be expected to lose them as an `.insv` loses its trailer
+(not tried).
+
+`IMU` is 20-byte records: a u64 timestamp, three int16 of gyro, three of
+accelerometer. The ranges are in `kvar`'s `INFO` string (`V_G_RANGE=2000
+V_A_RANGE=16 V_IMU_F=6 V_IMU_MODEL=sh3001`), and the reader scales by range
+over 32768. Two checks on that: the accelerometer norm comes out at 9.77
+m/s^2, and the gyro's rotation angle between consecutive frames of an existing
+reconstruction of the clip (186 pairs per lens) is 1.016 of the poses' at the
+median. telemetry-parser divides the gyro counts by 1000 and calls the result
+rad/s, which is 6 per cent smaller and gives 0.953 on the same pairs.
+
+**Time:** every record is 1000 apart with no gap, and `PTS` holds one stamp
+per frame on the same clock (39983 apart at 25.01 fps), so IMU time relative
+to the first frame is a subtraction. `PTS_UNIT` is 1 here; ExifTool lists 0 as
+milliseconds and 2 as nanoseconds, which the reader honours without having
+seen either.
+
+**Frame:** the IMU's own. telemetry-parser gives the 3 Ultra the orientation
+`yXZ`, or `yxz` when `kfix`'s `LENS_INDEX` starts with 1; neither is applied,
+for the reason `offset_v3` is not (section 5.1).
+
+**Gyro bias.** The counts are not bias-corrected. A constant rotation fitted
+between the gyro's and the poses' relative rotations over 197 consecutive
+frames of one lens (0.53 s apart, 9.4 deg mean) leaves a 1.80 deg median
+residual; fitting a constant bias with it gives (2.1, 2.6, -1.0) deg/s and
+0.20 deg. No clock offset from -80 to +80 ms does better than 1.80, and the
+`PTS` table and index over frame rate give the same numbers, so it is not
+timing. `SensorPriors.h` budgets 0.03 deg/s, so on this clip the calibration
+before mapping is refused ("the gyro and the poses disagree") and no rotation
+prior reaches verification or registration. At 2 fps the gauge fit still
+runs: up over 398 frames with the votes agreeing to 2.35 deg, accelerometer
+scale at 2.2 per cent, gyro pairs to 2.71 deg where an X5 gives 0.43. At 1 fps
+the bias has twice as long to act between frames and the gauge's own
+calibration is refused as well, so the model gets no up and no scale from its
+sensors; the reconstruction is the one a run without them builds (210 of 212
+images either way).
+
+What the gauge is worth where it runs, on frames cut from the clip with ffmpeg
+(no masks), at 3 fps (662 images) and 4 fps (882): 658 and 876 register, and
+the two models agree on the room. The largest plane in the points is level to
+0.5 and 0.6 deg, the best wall at 4 fps is 0.5 deg off plumb, floor to ceiling
+is 2.40 m in both and the camera's median height 1.30 and 1.29 m, which is
+where the operator's hands hold it in the first frame. With `--sensor-gauge
+none` the 3 fps model is levelled on a plane that is not the floor, 107 deg
+from the IMU's up.
+
+**Not read:** `LENS` (a 534-character hex string, the two lenses'
+calibration), `ISP`, `FRAME_ISP` and the `GAINMAP`s. ExifTool also mentions an
+optional magnetometer triple after the accelerometer; `V_IMU_F` is 6 in every
+clip here, and a file that says anything else has its IMU left unread rather
+than read at a guessed stride.
+
+**Other models.** telemetry-parser reads the same two boxes and the same
+20-byte record for the QooCam EGO and the QooCam 3, and the `INFO` string its
+source quotes carries `V_A_RANGE=4`, so the range does differ between
+cameras. No file from either was read here.
+
+### 2.5 What the reader does with all this
 
 `telemetry_read` picks the carrier by content, never by extension: the
 Insta360 magic at the end of the file, else an MP4 whose sample table has a
-`gpmd`, `camm` or `djmd` entry. CAMM (Google's camera-motion track, what a
+`gpmd`, `camm` or `djmd` entry, else a top-level `kvar` box. CAMM (Google's camera-motion track, what a
 phone app such as Insta360's own or Google's Street View writes) is
 implemented from the spec and covered by the synthetic test, but no file here
 uses it. Every reading comes out in SI units with a time in seconds from the
@@ -173,9 +345,14 @@ than whether they are precise:
   held (over 30 s or a fifth of the clip is stale), DOP and implied-speed
   outliers, spread and path length of what is left
 
+A sample at exactly latitude 0, longitude 0 is what a receiver without a fix
+writes, and the reader drops it before any of this (`Telemetry::gps_zero`
+counts them); an EXIF position of 0, 0 is not a position either
+(`ExifData::gps_zero`).
+
 `imu_usable` and `gps_usable` are the summary; the warnings say why not.
 
-### 2.5 Looking at it
+### 2.6 Looking at it
 
 `viewer/telemetry.html` is a browser page over the same reader (compiled to
 its own WASM module), for when the text report is not enough: drop files or
@@ -184,7 +361,9 @@ with real altitude, the attitude drawn along the track, and every stream as a
 plot on a shared, scrubbable time axis. It reads a file in place through the
 File API rather than buffering it, so a 4 GB capture is fine, and a
 screenshot-safe toggle hides everything that says where the capture was taken.
-`viewer/README.md` has the details.
+`viewer/README.md` has the details. The GUI's dataset screen draws the same
+reader's output for the selected input, on a metric map without tiles, beside
+the video's frames (docs/notes/source-preview.md).
 
 ## 3. Background: what the sensors measure
 
@@ -557,10 +736,12 @@ each photo folder says how many of its files have an EXIF position, and a
 **Sensors** block under Advanced holds both controls: `--sensor-gauge` for the
 video track and `--metric-gps` for the photographs.
 
-## 6. Improving the reconstruction itself (not in scope, recorded for later)
+## 6. Improving the reconstruction itself
 
-Using the sensors to change what the mapper does rather than how the result
-is written. Each is a known technique; the cost is in the solver.
+**Implemented 2026-09-25** as `docs/notes/sensor-priors.md`: the first,
+second, fourth and fifth items below, plus the accelerometer's scale as a
+bundle-adjustment factor. The list is kept as the plan it was; the third item
+(full visual-inertial BA with velocity states) and the sixth are still open.
 
 - **Gyro-predicted relative rotation for pair verification and seeding.**
   Two frames a second apart have a relative rotation the gyro knows to a

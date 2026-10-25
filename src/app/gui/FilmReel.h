@@ -16,10 +16,14 @@
 #include "app/gui/Picture.h"
 #include "app/gui/SfmProgress.h"    // KeyPoint2D
 
+#include <cstddef>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <filesystem>
+#include <map>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -47,6 +51,7 @@ struct FilmFrame {
     std::string name;          // the caption; the image's name in the dataset
     std::string image_path;
     std::string mask_path;     // "" when there is none
+    std::string feature_mask_path;   // for feature extraction alone; "" for none
     std::string points_path;   // feature file to overlay; "" for none
     // Set instead of the three above when the frame is a ROW -- the geometry
     // step's photograph, normal map and depth map of one frame, which are
@@ -55,6 +60,7 @@ struct FilmFrame {
 };
 
 class FilmReel;
+class PickSheet;
 
 // The reels a run feeds as it works, one per step that produces pictures.
 // Any may be null: a caller with no screen wants the pipeline without them.
@@ -62,6 +68,7 @@ struct RunFilms {
     FilmReel* frames = nullptr;
     FilmReel* masks = nullptr;
     FilmReel* geometry = nullptr;
+    PickSheet* picks = nullptr;      // what the blur gate ruled on (PickSheet.h)
 };
 
 class FilmReel {
@@ -73,19 +80,24 @@ public:
     // keeps the copy off a decode running at hundreds of frames a second. The
     // frame is registered either way, so the slider still reaches it.
     bool wants(double min_interval_s = 0.12) const;
-    // Appends `f`. `rgb` (w*h*3) and `mask` (w*h, 255 = keep) are the pixels
-    // the producer already holds; without them the picture is read from
-    // `f.image_path` when it is asked for.
+    // Appends `f`. `rgb` (w*h*3), `mask` and `feature_mask` (w*h, 255 = keep)
+    // are the pixels the producer already holds; without them the picture is
+    // read from `f.image_path` when it is asked for.
     void add(const FilmFrame& f, const uint8_t* rgb = nullptr, int w = 0,
-             int h = 0, const uint8_t* mask = nullptr, FramePoints points = {});
+             int h = 0, const uint8_t* mask = nullptr, FramePoints points = {},
+             const uint8_t* feature_mask = nullptr);
     // Appends `f` AND reads its files now, on the calling thread. The reel
     // follows the newest picture it HOLDS (see draw), so a producer that only
     // registers paths never advances the slider.
     void add_loaded(const FilmFrame& f);
+    // Replaces the list, keeping the pictures of files still on it: for files
+    // moved, split or added after they were registered.
+    void relist(std::vector<FilmFrame> frames);
     void clear();
 
     // ---- consumer (UI thread, GL context current) ----
     bool has_frames() const;
+    size_t size() const;
     // The slider and the picture it selects, in `height` pixels. False when
     // there is nothing to draw.
     bool draw(float height);
@@ -125,6 +137,7 @@ private:
     int  _shown = -1;            // index the slider selects
     bool _follow = true;         // ... and whether it tracks the newest
     int  _want = -1;             // index the loader is to fetch; -1 = idle
+    uint64_t _relisted = 0;      // bumped by relist(): a load in flight is stale
     // The picture in the texture, kept beside it rather than looked up: the
     // slot it came from may be evicted while it is still what is on screen,
     // and a hole would flash on every step of the slider.
@@ -141,6 +154,35 @@ private:
     // caller cannot forget to rate-limit itself.
     mutable std::chrono::steady_clock::time_point _last{};
     mutable bool _ticked = false;
+};
+
+// The pictures a child process writes, onto a reel as they appear. The child
+// says nothing about them, so the folder is what is watched.
+class OutputWatch {
+public:
+    // A row is a file of `dir` with its photograph under `images` and its depth
+    // map under `depths`, either path empty for none. `fresh_only` holds back
+    // what `dir` has now until it is written again: an earlier run's output.
+    OutputWatch(FilmReel* reel, std::filesystem::path dir,
+                std::filesystem::path images, std::filesystem::path depths,
+                bool fresh_only = false);
+
+    // One scan of lag before a file is shown: what appeared this tick may
+    // still be half written, and a truncated PNG reads as a failure rather
+    // than as a race. `flush` gives that up, for the end of the run.
+    void poll(bool flush = false);
+
+private:
+    std::vector<std::string> listing() const;
+    void publish(const std::vector<std::string>& batch);
+    std::vector<PicturePanel> row_for(const std::string& map) const;
+
+    FilmReel* _reel;
+    std::filesystem::path _dir, _images, _depths;
+    std::set<std::string> _seen;
+    std::map<std::string, std::filesystem::file_time_type> _before;
+    std::vector<std::string> _ripe;
+    std::chrono::steady_clock::time_point _last{};
 };
 
 }  // namespace gui

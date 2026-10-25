@@ -348,7 +348,7 @@ async function loadSingleModel(entries) {
   // external resources (.bin/.mtl/images) when a .gltf/.obj needs siblings —
   // never thousands of unrelated dataset images.
   const needsSiblings = entries.some(e => /\.(gltf|obj)$/i.test(e.path));
-  let wanted = entries.filter(e => /\.(ply|obj|gltf|glb)$/i.test(e.path) ||
+  let wanted = entries.filter(e => /\.(ply|obj|gltf|glb|stl)$/i.test(e.path) ||
     (needsSiblings && /\.(bin|mtl|png|jpg|jpeg|webp)$/i.test(e.path)));
   if (!wanted.length) wanted = entries;
   const files = await Promise.all(wanted.map(e => e.getFile()));
@@ -368,7 +368,7 @@ async function loadSingleModel(entries) {
     }
     freeSplatSh();   // SH lives on the GPU now; drop the WASM copy (+ quats)
     sortWorkerInitModel(data);
-    model = { type:'splat', count: data.count, shDegree: data.shDegree };
+    model = { type:'splat', count: data.count, shDegree: data.shDegree, sbLobes: data.sbLobes };
     showSplatUI(data);
   } else {
     renderer.setMesh(res.data, res.image || null);
@@ -387,7 +387,7 @@ async function loadSingleModel(entries) {
   histCache.clear();
   updateHistParams();
   $('drop-hint').style.display = 'none';
-  const name = files.find(f=>/\.(ply|obj|gltf|glb)$/i.test(f.name))?.name || '';
+  const name = files.find(f=>/\.(ply|obj|gltf|glb|stl)$/i.test(f.name))?.name || '';
   $('st-file').textContent = name.length>22 ? '…'+name.slice(-21) : name;
   setStatus(model.type==='splat' ? 'Splat model loaded' : 'Mesh loaded', 'ok');
   dirty = true;
@@ -459,6 +459,8 @@ function showSplatUI(data) {
   // slider range 0..model degree, defaulting to the model's actual degree
   const sh = $('shdeg'); sh.max = data.shDegree; sh.value = data.shDegree;
   opts.shDegree = data.shDegree; $('v-shdeg').textContent = sh.value;
+  $('st-sb').textContent = data.sbLobes || 0;
+  $('sb-row').style.display = data.sbLobes > 0 ? '' : 'none';
 }
 function showMeshUI(data) {
   $('sec-mesh').classList.remove('hidden');
@@ -801,7 +803,8 @@ function showTooltip(e, i) {
   const MODEL = ['Pinhole','Fisheye','Equisolid','Equirectangular'];
   const d = cam.dist || [];
   const nz = d.some(x => x);
-  const dlabels = ['k1','k2','k3','k4','p1','p2','s1','s2','b1','b2'];
+  const dlabels = cam.distType === 1 ? ['k1','k2','p1','p2']
+                : ['k1','k2','k3','k4','p1','p2','sx1','sy1'];
   const dstr = nz ? d.map((x,j)=> x ? `${dlabels[j]} ${x.toFixed(4)}` : null).filter(Boolean).join(', ') : 'none';
   el.innerHTML =
     `<b>${cam.name || 'camera ' + i}</b><br>` +
@@ -919,6 +922,7 @@ function wireControls() {
   bind('linear','change', e => { opts.isLinear = e.target.checked; dirty=true; });
   bind('transfer','change', e => { opts.transfer = +e.target.value; dirty=true; });
   bind('shdeg','input', e => { opts.shDegree = +e.target.value; $('v-shdeg').textContent = e.target.value; dirty=true; });
+  bind('show-lobes','change', e => { opts.showLobes = e.target.checked; dirty=true; });
   bind('exposure','input', e => { opts.exposure = Math.pow(10,+e.target.value); $('v-exposure').textContent = opts.exposure.toFixed(2); dirty=true; });
   bind('shade','change', e => { opts.shade = e.target.checked; dirty=true; });
 
@@ -990,7 +994,7 @@ function updateNavLegend() {
   const m = $('nav-mode').value;
   const L = {
     turntable: 'LMB Orbit · MMB/Shift Pan · Wheel Zoom · DblClick Center',
-    trackball: 'LMB Rotate · MMB/Shift Pan · Wheel Zoom · DblClick Center',
+    trackball: 'LMB Rotate · MMB/Shift Pan · Wheel Zoom · E/Q Roll · DblClick Center',
     fps: 'WASD Move · E/Q Up/Down · LMB Look · DblClick Center',
     fly: 'WASD Move · E/Q Roll · LMB Look · DblClick Center',
   };

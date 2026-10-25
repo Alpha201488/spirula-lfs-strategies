@@ -7,11 +7,12 @@
 // Everything below that -- where it lands, how it is verified, what happens to
 // a half-finished download -- is not, and there is one copy of it here.
 //
-// Nothing is bundled and nothing of ours is hosted anywhere, so the bytes we
-// run are the bytes the reference implementation runs and a parity check
-// compares two implementations rather than two checkpoints.
+// Nothing is bundled: the upstream URL is tried first, so the bytes we run are
+// the bytes the reference implementation runs. The fallback mirror
+// (core/ModelMirror.h) holds identical files, and the SHA-256 holds it to that.
 
 #include <cstdint>
+#include <functional>
 #include <string>
 
 namespace nn {
@@ -24,7 +25,17 @@ struct FetchFile {
     const char* url = nullptr;
     const char* sha256 = nullptr;
     uint64_t    bytes = 0;         // approximate, for the "downloading N MB" line
+    // A second host that already carries the same bytes; null for the
+    // project's own mirror (core/ModelMirror.h), which re-hosts under `file`.
+    const char* mirror = nullptr;
+    // Licences the user must have accepted before this file is DOWNLOADED
+    // (core/LicenseConsent.h): one family or a comma list; null for none. A copy
+    // already in the cache is returned as it is.
+    const char* license_family = nullptr;
 };
+
+// Where `f` is fetched from when `url` fails.
+std::string mirror_url(const FetchFile& f);
 
 // <cache>/spirula-studio/models. Mirrors src/app/AppPaths.cpp's
 // cache_dir(); duplicated rather than shared because src/nn/ sits below
@@ -32,10 +43,16 @@ struct FetchFile {
 std::string model_cache_dir();
 std::string cached_path(const FetchFile& f);
 
-// A verified local copy, fetched with the system `curl` if missing; `tag`
-// prefixes its progress lines. Throws nn::Error naming the URL to fetch by
-// hand -- and, with SS_NO_AUTO_FETCH set, instead of downloading at all.
+// A verified local copy, fetched with the system `curl` from `url`, then the
+// mirror, if missing; `tag` prefixes its progress lines. Throws nn::Error naming
+// both URLs (or, with SS_NO_AUTO_FETCH set, refusing to download) or on a refusal.
 std::string ensure_file(const FetchFile& f, const char* tag);
+
+// The licence gate: the application installs it (terms, prompt and record are
+// its business) and it throws to refuse a family list. With none installed a file
+// that names a family is refused, so forgetting one cannot let it through.
+using LicenseGate = std::function<void(const char* families)>;
+void set_license_gate(LicenseGate gate);
 
 // Lowercase hex SHA-256 of a file's contents. Empty when it cannot be read.
 std::string sha256_file(const std::string& path);

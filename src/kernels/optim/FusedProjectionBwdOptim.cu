@@ -45,6 +45,7 @@ void fused_projection_bwd_optimizer_3dgs_kernel_wrapper(
     const uint8_t* __restrict__ sh_value_packed,
     float2* __restrict__ sh_value_bounds,
     NonShQuantState non_sh,
+    SplatVisitState visit,
     // float *__restrict__ v_viewmats // [C, 4, 4] optional
     // optimizer params
     const float* __restrict__ radii,
@@ -129,6 +130,7 @@ inline void launch_fused_projection_bwd_optimizer_3dgs_kernel(
     const std::optional<TorchTensorView> sh_value_packed,
     const std::optional<TorchTensorView> sh_value_bounds,
     NonShQuantState non_sh,
+    SplatVisitState visit,
     // optimizer params
     DeviceVector<float> radii,
     DeviceVector<float> densify_score,
@@ -193,7 +195,7 @@ inline void launch_fused_projection_bwd_optimizer_3dgs_kernel(
             sh_quant_bounds.has_value() ? (float4*)std::get<0>(sh_quant_bounds.value()) : nullptr, \
             sh_value_packed.has_value() ? (const uint8_t*)std::get<0>(sh_value_packed.value()) : nullptr, \
             sh_value_bounds.has_value() ? (float2*)std::get<0>(sh_value_bounds.value()) : nullptr, \
-            non_sh, \
+            non_sh, visit, \
             /*v_viewmats.has_value() ? v_viewmats.value().data_ptr<float>() : nullptr */ \
             radii.data_ptr(), \
             densify_score.data_ptr(), \
@@ -259,6 +261,7 @@ static inline void _fused_projection_bwd_optimizer_dispatch(
     const std::optional<TorchTensorView> sh_value_packed,
     const std::optional<TorchTensorView> sh_value_bounds,
     NonShQuantState non_sh,
+    SplatVisitState visit,
     // optimizer params
     DeviceVector<float> radii,
     DeviceVector<float> densify_score,
@@ -317,7 +320,7 @@ static inline void _fused_projection_bwd_optimizer_dispatch(
         sh_quant_bounds, \
         sh_value_packed, \
         sh_value_bounds, \
-        non_sh, \
+        non_sh, visit, \
         radii, \
         densify_score, \
         lr_means, \
@@ -390,7 +393,7 @@ static inline void _fused_projection_bwd_optimizer_dispatch(
 /*[AutoHeaderGeneratorExport]*/
 void fused_projection_bwd_optimizer_3dgs(
     const int64_t num_splats,
-    const int max_sh_degree,
+    const ColorBasis color,
     std::vector<DeviceTensorFloatND> splats_world,
     TorchTensorView viewmats,
     TorchTensorView intrins,
@@ -411,6 +414,7 @@ void fused_projection_bwd_optimizer_3dgs(
     const std::optional<TorchTensorView> sh_value_packed,
     const std::optional<TorchTensorView> sh_value_bounds,
     NonShQuantState non_sh,
+    SplatVisitState visit,
     DeviceVector<float> radii,
     DeviceVector<float> densify_score,
     const float lr_means,
@@ -419,6 +423,7 @@ void fused_projection_bwd_optimizer_3dgs(
     const float lr_opacs,
     const float lr_features_dc,
     const float lr_features_sh,
+    const float lr_features_sb,
     const float max_gauss_ratio,
     const float scale_regularization_weight,
     const float mcmc_opacity_reg_weight,
@@ -436,13 +441,14 @@ void fused_projection_bwd_optimizer_3dgs(
     std::variant<int32_t, TorchTensorView> step,
     int quantization_level
 ) {
+    const int max_sh_degree = sh_only_degree(color, "fused_projection_bwd_optimizer_3dgs");
     _fused_projection_bwd_optimizer_dispatch<Vanilla3DGS>(
         num_splats, max_sh_degree, splats_world, viewmats, intrins, image_width, image_height,
         camera_model, distortion, dist_coeffs, camera_ids, gaussian_ids, aabb,
         v_splats_world, v_splats_screen,
         g1_splats_world, g2_splats_world, sh_packed, sh_quant_bounds,
         sh_value_packed, sh_value_bounds,
-        non_sh,
+        non_sh, visit,
         radii, densify_score, lr_means, lr_quats, lr_scales, lr_opacs, lr_features_dc,
         lr_features_sh, max_gauss_ratio, scale_regularization_weight,
         mcmc_opacity_reg_weight, mcmc_scale_reg_weight,
@@ -456,7 +462,7 @@ void fused_projection_bwd_optimizer_3dgs(
 /*[AutoHeaderGeneratorExport]*/
 void fused_projection_bwd_optimizer_mip(
     const int64_t num_splats,
-    const int max_sh_degree,
+    const ColorBasis color,
     std::vector<DeviceTensorFloatND> splats_world,
     TorchTensorView viewmats,
     TorchTensorView intrins,
@@ -477,6 +483,7 @@ void fused_projection_bwd_optimizer_mip(
     const std::optional<TorchTensorView> sh_value_packed,
     const std::optional<TorchTensorView> sh_value_bounds,
     NonShQuantState non_sh,
+    SplatVisitState visit,
     DeviceVector<float> radii,
     DeviceVector<float> densify_score,
     const float lr_means,
@@ -485,6 +492,7 @@ void fused_projection_bwd_optimizer_mip(
     const float lr_opacs,
     const float lr_features_dc,
     const float lr_features_sh,
+    const float lr_features_sb,
     const float max_gauss_ratio,
     const float scale_regularization_weight,
     const float mcmc_opacity_reg_weight,
@@ -502,13 +510,14 @@ void fused_projection_bwd_optimizer_mip(
     std::variant<int32_t, TorchTensorView> step,
     int quantization_level
 ) {
+    const int max_sh_degree = sh_only_degree(color, "fused_projection_bwd_optimizer_mip");
     _fused_projection_bwd_optimizer_dispatch<MipSplatting>(
         num_splats, max_sh_degree, splats_world, viewmats, intrins, image_width, image_height,
         camera_model, distortion, dist_coeffs, camera_ids, gaussian_ids, aabb,
         v_splats_world, v_splats_screen,
         g1_splats_world, g2_splats_world, sh_packed, sh_quant_bounds,
         sh_value_packed, sh_value_bounds,
-        non_sh,
+        non_sh, visit,
         radii, densify_score, lr_means, lr_quats, lr_scales, lr_opacs, lr_features_dc,
         lr_features_sh, max_gauss_ratio, scale_regularization_weight,
         mcmc_opacity_reg_weight, mcmc_scale_reg_weight,
@@ -522,7 +531,7 @@ void fused_projection_bwd_optimizer_mip(
 /*[AutoHeaderGeneratorExport]*/
 void fused_projection_bwd_optimizer_3dgut(
     const int64_t num_splats,
-    const int max_sh_degree,
+    const ColorBasis color,
     std::vector<DeviceTensorFloatND> splats_world,
     TorchTensorView viewmats,
     TorchTensorView intrins,
@@ -543,6 +552,7 @@ void fused_projection_bwd_optimizer_3dgut(
     const std::optional<TorchTensorView> sh_value_packed,
     const std::optional<TorchTensorView> sh_value_bounds,
     NonShQuantState non_sh,
+    SplatVisitState visit,
     DeviceVector<float> radii,
     DeviceVector<float> densify_score,
     const float lr_means,
@@ -551,6 +561,7 @@ void fused_projection_bwd_optimizer_3dgut(
     const float lr_opacs,
     const float lr_features_dc,
     const float lr_features_sh,
+    const float lr_features_sb,
     const float max_gauss_ratio,
     const float scale_regularization_weight,
     const float mcmc_opacity_reg_weight,
@@ -568,13 +579,14 @@ void fused_projection_bwd_optimizer_3dgut(
     std::variant<int32_t, TorchTensorView> step,
     int quantization_level
 ) {
+    const int max_sh_degree = sh_only_degree(color, "fused_projection_bwd_optimizer_3dgut");
     _fused_projection_bwd_optimizer_dispatch<Vanilla3DGUT>(
         num_splats, max_sh_degree, splats_world, viewmats, intrins, image_width, image_height,
         camera_model, distortion, dist_coeffs, camera_ids, gaussian_ids, aabb,
         v_splats_world, v_splats_screen,
         g1_splats_world, g2_splats_world, sh_packed, sh_quant_bounds,
         sh_value_packed, sh_value_bounds,
-        non_sh,
+        non_sh, visit,
         radii, densify_score, lr_means, lr_quats, lr_scales, lr_opacs, lr_features_dc,
         lr_features_sh, max_gauss_ratio, scale_regularization_weight,
         mcmc_opacity_reg_weight, mcmc_scale_reg_weight,

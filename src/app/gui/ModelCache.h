@@ -30,6 +30,19 @@
 
 namespace gui {
 
+// What a masking run segments with. Grounded is a SAM checkpoint with no text
+// tower paired with a TextDetector, which turns the prompt into boxes
+// (lang-segment-anything); Subject is BiRefNet, which reads no prompt.
+enum class MaskModelKind { Sam, Grounded, Subject };
+
+// One file of a TextDetector.
+struct ExtraFile {
+    const char* file;     // basename in the cache directory
+    const char* url;
+    const char* mirror;
+    uint64_t    bytes;
+};
+
 // A checkpoint the GUI can offer to fetch.
 struct ModelEntry {
     const char* id;          // stable key used in the settings file
@@ -42,16 +55,33 @@ struct ModelEntry {
     const char* family;      // "sam3" | "sam2" -- the licence unit
     uint64_t    bytes;       // expected download size, for the prompt
     bool        text_prompts;// false = clicks/boxes only (SAM 2 has no text tower)
-    // What `reference/scripts/mask.py` calls this checkpoint. Only the Python
-    // fallback path uses it -- the built-in masker is handed a file -- but it
-    // has to name the SAME model the user picked, or a run that falls back
-    // quietly changes which network produced the masks.
-    const char* legacy_name;
+    MaskModelKind kind = MaskModelKind::Sam;
+    const char* url = nullptr;       // null: sam3.cpp's repository + `file`
+    const char* mirror = nullptr;    // null: the project's mirror, under `file`
+    const char* sha256 = nullptr;
 };
 
-// Ordered best-default-first; index 0 is what a fresh install preselects.
+// The order the combo lists them in; the default is GuiApp's, not index 0.
 const std::vector<ModelEntry>& model_catalog();
 const ModelEntry* find_model(const std::string& id);
+const ModelEntry& dense_model_entry();
+// Registers dense_model_entry()'s licence family (the RoMa v2 and DINOv3 terms).
+// Once at startup, before anything asks about licences.
+void register_dense_license();
+
+// Words for a checkpoint that has none: the detector finds boxes, the SAM
+// model cuts them out. Picked in a second combo; its licence family is "gdino".
+struct TextDetector {
+    const char* id;          // "gdino-tiny", what gdino::resolve_model takes
+    const ::spirula::i18n::Msg* label;
+    const ::spirula::i18n::Msg* blurb;
+    const ExtraFile* weights;
+    const ExtraFile* vocab;
+};
+const std::vector<TextDetector>& text_detectors();
+const TextDetector* find_detector(const std::string& id);
+// Clicks work but words do not: the entries a TextDetector is offered for.
+bool takes_detector(const ModelEntry& e);
 
 // Licence terms for a family, for the consent dialog.
 struct LicenseInfo {
@@ -59,18 +89,58 @@ struct LicenseInfo {
     const ::spirula::i18n::Msg* title;    // "SAM 3 License (Meta)"
     const ::spirula::i18n::Msg* summary;  // 2-3 short lines, plain language
     const char* url;
-    bool        needs_tick;  // Apache-2.0 does not; the SAM 3 licence does
+    // The terms in full, shown in the dialog and ticked for: every family has them.
+    const char* full_text;
 };
-const LicenseInfo& license_for(const std::string& family);
+// Null for a family with no registered wording.
+const LicenseInfo* license_for(const std::string& family);
+// Gives a family registered with license::register_terms() its dialog wording.
+// The built-in four need no call.
+void register_license_info(const char* family, const ::spirula::i18n::Msg* title,
+                           const ::spirula::i18n::Msg* summary);
+
+// The one place the GUI records an acceptance: the accepted_license= key of
+// gui.conf, which the CLI reads too (core/LicenseConsent.h). False when it
+// could not be written, and the family is then not accepted.
+bool accept_license(const std::string& family);
 
 // Where a model would live, whether or not it is there yet.
 std::string model_path(const ModelEntry& e);
+std::string detector_path(const TextDetector& d);
 bool model_is_cached(const ModelEntry& e);
+bool detector_is_cached(const TextDetector& d);
+
+// The detector `detector_id` names when `e` takes one, else null.
+const TextDetector* detector_for(const ModelEntry& e, const std::string& detector_id);
+// What is still to fetch for the pair, for the consent prompt.
+uint64_t missing_download_bytes(const ModelEntry& e, const TextDetector* d);
+
+// What a masking run is handed for a pick: empty paths until every file of it
+// is cached. `text` says whether the pick reads a text prompt at all.
+struct MaskModelFiles {
+    MaskModelKind kind = MaskModelKind::Sam;
+    bool          text = true;
+    std::string   model, detector;
+    bool empty() const { return model.empty(); }
+};
+MaskModelFiles cached_mask_model(const std::string& id, const std::string& detector_id);
 
 // Is `path` a checkpoint of about `bytes` and not a half-finished download?
 // A truncated file that escaped the ".part" rename would fail deep inside a
 // weight loader, and a screen that called it ready would have lied.
 bool file_is_cached(const std::string& path, uint64_t bytes);
+
+// One file a run needs on disk before it can start.
+struct PendingDownload {
+    std::string url, dest;
+    uint64_t bytes = 0;          // for the progress readout; 0: unknown
+    std::string mirror;          // tried when `url` fails; empty: none
+    std::string license_family;  // empty: none needed
+    std::string sha256;          // lowercase hex the file must match; empty: unchecked
+    // Not a file at a URL but a child that builds the model (`spirula
+    // geometry --install`), its progress read off geometry::log_install_progress.
+    std::vector<std::string> command;
+};
 
 // A single background download. One at a time is enough for the GUI, so this
 // is a plain object the screen owns rather than a queue.
@@ -84,11 +154,12 @@ public:
 
     ~FileDownload();
 
-    // `expected_bytes` is only used for the progress readout; curl reports the
-    // real length. 0 means unknown.
-    void start(const std::string& url, const std::string& dest,
-               uint64_t expected_bytes);
-    void start(const ModelEntry& e);
+    // A `license_family` not yet accepted fails at once: a backstop, the GUI asks
+    // first (GuiApp::request_licenses).
+    void start(const PendingDownload& d);
+    // The first file of the pair that is not on disk yet, false if none is;
+    // the caller starts the next one when this is Done.
+    bool start(const ModelEntry& e, const TextDetector* d = nullptr);
     void cancel();
 
     State state() const { return _state.load(); }
@@ -99,7 +170,9 @@ public:
     std::vector<std::string> drain_log();
 
 private:
-    void run(std::string url, std::string dest, uint64_t expected_bytes);
+    void run(std::vector<std::string> urls, std::string dest, uint64_t expected_bytes, std::string sha256);
+    void run_command(std::vector<std::string> argv);
+    int fetch(const std::string& url, const std::string& part, uint64_t expected_bytes);
     void log(const std::string& line);
 
     std::thread _worker;
@@ -115,11 +188,6 @@ private:
 // almost always a model.
 using ModelDownload = FileDownload;
 
-// One file a run needs on disk before it can start.
-struct PendingDownload {
-    std::string url, dest;
-    uint64_t bytes = 0;
-};
 
 // Several of them, fetched one at a time: a checkpoint that comes in two
 // parts, or a front end whose detector and matcher are separate artifacts.
@@ -132,6 +200,8 @@ public:
     void cancel();
 
     bool running() const { return _dl.state() == FileDownload::State::Running; }
+    // Files still waiting behind the one in flight.
+    bool pending() const { return !_rest.empty(); }
     // The file in flight, or the last one -- what the progress bar reads.
     FileDownload& current() { return _dl; }
 

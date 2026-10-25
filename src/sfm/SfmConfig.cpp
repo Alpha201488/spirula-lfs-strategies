@@ -3,6 +3,8 @@
 // table in SfmConfig.h, so a new knob is one row and never a fourth edit.
 #include "sfm/SfmConfig.h"
 
+#include "sfm/core/Log.h"
+#include "sfm/vk/VkContext.h"
 #include "i18n/catalog/SfmFields.h"
 
 #include <algorithm>
@@ -172,8 +174,8 @@ std::string metavarFor(const std::string&, const char* name, const char* choices
     // No metavar column in the table: the flag name says what it takes, and
     // "DIR" reads better than "VALUE" on the handful that take a path.
     std::string n = name;
-    if (n.find("dir") != std::string::npos || n == "masks" || n == "images" ||
-        n == "features" || n == "resume")
+    if (n.find("dir") != std::string::npos || n == "masks" || n == "feature-masks" ||
+        n == "images" || n == "features" || n == "resume")
         return "DIR";
     if (n.find("path") != std::string::npos) return "FILE";
     return "VALUE";
@@ -264,7 +266,11 @@ FieldResult setConfigField(SfmConfig& cfg, uint32_t cmd, const std::string& arg,
     if ((uint32_t)(cmds) & cmd) {                                                                  \
         FieldResult r = trySetField(cfg.member, key, name, argc, argv, i, (double)(lo),            \
                                     (double)(hi), choices, seen, error);                           \
-        if (r != FieldResult::Unknown) return r;                                                   \
+        if (r != FieldResult::Unknown) {                                                           \
+            if (r == FieldResult::Ok && key == "device")                                           \
+                cfg.device_request_set = true;                                                     \
+            return r;                                                                               \
+        }                                                                                           \
     }
     SFM_CONFIG_FIELDS(SFM_TRY_SET)
 #undef SFM_TRY_SET
@@ -386,6 +392,8 @@ std::string applyPresets(SfmConfig& cfg, const std::set<std::string>& seen,
         // intrinsics. Give every image its own (D20).
         presetSet(seen, moved, "camera-mode", cfg.camera_mode, std::string("image"));
         cfg.camera_mode_pinned = true;
+        // Downloaded photos are in no order, so their file order links nothing.
+        presetSet(seen, moved, "prefilter-sequential", cfg.prefilter_sequential, false);
     } else {
         return "unknown --data-type '" + cfg.data_type + "' (individual, video or internet)";
     }
@@ -420,6 +428,10 @@ std::string SfmConfig::finalize(uint32_t cmd) {
     // One tolerance, two fields (D47).
     twoview.ransac.max_error = max_error;
     mapper.max_reproj_error = max_error;
+    // mapper.sequence_window = overlap;
+
+    if (!colorspace::parse_exposure(image_exposure, exposure))
+        return "bad --image-exposure '" + image_exposure + "' (auto, or a number of stops)";
 
     if (features != "sift" && !isAlikedType(features) && !isLomaType(features))
         return "unknown --features '" + features +
@@ -452,16 +464,13 @@ std::string SfmConfig::finalize(uint32_t cmd) {
                std::to_string(lomaDescriptorDim(features)) + "-D ones";
     // Two metric references would each claim the gauge, and the fit would be
     // whichever the code happened to try first.
-    const bool gps = metric_gps != "none";
+    // `auto` stands down beside a positions file and without images or telemetry.
+    const bool gps = metricGps();
     if (!metric_positions.empty() && gps)
         return "--metric-positions and --metric-gps are two references for one "
                "gauge; pass one";
     if (gps && image_dir.empty() && !(cmd & CMD_AUTO))
         return "--metric-gps reads each image's EXIF, so it needs --images";
-    // GPS is metres-accurate and a positions file is usually centimetres, so
-    // one default cannot serve both; 0 means "the one for this source".
-    if (metric_max_error == 0)
-        metric_max_error = gps ? 5.0 : 0.5;
     if (!telemetry.empty()) {
         bool listed = false;
         for (const TelemetryInput& t : telemetry_inputs)
@@ -475,6 +484,7 @@ std::string SfmConfig::finalize(uint32_t cmd) {
 
     sift.device = match.device = prefilter.device = mapper.device = device;
     aliked.device = device;
+    // UUID crosses stage and worker boundaries; the int remains legacy input spelling.
     mapper.threads = threads;
     const bool v = !quiet;
     sift.verbose = mapper.verbose = manager.verbose = merge.verbose = aliked.verbose = v;
@@ -503,6 +513,55 @@ PairMode SfmConfig::pairMode() const {
     if (pairs == "sequential") return PairMode::Sequential;
     if (pairs == "prefilter") return PairMode::Prefilter;
     return PairMode::Exhaustive;  // "exhaustive", and "auto" until counted
+}
+
+// ---------------------------------------------------------------------------
+// Device resolution
+// ---------------------------------------------------------------------------
+
+std::string SfmConfig::selectorForDevice(const std::string& request, bool request_set,
+                                          std::string& error) {
+    error.clear();
+    // The request's own spelling wins; an unset one uses environment, then Auto.
+    const bool supplied = request_set || !request.empty();
+    const spirula::vkselect::Request req =
+        spirula::vkselect::requestFrom(request, supplied);
+    const spirula::vkselect::Resolution& res = VkContext::cachedSelector(req);
+    if (res.ok()) return res.selector;
+    // Only the effective default Auto may use the CPU path when no device exists.
+    if (!supplied &&
+        res.status == spirula::vkselect::ResolveStatus::NoDevice &&
+        req.kind == spirula::vkselect::Request::Kind::Auto)
+        return std::string();
+    error = res.error;
+    return std::string();
+}
+
+std::string SfmConfig::resolveDevice() {
+    // Resolve the request once before stages inspect it.
+    const bool request_set = device_request_set || !device_request.empty() ||
+                             !device_selector.empty() || device >= 0;
+    const bool request_text = device_request_set || !device_request.empty();
+    const std::string request =
+        request_text ? device_request
+        : !device_selector.empty() ? device_selector
+        : device >= 0 ? std::to_string(device) : std::string();
+    std::string error;
+    device_selector = selectorForDevice(request, request_set, error);
+    if (!error.empty()) return error;
+    // An ordinal request still sets the legacy int, so a caller that has not
+    // migrated keeps working; the UUID is what fans out.
+    if (request_text) {
+        const spirula::vkselect::Request req = spirula::vkselect::parseRequest(request);
+        if (req.kind == spirula::vkselect::Request::Kind::Ordinal) device = req.ordinal;
+    }
+    sift.device_selector = match.device_selector = prefilter.device_selector =
+        mapper.device_selector = aliked.device_selector = lightglue.device_selector =
+            loma.device_selector = loma_match.device_selector = device_selector;
+    if (!device_selector.empty())
+        sfm::slog::diag(sfm::slog::Tag::Device, "[gpu] running on %s",
+                        device_selector.c_str());
+    return "";
 }
 
 // ---------------------------------------------------------------------------
@@ -545,24 +604,80 @@ bool signatureRelevant(const char* name) {
     return true;
 }
 
+// Left out while unset, so features extracted before the flag existed still
+// match a run that does not use it.
+bool signatureOmitsUnset(const char* name) {
+    return std::strcmp(name, "image-exposure") == 0;
+}
+
 }  // namespace
 
 std::string stageSignature(const SfmConfig& cfg, uint32_t cmd) {
     std::string out;
+    auto appendParams = [&](const std::vector<double>& params) {
+        char buf[32];
+        for (double p : params) {
+            std::snprintf(buf, sizeof buf, "%.17g,", p);
+            out += buf;
+        }
+    };
 #define SFM_SIG_FIELD(member, name, cmds, tier, group, lo, hi, choices, help)   \
-    if (((uint32_t)(cmds) & cmd) && (tier) != Tier::Alias && signatureRelevant(name)) \
+    if (((uint32_t)(cmds) & cmd) && (tier) != Tier::Alias && signatureRelevant(name) && \
+        !(signatureOmitsUnset(name) && valueString(cfg.member) == "none"))              \
         out += std::string(name) + "=" + valueString(cfg.member) + "\n";
     SFM_CONFIG_FIELDS(SFM_SIG_FIELD)
 #undef SFM_SIG_FIELD
     // Per-group lenses reach the camera setup, and so verification, without
     // being table rows: `--camera-model cam0=opencv-fisheye` and the manifest
     // both land here.
-    if (cmd & (CMD_MATCH | CMD_MAP))
+    if (cmd & (CMD_MATCH | CMD_MAP)) {
+        if (!cfg.camera.params.empty()) {
+            out += "camera-params=";
+            appendParams(cfg.camera.params);
+            out += "\n";
+        }
         for (const CameraOverride& o : cfg.camera.overrides) {
             out += "override " + o.prefix + "=";
             if (o.has_model) out += camInfo(o.model).cli_name;
             if (o.has_focal) out += "," + valueString(o.focal);
             for (double e : o.extra) out += "," + valueString(e);
+            if (!o.params.empty()) {
+                out += ";params=";
+                appendParams(o.params);
+            }
+            out += "\n";
+        }
+    }
+    // Verification reads the gyro and GPS proposes pairs. Only what is held
+    // back is listed, so a state matched before the switches existed still fits.
+    if (cmd & (CMD_MATCH | CMD_MAP)) {
+        for (const TelemetryInput& t : cfg.telemetry_inputs)
+            if (!t.imu || !t.gps)
+                out += "telemetry " + t.prefix + (t.imu ? "" : " no-imu") + (t.gps ? "" : " no-gps") +
+                       "\n";
+        for (const std::string& p : cfg.exif_gps_off) out += "exif-gps-off " + p + "\n";
+    }
+    // A sequence adds its temporal window to the pair list.
+    if (cmd & (CMD_MATCH | CMD_MAP))
+        for (const SequenceDef& d : cfg.sequences) {
+            out += "sequence ";
+            for (size_t m = 0; m < d.members.size(); m++)
+                out += (m ? "," : "") + d.members[m];
+            out += "\n";
+        }
+    // A rig adds its mates to the pairs that verified (sfm/feature/RigPairs.h):
+    // which images share a frame, and which way each lens faces.
+    if ((cmd & CMD_MAP) || ((cmd & CMD_MATCH) && cfg.rig_pairs))
+        for (const RigDef& d : cfg.rigs) {
+            out += "rig " + d.kind + ":";
+            for (size_t c = 0; c < d.captures.size(); c++)
+                out += (c ? "," : "") + d.captures[c];
+            for (const RigMemberDef& m : d.members) {
+                out += " " + m.prefix;
+                if (!m.has_ext) continue;
+                out += "=";
+                appendParams(std::vector<double>(m.ext.R.begin(), m.ext.R.end()));
+            }
             out += "\n";
         }
     return out;

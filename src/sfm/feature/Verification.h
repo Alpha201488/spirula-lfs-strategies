@@ -21,6 +21,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -30,6 +31,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/Env.h"
 #include "sfm/core/Progress.h"
 #include "sfm/core/Camera.h"
 #include "sfm/core/Features.h"
@@ -38,6 +40,8 @@
 #include "sfm/core/Events.h"
 #include "sfm/core/Log.h"
 #include "sfm/core/Resume.h"
+#include "sfm/core/PriorSource.h"
+#include "sfm/geometry/KnownRotation.h"
 #include "sfm/geometry/TwoView.h"
 #include "i18n/catalog/Sfm.h"
 
@@ -546,6 +550,22 @@ struct VerificationOptions {
     // pairs its journal has not got, and the bar still counts the whole stage.
     size_t progress_done_base = 0;
     size_t progress_total = 0;   // 0 = pairs.size()
+    // A pair whose rotation a sensor knows is also verified with it fixed and
+    // keeps that inlier set when it explains `prior_agree` of the free
+    // estimate's. Needs `cameras`, one per image, for the bearings.
+    const PriorSource* priors = nullptr;
+    const std::vector<Camera>* cameras = nullptr;
+    double prior_agree = 0.7;
+};
+
+// What the rotation prior did over one verifyPairs call.
+struct VerifyPriorStats {
+    std::atomic<uint64_t> pairs{0};      // pairs a prior covered
+    std::atomic<uint64_t> kept{0};       // ... verified on the prior's inlier set
+    std::atomic<uint64_t> disagreed{0};  // ... where the prior explained too little
+    std::atomic<uint64_t> dropped{0};    // matches the free estimate kept and the prior rejected
+    std::atomic<uint64_t> rescued{0};    // pairs only the prior could verify
+    std::atomic<uint64_t> contradicted{0};  // pairs dropped: turned far from the gyro, nothing held
 };
 
 inline int verificationThreadCount(const VerificationOptions& opt) {
@@ -572,10 +592,19 @@ inline std::vector<TwoViewMatches> verifyPairs(
     const std::vector<std::pair<uint32_t, uint32_t>>& pairs,
     const std::function<void(size_t, size_t, std::vector<std::vector<FeatureMatch>>&)>& matchFn,
     const VerificationOptions& opt, uint64_t* putative_out = nullptr,
-    const std::function<void(size_t, size_t)>& progress = nullptr) {
+    const std::function<void(size_t, size_t)>& progress = nullptr,
+    VerifyPriorStats* prior_stats = nullptr) {
 
     const int nthreads = verificationThreadCount(opt);
     const TwoViewOptions& tv = opt.two_view;
+    const bool priors = opt.priors && opt.cameras && opt.cameras->size() >= feats.size();
+    // SS_SFM_PRIOR_DUMP=1: one line per pair the prior covered, with the free
+    // estimate's own rotation for comparison.
+    const bool prior_dump = priors && spirula::env("SFM_PRIOR_DUMP") != nullptr;
+    auto bearingOf = [&](uint32_t img, uint32_t k) {
+        if (opt.bearings && opt.bearings->has(img)) return opt.bearings->bearings[img][k];
+        return (*opt.cameras)[img].bearing({feats[img].keypoints[k].x, feats[img].keypoints[k].y});
+    };
 
     // Per-pair slot, filled by whichever worker takes the job.
     std::vector<TwoViewMatches> results(pairs.size());
@@ -592,7 +621,70 @@ inline std::vector<TwoViewMatches> verifyPairs(
         // more than the other, which a mixed-resolution capture does routinely.
         const double sc = 0.5 * (feats[i].pixelScale() + feats[j].pixelScale());
         TwoViewGeometry g;
-        if (opt.bearings && opt.bearings->has(i) && opt.bearings->has(j)) {
+        Mat3 R_prior;
+        double prior_sigma = 0;
+        if (priors && opt.priors->relativeRotation(i, j, R_prior, prior_sigma)) {
+            // Both estimates: the free one is the fallback and the yardstick,
+            // the fixed-rotation one is what a wrong copy or the camera's own
+            // equipment cannot pass.
+            std::vector<Vec3> b1(m.size()), b2(m.size());
+            for (size_t k = 0; k < m.size(); k++) {
+                b1[k] = bearingOf(i, m[k].idx1);
+                b2[k] = bearingOf(j, m[k].idx2);
+            }
+            TwoViewOptions tvb = tv;
+            const double f = 0.5 * ((*opt.cameras)[i].focal() + (*opt.cameras)[j].focal());
+            tvb.ransac.max_error = tv.ransac.max_error * sc / std::max(1.0, f);
+            tvb.recover_pose = true;
+            g = estimateTwoViewBearing(b1, b2, tvb);
+            KnownRotationOptions ko;
+            ko.ransac = tvb.ransac;
+            ko.min_num_inliers = tv.min_num_inliers;
+            ko.max_rotation_only_ratio = tv.max_H_inlier_ratio;
+            ko.rot_sigma = prior_sigma;
+            ko.start = g.has_pose ? &g.pose : nullptr;
+            const KnownRotationGeometry k = estimateTwoViewKnownRotation(b1, b2, R_prior, ko);
+            const int free_inl = g.config == TwoViewConfig::Degenerate ||
+                                         g.config == TwoViewConfig::Undefined
+                                     ? 0
+                                     : g.num_inliers;
+            // A free geometry turned far from the gyro's rotation that the
+            // held estimate cannot reproduce is a match to a place the camera
+            // did not turn towards: the pair is dropped.
+            double free_deg = -1;
+            if (g.has_pose) {
+                const Mat3 D = mul(g.pose.R, transpose(R_prior));
+                const double tr = std::max(-1.0, std::min(1.0, (D[0] + D[4] + D[8] - 1.0) * 0.5));
+                free_deg = std::acos(tr) * 180.0 / M_PI;
+            }
+            const double contradict_deg = std::max(10.0, 5.0 * prior_sigma * 180.0 / M_PI);
+            const bool contradicted = free_inl && free_deg > contradict_deg &&
+                                      (!k.ok || k.num_inliers < opt.prior_agree * (double)free_inl);
+            if (prior_stats) prior_stats->pairs++;
+            if (prior_dump)
+                slog::diag(slog::Tag::Match,
+                           "[prior] pair %u-%u: %zu matches, free %s %d inliers (rotation %.2f deg "
+                           "from the prior), held: loose %d, strict %d, moved %.2f deg, sigma %.2f",
+                           i, j, m.size(), twoViewConfigName(g.config), free_inl, free_deg,
+                           k.loose_inliers, k.num_inliers, k.moved_deg,
+                           prior_sigma * 180.0 / M_PI);
+            if (contradicted) {
+                if (prior_stats) prior_stats->contradicted++;
+                return 0;
+            }
+            if (k.ok && k.num_inliers >= opt.prior_agree * (double)free_inl) {
+                if (prior_stats) {
+                    prior_stats->kept++;
+                    if (free_inl > k.num_inliers) prior_stats->dropped += (uint64_t)(free_inl - k.num_inliers);
+                    if (!free_inl) prior_stats->rescued++;
+                }
+                g.config = k.panoramic ? TwoViewConfig::PlanarOrPanoramic : TwoViewConfig::Uncalibrated;
+                g.inlier_mask = k.inlier_mask;
+                g.num_inliers = k.num_inliers;
+            } else if (prior_stats && free_inl) {
+                prior_stats->disagreed++;
+            }
+        } else if (opt.bearings && opt.bearings->has(i) && opt.bearings->has(j)) {
             const BearingCache& bc = *opt.bearings;
             std::vector<Vec3> b1(m.size()), b2(m.size());
             for (size_t k = 0; k < m.size(); k++) {
@@ -636,7 +728,7 @@ inline std::vector<TwoViewMatches> verifyPairs(
         const uint32_t inl = verifyBody(p, m, i, j);
         progress::pair(i, j, inl);
         if (inl) {
-            const std::vector<FeatureMatch>& kept = results[p].matches;
+            const MatchList& kept = results[p].matches;
             progress::live_pair(i, j, results[p].config,
                                 &kept[0].idx1, &kept[0].idx2,
                                 sizeof(FeatureMatch), (uint32_t)kept.size());
@@ -699,6 +791,17 @@ inline std::vector<TwoViewMatches> verifyPairs(
         bool done_producing = false;
         const size_t max_queued = (size_t)nthreads * std::max(1, opt.queue_depth_per_thread);
 
+        // Any throw -- a worker's, or the matcher's on a lost device -- must reach
+        // the caller only after every worker is joined: unwinding past a
+        // joinable std::thread terminates the process.
+        std::exception_ptr error;
+        std::atomic<bool> failed{false};
+        auto fail = [&](std::exception_ptr e) {
+            std::lock_guard<std::mutex> lk(mtx);
+            if (!error) error = e;
+            failed = true;
+        };
+
         std::vector<std::thread> workers;
         workers.reserve(nthreads);
         for (int t = 0; t < nthreads; t++) {
@@ -713,31 +816,37 @@ inline std::vector<TwoViewMatches> verifyPairs(
                         queue.pop();
                     }
                     cv_space.notify_one();
-                    verifyOne(job.index, job.matches);
+                    if (failed) continue;  // keep draining so the producer never blocks
+                    try {
+                        verifyOne(job.index, job.matches);
+                    } catch (...) {
+                        fail(std::current_exception());
+                    }
                 }
             });
         }
 
-        // A cancel stops the producer and lets the queue drain; it must not
-        // throw from here, because the workers are still waiting on `cv_job`
-        // and an unwind past their join() would terminate the process.
-        bool stop = false;
-        for (size_t b = 0; b < pairs.size() && !stop; b += batch) {
-            size_t e = std::min(b + batch, pairs.size());
-            matchFn(b, e, batch_out);
-            for (size_t p = b; p < e; p++) {
-                std::vector<FeatureMatch>& m = batch_out[p - b];
-                putative += m.size();
-                {
-                    std::unique_lock<std::mutex> lk(mtx);
-                    cv_space.wait(lk, [&] { return queue.size() < max_queued; });
-                    queue.push({p, std::move(m)});
+        try {
+            for (size_t b = 0; b < pairs.size() && !failed; b += batch) {
+                size_t e = std::min(b + batch, pairs.size());
+                matchFn(b, e, batch_out);
+                for (size_t p = b; p < e; p++) {
+                    std::vector<FeatureMatch>& m = batch_out[p - b];
+                    putative += m.size();
+                    {
+                        std::unique_lock<std::mutex> lk(mtx);
+                        cv_space.wait(lk, [&] { return queue.size() < max_queued; });
+                        queue.push({p, std::move(m)});
+                    }
+                    cv_job.notify_one();
+                    if (progress) progress(p + 1, pairs.size());
+                    tick(p);
+                    if (cancel::requested() || failed) break;
                 }
-                cv_job.notify_one();
-                if (progress) progress(p + 1, pairs.size());
-                tick(p);
-                if (cancel::requested()) { stop = true; break; }
+                if (cancel::requested()) break;
             }
+        } catch (...) {
+            fail(std::current_exception());
         }
         {
             std::lock_guard<std::mutex> lk(mtx);
@@ -745,6 +854,7 @@ inline std::vector<TwoViewMatches> verifyPairs(
         }
         cv_job.notify_all();
         for (std::thread& w : workers) w.join();
+        if (error) std::rethrow_exception(error);
     }
     cancel::check();   // safe now: every worker has been joined
 

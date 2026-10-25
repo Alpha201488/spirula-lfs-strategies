@@ -50,9 +50,9 @@
 // other.
 enum class VramCategory : uint8_t {
     Splat = 0,   // per-splat params, gradients, optimizer state, densify aux
-    // Scratch sized by (camera, gaussian), visible or splat-tile PAIRS, so it
-    // grows with the batch too. A buffer sized [N] is Splat however late it is
-    // allocated -- docs/notes/vram-splat-x-img.md.
+    // Scratch sized by (camera, gaussian), visible or splat-tile PAIRS: the
+    // one category that grows during training. Splat is sized for cap_max
+    // (POOL_LIVE_SPLAT_TABLE) -- docs/notes/vram-splat-x-img.md.
     SplatXImg,
     Image,       // per-image buffers: render outputs, GT, loss maps, img grads
     Appearance,  // bilagrid / background-SH / PPISP / color-space / color-shift
@@ -129,6 +129,8 @@ enum class SaveClass : uint8_t {
   X(EngRadii                       , "eng.radii",                         Splat    , Resume) \
   X(EngAccumBuffer                 , "eng.accum_buffer",                  Splat    , Resume) \
   X(EngBiasCorrectionSteps         , "eng.bias_correction_steps",         Splat    , Resume) \
+  X(EngVisitCounters               , "eng.visit_counters",                Splat    , Resume) \
+  X(EngMaxWeight                   , "eng.max_weight",                    Splat    , Never) \
   X(EngDensifyWorldGradScore       , "eng.densify.world_grad_score",      Splat    , Never) \
   X(EngDensifySampleScore          , "eng.densify.sample_score",          Splat    , Never) \
   X(EngDensifyOversize             , "eng.densify.oversize",              Splat    , Never) \
@@ -141,6 +143,16 @@ enum class SaveClass : uint8_t {
   X(EngStrategyExplore             , "eng.strategy.explore",              Splat    , Never) \
   X(EngStrategyIdx                 , "eng.strategy.idx",                  Splat    , Never) \
   X(EngStrategyScalar              , "eng.strategy.scalar",               Splat    , Never) \
+  X(EngLearnedScoreStats           , "eng.densify.learned_score_stats",   Other    , Never) \
+  X(EngRegionWeight                , "eng.region.weight",                 Splat    , Never) \
+  X(EngRegionProgram               , "eng.region.program",                Other    , Never) \
+  X(EngRegionFieldBvh              , "eng.region.field_bvh",              Other    , Never) \
+  X(EngRegionFieldSeeds            , "eng.region.field_seeds",            Other    , Never) \
+  X(EngRegionCameraBvh             , "eng.region.camera_bvh",             Other    , Never) \
+  X(EngRegionCameraSeeds           , "eng.region.camera_seeds",           Other    , Never) \
+  X(EngRegionPattern               , "eng.region.pattern",                Other    , Never) \
+  X(EngVisitCamSum                 , "eng.visit.cam_sum",                 Other    , Never) \
+  X(EngVisitCamCnt                 , "eng.visit.cam_cnt",                 Other    , Never) \
   /* ---- sub-batch scratch ---- */ \
   X(EngSubbatchAccumWeightSum      , "eng.subbatch.accum_weight_sum",     Splat    , Never) \
   /* ---- gradients ---- */ \
@@ -196,6 +208,7 @@ enum class SaveClass : uint8_t {
   X(RenderTs                       , "render.Ts",                         Image    , Never) \
   X(RenderLastIds                  , "render.last_ids",                   Image    , Never) \
   X(RenderMedian                   , "render.median",                     Image    , Never) \
+  X(RenderScore                    , "render.score",                      Image    , Never) \
   /* render/distortion channel tuples: sub-buffers ".rgb"/".depth"/".normal" */ \
   X(Renders                        , "renders",                           Image    , Never) \
   X(Distortions                    , "distortions",                       Image    , Never) \
@@ -230,7 +243,6 @@ enum class SaveClass : uint8_t {
   X(MeshingRenderRadii             , "meshing.render.radii",              Splat    , Never) \
   /* ---- per-pixel-loss scratch ---- */ \
   X(PplLosses                      , "ppl.losses",                        Image    , Never) \
-  X(PplLossMapScale                , "ppl.loss_map_scale",                Image    , Never) \
   X(PplRawLosses                   , "ppl.raw_losses",                    Image    , Never) \
   X(PplTotalLosses                 , "ppl.total_losses",                  Image    , Never) \
   X(PplVRawLosses                  , "ppl.v_raw_losses",                  Image    , Never) \
@@ -269,6 +281,7 @@ enum class SaveClass : uint8_t {
   X(EngBgSkyImage                  , "eng.bg_sky.image",                  Appearance, Never) \
   X(EngBgSkyRgbPost                , "eng.bg_sky.rgb_post",               Appearance, Never) \
   X(EngBgSkyVTsScratch             , "eng.bg_sky.v_Ts_scratch",           Appearance, Never) \
+  X(EngBgExponentByCam             , "eng.bg.exponent_by_cam",            Appearance, Never) \
   X(EngBgSkyVBg                    , "eng.bg_sky.v_bg",                   Appearance, Never) \
   X(EngBgSkyVSh                    , "eng.bg_sky.v_sh",                   Appearance, Never) \
   /* ---- PPISP ---- */ \
@@ -289,6 +302,9 @@ enum class SaveClass : uint8_t {
   X(ColorSpaceSplatMatrix          , "color_space.splat_matrix",          Appearance, Always) \
   X(ColorSpaceImageMatrix          , "color_space.image_matrix",          Appearance, Always) \
   X(ColorSpaceFwdPost              , "color_space.fwd_post",              Image    , Never) \
+  X(EngAppearancePost              , "eng.appearance.post",               Image    , Never) \
+  X(EngAppearanceLinear            , "eng.appearance.linear",             Image    , Never) \
+  X(EngAppearanceRaw16             , "eng.appearance.raw16",              Image    , Never) \
   X(ColorSpaceBgSrgb               , "color_space.bg_srgb",               Image    , Never) \
   /* ---- ground-truth staging ---- */ \
   X(GtRgb                          , "gt.rgb",                            Image    , Never) \
@@ -317,33 +333,39 @@ enum class SaveClass : uint8_t {
   X(SemiOffloadedAdamBuf           , "semi_offloaded_adam_buf",           Other    , Never) \
   X(SsimScalar                     , "ssim_scalar",                       Other    , Never) \
   X(SsimMaskWeight                 , "ssim.mask_weight",                  Image    , Never) \
-  X(SsimMaskWeightTmp              , "ssim.mask_weight_tmp",              Image    , Never) \
+  X(SsimBlurred                    , "ssim.blurred",                      Image    , Never) \
+  X(SsimBlurNorm                   , "ssim.blur_norm",                    Image    , Never) \
+  X(SsimBlurGrad                   , "ssim.blur_grad",                    Image    , Never) \
+  X(ScielabMaskWeight              , "scielab.mask_weight",               Image    , Never) \
+  X(FlipMaskWeight                 , "flip.mask_weight",                  Image    , Never) \
   /* ---- densify scratch ---- */ \
   X(DensifyQuantileTemp            , "densify_quantile_temp",             Other    , Never) \
   X(DensifyMapNorm                 , "densify_map_norm",                  Other    , Never) \
-  X(DensifyScoreGather             , "densify_score_gather",              Other    , Never) \
+  X(DensifyScoreGather             , "densify_score_gather",              Splat    , Never) \
   X(DensifyScoreClip               , "densify_score_clip",                Other    , Never) \
   X(DensifyClipScale               , "densify_clip_scale",                Other    , Never) \
   X(DensifyUpdateWeight            , "densify_update_weight",             Other    , Never) \
-  X(DensifyWswrSortingValues       , "densify_wswr_sorting_values",       Other    , Never) \
-  X(DensifyWswrOutIdx              , "densify_wswr_out_idx",              Other    , Never) \
-  X(DensifyWswrKeysOut             , "densify_wswr_keys_out",             Other    , Never) \
-  X(DensifyWswrIndicesIn           , "densify_wswr_indices_in",           Other    , Never) \
-  X(DensifyWswrIndicesOut          , "densify_wswr_indices_out",          Other    , Never) \
-  X(DensifyRelocMask               , "densify_reloc_mask",                Other    , Never) \
+  X(DensifyWswrSortingValues       , "densify_wswr_sorting_values",       Splat    , Never) \
+  X(DensifyWswrOutIdx              , "densify_wswr_out_idx",              Splat    , Never) \
+  X(DensifyWswrKeysOut             , "densify_wswr_keys_out",             Splat    , Never) \
+  X(DensifyWswrIndicesIn           , "densify_wswr_indices_in",           Splat    , Never) \
+  X(DensifyWswrIndicesOut          , "densify_wswr_indices_out",          Splat    , Never) \
+  X(DensifyWswrEligible            , "densify_wswr_eligible",             Other    , Never) \
+  X(DensifyRelocMask               , "densify_reloc_mask",                Splat    , Never) \
   X(DensifyRelocCount              , "densify_reloc_count",               Other    , Never) \
-  X(DensifyRelocDstIndices         , "densify_reloc_dst_indices",         Other    , Never) \
+  X(DensifyRelocDstIndices         , "densify_reloc_dst_indices",         Splat    , Never) \
   X(DensifyWswrMask                , "densify_wswr_mask",                 Other    , Never) \
-  X(DensifyMcmcSampleProbs         , "densify_mcmc_sample_probs",         Other    , Never) \
-  X(DensifyMcmcSampleProbsCumsum   , "densify_mcmc_sample_probs_cumsum",  Other    , Never) \
-  X(DensifyMcmcIndexMap            , "densify_mcmc_index_map",            Other    , Never) \
-  X(DensifyMcmcNIdxBuffer          , "densify_mcmc_n_idx_buffer",         Other    , Never) \
-  X(DensifyMcmcAddSampleProbs      , "densify_mcmc_add_sample_probs",     Other    , Never) \
-  X(DensifyMcmcAddSampleProbsCumsum, "densify_mcmc_add_sample_probs_cumsum",Other    , Never) \
-  X(DensifyMcmcAddIndexMap         , "densify_mcmc_add_index_map",        Other    , Never) \
-  X(DensifyMcmcAddNIdxBuffer       , "densify_mcmc_add_n_idx_buffer",     Other    , Never) \
+  X(DensifyMcmcSampleProbs         , "densify_mcmc_sample_probs",         Splat    , Never) \
+  X(DensifyMcmcSampleProbsCumsum   , "densify_mcmc_sample_probs_cumsum",  Splat    , Never) \
+  X(DensifyMcmcIndexMap            , "densify_mcmc_index_map",            Splat    , Never) \
+  X(DensifyMcmcNIdxBuffer          , "densify_mcmc_n_idx_buffer",         Splat    , Never) \
+  X(DensifyMcmcAddSampleProbs      , "densify_mcmc_add_sample_probs",     Splat    , Never) \
+  X(DensifyMcmcAddSampleProbsCumsum, "densify_mcmc_add_sample_probs_cumsum",Splat    , Never) \
+  X(DensifyMcmcAddIndexMap         , "densify_mcmc_add_index_map",        Splat    , Never) \
+  X(DensifyMcmcAddNIdxBuffer       , "densify_mcmc_add_n_idx_buffer",     Splat    , Never) \
   X(DensifyRobustResid             , "densify_robust_resid",              Other    , Never) \
   X(DensifyTukeyC                  , "densify_tukey_c",                   Other    , Never) \
+  X(DensifyQshValueExt             , "densify_qsh_value_ext",             Other    , Never) \
   /* ---- viewer cache/scratch ---- */ \
   X(ViewerThumb                    , "viewer.thumb",                      Viewer   , Never) \
   X(ViewerThumbDone                , "viewer.thumb_done",                 Viewer   , Never) \
@@ -475,6 +497,8 @@ constexpr const char* to_string(SaveClass s) {
 enum class PoolPhase : uint8_t {
     None = 0,   // owns its allocation -- every slot not listed below
     TileIsect,  // scratch that dies inside do_intersect_tile_generic
+    Loss,       // the loss pyramid and its scratch, dead once the loss returns
+    ImageBwd,   // what the image stages' backward rebuilds after the loss
     RasterBwd,  // raster backward -> projection backward / fused optim step
     Count
 };
@@ -515,10 +539,76 @@ constexpr bool ce_alias_rows_unique() {
 static_assert(ce_alias_rows_unique(),
               "POOL_ALIAS_TABLE: a slot is listed twice");
 
+// ---- Slots sized by the live splat count ----------------------------------
+
+// Requested at a size proportional to the LIVE count, so the pool allocates
+// them for cap_max on first use: Splat then stops growing as the model
+// densifies, which the training VRAM forecast assumes.
+#define POOL_LIVE_SPLAT_TABLE(X) \
+  X(EngSubbatchAccumWeightSum)       X(EngDensifyOversizeWeight) \
+  X(RasterBwdAccumWeight)            X(RasterBwdVWorld) \
+  X(FusedProjBwdCamBounds)           X(DensifyScoreGather) \
+  X(DensifyWswrSortingValues)        X(DensifyWswrKeysOut) \
+  X(DensifyWswrIndicesIn)            X(DensifyWswrIndicesOut) \
+  X(DensifyRelocMask)                X(DensifyRelocDstIndices) \
+  X(DensifyMcmcSampleProbs)          X(DensifyMcmcSampleProbsCumsum) \
+  X(DensifyMcmcIndexMap)             X(DensifyMcmcNIdxBuffer) \
+  X(DensifyMcmcAddSampleProbs)       X(DensifyMcmcAddSampleProbsCumsum) \
+  X(DensifyMcmcAddNIdxBuffer)
+
+// One int32 per drawn splat: the draw's size varies from call to call and is
+// bounded only by the live count, so these get cap_max elements outright.
+#define POOL_SPLAT_DRAW_TABLE(X) \
+  X(DensifyWswrOutIdx)               X(DensifyMcmcAddIndexMap)
+
+enum class LiveSizing : uint8_t { None, Proportional, Draw };
+
+inline constexpr PoolSlot kLiveSplatSlots[] = {
+#define X(name) PoolSlot::name,
+    POOL_LIVE_SPLAT_TABLE(X)
+#undef X
+};
+inline constexpr PoolSlot kSplatDrawSlots[] = {
+#define X(name) PoolSlot::name,
+    POOL_SPLAT_DRAW_TABLE(X)
+#undef X
+};
+
+constexpr LiveSizing slot_live_sizing(PoolSlot s) {
+    for (PoolSlot r : kLiveSplatSlots)
+        if (r == s) return LiveSizing::Proportional;
+    for (PoolSlot r : kSplatDrawSlots)
+        if (r == s) return LiveSizing::Draw;
+    return LiveSizing::None;
+}
+
+constexpr bool ce_live_splat_rows_are_splat() {
+    for (PoolSlot r : kLiveSplatSlots)
+        if (slot_category(r) != VramCategory::Splat || slot_phase(r) != PoolPhase::None)
+            return false;
+    for (PoolSlot r : kSplatDrawSlots)
+        if (slot_category(r) != VramCategory::Splat || slot_phase(r) != PoolPhase::None)
+            return false;
+    return true;
+}
+static_assert(ce_live_splat_rows_are_splat(),
+              "POOL_LIVE_SPLAT_TABLE: rows must be Splat and own their memory");
+
+// DevicePool::category_bytes() books the whole arena to SplatXImg.
+constexpr bool ce_alias_rows_grow() {
+    for (const AliasRow& r : kAliasRows)
+        if (slot_category(r.slot) != VramCategory::SplatXImg) return false;
+    return true;
+}
+static_assert(ce_alias_rows_grow(),
+              "POOL_ALIAS_TABLE: an arena-backed slot must be SplatXImg");
+
 constexpr const char* to_string(PoolPhase p) {
     switch (p) {
         case PoolPhase::None:      return "none";
         case PoolPhase::TileIsect: return "tile-isect";
+        case PoolPhase::Loss:      return "loss";
+        case PoolPhase::ImageBwd:  return "image-bwd";
         case PoolPhase::RasterBwd: return "raster-bwd";
         default:                   return "?";
     }

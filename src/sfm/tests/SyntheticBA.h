@@ -50,10 +50,10 @@ inline void project(uint32_t model, const double* intr, const double p[3], doubl
 
 // nImg cameras on a sphere looking at the origin, nPt points inside it.
 // `groups` is 1 (one shared camera) or nImg (one per image); `rig` > 1 makes
-// each camera a frame of that many members, refined or held by `rig_free`.
+// each camera a frame of that many members, `rig_mask` of each refined.
 inline BAProblem makeProblem(uint32_t model, uint32_t nImg, uint32_t nPt, uint32_t groups,
                       double noise, uint32_t seed, int nfree = -1, uint32_t rig = 0,
-                      bool rig_free = true) {
+                      bool rig_free = true, uint32_t rig_mask = kExtAll) {
     std::mt19937 rng(seed);
     std::normal_distribution<double> gauss;
     std::uniform_real_distribution<double> unit(-1.0, 1.0);
@@ -86,7 +86,9 @@ inline BAProblem makeProblem(uint32_t model, uint32_t nImg, uint32_t nPt, uint32
             P.exts[6 * (size_t)m + 3] = ext[m].t.x;
             P.exts[6 * (size_t)m + 4] = ext[m].t.y;
             P.exts[6 * (size_t)m + 5] = ext[m].t.z;
-            P.members.push_back({6 * m, 0, m > 0 && rig_free ? 6u : 0u});
+            const bool refined = m > 0 && rig_free && rig_mask;
+            P.members.push_back({6 * m, 0, refined ? extFreeCount(rig_mask) : 0u,
+                                 rig_mask});
         }
     }
     std::vector<double> centers(3 * (size_t)nImg), rot(9 * (size_t)nImg);

@@ -41,8 +41,8 @@ bool enabled();
 // end drawing it can say whether a unit is a metre (sfm/Pipeline.h ModelGauge).
 void gauge(bool oriented, bool metric);
 
-// model.bin: "VKPM", u32 version=3, flags (1 oriented, 2 metric), images,
-// registered, u64 points; per registered image { f32 c2w[12] OpenGL, u32 w, h,
+// model.bin: "VKPM", u32 version=4, flags (1 oriented, 2 metric), images, registered,
+// u64 points; per registered image { u32 id, f32 c2w[12] OpenGL, u32 w, h,
 // colmap_model_id, nparams, f64 params[] }; u32 count, { f32 xyz, u8 rgb }.
 
 // The model as it stands, subsampled to kMaxPoints. Call it as often as is

@@ -161,9 +161,9 @@ static_assert(sizeof(MeshTriPrepParams) == 6 * 8 + 8 * 4, "layout");
 struct MeshCullParams {
     uint64_t verts, faces, viewmats, intrins, dist, Ws, Hs, leafMin, leafMax,
         internal, nodeAABB, visible;
-    uint32_t nv, nf, C, wgs_per_row;
+    uint32_t first, count, nf, C, wgs_per_row, _pad0;
 };
-static_assert(sizeof(MeshCullParams) == 12 * 8 + 4 * 4, "layout");
+static_assert(sizeof(MeshCullParams) == 12 * 8 + 6 * 4, "layout");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -556,14 +556,14 @@ void launch_tri_prep(
 }
 
 void launch_cull(
-    const float* verts, int nv, const int* faces, int nf,
+    const float* verts, int first, int count, const int* faces, int nf,
     const float* viewmats, const float* intrins, const float* dist,
     const int* Ws, const int* Hs, int camera_model, int distortion, int C,
     const float3* leafMin, const float3* leafMax,
     const int2* internal, const float3* nodeAABB,
     uint32_t* visible
 ) {
-    if (nv <= 0) return;
+    if (count <= 0) return;
     MeshCullParams p{};
     p.verts = (uint64_t)verts;
     // A mesh with no faces still runs the projection test; nf == 0 short-
@@ -579,12 +579,13 @@ void launch_cull(
     p.internal = vkk::or_fallback(internal);
     p.nodeAABB = vkk::or_fallback(nodeAABB);
     p.visible = (uint64_t)visible;
-    p.nv = (uint32_t)nv;
+    p.first = (uint32_t)first;
+    p.count = (uint32_t)count;
     p.nf = (uint32_t)nf;
     p.C = (uint32_t)C;
     dispatch_flat_ring("meshing_raster.mesh_cull",
                        camera_spec(camera_model, distortion),
-                       nv, 256, &p, sizeof(p), &p.wgs_per_row);
+                       count, 256, &p, sizeof(p), &p.wgs_per_row);
 }
 
 }  // namespace meshing

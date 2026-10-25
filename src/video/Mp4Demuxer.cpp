@@ -3,6 +3,7 @@
 #include "nn/core/Log.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace video {
@@ -69,6 +70,24 @@ bool find_box(const uint8_t* data, size_t size, uint32_t type, Box& out) {
         off += b.total_size;
     }
     return false;
+}
+
+// The tkhd display matrix maps stored coordinates to display ones as
+// (x', y') = (a x + c y, b x + d y), so the turn is atan2(b, a) and a negative
+// determinant is a mirror -- the two numbers av_display_rotation_get reads.
+void parse_display_matrix(const uint8_t* p, TrackInfo& info) {
+    // 16.16 fixed point; only the four in-plane entries matter.
+    auto fp = [p](int i) { return (double)(int32_t)rd32(p + 4 * i) / 65536.0; };
+    const double a = fp(0), b = fp(1), c = fp(3), d = fp(4);
+    const double sa = std::hypot(a, b);
+    if (sa < 1e-9) return;
+    int deg = (int)std::lround(std::atan2(b, a) * 180.0 / 3.14159265358979323846);
+    deg = ((deg % 360) + 360) % 360;
+    // Anything that is not a quarter turn is a shear or a scale we cannot
+    // express, and guessing at one would rotate the capture by the wrong angle.
+    if (deg % 90 != 0) return;
+    info.rotate = deg;
+    info.mirror = a * d - b * c < 0;
 }
 
 }  // namespace
@@ -164,26 +183,14 @@ bool Mp4Demuxer::parseTrak(const uint8_t* data, size_t size) {
     }
 
     Track tk;
-    // Track-header display matrix (tkhd): phones record the upright
-    // orientation here while the coded frames stay rotated. The matrix is
-    // nine 16.16 fixed-point ints at payload+44 (version 0) or payload+56
-    // (version 1); only the 2x2 corner matters for multiples of 90 degrees.
     {
+        // tkhd: version/flags (4) + times and ids (20 at v0, 32 at v1) +
+        // reserved/layer/group/volume (16), then the 3x3 matrix.
         Box tkhd;
-        if (find_box(data, size, fourcc("tkhd"), tkhd) && tkhd.payload_size >= 80) {
-            const size_t off = (tkhd.payload[0] == 1) ? 56 : 44;
-            if (off + 36 <= tkhd.payload_size) {
-                const int32_t a = (int32_t)rd32(tkhd.payload + off + 0);
-                const int32_t b = (int32_t)rd32(tkhd.payload + off + 4);
-                const int32_t c = (int32_t)rd32(tkhd.payload + off + 12);
-                const int32_t d = (int32_t)rd32(tkhd.payload + off + 16);
-                // identity: [1 0; 0 1]; 90 CW: [0 1; -1 0]; 180: [-1 0; 0 -1];
-                // 270 CW: [0 -1; 1 0]  (same convention as av_display_rotation_set)
-                if (b == 0x00010000 && c == -0x00010000) tk.info.rotation_deg = 90;
-                else if (a == -0x00010000 && d == -0x00010000) tk.info.rotation_deg = 180;
-                else if (b == -0x00010000 && c == 0x00010000) tk.info.rotation_deg = 270;
-                // default 0 (identity or unknown)
-            }
+        if (find_box(data, size, fourcc("tkhd"), tkhd) && tkhd.payload_size >= 4) {
+            const size_t off = 4 + (tkhd.payload[0] == 1 ? 32 : 20) + 16;
+            if (tkhd.payload_size >= off + 36)
+                parse_display_matrix(tkhd.payload + off, tk.info);
         }
     }
     {
@@ -373,6 +380,36 @@ bool Mp4Demuxer::selectTrack(int index, std::string& error) {
     }
     selected_ = index;
     next_sample_ = 0;
+    buildPresentationOrder(tracks_[(size_t)index]);
+    return true;
+}
+
+void Mp4Demuxer::buildPresentationOrder(Track& tk) {
+    if (!tk.by_pts.empty() || tk.samples.empty()) return;
+    tk.by_pts.resize(tk.samples.size());
+    for (uint32_t i = 0; i < (uint32_t)tk.samples.size(); i++) tk.by_pts[i] = i;
+    std::stable_sort(tk.by_pts.begin(), tk.by_pts.end(),
+                     [&tk](uint32_t a, uint32_t b) {
+                         return tk.samples[a].pts < tk.samples[b].pts;
+                     });
+    tk.pts_rank.resize(tk.samples.size());
+    for (uint32_t r = 0; r < (uint32_t)tk.by_pts.size(); r++)
+        tk.pts_rank[tk.by_pts[r]] = r;
+}
+
+bool Mp4Demuxer::seekSync(int64_t index, int64_t& landed, std::string& error) {
+    if (selected_ < 0) {
+        error = "no track selected";
+        return false;
+    }
+    Track& tk = tracks_[(size_t)selected_];
+    if (tk.samples.empty()) return false;
+    buildPresentationOrder(tk);
+    int64_t r = std::min(index, (int64_t)tk.by_pts.size() - 1);
+    while (r > 0 && !tk.samples[tk.by_pts[(size_t)r]].is_sync) --r;
+    if (!tk.samples[tk.by_pts[(size_t)r]].is_sync) return false;
+    next_sample_ = tk.by_pts[(size_t)r];
+    landed = r;
     return true;
 }
 
@@ -391,6 +428,9 @@ bool Mp4Demuxer::next(Packet& out, std::string& error) {
     }
     const double ts = tk.timescale ? (double)tk.timescale : 1.0;
     out.index = (int64_t)next_sample_;
+    out.display_index = next_sample_ < tk.pts_rank.size()
+                            ? (int64_t)tk.pts_rank[next_sample_]
+                            : (int64_t)next_sample_;
     out.dts = (double)s.dts / ts;
     out.pts = (double)s.pts / ts;
     out.is_sync = s.is_sync;

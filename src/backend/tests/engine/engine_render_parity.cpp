@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
     set_data_3dgs(N, ttv(means.data(), {N, 3}), ttv(quats.data(), {N, 4}),
                   ttv(scales.data(), {N, 3}), ttv(opac.data(), {N, 1}),
                   ttv(dc.data(), {N, 3}),
-                  ttv(sh.data(), {N, NUM_SH, 3}));
+                  ttv(sh.data(), {N, NUM_SH, 3}), 0);
 
     // --- render cameras (2) ---
     const float cy_ = std::cos(0.15f), sy_ = std::sin(0.15f);
@@ -114,7 +114,8 @@ int main(int argc, char** argv) {
                              bg_sh.data(), bg_sh.size() * sizeof(float),
                              MemcpyKind::HostToDevice);
     }
-    engine_set_background_step_params(4321u, 0.6f);
+    engine_set_background_step_params(4321u, 0.6f, /*num_loss_scales=*/3,
+                                      /*loss_scale_min_pixels=*/0);
 
     // --- color space: mildly non-identity splat matrix (sRGB working) ---
     engine_init_color_space(
@@ -181,12 +182,34 @@ int main(int argc, char** argv) {
         pull(c.median, c.dist_type != 0);
     }
 
-    // --- noise background mode ---
-    engine_init_background_noise(/*transfer=*/0, /*linear=*/false);
+    // --- the randomized background modes, then the fixed colour ---
+    // Three loss scales, so the cell size the noise draws is one of three.
     set_cams("PINHOLE", 1);
-    forward_3dgs("3dgs", 3, false, false, 0);
-    backend::device_synchronize();
-    pull(0, 0);
+    for (int mode = 0; mode < 3; mode++) {
+        if (mode == 0) engine_init_background_noise(0, false);
+        if (mode == 1) engine_init_background_pseudorandom(0, false);
+        if (mode == 2) engine_init_background_random(0, false);
+        for (uint32_t seed : {7u, 8u, 9u}) {
+            engine_set_background_step_params(seed, 0.6f, 3, 0);
+            forward_3dgs("3dgs", 3, false, false, 0);
+            backend::device_synchronize();
+            pull(0, 0);
+        }
+    }
+    {
+        const float color[3] = {0.2f, 0.65f, 0.9f};
+        engine_init_background_color(color, /*transfer=*/0, /*linear=*/false);
+        forward_3dgs("3dgs", 3, false, false, 0);
+        backend::device_synchronize();
+        pull(0, 0);
+
+        const float black[3] = {0.0f, 0.0f, 0.0f};
+        engine_init_background_color(black, /*transfer=*/0, /*linear=*/false);
+        if (engine().background.enabled) {
+            std::fprintf(stderr, "all-black background must disable the blend\n");
+            return 1;
+        }
+    }
 
     // --- depth -> normal (viewer buffer path) on the last render ---
     {

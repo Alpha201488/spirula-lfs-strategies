@@ -3,7 +3,7 @@
 // Gaussian (centre + 6 axis endpoints), collinear, coplanar and cospherical by
 // construction. See docs/notes/delaunay-degeneracy.md.
 //
-//   ./build/delaunay_degenerate [threads]
+//   ./build_vulkan/delaunay_degenerate [threads]
 //
 // Each case runs under a watchdog: the failure guarded against is a walk that
 // never ends, not a wrong answer.

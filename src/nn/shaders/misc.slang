@@ -25,14 +25,10 @@ struct RopeParams {
     uint   batch;
     uint   row_stride;      // elements between tokens
     uint   groups_per_row;
+    uint   split_half;
 };
 
-// Pairs consecutive dimensions into a complex number and rotates:
-//   out[2i]   = x[2i]*cos - x[2i+1]*sin
-//   out[2i+1] = x[2i]*sin + x[2i+1]*cos
-// which is view_as_real(view_as_complex(x) * freqs_cis) from the reference.
-// The frequency table is shared by every head and every batch element, exactly
-// as in SAM 3's ViT (all 16 heads see the same axial grid).
+// Split-half and consecutive layouts share the same frequency table.
 [shader("compute")]
 [numthreads(WG, 1, 1)]
 void rope_apply(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
@@ -50,14 +46,16 @@ void rope_apply(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
     uint h = r2 / half_d;
     uint pair = r2 % half_d;
 
-    uint base = b * p.n * p.row_stride + tok * p.row_stride + h * p.head_dim + pair * 2u;
+    uint base = b * p.n * p.row_stride + tok * p.row_stride + h * p.head_dim;
+    uint first = base + (p.split_half != 0u ? pair : pair * 2u);
+    uint second = first + (p.split_half != 0u ? half_d : 1u);
     uint foff = (tok * half_d + pair) * 2u;
-    float c = asfloat(p.freqs[foff + 0u]);
-    float s = asfloat(p.freqs[foff + 1u]);
-    float re = asfloat(p.x[base + 0u]);
-    float im = asfloat(p.x[base + 1u]);
-    p.x[base + 0u] = asuint(re * c - im * s);
-    p.x[base + 1u] = asuint(re * s + im * c);
+    float c = load_at(p.freqs, foff, false);
+    float s = load_at(p.freqs, foff + 1u, false);
+    float re = load_at(p.x, first, false);
+    float im = load_at(p.x, second, false);
+    store_at((float*)p.x, first, re * c - im * s);
+    store_at((float*)p.x, second, re * s + im * c);
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +128,8 @@ struct WindowParams {
     uint   nwh;   // windows down = ceil(H / ws)
     uint   nww;   // windows across
     uint   groups_per_row;
+    uint   shift;       // Swin's cyclic shift, applied on the padded grid
+    uint   accumulate;  // unpartition only: out += instead of out =
     uint   _pad0;
 };
 
@@ -154,6 +154,11 @@ void window_partition(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
     uint wi = win / p.nww;
     uint y = wi * p.ws + wy;
     uint x = wj * p.ws + wx;
+    if (p.shift != 0u) {
+        // torch.roll(-shift) of the zero-padded map, as Swin's SW-MSA does.
+        y = (y + p.shift) % (p.nwh * p.ws);
+        x = (x + p.shift) % (p.nww * p.ws);
+    }
     store_at(p.out, i, (y < p.H && x < p.W)
                            ? load_at(p.x, (y * p.W + x) * p.C + c, kInputF16 != 0)
                            : 0.0f);
@@ -171,48 +176,51 @@ void window_unpartition(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
     uint rest = i / p.C;
     uint x = rest % p.W;
     uint y = rest / p.W;
+    if (p.shift != 0u) {
+        const uint hp = p.nwh * p.ws, wp = p.nww * p.ws;
+        y = (y + hp - p.shift) % hp;
+        x = (x + wp - p.shift) % wp;
+    }
     uint wi = y / p.ws, wy = y % p.ws;
     uint wj = x / p.ws, wx = x % p.ws;
     uint win = wi * p.nww + wj;
     uint src = ((win * p.ws + wy) * p.ws + wx) * p.C + c;
-    store_at(p.out, i, load_at(p.x, src, kInputF16 != 0));
+    float v = load_at(p.x, src, kInputF16 != 0);
+    if (p.accumulate != 0u) v += load_f_at(p.out, i);
+    store_at(p.out, i, v);
 }
 
 // ---------------------------------------------------------------------------
-// Transposed convolution, stride 2, kernel 2 -- the scatter half
+// Non-overlapping transposed convolution scatter
 // ---------------------------------------------------------------------------
 
 struct ConvTScatterParams {
-    float* out;     // [2*Hi, 2*Wi, Co]
-    uint*  packed;  // [Hi, Wi, Co*4] -- the GEMM's output
+    float* out;
+    uint*  packed;
     uint*  bias;    // [Co] f32 (never null)
     uint   Hi;
     uint   Wi;
     uint   Co;
     uint   groups_per_row;
-    uint   _pad0;
+    uint   patch;
 };
 
-// ConvTranspose2d(k=2, s=2) is a GEMM followed by a shuffle: each input pixel
-// produces one 2x2 output block, and the four kernel taps are just four output
-// channel groups. OpConv.cpp repacks the [Cin, Cout, 2, 2] weight into a
-// [Cout*4, Cin] matrix at load time, runs the tuned GEMM, and this kernel
-// scatters. That is worth more than a bespoke deconv: the neck's two deconvs
-// are 22 GFLOP, and they get the same tiling as everything else.
+// A GEMM packs each output patch; the scatter restores its spatial layout.
 [shader("compute")]
 [numthreads(WG, 1, 1)]
 void convt_scatter(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
                    uniform ConvTScatterParams p) {
     uint i = fold_index(gid, tid, p.groups_per_row, uint(WG));
-    uint Ho = p.Hi * 2u, Wo = p.Wi * 2u;
+    uint Ho = p.Hi * p.patch, Wo = p.Wi * p.patch;
     if (i >= Ho * Wo * p.Co) return;
     uint co = i % p.Co;
     uint rest = i / p.Co;
     uint xo = rest % Wo;
     uint yo = rest / Wo;
-    uint y = yo >> 1, sy = yo & 1u;
-    uint x = xo >> 1, sx = xo & 1u;
-    uint src = (y * p.Wi + x) * (p.Co * 4u) + co * 4u + sy * 2u + sx;
+    uint y = yo / p.patch, sy = yo % p.patch;
+    uint x = xo / p.patch, sx = xo % p.patch;
+    uint taps = p.patch * p.patch;
+    uint src = (y * p.Wi + x) * (p.Co * taps) + co * taps + sy * p.patch + sx;
     float v = load_at(p.packed, src, kInputF16 != 0) + asfloat(p.bias[co]);
     store_at(p.out, i, apply_act(v, kAct));
 }
@@ -457,4 +465,172 @@ void softmax_rows(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
         float v = load_elem(p.x, row * p.cols + c, kInputF16 != 0);
         p.out[row * p.cols + c] = exp(v - m) * inv;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Swin patch merging
+// ---------------------------------------------------------------------------
+
+struct PatchMergeParams {
+    float* out;   // [ceil(H/2) * ceil(W/2), 4*C]
+    uint*  x;     // [H, W, C]
+    uint   H;
+    uint   W;
+    uint   C;
+    uint   groups_per_row;
+};
+
+// torch.cat([x[0::2, 0::2], x[1::2, 0::2], x[0::2, 1::2], x[1::2, 1::2]], -1)
+// with an odd edge zero-padded -- the ROW offset varies fastest, which is the
+// order Swin's reduction weight was trained against.
+[shader("compute")]
+[numthreads(WG, 1, 1)]
+void patch_merge(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
+                 uniform PatchMergeParams p) {
+    uint i = fold_index(gid, tid, p.groups_per_row, uint(WG));
+    const uint h2 = (p.H + 1u) / 2u, w2 = (p.W + 1u) / 2u;
+    if (i >= h2 * w2 * 4u * p.C) return;
+    const uint c4 = i % (4u * p.C);
+    const uint pos = i / (4u * p.C);
+    const uint q = c4 / p.C, c = c4 % p.C;
+    const uint y = (pos / w2) * 2u + (q & 1u);
+    const uint x = (pos % w2) * 2u + (q >> 1);
+    store_at(p.out, i, (y < p.H && x < p.W)
+                           ? load_at(p.x, (y * p.W + x) * p.C + c, kInputF16 != 0)
+                           : 0.0f);
+}
+
+// ---------------------------------------------------------------------------
+// Blocks to channels
+// ---------------------------------------------------------------------------
+
+struct BlocksParams {
+    float* out;   // [H/gh, W/gw, C*gh*gw]
+    uint*  x;     // [H, W, C]
+    uint   H;
+    uint   W;
+    uint   C;
+    uint   gh;
+    uint   gw;
+    uint   groups_per_row;
+    uint   column_major;   // channel = (gx*gh + gy)*C + c, else (c*gh + gy)*gw + gx
+    uint   _pad0;
+};
+
+// The image cut into a gh x gw grid of blocks, each block's pixels stacked as
+// channels; unlike pixel_unshuffle, neighbouring outputs read neighbouring
+// inputs. The two channel orders are nn::BlockOrder's.
+[shader("compute")]
+[numthreads(WG, 1, 1)]
+void blocks_to_channels(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
+                        uniform BlocksParams p) {
+    uint i = fold_index(gid, tid, p.groups_per_row, uint(WG));
+    const uint ph = p.H / p.gh, pw = p.W / p.gw;
+    const uint K = p.C * p.gh * p.gw;
+    if (i >= ph * pw * K) return;
+    const uint k = i % K, pos = i / K;
+    uint c, gy, gx;
+    if (p.column_major != 0u) {
+        c = k % p.C;
+        gy = (k / p.C) % p.gh;
+        gx = (k / p.C) / p.gh;
+    } else {
+        c = k / (p.gh * p.gw);
+        gy = (k % (p.gh * p.gw)) / p.gw;
+        gx = k % p.gw;
+    }
+    const uint y = gy * ph + pos / pw;
+    const uint x = gx * pw + pos % pw;
+    store_at(p.out, i, load_at(p.x, (y * p.W + x) * p.C + c, kInputF16 != 0));
+}
+
+// ---------------------------------------------------------------------------
+// Multi-scale deformable attention
+// ---------------------------------------------------------------------------
+
+struct MsDeformParams {
+    float* out;      // [nq, n_heads * head_dim]
+    uint*  value;    // [sum(H_l * W_l), n_heads * head_dim] f32
+    uint*  offsets;  // [nq, n_heads, n_levels, n_points, 2] (x, y)
+    uint*  attn;     // [nq, n_heads, n_levels * n_points] logits, pre-softmax
+    uint*  refs;     // [nq, ref_dims]: (x, y) or (cx, cy, w, h), normalized
+    uint   nq;
+    uint   n_heads;
+    uint   head_dim;
+    uint   n_levels;
+    uint   n_points;
+    uint   ref_dims;
+    uint   hw0, hw1, hw2, hw3;   // (H << 16) | W per level
+    uint   st0, st1, st2, st3;   // first value row of each level
+    uint   groups_per_row;
+    uint   _pad0;
+};
+
+float msda_tap(uint* value, uint row0, int H, int W, uint C, uint c, float y, float x) {
+    if (y <= -1.0f || float(H) <= y || x <= -1.0f || float(W) <= x) return 0.0f;
+    const int y0 = int(floor(y)), x0 = int(floor(x));
+    const float ly = y - float(y0), lx = x - float(x0);
+    float v = 0.0f;
+    if (y0 >= 0 && x0 >= 0)
+        v += (1.0f - ly) * (1.0f - lx) * asfloat(load_u32_at(value, (row0 + uint(y0 * W + x0)) * C + c));
+    if (y0 >= 0 && x0 + 1 < W)
+        v += (1.0f - ly) * lx * asfloat(load_u32_at(value, (row0 + uint(y0 * W + x0 + 1)) * C + c));
+    if (y0 + 1 < H && x0 >= 0)
+        v += ly * (1.0f - lx) * asfloat(load_u32_at(value, (row0 + uint((y0 + 1) * W + x0)) * C + c));
+    if (y0 + 1 < H && x0 + 1 < W)
+        v += ly * lx * asfloat(load_u32_at(value, (row0 + uint((y0 + 1) * W + x0 + 1)) * C + c));
+    return v;
+}
+
+// Deformable DETR's MultiScaleDeformableAttention, softmax included. Sampling
+// is grid_sample(align_corners=False, zeros): pixel = loc * size - 0.5; a 4-d
+// reference scales the offset by off / n_points * wh * 0.5, a 2-d one by 1/(W, H).
+[shader("compute")]
+[numthreads(WG, 1, 1)]
+void ms_deform_attn(uint3 gid : SV_GroupID, uint3 tid : SV_GroupThreadID,
+                    uniform MsDeformParams p) {
+    uint i = fold_index(gid, tid, p.groups_per_row, uint(WG));
+    const uint C = p.n_heads * p.head_dim;
+    if (i >= p.nq * C) return;
+    const uint d = i % p.head_dim;
+    const uint qh = i / p.head_dim;   // q * n_heads + h
+    const uint h = qh % p.n_heads;
+    const uint q = qh / p.n_heads;
+    const uint LP = p.n_levels * p.n_points;
+
+    float m = -3.402823466e+38f;
+    for (uint j = 0; j < LP; ++j) m = max(m, asfloat(p.attn[qh * LP + j]));
+    float sum = 0.0f;
+    for (uint j = 0; j < LP; ++j) sum += exp(asfloat(p.attn[qh * LP + j]) - m);
+    const float inv = 1.0f / sum;
+
+    const float rx = asfloat(p.refs[q * p.ref_dims + 0u]);
+    const float ry = asfloat(p.refs[q * p.ref_dims + 1u]);
+    const float rw = (p.ref_dims == 4u) ? asfloat(p.refs[q * p.ref_dims + 2u]) : 0.0f;
+    const float rh = (p.ref_dims == 4u) ? asfloat(p.refs[q * p.ref_dims + 3u]) : 0.0f;
+
+    float acc = 0.0f;
+    for (uint l = 0; l < p.n_levels; ++l) {
+        const uint hw = (l == 0u) ? p.hw0 : (l == 1u) ? p.hw1 : (l == 2u) ? p.hw2 : p.hw3;
+        const uint st = (l == 0u) ? p.st0 : (l == 1u) ? p.st1 : (l == 2u) ? p.st2 : p.st3;
+        const int H = int(hw >> 16), W = int(hw & 0xFFFFu);
+        for (uint pt = 0; pt < p.n_points; ++pt) {
+            const uint j = l * p.n_points + pt;
+            const uint ob = (qh * LP + j) * 2u;
+            const float ox = asfloat(p.offsets[ob + 0u]);
+            const float oy = asfloat(p.offsets[ob + 1u]);
+            float lx, ly;
+            if (p.ref_dims == 4u) {
+                lx = rx + ox / float(p.n_points) * rw * 0.5f;
+                ly = ry + oy / float(p.n_points) * rh * 0.5f;
+            } else {
+                lx = rx + ox / float(W);
+                ly = ry + oy / float(H);
+            }
+            const float w = exp(asfloat(p.attn[qh * LP + j]) - m) * inv;
+            acc += w * msda_tap(p.value, st, H, W, C, h * p.head_dim + d,
+                                ly * float(H) - 0.5f, lx * float(W) - 0.5f);
+        }
+    }
+    store_at(p.out, i, acc);
 }

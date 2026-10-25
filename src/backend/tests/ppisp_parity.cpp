@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
     }
     const bool dumping = std::strcmp(argv[1], "dump") == 0;
 
-    Rng r(260719u);
+    Rng r(260719u), r_arith(260914u);
 
     const TypeInfo types[6] = {
         {"original", 36, (int)RawPPISPRegLossIndex::length},
@@ -148,40 +148,89 @@ int main(int argc, char** argv) {
         // Regularization forward: per-image raw rows are deterministic
         // (tight); the summed tail row and the weighted losses derived from
         // it are atomic-order dependent (loose).
-        {
+        for (int arith = 0; arith < 2; arith++) {
+            // Own stream for the added mode, so every later block keeps its data.
+            Rng& rr = arith ? r_arith : r;
             const int64_t Bp = 6;
-            float* params = upload(r.vec(Bp * t.n_params, -0.5f, 0.5f));
+            std::vector<float> params_h = rr.vec(Bp * t.n_params, -0.5f, 0.5f);
+            float* params = upload(params_h);
             std::array<float, (int)PPISPRegLossIndex::length> weights{};
-            for (auto& w : weights) w = r.uf(0.1f, 2.0f);
+            for (auto& w : weights) w = rr.uf(0.1f, 2.0f);
             float* losses = alloc_zero<float>((int)PPISPRegLossIndex::length);
             float* raw_losses = alloc_zero<float>((Bp + 1) * t.n_raw);
             compute_ppsip_regularization_forward(
-                ttv(params, {Bp, t.n_params}), weights, t.name,
+                ttv(params, {Bp, t.n_params}), weights, t.name, arith != 0,
                 ttv(losses, {(int)PPISPRegLossIndex::length}),
                 ttv(raw_losses, {Bp + 1, t.n_raw}));
+            size_t raw_at = g_tight.size(), loss_at = g_loose.size() + t.n_raw;
             readback_f(g_tight, raw_losses, Bp * t.n_raw);
             readback_f(g_loose, raw_losses + Bp * t.n_raw, t.n_raw);
             readback_f(g_loose, losses, (int)PPISPRegLossIndex::length);
 
             // Backward with synthetic (host-fixed) summed raw losses so the
-            // whole chain stays deterministic.
-            std::vector<float> raw_h = r.vec((Bp + 1) * t.n_raw, -1.0f, 1.0f);
+            // whole chain stays deterministic. log2 needs a positive gain sum.
+            std::vector<float> raw_h = rr.vec((Bp + 1) * t.n_raw, -1.0f, 1.0f);
+            if (arith) raw_h[Bp * t.n_raw] = rr.uf(0.5f, 2.0f) * (float)Bp;
             float* raw_fixed = upload(raw_h);
-            float* v_losses =
-                upload(r.vec((int)PPISPRegLossIndex::length, -1.0f, 1.0f));
+            std::vector<float> vl_h =
+                rr.vec((int)PPISPRegLossIndex::length, -1.0f, 1.0f);
+            float* v_losses = upload(vl_h);
             float* v_params = alloc_zero<float>(Bp * t.n_params);
             compute_ppsip_regularization_backward(
                 ttv(params, {Bp, t.n_params}), weights,
                 ttv(raw_fixed, {Bp + 1, t.n_raw}),
                 ttv(v_losses, {(int)PPISPRegLossIndex::length}), t.name,
-                ttv(v_params, {Bp, t.n_params}));
+                arith != 0, ttv(v_params, {Bp, t.n_params}));
+            size_t vp_at = g_tight.size();
             readback_f(g_tight, v_params, Bp * t.n_params);
+            if (!arith) continue;
+
+            // Closed form of the exposure terms, which touch nothing else.
+            auto dsl1 = [](double x) {
+                return std::fabs(x) < 0.1 ? x / 0.1 : (x > 0 ? 1.0 : -1.0);
+            };
+            auto sl1 = [](double x) {
+                return std::fabs(x) < 0.1 ? 0.5 * x * x / 0.1 : std::fabs(x) - 0.05;
+            };
+            auto off = [](double got, double want) {
+                return std::fabs(got - want) > 1e-4 + 1e-4 * std::fabs(want);
+            };
+            double gain_sum = 0.0;
+            for (int64_t b = 0; b < Bp; b++) {
+                double gain = std::exp2((double)params_h[b * t.n_params]);
+                gain_sum += gain;
+                if (off(g_tight[raw_at + b * t.n_raw], gain)) {
+                    std::fprintf(stderr, "ppisp_parity: %s raw gain[%lld] = %g, "
+                                 "expected %g\n", t.name, (long long)b,
+                                 g_tight[raw_at + b * t.n_raw], gain);
+                    return 1;
+                }
+            }
+            double want_loss = weights[0] * sl1(std::log2(gain_sum / Bp));
+            if (off(g_loose[loss_at], want_loss)) {
+                std::fprintf(stderr, "ppisp_parity: %s exposure mean loss = %g, "
+                             "expected %g\n", t.name, g_loose[loss_at], want_loss);
+                return 1;
+            }
+            double S = raw_h[Bp * t.n_raw];
+            double v_sum = vl_h[0] * weights[0] *
+                           dsl1(std::log2(S / Bp)) / (S * std::log(2.0));
+            for (int64_t b = 0; b < Bp; b++) {
+                double p0 = params_h[b * t.n_params];
+                double want = v_sum * std::exp2(p0) * std::log(2.0);
+                if (off(g_tight[vp_at + b * t.n_params], want)) {
+                    std::fprintf(stderr, "ppisp_parity: %s v_exposure[%lld] = %g, "
+                                 "expected %g\n", t.name, (long long)b,
+                                 g_tight[vp_at + b * t.n_params], want);
+                    return 1;
+                }
+            }
         }
     }
 
     // Negative-intensity pixels, exposure and vignetting neutralized so the
-    // colour stage stands alone: ~half of them sit below the RGI denominator
-    // floor, which is the only thing holding intensity through that branch.
+    // colour stage stands alone: some sit on the RGI denominator floor, which
+    // is the only thing holding intensity through that branch.
     {
         const int64_t Bx = 2, np = Bx * H * W;
         const int n_params = 24;  // no_crf: exposure(1) + vignetting(15) + colour(8)
@@ -219,10 +268,11 @@ int main(int argc, char** argv) {
         std::printf("ppisp_parity: negative-intensity block, "
                     "max |sum(out) - sum(in)| %.3g, max |out| %.3g\n",
                     worst_di, worst_mag);
-        // Two-sided: unfloored these leave at |out| ~ 3 (H is near identity),
-        // floored they cap near 20x that, and without the floor at all the old
-        // 1e-5 denominator sent them past 1e5.
-        if (!(worst_di < 1e-3) || !(worst_mag > 10.0) || !(worst_mag < 1e3)) {
+        // Must match kColorNormMinZ in ppisp.slang: the chroma gain caps at its
+        // reciprocal, with |rgi_out.xy| up to ~2. Intensity drifts by float ulps of that.
+        const double kMinZ = 1e-4;
+        if (!(worst_di < 1e-6 * worst_mag + 1e-5) || !(worst_mag > 10.0) ||
+            !(worst_mag < 5.0 / kMinZ)) {
             std::fprintf(stderr, "ppisp_parity: colour stage lost intensity, or "
                                  "the denominator floor never bound / blew up\n");
             return 1;

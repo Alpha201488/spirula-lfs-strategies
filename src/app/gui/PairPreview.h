@@ -18,6 +18,7 @@
 
 #include "imgui.h"
 
+#include <cstddef>
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
@@ -39,8 +40,9 @@ public:
                    const std::string& features_dir,
                    const std::string& matches_path,
                    const std::string& live_matches = {});
-    // Draw these two images, numbered as the reconstruction numbers them.
-    void show(uint32_t a, uint32_t b);
+    // Draw the pair of this block, numbered as the reconstruction numbers
+    // them, that holds the most matches -- or its first pair when none does.
+    void show(const PairBlock& block);
     bool empty() const;
     void clear();
 
@@ -56,7 +58,8 @@ private:
         std::vector<KeyPoint2D> pts;   // as fractions of the picture
     };
     struct Shot {
-        uint32_t a = 0, b = 0;
+        PairBlock block;
+        uint32_t a = 0, b = 0;    // the pair of the block drawn
         bool loaded = false;      // this pair was looked for ...
         bool ready = false;       // ... and at least one picture came back
         Side left, right;
@@ -81,7 +84,11 @@ private:
     void start();
     void stop();
     void worker_loop();
-    void load(uint32_t a, uint32_t b, Shot& out);
+    void load(const PairBlock& block, Shot& out);
+    // The matches file to read and _pairs indexed from it; empty when neither
+    // matches.bin nor the live file is there yet.
+    std::string index_pairs(const std::string& matches_path,
+                            const std::string& live_matches);
     void upload(Pane& p, const Picture& pic);
     // One side's picture and dots in `rect`, plus the ends of the match lines.
     void draw_side(const Pane& p, const Side& s, const ImVec2& min,
@@ -101,9 +108,9 @@ private:
     // would re-ask for the same pair forever and the worker would never get to
     // publish one.
     bool _has_request = false;
-    uint32_t _req_a = 0, _req_b = 0;
+    PairBlock _req;
     bool _loading = false;
-    uint32_t _load_a = 0, _load_b = 0;
+    PairBlock _load;
     Shot _result;
     bool _result_new = false;
 

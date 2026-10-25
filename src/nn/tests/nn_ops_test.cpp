@@ -12,11 +12,13 @@
 #include "nn/Ops.h"
 #include "nn/vk/Context.h"
 #include "nn/vk/Stream.h"
+#include "nn/vk/Transfer.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -746,24 +748,26 @@ void test_attention(vk::Arena& arena) {
 
 void test_rope(vk::Arena& arena) {
     vk::ArenaScope scope(arena);
-    const int N = 36, H = 3, HD = 64, dim = H * HD;
-    auto x = randn((size_t)N * dim);
+    const int N = 36, H = 3, HD = 64, dim = H * HD, B = 2, stride = 3 * dim;
+    auto x = randn((size_t)B * N * stride);
     auto f = randn((size_t)N * (HD / 2) * 2);
-    Tensor tx = upload_f32(arena, x, N, dim);
-    rope(tx, upload_f32(arena, f, (int64_t)N * (HD / 2) * 2), H, HD, N);
-
-    std::vector<float> want = x;
-    for (int n = 0; n < N; ++n)
-        for (int h = 0; h < H; ++h)
-            for (int i = 0; i < HD / 2; ++i) {
-                float c = f[((size_t)n * (HD / 2) + i) * 2 + 0];
-                float s = f[((size_t)n * (HD / 2) + i) * 2 + 1];
-                size_t b = (size_t)n * dim + h * HD + i * 2;
-                float re = x[b], im = x[b + 1];
-                want[b] = re * c - im * s;
-                want[b + 1] = re * s + im * c;
-            }
-    check("rope 2d-axial", readback(tx), want, 1e-5f);
+    for (bool split : {false, true}) {
+        Tensor tx = upload_f32(arena, x, B * N, stride);
+        rope(tx, upload_f32(arena, f, (int64_t)N * (HD / 2) * 2), H, HD, N, B, stride, split);
+        std::vector<float> want = x;
+        for (int b = 0; b < B; ++b)
+            for (int n = 0; n < N; ++n)
+                for (int h = 0; h < H; ++h)
+                    for (int i = 0; i < HD / 2; ++i) {
+                        const float c = f[((size_t)n * (HD / 2) + i) * 2];
+                        const float s = f[((size_t)n * (HD / 2) + i) * 2 + 1];
+                        const size_t first = ((size_t)b * N + n) * stride + h * HD + (split ? i : i * 2);
+                        const size_t second = first + (split ? HD / 2 : 1);
+                        want[first] = x[first] * c - x[second] * s;
+                        want[second] = x[first] * s + x[second] * c;
+                    }
+        check(split ? "rope split-half batched stride" : "rope consecutive batched stride", readback(tx), want, 1e-5f);
+    }
 }
 
 // ================
@@ -862,41 +866,42 @@ void test_conv(vk::Arena& arena) {
                 }
         check("conv2d depthwise 7x7", readback(to), want, 2e-4f);
     }
-    {
-        // ConvTranspose2d(k=2, s=2) through the GEMM + scatter path.
+    for (int patch : {2, 4}) {
         vk::ArenaScope scope(arena);
         const int Hi = 7, Wi = 9, Ci = 10, Co = 6;
+        const int taps = patch * patch;
         auto x = randn((size_t)Hi * Wi * Ci);
-        auto w = randn((size_t)Ci * Co * 4, 0.2f);  // [Cin, Cout, 2, 2]
+        auto w = randn((size_t)Ci * Co * taps, 0.2f);
         auto b = randn((size_t)Co);
-        // Repack to [Cout*4, Cin] exactly as model/Weights.cpp does.
-        std::vector<float> wp((size_t)Co * 4 * Ci);
+        std::vector<float> wp((size_t)Co * taps * Ci);
         for (int ci = 0; ci < Ci; ++ci)
             for (int co = 0; co < Co; ++co)
-                for (int i = 0; i < 2; ++i)
-                    for (int j = 0; j < 2; ++j)
-                        wp[((size_t)co * 4 + i * 2 + j) * Ci + ci] =
-                            w[(((size_t)ci * Co + co) * 2 + i) * 2 + j];
+                for (int i = 0; i < patch; ++i)
+                    for (int j = 0; j < patch; ++j)
+                        wp[((size_t)co * taps + i * patch + j) * Ci + ci] =
+                            w[(((size_t)ci * Co + co) * patch + i) * patch + j];
 
-        Tensor to = arena_tensor(arena, DType::F32, Hi * 2, Wi * 2, Co);
-        conv_transpose2x2(arena, to, upload_f32(arena, x, Hi, Wi, Ci),
-                          upload_f32(arena, wp, (int64_t)Co * 4, Ci),
-                          upload_f32(arena, b, Co), Act::GeluErf);
+        Tensor to = arena_tensor(arena, DType::F32, Hi * patch, Wi * patch, Co);
+        const Tensor ti = upload_f32(arena, x, Hi, Wi, Ci);
+        const Tensor tw = upload_f32(arena, wp, (int64_t)Co * taps, Ci);
+        const Tensor tb = upload_f32(arena, b, Co);
+        if (patch == 2) conv_transpose2x2(arena, to, ti, tw, tb, Act::GeluErf);
+        else conv_transpose_patch(arena, to, ti, tw, tb, patch, Act::GeluErf);
 
-        std::vector<float> want((size_t)Hi * 2 * Wi * 2 * Co);
+        std::vector<float> want((size_t)Hi * patch * Wi * patch * Co);
         for (int y = 0; y < Hi; ++y)
             for (int xx = 0; xx < Wi; ++xx)
                 for (int co = 0; co < Co; ++co)
-                    for (int i = 0; i < 2; ++i)
-                        for (int j = 0; j < 2; ++j) {
+                    for (int i = 0; i < patch; ++i)
+                        for (int j = 0; j < patch; ++j) {
                             double s = b[co];
                             for (int ci = 0; ci < Ci; ++ci)
                                 s += (double)x[((size_t)y * Wi + xx) * Ci + ci] *
-                                     w[(((size_t)ci * Co + co) * 2 + i) * 2 + j];
-                            want[((size_t)(y * 2 + i) * (Wi * 2) + xx * 2 + j) * Co + co] =
+                                     w[(((size_t)ci * Co + co) * patch + i) * patch + j];
+                            want[((size_t)(y * patch + i) * (Wi * patch) + xx * patch + j) * Co + co] =
                                 act_ref((float)s, Act::GeluErf);
                         }
-        check("conv_transpose 2x2 s2", readback(to), want, 2e-4f);
+        check(patch == 2 ? "conv_transpose 2x2 s2" : "conv_transpose 4x4 s4", readback(to), want, 2e-4f);
     }
 }
 
@@ -1072,6 +1077,25 @@ float sample_zero(const std::vector<float>& src, int H, int W, int C, int c, flo
 }
 
 void test_learned_frontend(vk::Arena& arena) {
+    {
+        vk::ArenaScope scope(arena);
+        const int rows = 257, cols = 3;
+        std::vector<float> input(rows * cols), divisors(input.size());
+        for (size_t i = 0; i < input.size(); ++i) {
+            input[i] = (float)((int)(i % 511) - 255) / 117;
+            divisors[i] = 0.1f + (float)(i % 79) / 17;
+        }
+        for (int broadcast : {0, 1, 2}) {
+            const std::vector<float> denominator = broadcast == 0 ? divisors : broadcast == 1 ?
+                std::vector<float>{0.229f, -0.224f, 0.225f} : std::vector<float>{-0.7f};
+            const Tensor x = upload_f32(arena, input, rows, cols);
+            nn::div(x, x, upload_f32(arena, denominator, (int64_t)denominator.size()));
+            std::vector<float> expected(input.size());
+            for (size_t i = 0; i < expected.size(); ++i)
+                expected[i] = input[i] / denominator[broadcast == 0 ? i : broadcast == 1 ? i % cols : 0];
+            check("division broadcast in place", readback(x), expected, 2e-6f);
+        }
+    }
     {   // SELU -- ALIKED's gate, in every block and both heads.
         vk::ArenaScope scope(arena);
         const int N = 4096;
@@ -1299,6 +1323,53 @@ void test_learned_frontend(vk::Arena& arena) {
 // The monocular-geometry ops (src/metric3d/)
 // ================
 
+void test_local_correlation(vk::Arena& arena) {
+    std::mt19937 rng(2048);
+    auto values = [&](size_t n, float scale = 1.0f) {
+        std::normal_distribution<float> distribution(0.0f, scale);
+        std::vector<float> v(n);
+        for (float& x : v) x = distribution(rng);
+        return v;
+    };
+    for (bool half : {false, true}) for (int radius : {0, 1, 3}) for (int size : {0, 1}) {
+        vk::ArenaScope scope(arena);
+        const int h = size ? 128 : 7, w = size ? 160 : 5, c = 19, window = 2 * radius + 1, taps = window * window;
+        auto a = values(h * w * c), b = values(h * w * c), warp = values(h * w * 2, 0.8f);
+        if (half) { a = round_f16(a); b = round_f16(b); }
+        Tensor out = arena_tensor(arena, DType::F32, h, w, taps, 1, 3);
+        Tensor ta = half ? upload_f16(arena, a, h * w, c).view(h, w, c) : upload_f32(arena, a, h, w, c);
+        Tensor tb = half ? upload_f16(arena, b, h * w, c).view(h, w, c) : upload_f32(arena, b, h, w, c);
+        local_correlation(out, ta, tb,
+                          upload_f32(arena, warp, h, w, 2), radius);
+        std::vector<float> expected((size_t)h * w * taps);
+        for (int pixel = 0; pixel < h * w; ++pixel)
+            for (int dy = -radius; dy <= radius; ++dy)
+                for (int dx = -radius; dx <= radius; ++dx) {
+                    const float x = ((warp[pixel * 2] + 2.0f * dx / w + 1) * w - 1) / 2;
+                    const float y = ((warp[pixel * 2 + 1] + 2.0f * dy / h + 1) * h - 1) / 2;
+                    double dot = 0;
+                    for (int ch = 0; ch < c; ++ch)
+                        dot += a[pixel * c + ch] * (double)sample_zero(b, h, w, c, ch, y, x);
+                    expected[(size_t)pixel * taps + (dy + radius) * window + dx + radius] =
+                        (float)(dot / std::sqrt((double)c));
+                }
+        const auto actual = readback(out);
+        if (!size) check(half ? "warp correlation fp16" : "warp correlation fp32", actual, expected, 2e-4f);
+        else {
+            double error = 0, energy = 0, maximum = 0;
+            for (size_t i = 0; i < actual.size(); ++i) {
+                const double delta = (double)actual[i] - expected[i];
+                error += delta * delta; energy += (double)expected[i] * expected[i];
+                maximum = std::max(maximum, std::abs(delta));
+            }
+            const double relative = std::sqrt(error / energy);
+            const bool passed = std::isfinite(relative) && relative < 2e-5 && maximum < 2e-4;
+            ++g_checks; g_failures += passed ? 0 : 1;
+            std::printf("  %s warp correlation large %s L2 %.3g max %.3g\n", passed ? "ok  " : "FAIL", half ? "fp16" : "fp32", relative, maximum);
+        }
+    }
+}
+
 void test_geometry(vk::Arena& arena) {
     {   // tanh / elu / silu -- the ConvGRU's gates, the normal head's
         // concentration channel, and giant2's SwiGLU.
@@ -1345,6 +1416,26 @@ void test_geometry(vk::Arena& arena) {
                     want[((size_t)y * Wo + xx) * C + c] = (float)(s / (k * k));
                 }
         check("avgpool 3x3 s2 pad1", readback(to), want, 1e-5f);
+    }
+    {   // MaxPool2d(3, stride=2) -- AlexNet's. 15 is odd on purpose: the last
+        // window ends on the last row, and a 14th would be left out.
+        vk::ArenaScope scope(arena);
+        const int Hi = 15, Wi = 12, C = 5, k = 3, stride = 2;
+        const int Ho = (Hi - k) / stride + 1, Wo = (Wi - k) / stride + 1;
+        auto x = randn((size_t)Hi * Wi * C);
+        Tensor to = arena_tensor(arena, DType::F32, Ho, Wo, C);
+        maxpool(to, upload_f32(arena, x, Hi, Wi, C), k, stride);
+        std::vector<float> want((size_t)Ho * Wo * C);
+        for (int y = 0; y < Ho; ++y)
+            for (int xx = 0; xx < Wo; ++xx)
+                for (int c = 0; c < C; ++c) {
+                    float m = -INFINITY;
+                    for (int dy = 0; dy < k; ++dy)
+                        for (int dx = 0; dx < k; ++dx)
+                            m = std::max(m, x[((size_t)(y * stride + dy) * Wi + xx * stride + dx) * C + c]);
+                    want[((size_t)y * Wo + xx) * C + c] = m;
+                }
+        check("maxpool 3x3 s2", readback(to), want, 0.0f);
     }
     {   // resize_nearest at 7/2 -- the DPT read_0 upsample. The reference is
         // torch's src = floor(dst / scale) with the ASKED-FOR scale, which is
@@ -1393,6 +1484,238 @@ void test_geometry(vk::Arena& arena) {
 }
 
 // ================
+// Swin, Deformable DETR and BiRefNet (src/swin/, src/gdino/, src/birefnet/)
+// ================
+
+void test_segmentation_ops(vk::Arena& arena) {
+    {   // Shifted windows: partition then unpartition-accumulate is x + x, and
+        // the partition itself is torch.roll(-s) of the zero-padded map.
+        vk::ArenaScope scope(arena);
+        const int H = 11, W = 13, C = 3, ws = 4, sh = 2;
+        const int nwh = (H + ws - 1) / ws, nww = (W + ws - 1) / ws;
+        const int Hp = nwh * ws, Wp = nww * ws;
+        auto x = randn((size_t)H * W * C);
+        Tensor tx = upload_f32(arena, x, H, W, C);
+        Tensor tw = arena_tensor(arena, DType::F32, nwh * nww, ws * ws, C);
+        window_partition(tw, tx, H, W, C, ws, sh);
+        std::vector<float> want((size_t)nwh * nww * ws * ws * C);
+        for (int wi = 0; wi < nwh; ++wi)
+            for (int wj = 0; wj < nww; ++wj)
+                for (int wy = 0; wy < ws; ++wy)
+                    for (int wx = 0; wx < ws; ++wx)
+                        for (int c = 0; c < C; ++c) {
+                            const int y = (wi * ws + wy + sh) % Hp;
+                            const int xx = (wj * ws + wx + sh) % Wp;
+                            want[((((size_t)wi * nww + wj) * ws + wy) * ws + wx) * C + c] =
+                                (y < H && xx < W) ? x[((size_t)y * W + xx) * C + c] : 0.0f;
+                        }
+        check("window partition shifted", readback(tw), want, 1e-6f);
+        Tensor tb = upload_f32(arena, x, H, W, C);
+        window_unpartition(tb, tw, H, W, C, ws, sh, /*accumulate=*/true);
+        std::vector<float> twice(x);
+        for (float& v : twice) v *= 2.0f;
+        check("window unpartition shifted +=", readback(tb), twice, 1e-6f);
+    }
+    {   // Window attention: the relative-position bias plus Swin's -100 mask.
+        vk::ArenaScope scope(arena);
+        const int B = 3, N = 16, H = 2, HD = 32, dim = H * HD;
+        auto q = randn((size_t)B * N * dim), k = randn((size_t)B * N * dim),
+             v = randn((size_t)B * N * dim);
+        auto bias = randn((size_t)H * N * N);
+        std::vector<int32_t> lab((size_t)B * N);
+        for (int b = 0; b < B; ++b)
+            for (int i = 0; i < N; ++i) lab[(size_t)b * N + i] = b == 0 ? 0 : (i * (b + 1)) % 3;
+        Tensor tl = arena_tensor(arena, DType::I32, B, N);
+        vk::Stream::get().upload(tl.ptr, lab.data(), lab.size() * 4);
+        Tensor to = arena_tensor(arena, DType::F32, B, N, dim);
+        AttnOpts o;
+        o.n_heads = H;
+        o.head_dim = HD;
+        o.batch = B;
+        o.bias_mode = AttnBias::Window;
+        o.bias = upload_f32(arena, bias, (int64_t)H * N * N);
+        o.labels = tl;
+        Tensor tq = upload_f32(arena, q, B, N, dim), tk = upload_f32(arena, k, B, N, dim),
+               tv = upload_f32(arena, v, B, N, dim);
+        auto reference = [&](bool f16) {
+            std::vector<float> want((size_t)B * N * dim);
+            for (int b = 0; b < B; ++b) {
+                std::vector<float> full((size_t)H * N * N);
+                for (int h = 0; h < H; ++h)
+                    for (int i = 0; i < N; ++i)
+                        for (int j = 0; j < N; ++j)
+                            full[((size_t)h * N + i) * N + j] =
+                                bias[((size_t)h * N + i) * N + j] +
+                                (lab[(size_t)b * N + i] != lab[(size_t)b * N + j] ? -100.0f
+                                                                                  : 0.0f);
+                auto sl = [&](const std::vector<float>& a) {
+                    std::vector<float> r(a.begin() + (size_t)b * N * dim,
+                                         a.begin() + (size_t)(b + 1) * N * dim);
+                    return f16 ? round_f16(r) : r;
+                };
+                std::vector<float> ob;
+                attn_reference(sl(q), sl(k), std::vector<float>(v.begin() + (size_t)b * N * dim,
+                                                               v.begin() + (size_t)(b + 1) * N * dim),
+                               N, N, H, HD, 1.0f / std::sqrt((float)HD), &full, AttnBias::Full,
+                               ob);
+                std::copy(ob.begin(), ob.end(), want.begin() + (size_t)b * N * dim);
+            }
+            return want;
+        };
+        set_coop_matrix_enabled(false);
+        attention(to, tq, tk, tv, N, N, o);
+        check("attn window bias + mask", readback(to), reference(false), 3e-4f);
+        set_coop_matrix_enabled(true);
+        if (coop_attn(HD)) {
+            attention(to, tq, tk, tv, N, N, o);
+            check("attn window bias + mask [coop]", readback(to), reference(true), 3e-4f);
+        }
+    }
+    {   // patch_merge, odd edges included.
+        vk::ArenaScope scope(arena);
+        const int H = 5, W = 7, C = 3, H2 = 3, W2 = 4;
+        auto x = randn((size_t)H * W * C);
+        Tensor tx = upload_f32(arena, x, H, W, C);
+        Tensor to = arena_tensor(arena, DType::F32, H2 * W2, 4 * C);
+        patch_merge(to, tx, H, W, C);
+        std::vector<float> want((size_t)H2 * W2 * 4 * C);
+        const int dy[4] = {0, 1, 0, 1}, dx[4] = {0, 0, 1, 1};
+        for (int i = 0; i < H2; ++i)
+            for (int j = 0; j < W2; ++j)
+                for (int qd = 0; qd < 4; ++qd)
+                    for (int c = 0; c < C; ++c) {
+                        const int y = 2 * i + dy[qd], xx = 2 * j + dx[qd];
+                        want[((size_t)i * W2 + j) * 4 * C + qd * C + c] =
+                            (y < H && xx < W) ? x[((size_t)y * W + xx) * C + c] : 0.0f;
+                    }
+        check("patch_merge", readback(to), want, 1e-6f);
+    }
+    for (BlockOrder order : {BlockOrder::ChannelMajor, BlockOrder::ColumnsThenRows}) {
+        vk::ArenaScope scope(arena);
+        const int H = 6, W = 8, C = 3, gh = 3, gw = 2, ph = H / gh, pw = W / gw;
+        auto x = randn((size_t)H * W * C);
+        Tensor tx = upload_f32(arena, x, H, W, C);
+        Tensor to = arena_tensor(arena, DType::F32, ph, pw, C * gh * gw);
+        blocks_to_channels(to, tx, H, W, C, gh, gw, order);
+        std::vector<float> want((size_t)H * W * C);
+        for (int y = 0; y < ph; ++y)
+            for (int xx = 0; xx < pw; ++xx)
+                for (int c = 0; c < C; ++c)
+                    for (int gy = 0; gy < gh; ++gy)
+                        for (int gx = 0; gx < gw; ++gx) {
+                            const int k = order == BlockOrder::ChannelMajor
+                                              ? (c * gh + gy) * gw + gx
+                                              : (gx * gh + gy) * C + c;
+                            want[((size_t)y * pw + xx) * C * gh * gw + k] =
+                                x[((size_t)(gy * ph + y) * W + gx * pw + xx) * C + c];
+                        }
+        check(order == BlockOrder::ChannelMajor ? "blocks_to_channels (c gh gw)"
+                                                : "blocks_to_channels (gw gh c)",
+              readback(to), want, 1e-6f);
+    }
+    {   // mul_rows: a per-pixel gate over a channel-last map.
+        vk::ArenaScope scope(arena);
+        const int R = 37, C = 5;
+        auto a = randn((size_t)R * C), g = randn((size_t)R);
+        Tensor to = arena_tensor(arena, DType::F32, R, C);
+        mul_rows(to, upload_f32(arena, a, R, C), upload_f32(arena, g, R, 1), Act::None);
+        std::vector<float> want(a.size());
+        for (int r = 0; r < R; ++r)
+            for (int c = 0; c < C; ++c) want[(size_t)r * C + c] = a[(size_t)r * C + c] * g[r];
+        check("mul_rows", readback(to), want, 1e-6f);
+    }
+    {   // Modulated deformable convolution (DCNv2): the ALIKED reference with a
+        // per-tap scale.
+        vk::ArenaScope scope(arena);
+        const int Hi = 8, Wi = 10, Ci = 5, Co = 6, k = 3, pad = 1, Ho = Hi, Wo = Wi;
+        auto x = randn((size_t)Hi * Wi * Ci);
+        auto w = randn((size_t)Co * Ci * k * k, 0.3f);
+        auto off = randn((size_t)Ho * Wo * 2 * k * k, 2.0f);
+        auto msk = randn((size_t)Ho * Wo * k * k);
+        Tensor to = arena_tensor(arena, DType::F32, Ho, Wo, Co);
+        ConvOpts o;
+        o.pad_y = o.pad_x = pad;
+        o.act = Act::Relu;
+        modulated_deform_conv2d(arena, to, upload_f32(arena, x, Hi, Wi, Ci),
+                                upload_f32(arena, off, Ho, Wo, 2 * k * k),
+                                upload_f32(arena, msk, Ho, Wo, k * k),
+                                upload_f32(arena, w, Co, Ci * k * k), k, k, o);
+        std::vector<float> want((size_t)Ho * Wo * Co);
+        for (int yo = 0; yo < Ho; ++yo)
+            for (int xo = 0; xo < Wo; ++xo)
+                for (int co = 0; co < Co; ++co) {
+                    double acc = 0.0;
+                    for (int ci = 0; ci < Ci; ++ci)
+                        for (int tap = 0; tap < k * k; ++tap) {
+                            const size_t ob = ((size_t)yo * Wo + xo) * 2 * k * k + 2 * tap;
+                            const float sy = (float)(yo + tap / k - pad) + off[ob];
+                            const float sx = (float)(xo + tap % k - pad) + off[ob + 1];
+                            acc += (double)w[((size_t)co * Ci + ci) * k * k + tap] *
+                                   msk[((size_t)yo * Wo + xo) * k * k + tap] *
+                                   sample_zero(x, Hi, Wi, Ci, ci, sy, sx);
+                        }
+                    want[((size_t)yo * Wo + xo) * Co + co] = (float)std::max(acc, 0.0);
+                }
+        check("modulated deform_conv2d", readback(to), want, 2e-4f);
+    }
+    for (int rd : {2, 4}) {
+        // ms_deform_attn vs grid_sample(align_corners=False) per level, weighted
+        // by a softmax over the level x point samples.
+        vk::ArenaScope scope(arena);
+        const int nq = 23, heads = 2, hd = 8, C = heads * hd, L = 3, P = 4;
+        MsDeformLevels lv;
+        lv.n = L;
+        const int hs[3] = {9, 5, 3}, wsz[3] = {12, 6, 2};
+        int len = 0;
+        for (int l = 0; l < L; ++l) { lv.h[l] = hs[l]; lv.w[l] = wsz[l]; len += hs[l] * wsz[l]; }
+        auto value = randn((size_t)len * C);
+        auto offs = randn((size_t)nq * heads * L * P * 2, rd == 2 ? 2.0f : 1.5f);
+        auto logits = randn((size_t)nq * heads * L * P);
+        std::vector<float> refs((size_t)nq * rd);
+        std::uniform_real_distribution<float> u01(0.0f, 1.0f);
+        for (float& r : refs) r = u01(g_rng);
+        Tensor to = arena_tensor(arena, DType::F32, nq, C);
+        ms_deform_attn(to, upload_f32(arena, value, len, C),
+                       upload_f32(arena, offs, (int64_t)offs.size()),
+                       upload_f32(arena, logits, (int64_t)logits.size()),
+                       upload_f32(arena, refs, nq, rd), lv, heads, P);
+        std::vector<float> want((size_t)nq * C, 0.0f);
+        for (int q = 0; q < nq; ++q)
+            for (int h = 0; h < heads; ++h) {
+                const float* lg = &logits[((size_t)q * heads + h) * L * P];
+                double m = -1e30, sum = 0.0;
+                for (int j = 0; j < L * P; ++j) m = std::max(m, (double)lg[j]);
+                for (int j = 0; j < L * P; ++j) sum += std::exp(lg[j] - m);
+                int start = 0;
+                for (int l = 0; l < L; ++l) {
+                    std::vector<float> lvl(value.begin() + (size_t)start * C,
+                                           value.begin() + (size_t)(start + hs[l] * wsz[l]) * C);
+                    for (int pt = 0; pt < P; ++pt) {
+                        const size_t ob = ((((size_t)q * heads + h) * L + l) * P + pt) * 2;
+                        const float* r = &refs[(size_t)q * rd];
+                        float lx, ly;
+                        if (rd == 4) {
+                            lx = r[0] + offs[ob] / P * r[2] * 0.5f;
+                            ly = r[1] + offs[ob + 1] / P * r[3] * 0.5f;
+                        } else {
+                            lx = r[0] + offs[ob] / wsz[l];
+                            ly = r[1] + offs[ob + 1] / hs[l];
+                        }
+                        const double wgt = std::exp(lg[l * P + pt] - m) / sum;
+                        for (int d = 0; d < hd; ++d)
+                            want[(size_t)q * C + h * hd + d] +=
+                                (float)(wgt * sample_zero(lvl, hs[l], wsz[l], C, h * hd + d,
+                                                          ly * hs[l] - 0.5f, lx * wsz[l] - 0.5f));
+                    }
+                    start += hs[l] * wsz[l];
+                }
+            }
+        check(rd == 2 ? "ms_deform_attn 2-d refs" : "ms_deform_attn 4-d refs", readback(to),
+              want, 2e-4f);
+    }
+}
+
+// ================
 // Benchmark (test_ops --bench)
 // ================
 //
@@ -1412,6 +1735,174 @@ double timed(int iters, F&& body) {
     for (int i = 0; i < iters; ++i) body();
     vk::Stream::get().sync();
     return (now_ms() - t0) / iters;
+}
+
+
+// ================
+// Streamed quantized weights
+// ================
+
+float bf16_round_ref(float v) {
+    uint32_t b;
+    std::memcpy(&b, &v, 4);
+    b += 0x7fffu + ((b >> 16) & 1u);
+    b &= 0xffff0000u;
+    std::memcpy(&v, &b, 4);
+    return v;
+}
+
+void test_quantized(vk::Arena& arena) {
+    static const float kLevels[16] = {
+        -1.0f, -0.6961928009986877f, -0.5250730514526367f, -0.39491748809814453f,
+        -0.28444138169288635f, -0.18477343022823334f, -0.09105003625154495f, 0.0f,
+        0.07958029955625534f, 0.16093020141124725f, 0.24611230194568634f,
+        0.33791524171829224f, 0.44070982933044434f, 0.5626170039176941f,
+        0.7229568362236023f, 1.0f};
+    for (int with_extra = 0; with_extra < 2; ++with_extra) {
+        vk::ArenaScope scope(arena);
+        const int N = 96, K = 320;
+        std::uniform_int_distribution<int> byte(0, 255);
+        std::vector<uint8_t> codes((size_t)N * K / 2);
+        for (auto& c : codes) c = (uint8_t)byte(g_rng);
+        std::vector<uint16_t> absmax((size_t)N * K / 64);
+        std::vector<float> am(absmax.size());
+        for (size_t i = 0; i < absmax.size(); ++i) {
+            const float v = bf16_round_ref(std::fabs(randn(1, 0.05f)[0]) + 1e-3f);
+            uint32_t b;
+            std::memcpy(&b, &v, 4);
+            absmax[i] = (uint16_t)(b >> 16);
+            am[i] = v;
+        }
+        auto res = randn((size_t)N * K, 0.01f);
+        auto scale = randn((size_t)N, 2.0f);
+
+        Tensor tc = arena_tensor(arena, DType::U8, (int64_t)codes.size());
+        vk::Stream::get().upload(tc.ptr, codes.data(), codes.size());
+        Tensor ta = arena_tensor(arena, DType::F16, (int64_t)absmax.size());
+        vk::Stream::get().upload(ta.ptr, absmax.data(), absmax.size() * 2);
+        Tensor to = arena_tensor(arena, DType::F16, N, K);
+        Nf4Opts o;
+        if (with_extra) {
+            o.residual = upload_f32(arena, res, N, K);
+            o.row_scale = upload_f32(arena, scale, N);
+        }
+        dequant_nf4(to, tc, ta, o);
+
+        std::vector<float> want((size_t)N * K);
+        for (int n = 0; n < N; ++n)
+            for (int k = 0; k < K; ++k) {
+                const size_t e = (size_t)n * K + k;
+                const uint8_t b = codes[e / 2];
+                const int q = (e & 1) ? (b & 15) : (b >> 4);
+                float v = bf16_round_ref(kLevels[q] * am[e / 64]);
+                if (with_extra) v = (v + res[e]) * scale[n];
+                want[e] = half_to_float(float_to_half(v));
+            }
+        check(with_extra ? "dequant_nf4 + lora + gate" : "dequant_nf4", readback(to), want,
+              1e-6f);
+    }
+    {
+        vk::ArenaScope scope(arena);
+        const int n = 37, heads = 3, hd = 128, stride = 3 * heads * hd;
+        auto x = randn((size_t)n * stride, 3.0f);
+        auto w = randn((size_t)hd, 0.5f);
+        Tensor tx = upload_f32(arena, x, n, stride);
+        // k is the second third of a fused qkv row.
+        rms_norm_heads(tx.offsetElems(heads * hd), upload_f32(arena, w, hd), n, heads, hd,
+                       stride, 1e-6f);
+        std::vector<float> want = x;
+        for (int i = 0; i < n; ++i)
+            for (int h = 0; h < heads; ++h) {
+                const size_t o = (size_t)i * stride + heads * hd + (size_t)h * hd;
+                double ss = 0;
+                for (int c = 0; c < hd; ++c) ss += (double)x[o + c] * x[o + c];
+                const double inv = 1.0 / std::sqrt(ss / hd + 1e-6);
+                for (int c = 0; c < hd; ++c) want[o + c] = (float)(x[o + c] * inv) * w[c];
+            }
+        check("rms_norm_heads (strided k)", readback(tx), want, 1e-5f);
+    }
+    if (coop_matrix_enabled()) {
+        // Activations past fp16's range: only the prescale keeps them finite.
+        vk::ArenaScope scope(arena);
+        const int M = 160, N = 256, K = 192;
+        auto x = randn((size_t)M * K, 3e4f);
+        auto w = round_f16(randn((size_t)N * K, 0.05f));
+        Tensor to = arena_tensor(arena, DType::F32, M, N);
+        LinearOpts o;
+        o.x_scale = 1.0f / 256.0f;
+        linear(to, upload_f32(arena, x, M, K), upload_f16(arena, w, N, K), o);
+        std::vector<float> xs(x.size());
+        for (size_t i = 0; i < x.size(); ++i)
+            xs[i] = half_to_float(float_to_half(x[i] * o.x_scale)) / o.x_scale;
+        std::vector<float> want((size_t)M * N);
+        for (int m = 0; m < M; ++m)
+            for (int nn_ = 0; nn_ < N; ++nn_) {
+                double acc = 0;
+                for (int k = 0; k < K; ++k)
+                    acc += (double)xs[(size_t)m * K + k] * w[(size_t)nn_ * K + k];
+                want[(size_t)m * N + nn_] = (float)acc;
+            }
+        check("gemm coop, x past fp16 range", readback(to), want, 2e-3f);
+    }
+    {
+        vk::ArenaScope scope(arena);
+        const int H = 9, W = 11, Ci = 5, Co = 7;
+        auto x = randn((size_t)H * W * Ci);
+        auto w = randn((size_t)Co * Ci * 9, 0.2f);
+        auto r = randn((size_t)H * W * Co);
+        Tensor to = arena_tensor(arena, DType::F32, H, W, Co);
+        ConvOpts o;
+        o.pad_y = o.pad_x = 1;
+        o.residual = upload_f32(arena, r, H, W, Co);
+        conv2d(arena, to, upload_f32(arena, x, H, W, Ci), upload_f32(arena, w, Co, Ci * 9), 3,
+               3, o);
+        std::vector<float> want((size_t)H * W * Co);
+        for (int y = 0; y < H; ++y)
+            for (int xx = 0; xx < W; ++xx)
+                for (int co = 0; co < Co; ++co) {
+                    double acc = r[((size_t)y * W + xx) * Co + co];
+                    for (int ci = 0; ci < Ci; ++ci)
+                        for (int ky = 0; ky < 3; ++ky)
+                            for (int kx = 0; kx < 3; ++kx) {
+                                const int sy = y + ky - 1, sx = xx + kx - 1;
+                                if (sy < 0 || sy >= H || sx < 0 || sx >= W) continue;
+                                acc += (double)x[((size_t)sy * W + sx) * Ci + ci] *
+                                       w[(((size_t)co * Ci + ci) * 3 + ky) * 3 + kx];
+                            }
+                    want[((size_t)y * W + xx) * Co + co] = (float)acc;
+                }
+        check("conv2d 3x3 + residual", readback(to), want, 1e-4f);
+    }
+    {
+        // A copy on the transfer queue, ordered after the stream's last write to
+        // the destination and before its next read of it.
+        const int n = 1 << 20;
+        auto a = randn(n), b = randn(n);
+        void* map = nullptr;
+        const vk::DevicePtr host = vk::Allocator::get().allocHost((uint64_t)n * 4, &map, "test staging");
+        std::memcpy(map, b.data(), (size_t)n * 4);
+        const vk::DevicePtr dst = vk::Allocator::get().allocDeviceShared((uint64_t)n * 4, "test slot");
+        Tensor td(dst, DType::F32, n);
+        tensor_from_host(td, a.data(), n);
+        vk::Arena out_arena("transfer test");
+        out_arena.reserve((uint64_t)n * 8 + 4096);
+        Tensor first = arena_tensor(out_arena, DType::F32, n);
+        Tensor second = arena_tensor(out_arena, DType::F32, n);
+        copy(first, td);
+        vk::Stream::get().flush();
+        {
+            vk::Transfer xfer;
+            const uint64_t ticket =
+                xfer.copy({{dst, host, (uint64_t)n * 4}}, vk::Stream::get().lastSubmitted());
+            xfer.streamWaits(ticket);
+            copy(second, td);
+            std::printf("  (transfer queue: %s)\n", xfer.overlaps() ? "yes" : "no, on the stream");
+            check("transfer: before", readback(first), a, 0.0f);
+            check("transfer: after", readback(second), b, 0.0f);
+        }
+        vk::Allocator::get().free(dst);
+        vk::Allocator::get().free(host);
+    }
 }
 
 void bench(vk::Arena& arena) {
@@ -1571,7 +2062,10 @@ int main(int argc, char** argv) {
         std::printf("Convolution\n");    test_conv(arena);
         std::printf("Spatial / gather\n"); test_spatial(arena);
         std::printf("Learned frontend\n"); test_learned_frontend(arena);
+        test_local_correlation(arena);
         std::printf("Monocular geometry\n"); test_geometry(arena);
+        std::printf("Swin / DETR / BiRefNet\n"); test_segmentation_ops(arena);
+        std::printf("Streamed quantized weights\n"); test_quantized(arena);
 
         // Every kernel that has a 64-bit-addressing twin, re-checked on that
         // path against the same references. Only the addressing differs, so a
@@ -1579,11 +2073,14 @@ int main(int argc, char** argv) {
         if (vk::Context::get().hasInt64()) {
             std::printf("\nWide addressing\n");
             set_wide_index(WideIndex::Force);
+            test_rope(arena);
             test_norm(arena);
             test_conv(arena);
             test_spatial(arena);
             test_learned_frontend(arena);
+            test_local_correlation(arena);
             test_geometry(arena);
+            test_segmentation_ops(arena);
             set_wide_index(WideIndex::Auto);
         } else {
             std::printf("\nWide addressing: SKIP (no shaderInt64)\n");

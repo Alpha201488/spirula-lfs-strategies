@@ -213,21 +213,6 @@ SS_MSG(masks_combined_in_place,
     RU("Маски в {0} заменяются их сочетанием с маской кадра"),
     TR("{0} içindeki maskeler, kare maskesiyle birleştirilmiş hâlleriyle değiştirilir"));
 
-SS_MSG(stage_masks_python,
-    EN("Generating masks (external Python)"),
-    JA("マスクを作成しています（外部のPython）"),
-    ZH_HANS("正在生成蒙版（外部 Python）"),
-    ZH_HANT("正在產生遮罩（外部 Python）"),
-    KO("마스크를 만드는 중(외부 Python)"),
-    DE("Masken werden erzeugt (externes Python)"),
-    FR("Génération des masques (Python externe)"),
-    ES("Generando las máscaras (Python externo)"),
-    PT("Gerando as máscaras (Python externo)"),
-    IT("Generazione delle maschere (Python esterno)"),
-    NL("Maskers maken (extern Python)"),
-    RU("Создание масок (внешний Python)"),
-    TR("Maskeler oluşturuluyor (harici Python)"));
-
 SS_MSG(stage_finding_features,
     EN("Finding features"),
     JA("特徴点を探しています"),
@@ -550,6 +535,99 @@ SS_MSG(using_bundled_masks,
     RU("Используются маски, приложенные к фотографиям: {0}"),
     TR("Fotoğraflarla birlikte gelen maskeler kullanılıyor: {0}"));
 
+// {0} is a whole number of degrees.
+SS_MSG(scanning_motion,
+    EN("Looking at the motion: {0} of {1} frames of {2}"),
+    JA("動きを調べています: {2} の {1} フレーム中 {0} フレーム"),
+    ZH_HANS("正在分析运动：{2} 的 {1} 帧中已看 {0} 帧"),
+    ZH_HANT("正在分析運動：{2} 的 {1} 影格中已看 {0} 影格"),
+    KO("움직임을 살펴보는 중: {2}의 {1}개 프레임 중 {0}개"),
+    DE("Die Bewegung wird angesehen: {0} von {1} Einzelbildern von {2}"),
+    FR("Lecture du mouvement : {0} images sur {1} de {2}"),
+    ES("Mirando el movimiento: {0} de {1} fotogramas de {2}"),
+    PT("A ver o movimento: {0} de {1} quadros de {2}"),
+    IT("Si guarda il movimento: {0} di {1} fotogrammi di {2}"),
+    NL("De beweging wordt bekeken: {0} van {1} beelden van {2}"),
+    RU("Изучается движение: {0} из {1} кадров файла {2}"),
+    TR("Hareket inceleniyor: {2} dosyasının {1} karesinden {0} tanesi"));
+
+SS_MSG(motion_plan,
+    EN("Motion analysis: {0} frames planned, between {1} and {2} per second."),
+    JA("動き解析: {0} フレームを予定しました（毎秒 {1}〜{2} フレーム）。"),
+    ZH_HANS("运动分析：计划取 {0} 帧，每秒 {1} 到 {2} 帧。"),
+    ZH_HANT("運動分析：計畫取 {0} 影格，每秒 {1} 到 {2} 影格。"),
+    KO("움직임 분석: {0}개 프레임을 계획했습니다(초당 {1}~{2}장)."),
+    DE("Bewegungsanalyse: {0} Einzelbilder geplant, zwischen {1} und {2} pro Sekunde."),
+    FR("Analyse du mouvement : {0} images prévues, entre {1} et {2} par seconde."),
+    ES("Análisis de movimiento: {0} fotogramas previstos, entre {1} y {2} por segundo."),
+    PT("Análise de movimento: {0} quadros previstos, entre {1} e {2} por segundo."),
+    IT("Analisi del movimento: {0} fotogrammi previsti, tra {1} e {2} al secondo."),
+    NL("Bewegingsanalyse: {0} beelden gepland, tussen {1} en {2} per seconde."),
+    RU("Анализ движения: запланировано {0} кадров, от {1} до {2} в секунду."),
+    TR("Hareket incelemesi: {0} kare planlandı, saniyede {1} ile {2} arasında."));
+
+SS_MSG(video_lut_applied,
+    EN("Applying the colour LUT {0} to every extracted frame."),
+    JA("抽出する全フレームにカラー LUT {0} を適用します。"),
+    ZH_HANS("对每一帧导出画面套用颜色 LUT {0}。"),
+    ZH_HANT("對每一幀輸出畫面套用色彩 LUT {0}。"),
+    KO("추출하는 모든 프레임에 색상 LUT {0}을(를) 적용합니다."),
+    DE("Die Farb-LUT {0} wird auf jedes extrahierte Einzelbild angewendet."),
+    FR("La LUT couleur {0} est appliquée à chaque image extraite."),
+    ES("Se aplica la LUT de color {0} a cada fotograma extraído."),
+    PT("A LUT de cor {0} é aplicada a cada fotograma extraído."),
+    IT("La LUT colore {0} viene applicata a ogni fotogramma estratto."),
+    NL("De kleur-LUT {0} wordt op elk geëxtraheerd beeld toegepast."),
+    RU("Цветовая LUT {0} применяется к каждому извлечённому кадру."),
+    TR("{0} renk LUT'u çıkarılan her kareye uygulanıyor."));
+
+SS_MSG(video_autorotate,
+    EN("The capture asks to be turned {0} degrees; the frames are written already turned."),
+    JA("この撮影は {0} 度回転して表示するよう指定されています。フレームは回転済みで書き出されます。"),
+    ZH_HANS("该素材要求旋转 {0} 度显示；导出的帧已经旋转好。"),
+    ZH_HANT("此素材要求旋轉 {0} 度顯示；輸出的影格已經旋轉完成。"),
+    KO("이 촬영본은 {0}도 회전해 표시하도록 지정되어 있습니다. 프레임은 회전된 상태로 저장됩니다."),
+    DE("Die Aufnahme verlangt eine Drehung um {0} Grad; die Einzelbilder werden bereits gedreht geschrieben."),
+    FR("La capture demande une rotation de {0} degrés ; les images sont écrites déjà tournées."),
+    ES("La captura pide un giro de {0} grados; los fotogramas se escriben ya girados."),
+    PT("A captura pede uma rotação de {0} graus; os fotogramas são gravados já girados."),
+    IT("La ripresa chiede una rotazione di {0} gradi; i fotogrammi vengono scritti già ruotati."),
+    NL("De opname vraagt om een draaiing van {0} graden; de beelden worden al gedraaid weggeschreven."),
+    RU("Съёмка требует поворота на {0} градусов; кадры записываются уже повёрнутыми."),
+    TR("Bu çekim {0} derece döndürülmeyi istiyor; kareler döndürülmüş olarak yazılıyor."));
+
+SS_MSG(video_autorotate_mixed,
+    EN("The tracks of this file ask for different rotations; all of them are "
+       "turned the same way."),
+    JA("このファイルのトラックごとに回転指定が異なります。すべて同じ向きに回転します。"),
+    ZH_HANS("该文件各轨道要求的旋转角度不同；全部按同一方向旋转。"),
+    ZH_HANT("此檔案各軌道要求的旋轉角度不同；全部按同一方向旋轉。"),
+    KO("이 파일의 트랙마다 회전 지정이 다릅니다. 모두 같은 방향으로 회전합니다."),
+    DE("Die Spuren dieser Datei verlangen unterschiedliche Drehungen; alle werden gleich gedreht."),
+    FR("Les pistes de ce fichier demandent des rotations différentes ; toutes sont tournées de la même façon."),
+    ES("Las pistas de este archivo piden giros distintos; todas se giran igual."),
+    PT("As faixas deste ficheiro pedem rotações diferentes; todas são giradas da mesma forma."),
+    IT("Le tracce di questo file chiedono rotazioni diverse; vengono ruotate tutte allo stesso modo."),
+    NL("De sporen in dit bestand vragen om verschillende draaiingen; ze worden allemaal gelijk gedraaid."),
+    RU("Дорожки этого файла требуют разного поворота; все поворачиваются одинаково."),
+    TR("Bu dosyanın izleri farklı dönüşler istiyor; hepsi aynı yöne döndürülüyor."));
+
+SS_MSG(video_autorotate_mirror,
+    EN("The capture also asks to be mirrored. That is left alone: a mirrored "
+       "picture has no camera pose that fits it."),
+    JA("この撮影は左右反転も指定していますが、適用しません。反転した画像に合うカメラ姿勢は存在しません。"),
+    ZH_HANS("该素材还要求左右镜像，但不会应用：镜像后的画面没有与之相符的相机位姿。"),
+    ZH_HANT("此素材還要求左右鏡像，但不會套用：鏡像後的畫面沒有與之相符的相機姿態。"),
+    KO("이 촬영본은 좌우 반전도 요구하지만 적용하지 않습니다. 반전된 그림에 맞는 카메라 자세는 없습니다."),
+    DE("Die Aufnahme verlangt außerdem eine Spiegelung. Sie bleibt aus: zu einem gespiegelten Bild passt keine Kamerapose."),
+    FR("La capture demande aussi un miroir. Il n'est pas appliqué : aucune pose de caméra ne correspond à une image miroir."),
+    ES("La captura también pide un espejado. No se aplica: ninguna pose de cámara encaja con una imagen espejada."),
+    PT("A captura também pede um espelhamento. Não é aplicado: nenhuma pose de câmara corresponde a uma imagem espelhada."),
+    IT("La ripresa chiede anche una specchiatura. Non viene applicata: nessuna posa di camera corrisponde a un'immagine specchiata."),
+    NL("De opname vraagt ook om spiegeling. Die blijft achterwege: bij een gespiegeld beeld past geen camerapositie."),
+    RU("Съёмка также требует зеркального отражения. Оно не применяется: зеркальному изображению не соответствует ни одна поза камеры."),
+    TR("Bu çekim ayrıca aynalanmayı istiyor. Uygulanmıyor: aynalanmış bir görüntüye uyan kamera duruşu yoktur."));
+
 SS_MSG(video_input,
     EN("Video: {0}"),
     JA("動画: {0}"),
@@ -662,6 +740,206 @@ SS_MSG(kept_frames,
     NL("{0} beelden bewaard -> {1}"),
     RU("Оставлено кадров: {0} -> {1}"),
     TR("{0} kare tutuldu -> {1}"));
+
+SS_MSG(blurry_skipped,
+    EN("Blurry frames skipped: {0}"),
+    JA("ぶれのため除外したフレーム: {0}"),
+    ZH_HANS("跳过的模糊帧：{0}"),
+    ZH_HANT("略過的模糊影格：{0}"),
+    KO("건너뛴 흐린 프레임: {0}"),
+    DE("Unscharfe Bilder übersprungen: {0}"),
+    FR("Images floues ignorées : {0}"),
+    ES("Fotogramas borrosos omitidos: {0}"),
+    PT("Quadros borrados ignorados: {0}"),
+    IT("Fotogrammi sfocati saltati: {0}"),
+    NL("Onscherpe beelden overgeslagen: {0}"),
+    RU("Пропущено размытых кадров: {0}"),
+    TR("Atlanan bulanık kareler: {0}"));
+
+SS_MSG(similar_skipped,
+    EN("Frames skipped as too similar: {0}"),
+    JA("似すぎのため除外したフレーム: {0}"),
+    ZH_HANS("因过于相似而跳过的帧：{0}"),
+    ZH_HANT("因過於相似而略過的影格：{0}"),
+    KO("너무 비슷해서 건너뛴 프레임: {0}"),
+    DE("Als zu ähnlich übersprungene Bilder: {0}"),
+    FR("Images ignorées car trop semblables : {0}"),
+    ES("Fotogramas omitidos por demasiado parecidos: {0}"),
+    PT("Quadros ignorados por serem parecidos demais: {0}"),
+    IT("Fotogrammi saltati perché troppo simili: {0}"),
+    NL("Als te gelijkend overgeslagen beelden: {0}"),
+    RU("Пропущено слишком похожих кадров: {0}"),
+    TR("Fazla benzer olduğu için atlanan kareler: {0}"));
+
+SS_MSG(stage_review_frames,
+    EN("Waiting for the frames to be reviewed"),
+    JA("フレームの確認を待っています"),
+    ZH_HANS("正在等待检查帧"),
+    ZH_HANT("正在等待檢查影格"),
+    KO("프레임 확인을 기다리는 중"),
+    DE("Warten auf die Durchsicht der Bilder"),
+    FR("En attente de la vérification des images"),
+    ES("Esperando la revisión de los fotogramas"),
+    PT("Aguardando a revisão dos quadros"),
+    IT("In attesa della revisione dei fotogrammi"),
+    NL("Wachten op de controle van de beelden"),
+    RU("Ожидание проверки кадров"),
+    TR("Karelerin gözden geçirilmesi bekleniyor"));
+
+SS_MSG(stage_judging_photos,
+    EN("Measuring how sharp the frames are"),
+    JA("フレームのシャープさを測っています"),
+    ZH_HANS("正在测量帧的清晰度"),
+    ZH_HANT("正在測量影格的清晰度"),
+    KO("프레임의 선명도를 측정하는 중"),
+    DE("Schärfe der Bilder wird gemessen"),
+    FR("Mesure de la netteté des images"),
+    ES("Midiendo la nitidez de los fotogramas"),
+    PT("Medindo a nitidez dos quadros"),
+    IT("Misura della nitidezza dei fotogrammi"),
+    NL("Scherpte van de beelden meten"),
+    RU("Измерение резкости кадров"),
+    TR("Karelerin keskinliği ölçülüyor"));
+
+SS_MSG(skipped_discarded,
+    EN("Skipped frames not kept, deleted: {0}"),
+    JA("除外したフレームは残しません。削除: {0}"),
+    ZH_HANS("未保留被跳过的帧，已删除：{0}"),
+    ZH_HANT("未保留被略過的影格，已刪除：{0}"),
+    KO("건너뛴 프레임을 보관하지 않음, 삭제: {0}"),
+    DE("Übersprungene Bilder nicht aufbewahrt, gelöscht: {0}"),
+    FR("Images ignorées non conservées, supprimées : {0}"),
+    ES("Fotogramas omitidos no conservados, eliminados: {0}"),
+    PT("Quadros ignorados não guardados, apagados: {0}"),
+    IT("Fotogrammi saltati non conservati, eliminati: {0}"),
+    NL("Overgeslagen beelden niet bewaard, verwijderd: {0}"),
+    RU("Пропущенные кадры не сохранены, удалено: {0}"),
+    TR("Atlanan kareler saklanmadı, silinen: {0}"));
+
+SS_MSG(plan_frames_sorted,
+    EN("the blur rule is applied to the frames already there: the ones "
+       "left out move to images_skipped, and what was made from them is "
+       "kept"),
+    JA("すでにあるフレームにぶれの判定を適用します。外したものは images_"
+       "skipped に移し、そこから作ったものは残します"),
+    ZH_HANS("模糊规则应用于已有的帧：被剔除的移到 images_skipped，由它"
+            "们生成的内容保留"),
+    ZH_HANT("模糊規則套用到已有的影格：被剔除的移到 images_skipped，由"
+            "它們建立的內容保留"),
+    KO("이미 있는 프레임에 흐림 규칙을 적용합니다. 빠진 프레임은 ima"
+       "ges_skipped로 옮기고, 그것으로 만든 결과는 유지합니다"),
+    DE("die Unschärferegel wird auf die vorhandenen Bilder angewendet: die"
+       " ausgelassenen wandern nach images_skipped, und was aus ihnen "
+       "erstellt wurde, bleibt"),
+    FR("la règle de flou est appliquée aux images déjà présentes : celles "
+       "écartées vont dans images_skipped, et ce qui en a été tiré est "
+       "conservé"),
+    ES("la regla de desenfoque se aplica a los fotogramas que ya hay: los "
+       "apartados pasan a images_skipped y lo que se hizo con ellos se "
+       "conserva"),
+    PT("a regra de borrão é aplicada aos quadros que já existem: os "
+       "deixados de fora vão para images_skipped e o que foi feito a "
+       "partir deles é mantido"),
+    IT("la regola di sfocatura si applica ai fotogrammi già presenti: "
+       "quelli scartati vanno in images_skipped e ciò che ne è stato "
+       "ricavato resta"),
+    NL("de onscherpteregel wordt toegepast op de aanwezige beelden: de "
+       "weggelaten beelden gaan naar images_skipped, en wat ervan gemaakt "
+       "is blijft"),
+    RU("правило размытия применяется к уже имеющимся кадрам: исключённые "
+       "переносятся в images_skipped, а сделанное из них остаётся"),
+    TR("bulanıklık kuralı mevcut karelere uygulanıyor: dışarıda "
+       "bırakılanlar images_skipped klasörüne taşınır, onlardan "
+       "üretilenler korunur"));
+
+SS_MSG(frames_resorted,
+    EN("Frames that changed sides after the review: {0}"),
+    JA("確認後に振り分けが変わったフレーム: {0}"),
+    ZH_HANS("检查后改变去留的帧：{0}"),
+    ZH_HANT("檢查後改變去留的影格：{0}"),
+    KO("확인 후 분류가 바뀐 프레임: {0}"),
+    DE("Bilder, die nach der Durchsicht die Seite gewechselt haben: {0}"),
+    FR("Images ayant changé de côté après la vérification : {0}"),
+    ES("Fotogramas que cambiaron de lado tras la revisión: {0}"),
+    PT("Quadros que mudaram de lado após a revisão: {0}"),
+    IT("Fotogrammi che hanno cambiato lato dopo la revisione: {0}"),
+    NL("Beelden die na de controle van kant wisselden: {0}"),
+    RU("Кадров, сменивших сторону после проверки: {0}"),
+    TR("Gözden geçirmeden sonra taraf değiştiren kareler: {0}"));
+
+SS_MSG(frames_settled,
+    EN("Frames that changed sides once the whole capture was measured: {0}"),
+    JA("撮影全体を測定した後に振り分けが変わったフレーム: {0}"),
+    ZH_HANS("测量完整个拍摄后改变去留的帧：{0}"),
+    ZH_HANT("測量完整個拍攝後改變去留的影格：{0}"),
+    KO("촬영 전체를 측정한 뒤 분류가 바뀐 프레임: {0}"),
+    DE("Bilder, die die Seite wechselten, nachdem die ganze Aufnahme gemessen war: {0}"),
+    FR("Images ayant changé de côté une fois toute la prise mesurée : {0}"),
+    ES("Fotogramas que cambiaron de lado al medir toda la toma: {0}"),
+    PT("Quadros que mudaram de lado depois de medida toda a captura: {0}"),
+    IT("Fotogrammi che hanno cambiato lato una volta misurata tutta la ripresa: {0}"),
+    NL("Beelden die van kant wisselden toen de hele opname gemeten was: {0}"),
+    RU("Кадров, сменивших сторону после замера всей съёмки: {0}"),
+    TR("Çekimin tamamı ölçüldükten sonra taraf değiştiren kareler: {0}"));
+
+SS_MSG(review_not_movable,
+    EN("No pause for the threshold: some frames (of a rig, of a 360 video, or"
+       " not kept aside) cannot change sides afterwards, so it is applied as "
+       "set"),
+    JA("しきい値のための一時停止はしません。一部のフレーム（リグ、360度動画、また"
+       "は退避していないもの）は後から振り分けを変えられないため、設定どおりに適用"
+       "します"),
+    ZH_HANS("不为阈值暂停：部分帧（装置、360 视频或未另行保留的帧）之后无法改变去留，"
+            "因此按当前设置应用"),
+    ZH_HANT("不為閾值暫停：部分影格（裝置、360 影片或未另行保留的影格）之後無法改變去"
+            "留，因此依目前設定套用"),
+    KO("임계값을 위해 멈추지 않습니다. 일부 프레임(리그, 360 동영상, 따로 "
+       "보관하지 않은 프레임)은 나중에 분류를 바꿀 수 없어 설정대로 적용합니다"),
+    DE("Keine Pause für die Schwelle: Manche Bilder (eines Rigs, eines "
+       "360-Videos oder nicht beiseitegelegte) können nachträglich nicht die "
+       "Seite wechseln, daher gilt sie wie eingestellt"),
+    FR("Pas de pause pour le seuil : certaines images (d’un rig, d’une vidéo"
+       " 360 ou non mises de côté) ne peuvent plus changer de côté, il est "
+       "donc appliqué tel quel"),
+    ES("Sin pausa para el umbral: algunos fotogramas (de un rig, de un vídeo"
+       " 360 o no apartados) no pueden cambiar de lado después, así que se "
+       "aplica tal cual"),
+    PT("Sem pausa para o limiar: alguns quadros (de um rig, de um vídeo 360 "
+       "ou não guardados à parte) não podem mudar de lado depois, por isso é "
+       "aplicado como está"),
+    IT("Nessuna pausa per la soglia: alcuni fotogrammi (di un rig, di un "
+       "video 360 o non messi da parte) non possono più cambiare lato, quindi"
+       " si applica così com’è"),
+    NL("Geen pauze voor de drempel: sommige beelden (van een rig, van een "
+       "360-video of niet apart gezet) kunnen achteraf niet van kant wisselen,"
+       " dus hij geldt zoals ingesteld"),
+    RU("Без паузы для порога: некоторые кадры (рига, видео 360 или не "
+       "отложенные) уже не могут сменить сторону, поэтому он применяется как "
+       "задан"),
+    TR("Eşik için duraklatılmıyor: bazı kareler (bir düzeneğin, bir 360 "
+       "videonun ya da ayrı tutulmayanlar) sonradan taraf değiştiremez, bu "
+       "yüzden ayarlandığı gibi uygulanır"));
+
+SS_MSG(photos_in_place_unsorted,
+    EN("Photos read where they are stay unsorted: nothing of theirs is "
+       "moved"),
+    JA("元の場所で読み込む写真は仕分けしません。写真は一切移動しません"),
+    ZH_HANS("原地读取的照片不做整理：不会移动其中任何文件"),
+    ZH_HANT("原地讀取的照片不做整理：不會移動其中任何檔案"),
+    KO("제자리에서 읽는 사진은 정리하지 않습니다. 사진은 하나도 옮기지 "
+       "않습니다"),
+    DE("Fotos, die an ihrem Ort gelesen werden, bleiben unsortiert: nichts"
+       " davon wird verschoben"),
+    FR("Les photos lues sur place ne sont pas triées : rien n’est déplacé"),
+    ES("Las fotos leídas en su sitio no se ordenan: no se mueve ninguna"),
+    PT("As fotos lidas no lugar não são organizadas: nada é movido"),
+    IT("Le foto lette dove si trovano non vengono riordinate: nulla viene "
+       "spostato"),
+    NL("Foto’s die ter plekke worden gelezen blijven ongesorteerd: er "
+       "wordt niets verplaatst"),
+    RU("Фотографии, читаемые на месте, не сортируются: ничего не "
+       "перемещается"),
+    TR("Yerinde okunan fotoğraflar ayıklanmaz: hiçbiri taşınmaz"));
 
 SS_MSG(stage_warp_360,
     EN("Warping 360 frames into views"),
@@ -819,6 +1097,197 @@ SS_MSG(photo_kept_unconverted,
     NL("{0} is onveranderd gekopieerd in plaats van opnieuw gecodeerd."),
     RU("{0} скопирован без изменений, а не перекодирован."),
     TR("{0} yeniden kodlanmak yerine olduğu gibi kopyalandı."));
+
+SS_MSG(heif_exif_left_behind,
+    EN("HEIC photos converted by ffmpeg: {0}. ffmpeg leaves their EXIF behind, "
+       "so the reconstruction has no focal length or GPS from them."),
+    JA("ffmpeg で変換した HEIC 写真: {0}。ffmpeg は EXIF を引き継がないため、"
+       "再構成にはそれらの焦点距離も GPS もありません。"),
+    ZH_HANS("用 ffmpeg 转换的 HEIC 照片：{0}。ffmpeg 不会保留它们的 EXIF，"
+            "因此重建时没有这些照片的焦距和 GPS。"),
+    ZH_HANT("用 ffmpeg 轉換的 HEIC 照片：{0}。ffmpeg 不會保留它們的 EXIF，"
+            "因此重建時沒有這些照片的焦距和 GPS。"),
+    KO("ffmpeg 으로 변환한 HEIC 사진: {0}. ffmpeg 은 EXIF 를 옮기지 않으므로 "
+       "재구성에는 이 사진들의 초점 거리와 GPS 가 없습니다."),
+    DE("Mit ffmpeg umgewandelte HEIC-Fotos: {0}. ffmpeg übernimmt ihre "
+       "EXIF-Daten nicht, der Rekonstruktion fehlen daher ihre Brennweite und "
+       "ihr GPS."),
+    FR("Photos HEIC converties par ffmpeg : {0}. ffmpeg ne reprend pas leurs "
+       "EXIF : la reconstruction n'a ni leur focale ni leur GPS."),
+    ES("Fotos HEIC convertidas con ffmpeg: {0}. ffmpeg no conserva su EXIF, así "
+       "que la reconstrucción no tiene su distancia focal ni su GPS."),
+    PT("Fotos HEIC convertidas pelo ffmpeg: {0}. O ffmpeg não conserva o EXIF "
+       "delas, por isso a reconstrução fica sem a distância focal e o GPS."),
+    IT("Foto HEIC convertite con ffmpeg: {0}. ffmpeg non ne conserva l'EXIF, "
+       "quindi la ricostruzione non ha la loro focale né il GPS."),
+    NL("HEIC-foto's omgezet door ffmpeg: {0}. ffmpeg neemt hun EXIF niet mee, "
+       "dus de reconstructie heeft hun brandpuntsafstand en GPS niet."),
+    RU("Фото HEIC, преобразованные ffmpeg: {0}. ffmpeg не переносит их EXIF, "
+       "поэтому у реконструкции нет их фокусного расстояния и GPS."),
+    TR("ffmpeg ile dönüştürülen HEIC fotoğraflar: {0}. ffmpeg EXIF bilgilerini "
+       "taşımıyor; bu yüzden yeniden yapılandırmada odak uzaklıkları ve GPS "
+       "yok."));
+
+// {1} the reason, English: ffmpeg's last line or the decoder's message.
+SS_MSG(err_heif_convert_failed,
+    EN("{0} could not be converted to JPEG: {1}"),
+    JA("{0} を JPEG に変換できませんでした: {1}"),
+    ZH_HANS("无法把 {0} 转换为 JPEG：{1}"),
+    ZH_HANT("無法把 {0} 轉換為 JPEG：{1}"),
+    KO("{0} 을(를) JPEG 로 변환하지 못했습니다: {1}"),
+    DE("{0} konnte nicht in JPEG umgewandelt werden: {1}"),
+    FR("{0} n'a pas pu être convertie en JPEG : {1}"),
+    ES("{0} no se pudo convertir a JPEG: {1}"),
+    PT("{0} não pôde ser convertida em JPEG: {1}"),
+    IT("Impossibile convertire {0} in JPEG: {1}"),
+    NL("{0} kon niet naar JPEG worden omgezet: {1}"),
+    RU("Не удалось преобразовать {0} в JPEG: {1}"),
+    TR("{0} JPEG'e dönüştürülemedi: {1}"));
+
+SS_MSG(err_heif_in_dataset_folder,
+    EN("{0} holds HEIC photos and is also this dataset's own images folder, so "
+       "their JPEGs have nowhere to go. Choose another output folder."),
+    JA("{0} には HEIC 写真があり、このデータセット自身の画像フォルダーでもある"
+       "ため、変換した JPEG の置き場所がありません。別の出力フォルダーを選んで"
+       "ください。"),
+    ZH_HANS("{0} 里有 HEIC 照片，同时它又是这个数据集自己的图像文件夹，转换出的 "
+            "JPEG 无处存放。请选择另一个输出文件夹。"),
+    ZH_HANT("{0} 裡有 HEIC 照片，同時它又是這個資料集自己的影像資料夾，轉換出的 "
+            "JPEG 無處存放。請選擇另一個輸出資料夾。"),
+    KO("{0} 에는 HEIC 사진이 있고 이 데이터셋 자신의 이미지 폴더이기도 해서, "
+       "변환한 JPEG 를 둘 곳이 없습니다. 다른 출력 폴더를 고르세요."),
+    DE("{0} enthält HEIC-Fotos und ist zugleich der eigene Bildordner dieses "
+       "Datensatzes, daher gibt es keinen Platz für ihre JPEGs. Wählen Sie einen "
+       "anderen Ausgabeordner."),
+    FR("{0} contient des photos HEIC et est aussi le dossier d'images propre à "
+       "ce jeu de données : leurs JPEG n'ont nulle part où aller. Choisissez un "
+       "autre dossier de sortie."),
+    ES("{0} contiene fotos HEIC y es también la carpeta de imágenes propia de "
+       "este conjunto de datos, así que sus JPEG no tienen dónde ir. Elige otra "
+       "carpeta de salida."),
+    PT("{0} contém fotos HEIC e é também a pasta de imagens do próprio conjunto "
+       "de dados, por isso os JPEG delas não têm para onde ir. Escolha outra "
+       "pasta de saída."),
+    IT("{0} contiene foto HEIC ed è anche la cartella delle immagini di questo "
+       "set di dati, quindi i loro JPEG non hanno dove andare. Scelga un'altra "
+       "cartella di destinazione."),
+    NL("{0} bevat HEIC-foto's en is ook de eigen beeldenmap van deze dataset, "
+       "dus hun JPEG's kunnen nergens heen. Kies een andere uitvoermap."),
+    RU("В {0} есть фото HEIC, и это же собственная папка изображений набора "
+       "данных, так что их JPEG некуда положить. Выберите другую выходную "
+       "папку."),
+    TR("{0} HEIC fotoğraflar içeriyor ve aynı zamanda bu veri kümesinin kendi "
+       "görüntü klasörü; bu yüzden JPEG'lerinin gidecek yeri yok. Başka bir "
+       "çıktı klasörü seçin."));
+
+SS_MSG(err_ffmpeg_heif_too_old,
+    EN("ffmpeg '{0}' is version {1}, which cannot put a HEIC photo together from "
+       "its tiles. Version 7.0 or newer can."),
+    JA("ffmpeg '{0}' のバージョンは {1} で、HEIC 写真をタイルから組み立てられ"
+       "ません。7.0 以降なら可能です。"),
+    ZH_HANS("ffmpeg '{0}' 的版本为 {1}，无法把 HEIC 照片的图块拼合起来。"
+            "7.0 或更新的版本可以。"),
+    ZH_HANT("ffmpeg '{0}' 的版本為 {1}，無法把 HEIC 照片的圖塊拼合起來。"
+            "7.0 或更新的版本可以。"),
+    KO("ffmpeg '{0}' 은(는) 버전 {1} 이라 HEIC 사진을 타일에서 조립하지 "
+       "못합니다. 7.0 이상은 가능합니다."),
+    DE("ffmpeg '{0}' hat die Version {1} und kann ein HEIC-Foto nicht aus seinen "
+       "Kacheln zusammensetzen. Ab Version 7.0 geht das."),
+    FR("ffmpeg '{0}' est en version {1}, qui ne sait pas assembler une photo HEIC "
+       "à partir de ses tuiles. La version 7.0 ou plus récente le sait."),
+    ES("ffmpeg '{0}' es la versión {1}, que no sabe montar una foto HEIC a partir "
+       "de sus mosaicos. La 7.0 o posterior sí sabe."),
+    PT("O ffmpeg '{0}' é a versão {1}, que não consegue montar uma foto HEIC a "
+       "partir dos seus blocos. A 7.0 ou mais recente consegue."),
+    IT("ffmpeg '{0}' è alla versione {1}, che non sa ricomporre una foto HEIC "
+       "dai suoi riquadri. La 7.0 o successiva lo sa fare."),
+    NL("ffmpeg '{0}' is versie {1}, die een HEIC-foto niet uit zijn tegels kan "
+       "samenstellen. Versie 7.0 of nieuwer kan dat wel."),
+    RU("ffmpeg '{0}' версии {1} не умеет собирать фото HEIC из плиток. Версия "
+       "7.0 или новее умеет."),
+    TR("ffmpeg '{0}' {1} sürümünde ve bir HEIC fotoğrafını karolarından "
+       "birleştiremiyor. 7.0 veya daha yeni bir sürüm bunu yapabiliyor."));
+
+SS_MSG(packed_shape_as_dual,
+    EN("{0} is {1}x{2}, neither 2:1 nor 1:1; it is read as two fisheye images "
+       "side by side."),
+    JA("{0} は {1}x{2} で、2:1 でも 1:1 でもありません。左右に並んだ 2 枚の"
+       "魚眼画像として読みます。"),
+    ZH_HANS("{0} 为 {1}x{2}，既不是 2:1 也不是 1:1；按左右并排的两张鱼眼图像读取。"),
+    ZH_HANT("{0} 為 {1}x{2}，既不是 2:1 也不是 1:1；按左右並排的兩張魚眼影像讀取。"),
+    KO("{0} 은(는) {1}x{2} 로 2:1 도 1:1 도 아닙니다. 좌우로 나란한 어안 이미지 "
+       "두 장으로 읽습니다."),
+    DE("{0} ist {1}x{2}, weder 2:1 noch 1:1; es wird als zwei nebeneinander "
+       "liegende Fischaugenbilder gelesen."),
+    FR("{0} fait {1}x{2}, ni 2:1 ni 1:1 ; elle est lue comme deux images "
+       "fisheye côte à côte."),
+    ES("{0} mide {1}x{2}, ni 2:1 ni 1:1; se lee como dos imágenes de ojo de pez "
+       "una al lado de la otra."),
+    PT("{0} tem {1}x{2}, nem 2:1 nem 1:1; é lida como duas imagens olho de "
+       "peixe lado a lado."),
+    IT("{0} è {1}x{2}, né 2:1 né 1:1; viene letta come due immagini fisheye "
+       "affiancate."),
+    NL("{0} is {1}x{2}, noch 2:1 noch 1:1; het wordt gelezen als twee "
+       "fisheyebeelden naast elkaar."),
+    RU("{0}: {1}x{2}, не 2:1 и не 1:1; читается как два изображения «рыбий "
+       "глаз» рядом."),
+    TR("{0} {1}x{2} boyutunda, ne 2:1 ne 1:1; yan yana iki balıkgözü görüntü "
+       "olarak okunuyor."));
+
+SS_MSG(packed_shape_as_single,
+    EN("{0} is {1}x{2}, neither 2:1 nor 1:1; it is read as one fisheye image."),
+    JA("{0} は {1}x{2} で、2:1 でも 1:1 でもありません。1 枚の魚眼画像として"
+       "読みます。"),
+    ZH_HANS("{0} 为 {1}x{2}，既不是 2:1 也不是 1:1；按一张鱼眼图像读取。"),
+    ZH_HANT("{0} 為 {1}x{2}，既不是 2:1 也不是 1:1；按一張魚眼影像讀取。"),
+    KO("{0} 은(는) {1}x{2} 로 2:1 도 1:1 도 아닙니다. 어안 이미지 한 장으로 "
+       "읽습니다."),
+    DE("{0} ist {1}x{2}, weder 2:1 noch 1:1; es wird als ein Fischaugenbild "
+       "gelesen."),
+    FR("{0} fait {1}x{2}, ni 2:1 ni 1:1 ; elle est lue comme une seule image "
+       "fisheye."),
+    ES("{0} mide {1}x{2}, ni 2:1 ni 1:1; se lee como una sola imagen de ojo de "
+       "pez."),
+    PT("{0} tem {1}x{2}, nem 2:1 nem 1:1; é lida como uma única imagem olho de "
+       "peixe."),
+    IT("{0} è {1}x{2}, né 2:1 né 1:1; viene letta come un'unica immagine "
+       "fisheye."),
+    NL("{0} is {1}x{2}, noch 2:1 noch 1:1; het wordt gelezen als één "
+       "fisheyebeeld."),
+    RU("{0}: {1}x{2}, не 2:1 и не 1:1; читается как одно изображение «рыбий "
+       "глаз»."),
+    TR("{0} {1}x{2} boyutunda, ne 2:1 ne 1:1; tek bir balıkgözü görüntü olarak "
+       "okunuyor."));
+
+SS_MSG(packed_frames_split,
+    EN("Each frame cut into its two fisheye images under {0}"),
+    JA("各フレームを 2 枚の魚眼画像に分けました: {0}"),
+    ZH_HANS("每帧已拆分为两张鱼眼图像：{0}"),
+    ZH_HANT("每幀已拆分為兩張魚眼影像：{0}"),
+    KO("각 프레임을 어안 이미지 두 장으로 나눴습니다: {0}"),
+    DE("Jedes Bild in seine zwei Fischaugenbilder zerlegt: {0}"),
+    FR("Chaque image découpée en ses deux images fisheye : {0}"),
+    ES("Cada fotograma dividido en sus dos imágenes de ojo de pez: {0}"),
+    PT("Cada quadro dividido nas suas duas imagens olho de peixe: {0}"),
+    IT("Ogni fotogramma diviso nelle sue due immagini fisheye: {0}"),
+    NL("Elk beeld opgesplitst in zijn twee fisheyebeelden: {0}"),
+    RU("Каждый кадр разрезан на два изображения «рыбий глаз»: {0}"),
+    TR("Her kare iki balıkgözü görüntüsüne ayrıldı: {0}"));
+
+SS_MSG(err_packed_split_failed,
+    EN("{0} could not be cut into its fisheye images."),
+    JA("{0} を魚眼画像に分けられませんでした。"),
+    ZH_HANS("无法把 {0} 拆分为鱼眼图像。"),
+    ZH_HANT("無法把 {0} 拆分為魚眼影像。"),
+    KO("{0} 을(를) 어안 이미지로 나눌 수 없었습니다."),
+    DE("{0} konnte nicht in seine Fischaugenbilder zerlegt werden."),
+    FR("{0} n'a pas pu être découpée en ses images fisheye."),
+    ES("{0} no se pudo dividir en sus imágenes de ojo de pez."),
+    PT("{0} não pôde ser dividida nas suas imagens olho de peixe."),
+    IT("Impossibile dividere {0} nelle sue immagini fisheye."),
+    NL("{0} kon niet in zijn fisheyebeelden worden opgesplitst."),
+    RU("Не удалось разрезать {0} на изображения «рыбий глаз»."),
+    TR("{0} balıkgözü görüntülerine ayrılamadı."));
 
 SS_MSG(err_inputs_without_prompt,
     EN("Nothing to mask by for {0}. A clicked object prompts only the input it "
@@ -1135,6 +1604,37 @@ SS_MSG(web_viewer_at,
 // purpose: they name command-line flags and files under docs/notes/, so they
 // are addressed to someone working on this program rather than using it.
 
+// {0} cameras seeing a splat at the render quantile, {1} and {2} the images
+// per step before and after.
+SS_MSG(batch_from_renders,
+    EN("Images per step: {1} -> {2}, so a splat seen by {0} cameras is "
+       "rendered min_renders_per_refine times between rounds"),
+    JA("1 ステップの画像数: {1} -> {2}（{0} 台のカメラに見えるスプラットが、ラ"
+       "ウンドの間に min_renders_per_refine 回描画されるように）"),
+    ZH_HANS("每步图像数：{1} -> {2}，使被 {0} 台相机看到的泼溅在两轮之间渲染 "
+            "min_renders_per_refine 次"),
+    ZH_HANT("每步影像數：{1} -> {2}，使被 {0} 台相機看到的潑濺在兩輪之間算圖 "
+            "min_renders_per_refine 次"),
+    KO("스텝당 이미지 수: {1} -> {2}, 카메라 {0}대에 보이는 스플랫이 회차 사이"
+       "에 min_renders_per_refine번 렌더되도록 함"),
+    DE("Bilder pro Schritt: {1} -> {2}, damit ein von {0} Kameras gesehener "
+       "Splat zwischen den Runden min_renders_per_refine-mal gerendert wird"),
+    FR("Images par étape : {1} -> {2}, pour qu'un splat vu par {0} caméras "
+       "soit rendu min_renders_per_refine fois entre les cycles"),
+    ES("Imágenes por paso: {1} -> {2}, para que un splat visto por {0} "
+       "cámaras se renderice min_renders_per_refine veces entre rondas"),
+    PT("Imagens por passo: {1} -> {2}, para que um splat visto por {0} "
+       "câmeras seja renderizado min_renders_per_refine vezes entre rodadas"),
+    IT("Immagini per passo: {1} -> {2}, così uno splat visto da {0} "
+       "fotocamere viene renderizzato min_renders_per_refine volte tra un "
+       "ciclo e l'altro"),
+    NL("Beelden per stap: {1} -> {2}, zodat een splat die door {0} camera's "
+       "wordt gezien tussen rondes min_renders_per_refine keer wordt gerenderd"),
+    RU("Изображений на шаг: {1} -> {2}, чтобы сплат (видящих его камер: {0}) "
+       "отрисовывался min_renders_per_refine раз между раундами"),
+    TR("Adım başına görüntü: {1} -> {2}; böylece {0} kameranın gördüğü bir "
+       "splat turlar arasında min_renders_per_refine kez işlenir"));
+
 // {0} cameras parsed, {1} after splitting panoramas, {2} seed points,
 // {3} the frame scale.
 SS_MSG(parsed_dataset,
@@ -1160,6 +1660,23 @@ SS_MSG(parsed_dataset,
        "(train_frame_scale={3})"),
     TR("Kamera: {0} (bölmeden sonra {1}), başlangıç noktası: {2} "
        "(train_frame_scale={3})"));
+
+// {0} the --init-ply file, {1} its splats after the cap, {2} seeds the
+// dataset's point cloud added on top (0 without --init-ply-add-points).
+SS_MSG(seeded_from_ply,
+    EN("Seeded from {0}: {1} splats from the PLY, {2} from the point cloud"),
+    JA("{0} から初期化しました。PLY のスプラット {1}、点群から {2}"),
+    ZH_HANS("已从 {0} 初始化：来自 PLY 的泼溅 {1} 个，来自点云 {2} 个"),
+    ZH_HANT("已從 {0} 初始化：來自 PLY 的潑濺 {1} 個，來自點雲 {2} 個"),
+    KO("{0}에서 초기화했습니다. PLY의 스플랫 {1}개, 점 구름에서 {2}개"),
+    DE("Initialisiert aus {0}: {1} Splats aus dem PLY, {2} aus der Punktwolke"),
+    FR("Initialisé depuis {0} : {1} splats du PLY, {2} du nuage de points"),
+    ES("Inicializado desde {0}: {1} splats del PLY, {2} de la nube de puntos"),
+    PT("Inicializado a partir de {0}: {1} splats do PLY, {2} da nuvem de pontos"),
+    IT("Inizializzato da {0}: {1} splat dal PLY, {2} dalla nuvola di punti"),
+    NL("Geïnitialiseerd vanuit {0}: {1} splats uit het PLY, {2} uit de puntenwolk"),
+    RU("Инициализировано из {0}: сплатов из PLY {1}, из облака точек {2}"),
+    TR("{0} dosyasından başlatıldı: PLY'den {1} splat, nokta bulutundan {2}"));
 
 // {1} is "x, y, z" in the dataset's frame; the shift lives on in
 // scene_transform.json, so this line is what a reader of the log sees first.
@@ -1221,6 +1738,178 @@ SS_MSG(ray_depth_straight_ahead,
     RU("расстояние прямо вперёд"),
     TR("ileri doğru mesafe"));
 
+SS_MSG(alpha_masks_found,
+    EN("Alpha channel used as the mask ({0} of {1} images)"),
+    JA("アルファチャンネルをマスクとして使います（{1} 枚中 {0} 枚）"),
+    ZH_HANS("使用 Alpha 通道作为蒙版（{1} 张图像中的 {0} 张）"),
+    ZH_HANT("使用 Alpha 通道作為遮罩（{1} 張影像中的 {0} 張）"),
+    KO("알파 채널을 마스크로 사용합니다({1}장 중 {0}장)"),
+    DE("Alphakanal wird als Maske verwendet ({0} von {1} Bildern)"),
+    FR("Canal alpha utilisé comme masque ({0} images sur {1})"),
+    ES("Canal alfa usado como máscara ({0} de {1} imágenes)"),
+    PT("Canal alfa usado como máscara ({0} de {1} imagens)"),
+    IT("Canale alfa usato come maschera ({0} immagini su {1})"),
+    NL("Alfakanaal gebruikt als masker ({0} van {1} beelden)"),
+    RU("Альфа-канал используется как маска ({0} из {1} изображений)"),
+    TR("Alfa kanalı maske olarak kullanılıyor ({1} görüntüden {0})"));
+
+SS_MSG(alpha_masks_with_files,
+    EN("Alpha channel used as the mask ({0} of {1} images), together with the "
+       "mask files: a pixel is kept only where both keep it"),
+    JA("アルファチャンネルをマスクとして使います（{1} 枚中 {0} 枚）。マスク"
+       "ファイルと組み合わせ、両方が残す画素だけを残します"),
+    ZH_HANS("使用 Alpha 通道作为蒙版（{1} 张图像中的 {0} 张），并与蒙版文件"
+            "合并：只保留两者都保留的像素"),
+    ZH_HANT("使用 Alpha 通道作為遮罩（{1} 張影像中的 {0} 張），並與遮罩檔案"
+            "合併：只保留兩者都保留的像素"),
+    KO("알파 채널을 마스크로 사용합니다({1}장 중 {0}장). 마스크 파일과 "
+       "합쳐서 둘 다 남기는 픽셀만 남깁니다"),
+    DE("Alphakanal wird als Maske verwendet ({0} von {1} Bildern), zusammen "
+       "mit den Maskendateien: Ein Pixel bleibt nur, wo beide es behalten"),
+    FR("Canal alpha utilisé comme masque ({0} images sur {1}), avec les "
+       "fichiers de masque : un pixel n'est gardé que là où les deux le "
+       "gardent"),
+    ES("Canal alfa usado como máscara ({0} de {1} imágenes), junto con los "
+       "archivos de máscara: un píxel se conserva solo donde ambos lo conservan"),
+    PT("Canal alfa usado como máscara ({0} de {1} imagens), junto com os "
+       "arquivos de máscara: um pixel só é mantido onde ambos o mantêm"),
+    IT("Canale alfa usato come maschera ({0} immagini su {1}), insieme ai file "
+       "di maschera: un pixel resta solo dove lo tengono entrambi"),
+    NL("Alfakanaal gebruikt als masker ({0} van {1} beelden), samen met de "
+       "maskerbestanden: een pixel blijft alleen waar beide hem houden"),
+    RU("Альфа-канал используется как маска ({0} из {1} изображений) вместе с "
+       "файлами масок: пиксель остаётся, только если его оставляют оба"),
+    TR("Alfa kanalı maske olarak kullanılıyor ({1} görüntüden {0}), maske "
+       "dosyalarıyla birlikte: bir piksel yalnızca ikisi de tuttuğunda kalır"));
+
+SS_MSG(alpha_masks_cut_out,
+    EN("Transparent pixels train as empty space (--apply-loss-for-mask)"),
+    JA("透明な画素は空として学習します（--apply-loss-for-mask）"),
+    ZH_HANS("透明像素按空白训练（--apply-loss-for-mask）"),
+    ZH_HANT("透明像素按空白訓練（--apply-loss-for-mask）"),
+    KO("투명한 픽셀은 빈 곳으로 학습합니다(--apply-loss-for-mask)"),
+    DE("Transparente Pixel werden als leerer Raum trainiert "
+       "(--apply-loss-for-mask)"),
+    FR("Les pixels transparents sont entraînés comme du vide "
+       "(--apply-loss-for-mask)"),
+    ES("Los píxeles transparentes se entrenan como espacio vacío "
+       "(--apply-loss-for-mask)"),
+    PT("Os pixels transparentes são treinados como espaço vazio "
+       "(--apply-loss-for-mask)"),
+    IT("I pixel trasparenti vengono addestrati come spazio vuoto "
+       "(--apply-loss-for-mask)"),
+    NL("Transparante pixels worden als lege ruimte getraind "
+       "(--apply-loss-for-mask)"),
+    RU("Прозрачные пиксели обучаются как пустота (--apply-loss-for-mask)"),
+    TR("Saydam pikseller boş alan olarak eğitiliyor (--apply-loss-for-mask)"));
+
+SS_MSG(random_init_never,
+    EN("The dataset has no seed point cloud, and --random-init never forbids "
+       "drawing one at random. Set --random-init auto, or give the dataset a "
+       "point cloud."),
+    JA("データセットに初期点群がなく、--random-init never がランダムに作るこ"
+       "とを禁じています。--random-init auto にするか、データセットに点群を用"
+       "意してください。"),
+    ZH_HANS("数据集没有初始点云，而 --random-init never 禁止随机生成。请设置 "
+            "--random-init auto，或为数据集提供点云。"),
+    ZH_HANT("資料集沒有初始點雲，而 --random-init never 禁止隨機產生。請設定 "
+            "--random-init auto，或為資料集提供點雲。"),
+    KO("데이터셋에 초기 점군이 없고, --random-init never 때문에 무작위로 만들"
+       " 수도 없습니다. --random-init auto로 바꾸거나 데이터셋에 점군을 넣으"
+       "세요."),
+    DE("Der Datensatz hat keine Start-Punktwolke, und --random-init never "
+       "verbietet, eine zufällig zu ziehen. Setzen Sie --random-init auto, "
+       "oder geben Sie dem Datensatz eine Punktwolke."),
+    FR("Le jeu de données n'a pas de nuage de points de départ, et "
+       "--random-init never interdit d'en tirer un au hasard. Passez à "
+       "--random-init auto, ou fournissez un nuage de points."),
+    ES("El conjunto no tiene nube de puntos inicial, y --random-init never "
+       "prohíbe sortear una. Ponga --random-init auto o dé al conjunto una "
+       "nube de puntos."),
+    PT("O conjunto não tem nuvem de pontos inicial, e --random-init never "
+       "proíbe sortear uma. Use --random-init auto ou dê ao conjunto uma nuvem "
+       "de pontos."),
+    IT("Il set di dati non ha una nuvola di punti iniziale, e --random-init "
+       "never vieta di estrarne una a caso. Impostate --random-init auto, "
+       "oppure fornite una nuvola di punti."),
+    NL("De dataset heeft geen beginpuntenwolk, en --random-init never verbiedt "
+       "er willekeurig een te trekken. Zet --random-init auto, of geef de "
+       "dataset een puntenwolk."),
+    RU("В наборе нет начального облака точек, а --random-init never запрещает "
+       "создать его случайно. Задайте --random-init auto или добавьте в набор "
+       "облако точек."),
+    TR("Veri kümesinde başlangıç nokta bulutu yok ve --random-init never "
+       "rastgele çekilmesini yasaklıyor. --random-init auto ayarlayın ya da "
+       "veri kümesine bir nokta bulutu verin."));
+
+SS_MSG(dense_seed_automatic,
+    EN("Seed points: the dataset's dense cloud {0} (--seed-pointcloud sparse uses the sparse points)"),
+    JA("初期点群：データセットの高密度点群 {0}（疎な点群は --seed-pointcloud sparse）"),
+    ZH_HANS("初始点云：数据集的稠密点云 {0}（--seed-pointcloud sparse 改用稀疏点云）"),
+    ZH_HANT("初始點雲：資料集的稠密點雲 {0}（--seed-pointcloud sparse 改用稀疏點雲）"),
+    KO("초기 점: 데이터셋의 고밀도 점 구름 {0} (희소 점은 --seed-pointcloud sparse)"),
+    DE("Startpunkte: dichte Punktwolke des Datensatzes {0} (--seed-pointcloud sparse nimmt die dünnen Punkte)"),
+    FR("Points initiaux : nuage dense du jeu de données {0} (--seed-pointcloud sparse pour les points épars)"),
+    ES("Puntos iniciales: nube densa del conjunto de datos {0} (--seed-pointcloud sparse usa los dispersos)"),
+    PT("Pontos iniciais: nuvem densa do conjunto de dados {0} (--seed-pointcloud sparse usa os esparsos)"),
+    IT("Punti iniziali: nuvola densa del set di dati {0} (--seed-pointcloud sparse usa quelli sparsi)"),
+    NL("Startpunten: dichte puntenwolk van de dataset {0} (--seed-pointcloud sparse gebruikt de ijle punten)"),
+    RU("Начальные точки: плотное облако набора данных {0} (--seed-pointcloud sparse — разреженные точки)"),
+    TR("Başlangıç noktaları: veri kümesinin yoğun bulutu {0} (seyrek noktalar için --seed-pointcloud sparse)"));
+
+SS_MSG(random_init_replaced,
+    EN("Seed points from the dataset: {0}, replaced by random ones "
+       "(--random-init always)"),
+    JA("データセットの初期点 {0} 個をランダムな点で置き換えます（--random-ini"
+       "t always）"),
+    ZH_HANS("数据集的初始点：{0} 个，改用随机点（--random-init always）"),
+    ZH_HANT("資料集的初始點：{0} 個，改用隨機點（--random-init always）"),
+    KO("데이터셋의 초기 점: {0}개, 무작위 점으로 바꿉니다(--random-init alway"
+       "s)"),
+    DE("Startpunkte aus dem Datensatz: {0}, durch zufällige ersetzt "
+       "(--random-init always)"),
+    FR("Points de départ du jeu de données : {0}, remplacés par des points "
+       "aléatoires (--random-init always)"),
+    ES("Puntos iniciales del conjunto: {0}, sustituidos por aleatorios "
+       "(--random-init always)"),
+    PT("Pontos iniciais do conjunto: {0}, substituídos por aleatórios "
+       "(--random-init always)"),
+    IT("Punti iniziali del set di dati: {0}, sostituiti da punti casuali "
+       "(--random-init always)"),
+    NL("Beginpunten uit de dataset: {0}, vervangen door willekeurige "
+       "(--random-init always)"),
+    RU("Начальные точки набора: {0}, заменены случайными (--random-init always)"),
+    TR("Veri kümesinden başlangıç noktaları: {0}, rastgele olanlarla "
+       "değiştirildi (--random-init always)"));
+
+SS_MSG(random_init_drawn,
+    EN("Seed points drawn at random: {0} -- {1} about {2}, standard deviations "
+       "{3} (--random-init {4})"),
+    JA("ランダムに置いた初期点: {0} 個。{2} を中心とする {1}、標準偏差 {3}（-"
+       "-random-init {4}）"),
+    ZH_HANS("随机抽取的初始点：{0} 个——以 {2} 为中心的 {1}，标准差 {3}（--ran"
+            "dom-init {4}）"),
+    ZH_HANT("隨機抽取的初始點：{0} 個——以 {2} 為中心的 {1}，標準差 {3}（--ran"
+            "dom-init {4}）"),
+    KO("무작위로 뽑은 초기 점: {0}개 — {2} 중심의 {1}, 표준편차 {3}(--random-"
+       "init {4})"),
+    DE("Zufällig gezogene Startpunkte: {0} -- {1} um {2}, Standardabweichungen "
+       "{3} (--random-init {4})"),
+    FR("Points de départ tirés au hasard : {0} -- {1} autour de {2}, écarts "
+       "types {3} (--random-init {4})"),
+    ES("Puntos iniciales sorteados al azar: {0} -- {1} en torno a {2}, "
+       "desviaciones típicas {3} (--random-init {4})"),
+    PT("Pontos iniciais sorteados: {0} -- {1} em torno de {2}, desvios padrão "
+       "{3} (--random-init {4})"),
+    IT("Punti iniziali estratti a caso: {0} -- {1} attorno a {2}, deviazioni "
+       "standard {3} (--random-init {4})"),
+    NL("Willekeurig getrokken beginpunten: {0} -- {1} rond {2}, "
+       "standaardafwijkingen {3} (--random-init {4})"),
+    RU("Случайные начальные точки: {0} -- {1} вокруг {2}, стандартные "
+       "отклонения {3} (--random-init {4})"),
+    TR("Rastgele çekilen başlangıç noktaları: {0} -- {2} çevresinde {1}, "
+       "standart sapmalar {3} (--random-init {4})"));
+
 SS_MSG(ppisp_exif_exposure,
     EN("PPISP exposure initialized from EXIF ({0} of {1} photos)"),
     JA("PPISP の露出を EXIF から初期化しました（{1} 枚中 {0} 枚）"),
@@ -1236,71 +1925,100 @@ SS_MSG(ppisp_exif_exposure,
     RU("Экспозиция PPISP инициализирована из EXIF ({0} из {1} фото)"),
     TR("PPISP pozlaması EXIF'ten başlatıldı ({1} fotoğraftan {0})"));
 
-// Printed when the input images are EXRs and no colour space was given on the
-// command line; {0} is the gamut read out of the file.
-SS_MSG(exr_color_space,
-    EN("EXR input read as linear {0} (--image-color-gamut, --image-color-is-linear)"),
-    JA("EXR 入力を線形 {0} として読み込みます"
+// Printed when the images declare their colour space -- an EXR's header, a
+// TIFF's ICC profile -- and none was given on the command line. {0} is the
+// format ("EXR", "TIFF"), {1} the gamut read out of the file.
+SS_MSG(file_color_linear,
+    EN("{0} input read as linear {1} (--image-color-gamut, --image-color-is-linear)"),
+    JA("{0} 入力を線形 {1} として読み込みます"
        "（--image-color-gamut, --image-color-is-linear）"),
-    ZH_HANS("EXR 输入按线性 {0} 读取（--image-color-gamut、--image-color-is-linear）"),
-    ZH_HANT("EXR 輸入依線性 {0} 讀取（--image-color-gamut、--image-color-is-linear）"),
-    KO("EXR 입력을 선형 {0}(으)로 읽습니다"
+    ZH_HANS("{0} 输入按线性 {1} 读取（--image-color-gamut、--image-color-is-linear）"),
+    ZH_HANT("{0} 輸入依線性 {1} 讀取（--image-color-gamut、--image-color-is-linear）"),
+    KO("{0} 입력을 선형 {1}(으)로 읽습니다"
        "(--image-color-gamut, --image-color-is-linear)"),
-    DE("EXR-Eingabe wird als lineares {0} gelesen "
+    DE("{0}-Eingabe wird als lineares {1} gelesen "
        "(--image-color-gamut, --image-color-is-linear)"),
-    FR("Entrée EXR lue comme {0} linéaire "
+    FR("Entrée {0} lue comme {1} linéaire "
        "(--image-color-gamut, --image-color-is-linear)"),
-    ES("Entrada EXR leída como {0} lineal "
+    ES("Entrada {0} leída como {1} lineal "
        "(--image-color-gamut, --image-color-is-linear)"),
-    PT("Entrada EXR lida como {0} linear "
+    PT("Entrada {0} lida como {1} linear "
        "(--image-color-gamut, --image-color-is-linear)"),
-    IT("Ingresso EXR letto come {0} lineare "
+    IT("Ingresso {0} letto come {1} lineare "
        "(--image-color-gamut, --image-color-is-linear)"),
-    NL("EXR-invoer gelezen als lineair {0} "
+    NL("{0}-invoer gelezen als lineair {1} "
        "(--image-color-gamut, --image-color-is-linear)"),
-    RU("Вход EXR читается как линейный {0} "
+    RU("Вход {0} читается как линейный {1} "
        "(--image-color-gamut, --image-color-is-linear)"),
-    TR("EXR girdisi doğrusal {0} olarak okunuyor "
+    TR("{0} girdisi doğrusal {1} olarak okunuyor "
+       "(--image-color-gamut, --image-color-is-linear)"));
+
+SS_MSG(file_color_display,
+    EN("{0} input read as display-encoded {1} "
+       "(--image-color-gamut, --image-color-is-linear)"),
+    JA("{0} 入力を表示用エンコードの {1} として読み込みます"
+       "（--image-color-gamut, --image-color-is-linear）"),
+    ZH_HANS("{0} 输入按显示编码的 {1} 读取"
+            "（--image-color-gamut、--image-color-is-linear）"),
+    ZH_HANT("{0} 輸入依顯示編碼的 {1} 讀取"
+            "（--image-color-gamut、--image-color-is-linear）"),
+    KO("{0} 입력을 디스플레이 인코딩된 {1}(으)로 읽습니다"
+       "(--image-color-gamut, --image-color-is-linear)"),
+    DE("{0}-Eingabe wird als anzeigecodiertes {1} gelesen "
+       "(--image-color-gamut, --image-color-is-linear)"),
+    FR("Entrée {0} lue comme {1} encodé pour l'affichage "
+       "(--image-color-gamut, --image-color-is-linear)"),
+    ES("Entrada {0} leída como {1} codificado para pantalla "
+       "(--image-color-gamut, --image-color-is-linear)"),
+    PT("Entrada {0} lida como {1} codificado para exibição "
+       "(--image-color-gamut, --image-color-is-linear)"),
+    IT("Ingresso {0} letto come {1} codificato per lo schermo "
+       "(--image-color-gamut, --image-color-is-linear)"),
+    NL("{0}-invoer gelezen als weergavegecodeerd {1} "
+       "(--image-color-gamut, --image-color-is-linear)"),
+    RU("Вход {0} читается как экранно закодированный {1} "
+       "(--image-color-gamut, --image-color-is-linear)"),
+    TR("{0} girdisi ekran kodlu {1} olarak okunuyor "
        "(--image-color-gamut, --image-color-is-linear)"));
 
 // The same, for a run that declared the transfer itself and left only the
 // primaries to the file.
-SS_MSG(exr_gamut_from_file,
-    EN("EXR colour space {0}, from the file (--image-color-gamut)"),
-    JA("EXR の色空間は {0} です（ファイルの情報、--image-color-gamut）"),
-    ZH_HANS("EXR 色彩空间为 {0}（取自文件，--image-color-gamut）"),
-    ZH_HANT("EXR 色彩空間為 {0}（取自檔案，--image-color-gamut）"),
-    KO("EXR 색 공간은 {0}입니다(파일에서 읽음, --image-color-gamut)"),
-    DE("EXR-Farbraum {0}, aus der Datei (--image-color-gamut)"),
-    FR("Espace colorimétrique EXR {0}, d'après le fichier (--image-color-gamut)"),
-    ES("Espacio de color EXR {0}, según el archivo (--image-color-gamut)"),
-    PT("Espaço de cor EXR {0}, conforme o arquivo (--image-color-gamut)"),
-    IT("Spazio colore EXR {0}, dal file (--image-color-gamut)"),
-    NL("EXR-kleurruimte {0}, uit het bestand (--image-color-gamut)"),
-    RU("Цветовое пространство EXR {0}, из файла (--image-color-gamut)"),
-    TR("EXR renk uzayı {0}, dosyadan (--image-color-gamut)"));
+SS_MSG(file_gamut_from_file,
+    EN("{0} colour space {1}, from the file (--image-color-gamut)"),
+    JA("{0} の色空間は {1} です（ファイルの情報、--image-color-gamut）"),
+    ZH_HANS("{0} 色彩空间为 {1}（取自文件，--image-color-gamut）"),
+    ZH_HANT("{0} 色彩空間為 {1}（取自檔案，--image-color-gamut）"),
+    KO("{0} 색 공간은 {1}입니다(파일에서 읽음, --image-color-gamut)"),
+    DE("{0}-Farbraum {1}, aus der Datei (--image-color-gamut)"),
+    FR("Espace colorimétrique {0} {1}, d'après le fichier (--image-color-gamut)"),
+    ES("Espacio de color {0} {1}, según el archivo (--image-color-gamut)"),
+    PT("Espaço de cor {0} {1}, conforme o arquivo (--image-color-gamut)"),
+    IT("Spazio colore {0} {1}, dal file (--image-color-gamut)"),
+    NL("{0}-kleurruimte {1}, uit het bestand (--image-color-gamut)"),
+    RU("Цветовое пространство {0} {1}, из файла (--image-color-gamut)"),
+    TR("{0} renk uzayı {1}, dosyadan (--image-color-gamut)"));
 
-SS_MSG(exr_gamut_unknown,
-    EN("The EXR's color primaries match no known color space; reading it as Rec.709"),
-    JA("EXR の原色はどの既知の色空間とも一致しません。Rec.709 として読み込みます"),
-    ZH_HANS("EXR 的色彩基色不属于任何已知色彩空间，按 Rec.709 读取"),
-    ZH_HANT("EXR 的色彩基色不屬於任何已知色彩空間，依 Rec.709 讀取"),
-    KO("EXR의 원색이 알려진 색 공간과 일치하지 않습니다. Rec.709로 읽습니다"),
-    DE("Die Primärfarben der EXR passen zu keinem bekannten Farbraum; "
+SS_MSG(file_gamut_unknown,
+    EN("The {0} input's color primaries match no known color space; reading it as Rec.709"),
+    JA("{0} 入力の原色はどの既知の色空間とも一致しません。Rec.709 として読み込みます"),
+    ZH_HANS("{0} 输入的色彩基色不属于任何已知色彩空间，按 Rec.709 读取"),
+    ZH_HANT("{0} 輸入的色彩基色不屬於任何已知色彩空間，依 Rec.709 讀取"),
+    KO("{0} 입력의 원색이 알려진 색 공간과 일치하지 않습니다. Rec.709로 읽습니다"),
+    DE("Die Primärfarben der {0}-Eingabe passen zu keinem bekannten Farbraum; "
        "sie wird als Rec.709 gelesen"),
-    FR("Les primaires de l'EXR ne correspondent à aucun espace connu ; "
+    FR("Les primaires de l'entrée {0} ne correspondent à aucun espace connu ; "
        "lecture en Rec.709"),
-    ES("Los primarios del EXR no coinciden con ningún espacio conocido; "
+    ES("Los primarios de la entrada {0} no coinciden con ningún espacio conocido; "
        "se lee como Rec.709"),
-    PT("Os primários do EXR não correspondem a nenhum espaço conhecido; "
-       "lido como Rec.709"),
-    IT("I primari dell'EXR non corrispondono ad alcuno spazio noto; "
+    PT("Os primários da entrada {0} não correspondem a nenhum espaço conhecido; "
+       "lida como Rec.709"),
+    IT("I primari dell'ingresso {0} non corrispondono ad alcuno spazio noto; "
        "viene letto come Rec.709"),
-    NL("De primaire kleuren van de EXR passen bij geen bekende kleurruimte; "
-       "hij wordt als Rec.709 gelezen"),
-    RU("Основные цвета EXR не совпадают ни с одним известным пространством; "
-       "файл читается как Rec.709"),
-    TR("EXR'nin ana renkleri bilinen hiçbir renk uzayıyla eşleşmiyor; "
+    NL("De primaire kleuren van de {0}-invoer passen bij geen bekende kleurruimte; "
+       "die wordt als Rec.709 gelezen"),
+    RU("Основные цвета входа {0} не совпадают ни с одним известным пространством; "
+       "вход читается как Rec.709"),
+    TR("{0} girdisinin ana renkleri bilinen hiçbir renk uzayıyla eşleşmiyor; "
        "Rec.709 olarak okunuyor"));
 
 SS_MSG(output_directory,
@@ -1392,6 +2110,170 @@ SS_MSG(train_finished,
     RU("Обучение завершено. Шагов: {0}   Время: {1}"),
     TR("Eğitim tamamlandı. Adım: {0}   Süre: {1}"));
 
+SS_MSG(vram_forecast_warn,
+    EN("Warning: training may run out of GPU memory. Projected peak: {0} ± {1} GiB   "
+       "free for training: {2} GiB   chance of running out: {3}%. Lower --cap-max, "
+       "or close other programs using the GPU."),
+    JA("警告: 学習中に GPU メモリが不足する可能性があります。予測ピーク: {0} ± {1} GiB   "
+       "学習に使える量: {2} GiB   不足する確率: {3}%。--cap-max を下げるか、GPU を"
+       "使っている他のプログラムを閉じてください。"),
+    ZH_HANS("警告：训练可能会耗尽显存。预计峰值：{0} ± {1} GiB   可供训练：{2} GiB   "
+            "耗尽的概率：{3}%。请调低 --cap-max，或关闭其他占用 GPU 的程序。"),
+    ZH_HANT("警告：訓練可能會耗盡顯示記憶體。預計峰值：{0} ± {1} GiB   可供訓練：{2} GiB   "
+            "耗盡的機率：{3}%。請調低 --cap-max，或關閉其他佔用 GPU 的程式。"),
+    KO("경고: 학습 중 GPU 메모리가 부족할 수 있습니다. 예상 최대치: {0} ± {1} GiB   "
+       "학습에 쓸 수 있는 양: {2} GiB   부족할 확률: {3}%. --cap-max를 낮추거나 GPU를 "
+       "쓰는 다른 프로그램을 닫으세요."),
+    DE("Warnung: Dem Training kann der Grafikspeicher ausgehen. Erwartete Spitze: "
+       "{0} ± {1} GiB   für das Training frei: {2} GiB   Wahrscheinlichkeit: {3} %. "
+       "Senken Sie --cap-max oder schließen Sie andere Programme, die die GPU nutzen."),
+    FR("Avertissement : l'entraînement risque de manquer de mémoire GPU. Pic prévu : "
+       "{0} ± {1} Gio   disponible pour l'entraînement : {2} Gio   probabilité : {3} %. "
+       "Réduisez --cap-max ou fermez les autres programmes qui utilisent le GPU."),
+    ES("Aviso: el entrenamiento puede quedarse sin memoria de GPU. Pico previsto: "
+       "{0} ± {1} GiB   libre para entrenar: {2} GiB   probabilidad: {3} %. Reduzca "
+       "--cap-max o cierre otros programas que usen la GPU."),
+    PT("Aviso: o treinamento pode ficar sem memória de GPU. Pico previsto: {0} ± {1} GiB   "
+       "livre para o treinamento: {2} GiB   probabilidade: {3}%. Reduza --cap-max ou "
+       "feche outros programas que usam a GPU."),
+    IT("Attenzione: l'addestramento potrebbe esaurire la memoria GPU. Picco previsto: "
+       "{0} ± {1} GiB   libera per l'addestramento: {2} GiB   probabilità: {3}%. Riduci "
+       "--cap-max o chiudi gli altri programmi che usano la GPU."),
+    NL("Waarschuwing: de training kan zonder GPU-geheugen komen te zitten. Verwachte piek: "
+       "{0} ± {1} GiB   vrij voor training: {2} GiB   kans: {3}%. Verlaag --cap-max of "
+       "sluit andere programma's die de GPU gebruiken."),
+    RU("Предупреждение: обучению может не хватить видеопамяти. Ожидаемый пик: "
+       "{0} ± {1} ГиБ   доступно для обучения: {2} ГиБ   вероятность нехватки: {3} %. "
+       "Уменьшите --cap-max или закройте другие программы, использующие GPU."),
+    TR("Uyarı: eğitimin GPU belleği yetmeyebilir. Beklenen tepe: {0} ± {1} GiB   "
+       "eğitim için boş: {2} GiB   yetmeme olasılığı: %{3}. --cap-max değerini düşürün "
+       "ya da GPU kullanan diğer programları kapatın."));
+
+SS_MSG(partition_applied,
+    EN("Partition part {0}: cameras {1} (core {2}, ring {3}), seed points {4}"),
+    JA("分割パート {0}: カメラ {1}（コア {2}、リング {3}）、初期点 {4}"),
+    ZH_HANS("分区 {0}：相机 {1}（核心 {2}，外环 {3}），种子点 {4}"),
+    ZH_HANT("分區 {0}：相機 {1}（核心 {2}，外環 {3}），種子點 {4}"),
+    KO("분할 파트 {0}: 카메라 {1}(핵심 {2}, 고리 {3}), 시드 점 {4}"),
+    DE("Partitionsteil {0}: Kameras {1} (Kern {2}, Ring {3}), Startpunkte {4}"),
+    FR("Partie {0} de la partition : caméras {1} (cœur {2}, anneau {3}), points d'amorce {4}"),
+    ES("Parte {0} de la partición: cámaras {1} (núcleo {2}, anillo {3}), puntos semilla {4}"),
+    PT("Parte {0} da partição: câmaras {1} (núcleo {2}, anel {3}), pontos semente {4}"),
+    IT("Parte {0} della partizione: fotocamere {1} (nucleo {2}, anello {3}), punti seme {4}"),
+    NL("Partitiedeel {0}: camera's {1} (kern {2}, ring {3}), zaadpunten {4}"),
+    RU("Часть разбиения {0}: камер {1} (ядро {2}, кольцо {3}), начальных точек {4}"),
+    TR("Bölümleme parçası {0}: kamera {1} (çekirdek {2}, halka {3}), tohum noktası {4}"));
+
+SS_MSG(partition_missing_frames,
+    EN("Partition: frames of this part not found in the dataset: {0}"),
+    JA("分割: このパートのフレームのうちデータセットに見つからないもの: {0}"),
+    ZH_HANS("分区：该分区的帧中有 {0} 个不在数据集中"),
+    ZH_HANT("分區：該分區的幀中有 {0} 個不在資料集中"),
+    KO("분할: 이 파트의 프레임 중 데이터셋에 없는 것: {0}"),
+    DE("Partition: Bilder dieses Teils, die im Datensatz fehlen: {0}"),
+    FR("Partition : images de cette partie absentes du jeu de données : {0}"),
+    ES("Partición: imágenes de esta parte que no están en el conjunto de datos: {0}"),
+    PT("Partição: imagens desta parte que não estão no conjunto de dados: {0}"),
+    IT("Partizione: immagini di questa parte assenti dal set di dati: {0}"),
+    NL("Partitie: beelden van dit deel die niet in de dataset staan: {0}"),
+    RU("Разбиение: кадров этой части нет в наборе данных: {0}"),
+    TR("Bölümleme: bu parçanın veri kümesinde bulunmayan kareleri: {0}"));
+
+SS_MSG(region_applied,
+    EN("Region of interest: program nodes {0}; splats outside draw with weight {1}"),
+    JA("関心領域: プログラムノード {0}、領域外のスプラットは重み {1} で抽選"),
+    ZH_HANS("感兴趣区域：程序节点 {0}；区域外的泼溅以权重 {1} 参与抽样"),
+    ZH_HANT("感興趣區域：程式節點 {0}；區域外的潑濺以權重 {1} 參與抽樣"),
+    KO("관심 영역: 프로그램 노드 {0}, 영역 밖 스플랫은 가중치 {1}로 추첨"),
+    DE("Interessenbereich: Programmknoten {0}; Splats außerhalb ziehen mit Gewicht {1}"),
+    FR("Région d'intérêt : nœuds du programme {0} ; les splats extérieurs tirent avec le poids {1}"),
+    ES("Región de interés: nodos del programa {0}; los splats de fuera sortean con peso {1}"),
+    PT("Região de interesse: nós do programa {0}; os splats de fora sorteiam com peso {1}"),
+    IT("Regione di interesse: nodi del programma {0}; gli splat esterni estraggono con peso {1}"),
+    NL("Interessegebied: programmaknopen {0}; splats erbuiten loten met gewicht {1}"),
+    RU("Область интереса: узлов программы {0}; сплаты снаружи участвуют в выборке с весом {1}"),
+    TR("İlgi bölgesi: program düğümü {0}; dışarıdaki splatlar {1} ağırlığıyla çekilir"));
+
+SS_MSG(roi_file,
+    EN("Region of interest: {0}"), JA("関心領域: {0}"), ZH_HANS("感兴趣区域：{0}"),
+    ZH_HANT("感興趣區域：{0}"), KO("관심 영역: {0}"), DE("Interessenbereich: {0}"),
+    FR("Région d'intérêt : {0}"), ES("Región de interés: {0}"), PT("Região de interesse: {0}"),
+    IT("Regione di interesse: {0}"), NL("Interessegebied: {0}"), RU("Область интереса: {0}"),
+    TR("İlgi bölgesi: {0}"));
+
+SS_MSG(roi_file_auto,
+    EN("Region of interest: {0}, the first in the dataset's roi folder (--roi-region off "
+       "trains the whole scene)"),
+    JA("関心領域: {0}（データセットの roi フォルダの先頭。--roi-region off でシーン全体を"
+       "学習）"),
+    ZH_HANS("感兴趣区域：{0}，即数据集 roi 文件夹中的第一个（--roi-region off 训练整个"
+            "场景）"),
+    ZH_HANT("感興趣區域：{0}，即資料集 roi 資料夾中的第一個（--roi-region off 訓練整個"
+            "場景）"),
+    KO("관심 영역: {0}, 데이터셋 roi 폴더의 첫 번째 파일 (--roi-region off이면 장면 전체를 "
+       "학습)"),
+    DE("Interessenbereich: {0}, der erste im roi-Ordner des Datensatzes (--roi-region off "
+       "trainiert die ganze Szene)"),
+    FR("Région d'intérêt : {0}, la première du dossier roi du jeu de données (--roi-region "
+       "off entraîne toute la scène)"),
+    ES("Región de interés: {0}, la primera de la carpeta roi del conjunto de datos "
+       "(--roi-region off entrena toda la escena)"),
+    PT("Região de interesse: {0}, a primeira da pasta roi do conjunto de dados "
+       "(--roi-region off treina a cena inteira)"),
+    IT("Regione di interesse: {0}, la prima nella cartella roi del dataset (--roi-region "
+       "off addestra l'intera scena)"),
+    NL("Interessegebied: {0}, het eerste in de roi-map van de dataset (--roi-region off "
+       "traint de hele scène)"),
+    RU("Область интереса: {0}, первая в папке roi набора данных (--roi-region off "
+       "обучает всю сцену)"),
+    TR("İlgi bölgesi: {0}, veri kümesinin roi klasöründeki ilk dosya (--roi-region off "
+       "tüm sahneyi eğitir)"));
+
+SS_MSG(roi_file_missing,
+    EN("Region of interest file not found: {0}"),
+    JA("関心領域ファイルが見つかりません: {0}"),
+    ZH_HANS("找不到感兴趣区域文件：{0}"),
+    ZH_HANT("找不到感興趣區域檔案：{0}"),
+    KO("관심 영역 파일을 찾을 수 없습니다: {0}"),
+    DE("Datei des Interessenbereichs nicht gefunden: {0}"),
+    FR("Fichier de région d'intérêt introuvable : {0}"),
+    ES("No se encuentra el archivo de región de interés: {0}"),
+    PT("Ficheiro da região de interesse não encontrado: {0}"),
+    IT("File della regione di interesse non trovato: {0}"),
+    NL("Bestand met interessegebied niet gevonden: {0}"),
+    RU("Файл области интереса не найден: {0}"),
+    TR("İlgi bölgesi dosyası bulunamadı: {0}"));
+
+SS_MSG(region_masks,
+    EN("Region of interest: {0} images masked to what they show of it; {1}% of pixels left out"),
+    JA("関心領域: {0} 枚の画像を領域が写る部分に絞りました。画素の {1}% を除外"),
+    ZH_HANS("感兴趣区域：{0} 张图像只保留拍到区域的部分；排除了 {1}% 的像素"),
+    ZH_HANT("感興趣區域：{0} 張影像只保留拍到區域的部分；排除了 {1}% 的像素"),
+    KO("관심 영역: 이미지 {0}장을 영역이 보이는 부분으로 제한했습니다. 픽셀의 {1}%를 제외"),
+    DE("Interessenbereich: {0} Bilder auf das maskiert, was sie davon zeigen; {1}% der Pixel ausgelassen"),
+    FR("Région d'intérêt : {0} images masquées à ce qu'elles en montrent ; {1} % des pixels écartés"),
+    ES("Región de interés: {0} imágenes enmascaradas a lo que muestran de ella; {1}% de píxeles fuera"),
+    PT("Região de interesse: {0} imagens mascaradas ao que mostram dela; {1}% dos píxeis de fora"),
+    IT("Regione di interesse: {0} immagini mascherate su ciò che ne mostrano; {1}% dei pixel esclusi"),
+    NL("Interessegebied: {0} beelden gemaskeerd tot wat ze ervan tonen; {1}% van de pixels weggelaten"),
+    RU("Область интереса: {0} изображений ограничены тем, что они из неё показывают; исключено {1}% пикселей"),
+    TR("İlgi bölgesi: {0} görüntü bölgeden gösterdikleriyle maskelendi; piksellerin %{1}'i dışarıda"));
+
+SS_MSG(err_partition_part,
+    EN("--partition needs --partition-part between 0 and {0}"),
+    JA("--partition には 0 から {0} までの --partition-part が必要です"),
+    ZH_HANS("--partition 需要 0 到 {0} 之间的 --partition-part"),
+    ZH_HANT("--partition 需要 0 到 {0} 之間的 --partition-part"),
+    KO("--partition에는 0에서 {0} 사이의 --partition-part가 필요합니다"),
+    DE("--partition braucht --partition-part zwischen 0 und {0}"),
+    FR("--partition exige --partition-part entre 0 et {0}"),
+    ES("--partition necesita --partition-part entre 0 y {0}"),
+    PT("--partition precisa de --partition-part entre 0 e {0}"),
+    IT("--partition richiede --partition-part tra 0 e {0}"),
+    NL("--partition vereist --partition-part tussen 0 en {0}"),
+    RU("--partition требует --partition-part от 0 до {0}"),
+    TR("--partition için 0 ile {0} arasında --partition-part gerekir"));
+
 SS_MSG(eval_split_empty,
     EN("Eval: the eval split is empty; nothing to score."),
     JA("評価: 評価用の分割が空です。採点するものがありません。"),
@@ -1451,6 +2333,100 @@ SS_MSG(eval_metrics_written,
     NL("Evaluatiecijfers weggeschreven naar {0}"),
     RU("Показатели оценки записаны в {0}"),
     TR("Değerlendirme ölçütleri {0} dosyasına yazıldı"));
+
+SS_MSG(eval_lpips_unavailable,
+    EN("Eval: this build has no inference layer (SS_BUILD_SAM), so LPIPS is left "
+       "out; reference/python/eval_lpips.py scores the images --save-eval-images "
+       "writes."),
+    JA("評価: このビルドには推論レイヤー（SS_BUILD_SAM）がないため、LPIPS は省きます。"
+       "--save-eval-images が書き出す画像は reference/python/eval_lpips.py で採点できます。"),
+    ZH_HANS("评估：此构建不含推理层（SS_BUILD_SAM），因此不计算 LPIPS；"
+            "reference/python/eval_lpips.py 可为 --save-eval-images 写出的图像评分。"),
+    ZH_HANT("評估：此建置不含推論層（SS_BUILD_SAM），因此不計算 LPIPS；"
+            "reference/python/eval_lpips.py 可為 --save-eval-images 寫出的影像評分。"),
+    KO("평가: 이 빌드에는 추론 계층(SS_BUILD_SAM)이 없어 LPIPS를 뺍니다. "
+       "--save-eval-images가 쓰는 이미지는 reference/python/eval_lpips.py로 채점할 수 "
+       "있습니다."),
+    DE("Auswertung: Dieser Build hat keine Inferenzschicht (SS_BUILD_SAM), daher "
+       "fehlt LPIPS; reference/python/eval_lpips.py bewertet die Bilder, die "
+       "--save-eval-images schreibt."),
+    FR("Évaluation : ce build n'a pas de couche d'inférence (SS_BUILD_SAM), LPIPS est "
+       "donc omis ; reference/python/eval_lpips.py note les images qu'écrit "
+       "--save-eval-images."),
+    ES("Evaluación: esta compilación no tiene capa de inferencia (SS_BUILD_SAM), así "
+       "que se omite LPIPS; reference/python/eval_lpips.py puntúa las imágenes que "
+       "escribe --save-eval-images."),
+    PT("Avaliação: esta compilação não tem camada de inferência (SS_BUILD_SAM), então "
+       "o LPIPS fica de fora; reference/python/eval_lpips.py pontua as imagens que "
+       "--save-eval-images grava."),
+    IT("Valutazione: questa build non ha il livello di inferenza (SS_BUILD_SAM), "
+       "quindi LPIPS è escluso; reference/python/eval_lpips.py valuta le immagini "
+       "scritte da --save-eval-images."),
+    NL("Evaluatie: deze build heeft geen inferentielaag (SS_BUILD_SAM), dus LPIPS "
+       "ontbreekt; reference/python/eval_lpips.py scoort de beelden die "
+       "--save-eval-images wegschrijft."),
+    RU("Оценка: в этой сборке нет слоя вывода (SS_BUILD_SAM), поэтому LPIPS "
+       "пропускается; reference/python/eval_lpips.py оценивает изображения, которые "
+       "пишет --save-eval-images."),
+    TR("Değerlendirme: bu derlemede çıkarım katmanı (SS_BUILD_SAM) yok, bu yüzden "
+       "LPIPS atlanıyor; reference/python/eval_lpips.py, --save-eval-images'ın yazdığı "
+       "görüntüleri puanlar."));
+
+SS_MSG(eval_lpips_missing,
+    EN("{0}\nThe eval pass scores held-out views with LPIPS, which needs these "
+       "checkpoints: --lpips-checkpoints <folder> reads them from a folder, and "
+       "--eval-lpips 0 trains without LPIPS."),
+    JA("{0}\n評価では取り分けた視点を LPIPS で採点し、そのためにこれらのチェック"
+       "ポイントが必要です。--lpips-checkpoints <folder> でフォルダーから読み込むか、"
+       "--eval-lpips 0 で LPIPS なしに学習してください。"),
+    ZH_HANS("{0}\n评估用 LPIPS 为留出的视角评分，需要这些检查点："
+            "--lpips-checkpoints <folder> 从文件夹读取它们，--eval-lpips 0 则不用 "
+            "LPIPS 训练。"),
+    ZH_HANT("{0}\n評估用 LPIPS 為留出的視角評分，需要這些檢查點："
+            "--lpips-checkpoints <folder> 從資料夾讀取它們，--eval-lpips 0 則不用 "
+            "LPIPS 訓練。"),
+    KO("{0}\n평가는 떼어 둔 시점을 LPIPS로 채점하며 이 체크포인트가 필요합니다. "
+       "--lpips-checkpoints <folder>는 폴더에서 읽고, --eval-lpips 0은 LPIPS 없이 "
+       "학습합니다."),
+    DE("{0}\nDie Auswertung bewertet zurückgehaltene Ansichten mit LPIPS und braucht "
+       "dafür diese Checkpoints: --lpips-checkpoints <folder> liest sie aus einem "
+       "Ordner, --eval-lpips 0 trainiert ohne LPIPS."),
+    FR("{0}\nL'évaluation note les vues mises de côté avec LPIPS, qui a besoin de ces "
+       "points de contrôle : --lpips-checkpoints <folder> les lit dans un dossier, "
+       "et --eval-lpips 0 entraîne sans LPIPS."),
+    ES("{0}\nLa evaluación puntúa las vistas apartadas con LPIPS, que necesita estos "
+       "puntos de control: --lpips-checkpoints <folder> los lee de una carpeta y "
+       "--eval-lpips 0 entrena sin LPIPS."),
+    PT("{0}\nA avaliação pontua as vistas reservadas com LPIPS, que precisa destes "
+       "checkpoints: --lpips-checkpoints <folder> os lê de uma pasta e "
+       "--eval-lpips 0 treina sem LPIPS."),
+    IT("{0}\nLa valutazione assegna un punteggio LPIPS alle viste messe da parte, e "
+       "le servono questi checkpoint: --lpips-checkpoints <folder> li legge da una "
+       "cartella, --eval-lpips 0 addestra senza LPIPS."),
+    NL("{0}\nDe evaluatie scoort opzijgezette aanzichten met LPIPS, dat deze "
+       "checkpoints nodig heeft: --lpips-checkpoints <folder> leest ze uit een map, "
+       "--eval-lpips 0 traint zonder LPIPS."),
+    RU("{0}\nОценка проверяет отложенные виды по LPIPS, и ей нужны эти контрольные "
+       "точки: --lpips-checkpoints <folder> читает их из папки, а --eval-lpips 0 "
+       "обучает без LPIPS."),
+    TR("{0}\nDeğerlendirme ayrılmış görünümleri LPIPS ile puanlar ve bu denetim "
+       "noktalarına ihtiyaç duyar: --lpips-checkpoints <folder> onları bir klasörden "
+       "okur, --eval-lpips 0 ise LPIPS olmadan eğitir."));
+
+SS_MSG(eval_lpips_failed,
+    EN("Eval: LPIPS failed and is left out of metrics.json: {0}"),
+    JA("評価: LPIPS に失敗したため metrics.json から省きます: {0}"),
+    ZH_HANS("评估：LPIPS 失败，metrics.json 中不含它：{0}"),
+    ZH_HANT("評估：LPIPS 失敗，metrics.json 中不含它：{0}"),
+    KO("평가: LPIPS가 실패해 metrics.json에서 뺍니다: {0}"),
+    DE("Auswertung: LPIPS ist fehlgeschlagen und fehlt in metrics.json: {0}"),
+    FR("Évaluation : LPIPS a échoué et est omis de metrics.json : {0}"),
+    ES("Evaluación: LPIPS falló y se omite de metrics.json: {0}"),
+    PT("Avaliação: o LPIPS falhou e fica fora de metrics.json: {0}"),
+    IT("Valutazione: LPIPS non è riuscito ed è escluso da metrics.json: {0}"),
+    NL("Evaluatie: LPIPS is mislukt en ontbreekt in metrics.json: {0}"),
+    RU("Оценка: LPIPS не удалось, в metrics.json его нет: {0}"),
+    TR("Değerlendirme: LPIPS başarısız oldu ve metrics.json'a yazılmadı: {0}"));
 
 // ===========================================================================
 // Failures -- what the screen says when a run stops
@@ -1513,6 +2489,26 @@ SS_MSG(err_unfinished_run,
     TR("Çıktı klasöründe yarım kalmış bir çalıştırma var (çıkarılmış kareler / "
        "öznitelikler / maskeler); yeniden kullanmak için \"Önceki çalıştırmayı "
        "sürdür\" seçeneğini işaretleyin ya da başka bir klasör seçin"));
+
+// {0} the folder, {1} the system's reason.
+SS_MSG(err_create_output_folder,
+    EN("could not create the output folder {0} ({1}); choose another folder"),
+    JA("出力先のフォルダー {0} を作成できませんでした（{1}）。別のフォルダーを"
+       "選んでください"),
+    ZH_HANS("无法创建输出文件夹 {0}（{1}）。请换一个文件夹"),
+    ZH_HANT("無法建立輸出資料夾 {0}（{1}）。請換一個資料夾"),
+    KO("출력 폴더 {0}을(를) 만들지 못했습니다({1}). 다른 폴더를 고르세요"),
+    DE("Der Ausgabeordner {0} konnte nicht angelegt werden ({1}); wählen Sie "
+       "einen anderen Ordner"),
+    FR("Impossible de créer le dossier de sortie {0} ({1}) ; choisissez un "
+       "autre dossier"),
+    ES("No se pudo crear la carpeta de salida {0} ({1}); elija otra carpeta"),
+    PT("Não foi possível criar a pasta de saída {0} ({1}); escolha outra pasta"),
+    IT("Non è stato possibile creare la cartella di uscita {0} ({1}); scelga "
+       "un'altra cartella"),
+    NL("De uitvoermap {0} kon niet worden aangemaakt ({1}); kies een andere map"),
+    RU("Не удалось создать папку вывода {0} ({1}); выберите другую папку"),
+    TR("Çıktı klasörü {0} oluşturulamadı ({1}); başka bir klasör seçin"));
 
 // {0} the program that would not start.
 SS_MSG(err_spawn_recon,
@@ -1720,6 +2716,76 @@ SS_MSG(ppisp_before_color_space_order,
     RU("{0} требует {1}: покадровая коррекция цвета всегда применяется в sRGB"),
     TR("{0}, {1} gerektirir: fotoğraf başına renk düzeltmesi her zaman sRGB'de "
        "uygulanır"));
+SS_MSG(learned_score_needs,
+    EN("--densify-learned-score needs --use-revised-densification, a "
+       "--densify-loss-map-mode other than none, --densify-score-blend-world-grad "
+       "0, and positive --densify-score-power and --densify-loss-map-power"),
+    JA("--densify-learned-score には --use-revised-densification、none 以外の "
+       "--densify-loss-map-mode、--densify-score-blend-world-grad 0、正の "
+       "--densify-score-power と --densify-loss-map-power が必要です"),
+    ZH_HANS("--densify-learned-score 需要开启 --use-revised-densification、"
+            "--densify-loss-map-mode 不为 none、--densify-score-blend-world-grad "
+            "为 0，以及正的 --densify-score-power 和 --densify-loss-map-power"),
+    ZH_HANT("--densify-learned-score 需要開啟 --use-revised-densification、"
+            "--densify-loss-map-mode 不為 none、--densify-score-blend-world-grad "
+            "為 0，以及正的 --densify-score-power 和 --densify-loss-map-power"),
+    KO("--densify-learned-score에는 --use-revised-densification, none이 아닌 "
+       "--densify-loss-map-mode, --densify-score-blend-world-grad 0, 양수인 "
+       "--densify-score-power와 --densify-loss-map-power가 필요합니다"),
+    DE("--densify-learned-score setzt --use-revised-densification, einen "
+       "--densify-loss-map-mode außer none, --densify-score-blend-world-grad 0 "
+       "sowie positive Werte für --densify-score-power und "
+       "--densify-loss-map-power voraus"),
+    FR("--densify-learned-score requiert --use-revised-densification, un "
+       "--densify-loss-map-mode autre que none, --densify-score-blend-world-grad "
+       "0, et des valeurs positives de --densify-score-power et "
+       "--densify-loss-map-power"),
+    ES("--densify-learned-score requiere --use-revised-densification, un "
+       "--densify-loss-map-mode distinto de none, --densify-score-blend-world-grad "
+       "0, y valores positivos de --densify-score-power y --densify-loss-map-power"),
+    PT("--densify-learned-score exige --use-revised-densification, um "
+       "--densify-loss-map-mode diferente de none, --densify-score-blend-world-grad "
+       "0, e valores positivos de --densify-score-power e --densify-loss-map-power"),
+    IT("--densify-learned-score richiede --use-revised-densification, un "
+       "--densify-loss-map-mode diverso da none, --densify-score-blend-world-grad "
+       "0, e valori positivi di --densify-score-power e --densify-loss-map-power"),
+    NL("--densify-learned-score vereist --use-revised-densification, een "
+       "--densify-loss-map-mode anders dan none, --densify-score-blend-world-grad "
+       "0, en positieve waarden voor --densify-score-power en "
+       "--densify-loss-map-power"),
+    RU("--densify-learned-score требует --use-revised-densification, "
+       "--densify-loss-map-mode, отличного от none, --densify-score-blend-world-grad "
+       "0 и положительных --densify-score-power и --densify-loss-map-power"),
+    TR("--densify-learned-score; --use-revised-densification, none dışında bir "
+       "--densify-loss-map-mode, --densify-score-blend-world-grad 0 ve pozitif "
+       "--densify-score-power ile --densify-loss-map-power gerektirir"));
+SS_MSG(dead_criterion_needs_revised,
+    EN("--dead-criterion {0} needs --use-revised-densification: the MCMC "
+       "relocation tests opacity only"),
+    JA("--dead-criterion {0} には --use-revised-densification が必要です。MCMC "
+       "の再配置は不透明度しか見ません"),
+    ZH_HANS("--dead-criterion {0} 需要开启 --use-revised-densification：MCMC "
+            "重定位只检查不透明度"),
+    ZH_HANT("--dead-criterion {0} 需要開啟 --use-revised-densification：MCMC "
+            "重定位只檢查不透明度"),
+    KO("--dead-criterion {0}에는 --use-revised-densification이 필요합니다. "
+       "MCMC 재배치는 불투명도만 봅니다"),
+    DE("--dead-criterion {0} setzt --use-revised-densification voraus: Die "
+       "MCMC-Umverteilung prüft nur die Deckkraft"),
+    FR("--dead-criterion {0} requiert --use-revised-densification : la "
+       "relocalisation MCMC ne teste que l'opacité"),
+    ES("--dead-criterion {0} requiere --use-revised-densification: la "
+       "reubicación MCMC solo comprueba la opacidad"),
+    PT("--dead-criterion {0} exige --use-revised-densification: a realocação "
+       "MCMC só testa a opacidade"),
+    IT("--dead-criterion {0} richiede --use-revised-densification: il "
+       "riposizionamento MCMC controlla solo l'opacità"),
+    NL("--dead-criterion {0} vereist --use-revised-densification: de "
+       "MCMC-herplaatsing test alleen de dekking"),
+    RU("--dead-criterion {0} требует --use-revised-densification: перемещение "
+       "MCMC проверяет только непрозрачность"),
+    TR("--dead-criterion {0}, --use-revised-densification gerektirir: MCMC "
+       "yeniden yerleştirmesi yalnızca saydamsızlığı sınar"));
 SS_MSG(bad_quantization_level,
     EN("quantization_level must be 0 or 1"),
     JA("quantization_level は 0 か 1 にしてください"),
@@ -1734,6 +2800,65 @@ SS_MSG(bad_quantization_level,
     NL("quantization_level moet 0 of 1 zijn"),
     RU("quantization_level должен быть 0 или 1"),
     TR("quantization_level 0 ya da 1 olmalı"));
+SS_MSG(bad_sb_lobes,
+    EN("sb_lobes must be between 0 and {0}"),
+    JA("sb_lobes は 0 から {0} の間にしてください"),
+    ZH_HANS("sb_lobes 必须在 0 到 {0} 之间"),
+    ZH_HANT("sb_lobes 必須在 0 到 {0} 之間"),
+    KO("sb_lobes는 0에서 {0} 사이여야 합니다"),
+    DE("sb_lobes muss zwischen 0 und {0} liegen"),
+    FR("sb_lobes doit être compris entre 0 et {0}"),
+    ES("sb_lobes debe estar entre 0 y {0}"),
+    PT("sb_lobes precisa estar entre 0 e {0}"),
+    IT("sb_lobes deve essere compreso tra 0 e {0}"),
+    NL("sb_lobes moet tussen 0 en {0} liggen"),
+    RU("sb_lobes должен быть от 0 до {0}"),
+    TR("sb_lobes 0 ile {0} arasında olmalı"));
+SS_MSG(sb_lobes_need_vulkan,
+    EN("spherical-beta lobes (--sb-lobes) need the Vulkan build of spirula"),
+    JA("球面ベータのローブ（--sb-lobes）には Vulkan 版の spirula が必要です"),
+    ZH_HANS("球面 Beta 波瓣（--sb-lobes）需要 Vulkan 版本的 spirula"),
+    ZH_HANT("球面 Beta 波瓣（--sb-lobes）需要 Vulkan 版本的 spirula"),
+    KO("구면 베타 로브(--sb-lobes)에는 Vulkan 빌드의 spirula가 필요합니다"),
+    DE("sphärische Beta-Keulen (--sb-lobes) brauchen den Vulkan-Build von "
+       "spirula"),
+    FR("les lobes bêta sphériques (--sb-lobes) nécessitent la version Vulkan "
+       "de spirula"),
+    ES("los lóbulos beta esféricos (--sb-lobes) requieren la compilación "
+       "Vulkan de spirula"),
+    PT("os lóbulos beta esféricos (--sb-lobes) exigem a compilação Vulkan do "
+       "spirula"),
+    IT("i lobi beta sferici (--sb-lobes) richiedono la build Vulkan di spirula"),
+    NL("sferische bètalobben (--sb-lobes) vereisen de Vulkan-build van "
+       "spirula"),
+    RU("сферическим бета-лепесткам (--sb-lobes) нужна сборка spirula с Vulkan"),
+    TR("küresel beta lobları (--sb-lobes) spirula'nın Vulkan derlemesini "
+       "gerektirir"));
+SS_MSG(warn_init_ply_ignored,
+    EN("warning: --resume restores the checkpoint's own splats, so --init-ply "
+       "is ignored"),
+    JA("警告: --resume はチェックポイント自身のスプラットを復元するため、"
+       "--init-ply は無視されます"),
+    ZH_HANS("警告：--resume 会恢复检查点自己的泼溅，因此 --init-ply 会被忽略"),
+    ZH_HANT("警告：--resume 會恢復檢查點自己的潑濺，因此 --init-ply 會被忽略"),
+    KO("경고: --resume은 체크포인트 자체의 스플랫을 되살리므로 --init-ply는 "
+       "무시됩니다"),
+    DE("Warnung: --resume stellt die Splats des Checkpoints selbst wieder her, "
+       "--init-ply wird ignoriert"),
+    FR("Avertissement : --resume restaure les splats du point de reprise "
+       "lui-même, donc --init-ply est ignoré"),
+    ES("Aviso: --resume restaura los splats del propio punto de control, así "
+       "que --init-ply se ignora"),
+    PT("Aviso: --resume restaura os splats do próprio ponto de verificação, "
+       "então --init-ply é ignorado"),
+    IT("Avviso: --resume ripristina gli splat del checkpoint stesso, quindi "
+       "--init-ply viene ignorato"),
+    NL("Waarschuwing: --resume herstelt de splats van het controlepunt zelf, "
+       "dus --init-ply wordt genegeerd"),
+    RU("Предупреждение: --resume восстанавливает сплаты самой контрольной "
+       "точки, поэтому --init-ply игнорируется"),
+    TR("Uyarı: --resume denetim noktasının kendi splat'larını geri yükler, bu "
+       "yüzden --init-ply yok sayılır"));
 SS_MSG(warn_validation_unported,
     EN("warning: validation images are held out but early stopping / eval is "
        "not ported yet"),
@@ -2612,6 +3737,21 @@ SS_MSG(err_mask_no_target,
        "istem yazın (\"people; cars\") ya da \"Maskeyi dene\" bölümünü açıp "
        "nesneye tıklayın."));
 
+SS_MSG(err_capture_too_short,
+    EN("the capture is too short to space its frames by motion"),
+    JA("この撮影は短すぎて、動きでフレームを配分できません"),
+    ZH_HANS("这段素材太短，无法按运动分配帧"),
+    ZH_HANT("這段素材太短，無法按運動分配影格"),
+    KO("이 촬영본은 너무 짧아 움직임으로 프레임을 나눌 수 없습니다"),
+    DE("die Aufnahme ist zu kurz, um ihre Einzelbilder nach der Bewegung zu verteilen"),
+    FR("la prise est trop courte pour espacer ses images selon le mouvement"),
+    ES("la toma es demasiado corta para espaciar sus fotogramas según el movimiento"),
+    PT("a captura é curta demais para espaçar os quadros pelo movimento"),
+    IT("la ripresa è troppo corta per distanziarne i fotogrammi in base al movimento"),
+    NL("de opname is te kort om de beelden op beweging te verdelen"),
+    RU("съёмка слишком коротка, чтобы расставить кадры по движению"),
+    TR("çekim, karelerini harekete göre aralamak için fazla kısa"));
+
 SS_MSG(err_no_frames_extracted,
     EN("No frames came out of the video."),
     JA("動画からフレームが 1 枚も取り出せませんでした。"),
@@ -2679,6 +3819,56 @@ SS_MSG(err_ffmpeg_split_failed,
     NL("ffmpeg kon de sporen niet splitsen (zie het logboek)."),
     RU("ffmpeg не смог разделить дорожки (см. журнал)."),
     TR("ffmpeg izleri ayıramadı (günlüğe bakın)."));
+
+SS_MSG(err_ffmpeg_not_found,
+    EN("ffmpeg was not found ('{0}'). Install it, or pass --ffmpeg with its path."),
+    JA("ffmpeg が見つかりません（'{0}'）。インストールするか、--ffmpeg でパスを指定してください。"),
+    ZH_HANS("找不到 ffmpeg（'{0}'）。请安装它，或用 --ffmpeg 指定其路径。"),
+    ZH_HANT("找不到 ffmpeg（'{0}'）。請安裝它，或用 --ffmpeg 指定其路徑。"),
+    KO("ffmpeg 을 찾지 못했습니다('{0}'). 설치하거나 --ffmpeg 로 경로를 지정하세요."),
+    DE("ffmpeg wurde nicht gefunden ('{0}'). Installieren Sie es oder geben Sie "
+       "seinen Pfad mit --ffmpeg an."),
+    FR("ffmpeg est introuvable ('{0}'). Installez-le, ou indiquez son chemin avec "
+       "--ffmpeg."),
+    ES("No se encontró ffmpeg ('{0}'). Instálalo o indica su ruta con --ffmpeg."),
+    PT("O ffmpeg não foi encontrado ('{0}'). Instale-o ou indique o caminho com "
+       "--ffmpeg."),
+    IT("ffmpeg non trovato ('{0}'). Lo installi o ne indichi il percorso con --ffmpeg."),
+    NL("ffmpeg is niet gevonden ('{0}'). Installeer het of geef het pad op met "
+       "--ffmpeg."),
+    RU("ffmpeg не найден ('{0}'). Установите его или укажите путь через --ffmpeg."),
+    TR("ffmpeg bulunamadı ('{0}'). Kurun ya da yolunu --ffmpeg ile verin."));
+
+SS_MSG(err_no_video_decoder,
+    EN("Frames cannot be decoded in-process here ({0}), and ffmpeg was not found "
+       "('{1}'). Install ffmpeg, or pass --ffmpeg with its path."),
+    JA("ここではプロセス内でフレームをデコードできず（{0}）、ffmpeg も見つかりません"
+       "（'{1}'）。ffmpeg をインストールするか、--ffmpeg でパスを指定してください。"),
+    ZH_HANS("此处无法在进程内解码帧（{0}），也找不到 ffmpeg（'{1}'）。请安装 ffmpeg，"
+            "或用 --ffmpeg 指定其路径。"),
+    ZH_HANT("此處無法在行程內解碼影格（{0}），也找不到 ffmpeg（'{1}'）。請安裝 ffmpeg，"
+            "或用 --ffmpeg 指定其路徑。"),
+    KO("여기서는 프레임을 프로세스 안에서 디코딩할 수 없고({0}), ffmpeg 도 찾지 "
+       "못했습니다('{1}'). ffmpeg 을 설치하거나 --ffmpeg 로 경로를 지정하세요."),
+    DE("Einzelbilder lassen sich hier nicht im Prozess dekodieren ({0}), und ffmpeg "
+       "wurde nicht gefunden ('{1}'). Installieren Sie ffmpeg oder geben Sie seinen "
+       "Pfad mit --ffmpeg an."),
+    FR("Les images ne peuvent pas être décodées dans le processus ici ({0}), et "
+       "ffmpeg est introuvable ('{1}'). Installez ffmpeg, ou indiquez son chemin "
+       "avec --ffmpeg."),
+    ES("Aquí no se pueden decodificar los fotogramas dentro del proceso ({0}) y no "
+       "se encontró ffmpeg ('{1}'). Instala ffmpeg o indica su ruta con --ffmpeg."),
+    PT("Aqui os quadros não podem ser decodificados no processo ({0}) e o ffmpeg não "
+       "foi encontrado ('{1}'). Instale o ffmpeg ou indique o caminho com --ffmpeg."),
+    IT("Qui i fotogrammi non si possono decodificare nel processo ({0}) e ffmpeg non "
+       "è stato trovato ('{1}'). Installi ffmpeg o ne indichi il percorso con "
+       "--ffmpeg."),
+    NL("Beelden kunnen hier niet in het proces worden gedecodeerd ({0}) en ffmpeg is "
+       "niet gevonden ('{1}'). Installeer ffmpeg of geef het pad op met --ffmpeg."),
+    RU("Здесь кадры нельзя декодировать внутри процесса ({0}), и ffmpeg не найден "
+       "('{1}'). Установите ffmpeg или укажите путь через --ffmpeg."),
+    TR("Kareler burada süreç içinde çözülemiyor ({0}) ve ffmpeg bulunamadı ('{1}'). "
+       "ffmpeg'i kurun ya da yolunu --ffmpeg ile verin."));
 
 SS_MSG(err_ffmpeg_extract_failed,
     EN("ffmpeg could not extract the frames (see the log)."),
@@ -2755,44 +3945,6 @@ SS_MSG(err_copy_failed,
     RU("Не удалось поместить {0} в {1} ({2})."),
     TR("{0}, {1} içine konulamadı ({2})."));
 
-SS_MSG(err_clicks_need_builtin,
-    EN("Clicked objects need the built-in segmentation; the external Python "
-       "masker only understands text prompts. Turn off \"external masking\", or "
-       "describe the object in words."),
-    JA("クリックで選んだ対象には内蔵のセグメンテーションが必要です。外部の Python "
-       "マスカーはテキストのプロンプトしか解釈できません。「外部マスク」をオフに"
-       "するか、対象を言葉で説明してください。"),
-    ZH_HANS("点击选中的目标需要内置分割；外部的 Python 遮罩器只认文本提示。"
-            "请关闭“外部遮罩”，或用文字描述目标。"),
-    ZH_HANT("點選選中的目標需要內建分割；外部的 Python 遮罩器只認文字提示。"
-            "請關閉「外部遮罩」，或用文字描述目標。"),
-    KO("클릭으로 고른 대상에는 내장 분할이 필요합니다. 외부 Python 마스커는 텍스트 "
-       "프롬프트만 이해합니다. \"외부 마스킹\"을 끄거나 대상을 말로 설명하세요."),
-    DE("Angeklickte Objekte brauchen die eingebaute Segmentierung; der externe "
-       "Python-Masker versteht nur Textprompts. Schalten Sie \"externe "
-       "Maskierung\" ab, oder beschreiben Sie das Objekt in Worten."),
-    FR("Les objets cliqués ont besoin de la segmentation intégrée ; le masqueur "
-       "Python externe ne comprend que des consignes textuelles. Désactivez le "
-       "« masquage externe », ou décrivez l'objet avec des mots."),
-    ES("Los objetos señalados con clic necesitan la segmentación integrada; el "
-       "enmascarador externo de Python solo entiende indicaciones de texto. "
-       "Desactiva el «enmascarado externo», o describe el objeto con palabras."),
-    PT("Objetos clicados precisam da segmentação embutida; o mascarador externo "
-       "em Python só entende comandos de texto. Desligue a \"máscara externa\", "
-       "ou descreva o objeto em palavras."),
-    IT("Gli oggetti cliccati richiedono la segmentazione integrata; il "
-       "mascheratore Python esterno capisce solo prompt testuali. Disattivi la "
-       "\"mascheratura esterna\", oppure descriva l'oggetto a parole."),
-    NL("Aangeklikte objecten hebben de ingebouwde segmentatie nodig; de externe "
-       "Python-masker begrijpt alleen tekstprompts. Zet \"extern maskeren\" uit, "
-       "of beschrijf het object in woorden."),
-    RU("Объекты, выбранные щелчком, требуют встроенной сегментации; внешний "
-       "маскировщик на Python понимает только текстовые запросы. Отключите "
-       "«внешнее маскирование» или опишите объект словами."),
-    TR("Tıklanan nesneler yerleşik bölütlemeyi gerektirir; harici Python "
-       "maskeleyici yalnızca metin istemlerini anlar. \"Harici maskeleme\"yi "
-       "kapatın ya da nesneyi sözle anlatın."));
-
 SS_MSG(err_no_images_to_mask,
     EN("There are no images to mask."),
     JA("マスクする画像がありません。"),
@@ -2822,76 +3974,6 @@ SS_MSG(err_masking_failed_on,
     NL("Het maskeren van {0} is mislukt: {1}"),
     RU("Не удалось замаскировать {0}: {1}"),
     TR("{0} maskelenemedi: {1}"));
-
-SS_MSG(err_python_missing,
-    EN("Python was not found ('{0}'). External masking needs Python with the "
-       "lang-segment-anything package. Set the Python path under Tool "
-       "locations, or use the built-in segmentation."),
-    JA("Python が見つかりません（'{0}'）。外部マスクには lang-segment-anything "
-       "パッケージを入れた Python が必要です。「ツールの場所」で Python のパスを"
-       "設定するか、内蔵のセグメンテーションを使ってください。"),
-    ZH_HANS("找不到 Python（'{0}'）。外部遮罩需要装有 lang-segment-anything 包的 "
-            "Python。请在“工具位置”中设置 Python 路径，或改用内置分割。"),
-    ZH_HANT("找不到 Python（'{0}'）。外部遮罩需要裝有 lang-segment-anything 套件的 "
-            "Python。請在「工具位置」中設定 Python 路徑，或改用內建分割。"),
-    KO("Python 을 찾지 못했습니다('{0}'). 외부 마스킹에는 lang-segment-anything "
-       "패키지가 있는 Python 이 필요합니다. \"도구 위치\"에서 Python 경로를 "
-       "지정하거나 내장 분할을 쓰세요."),
-    DE("Python wurde nicht gefunden ('{0}'). Externe Maskierung braucht Python "
-       "mit dem Paket lang-segment-anything. Tragen Sie den Python-Pfad unter "
-       "Werkzeugpfade ein, oder nutzen Sie die eingebaute Segmentierung."),
-    FR("Python est introuvable ('{0}'). Le masquage externe a besoin de Python "
-       "avec le paquet lang-segment-anything. Indiquez le chemin de Python sous "
-       "Emplacements des outils, ou utilisez la segmentation intégrée."),
-    ES("No se encontró Python ('{0}'). El enmascarado externo necesita Python "
-       "con el paquete lang-segment-anything. Indica la ruta de Python en "
-       "Ubicaciones de herramientas, o usa la segmentación integrada."),
-    PT("O Python não foi encontrado ('{0}'). A máscara externa precisa de Python "
-       "com o pacote lang-segment-anything. Informe o caminho do Python em "
-       "Locais das ferramentas, ou use a segmentação embutida."),
-    IT("Python non è stato trovato ('{0}'). La mascheratura esterna richiede "
-       "Python con il pacchetto lang-segment-anything. Indichi il percorso di "
-       "Python in Posizioni degli strumenti, oppure usi la segmentazione "
-       "integrata."),
-    NL("Python is niet gevonden ('{0}'). Extern maskeren heeft Python met het "
-       "pakket lang-segment-anything nodig. Geef het Python-pad op onder "
-       "Gereedschapslocaties, of gebruik de ingebouwde segmentatie."),
-    RU("Python не найден ('{0}'). Внешнему маскированию нужен Python с пакетом "
-       "lang-segment-anything. Укажите путь к Python в «Расположении "
-       "инструментов» или используйте встроенную сегментацию."),
-    TR("Python bulunamadı ('{0}'). Harici maskeleme, lang-segment-anything "
-       "paketinin kurulu olduğu bir Python ister. Python yolunu Araç konumları "
-       "altında belirtin ya da yerleşik bölütlemeyi kullanın."));
-
-SS_MSG(err_cannot_write,
-    EN("Cannot write {0}."),
-    JA("{0} を書き出せません。"),
-    ZH_HANS("无法写入 {0}。"),
-    ZH_HANT("無法寫入 {0}。"),
-    KO("{0} 을(를) 쓸 수 없습니다."),
-    DE("{0} kann nicht geschrieben werden."),
-    FR("Impossible d'écrire {0}."),
-    ES("No se puede escribir {0}."),
-    PT("Não é possível escrever {0}."),
-    IT("Non è possibile scrivere {0}."),
-    NL("{0} kan niet geschreven worden."),
-    RU("Не удаётся записать {0}."),
-    TR("{0} yazılamıyor."));
-
-SS_MSG(err_mask_generation_failed,
-    EN("Mask generation failed."),
-    JA("マスクの生成に失敗しました。"),
-    ZH_HANS("生成掩码失败。"),
-    ZH_HANT("產生遮罩失敗。"),
-    KO("마스크 생성에 실패했습니다."),
-    DE("Die Maskenerzeugung ist fehlgeschlagen."),
-    FR("La génération des masques a échoué."),
-    ES("Falló la generación de máscaras."),
-    PT("A geração de máscaras falhou."),
-    IT("La generazione delle maschere non è riuscita."),
-    NL("Het maken van de maskers is mislukt."),
-    RU("Не удалось создать маски."),
-    TR("Maske üretimi başarısız oldu."));
 
 SS_MSG(err_mask_model_not_downloaded,
     EN("The masking model has not been downloaded yet. Get it under the masking "
@@ -2957,101 +4039,6 @@ SS_MSG(err_geometry_model_not_downloaded,
        "нормалей -- загрузка нужна только один раз -- и попробуйте снова."),
     TR("Geometri modeli henüz indirilmedi. Derinlik ve normal seçeneklerinden "
        "getirin -- bir kez indirilir -- ve yeniden deneyin."));
-
-SS_MSG(err_mask_missing_packages,
-    EN("Mask generation failed: the Python packages are missing. Install "
-       "lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, which needs CUDA PyTorch)."),
-    JA("マスクの生成に失敗しました。Python パッケージが足りません。"
-       "lang-segment-anything を入れてください（pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything。CUDA 版 PyTorch が必要です）。"),
-    ZH_HANS("生成掩码失败：缺少 Python 包。请安装 lang-segment-anything"
-            "（pip install git+https://github.com/luca-medeiros/lang-segment-anything，"
-            "需要 CUDA 版 PyTorch）。"),
-    ZH_HANT("產生遮罩失敗：缺少 Python 套件。請安裝 lang-segment-anything"
-            "（pip install git+https://github.com/luca-medeiros/lang-segment-anything，"
-            "需要 CUDA 版 PyTorch）。"),
-    KO("마스크 생성에 실패했습니다: Python 패키지가 없습니다. "
-       "lang-segment-anything 을 설치하세요(pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, CUDA PyTorch 필요)."),
-    DE("Die Maskenerzeugung ist fehlgeschlagen: die Python-Pakete fehlen. "
-       "Installieren Sie lang-segment-anything (pip install git+https://"
-       "github.com/luca-medeiros/lang-segment-anything, braucht CUDA-PyTorch)."),
-    FR("La génération des masques a échoué : les paquets Python manquent. "
-       "Installez lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, qui a besoin de PyTorch CUDA)."),
-    ES("Falló la generación de máscaras: faltan los paquetes de Python. Instala "
-       "lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, que necesita PyTorch con CUDA)."),
-    PT("A geração de máscaras falhou: faltam os pacotes de Python. Instale o "
-       "lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, que precisa de PyTorch com CUDA)."),
-    IT("La generazione delle maschere non è riuscita: mancano i pacchetti "
-       "Python. Installi lang-segment-anything (pip install git+https://"
-       "github.com/luca-medeiros/lang-segment-anything, richiede PyTorch CUDA)."),
-    NL("Het maken van de maskers is mislukt: de Python-pakketten ontbreken. "
-       "Installeer lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, met CUDA-PyTorch)."),
-    RU("Не удалось создать маски: отсутствуют пакеты Python. Установите "
-       "lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, нужен PyTorch с CUDA)."),
-    TR("Maske üretimi başarısız oldu: Python paketleri eksik. "
-       "lang-segment-anything kurun (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, CUDA'lı PyTorch ister)."));
-
-SS_MSG(err_mask_missing_packages_sam3,
-    EN("Mask generation failed: the Python packages are missing. Install "
-       "lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, which needs CUDA PyTorch), or for "
-       "SAM 3: https://github.com/facebookresearch/sam3"),
-    JA("マスクの生成に失敗しました。Python パッケージが足りません。"
-       "lang-segment-anything を入れてください（pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything。CUDA 版 PyTorch が必要です）。"
-       "SAM 3 の場合は https://github.com/facebookresearch/sam3 を参照。"),
-    ZH_HANS("生成掩码失败：缺少 Python 包。请安装 lang-segment-anything"
-            "（pip install git+https://github.com/luca-medeiros/lang-segment-anything，"
-            "需要 CUDA 版 PyTorch）；若用 SAM 3，见 "
-            "https://github.com/facebookresearch/sam3"),
-    ZH_HANT("產生遮罩失敗：缺少 Python 套件。請安裝 lang-segment-anything"
-            "（pip install git+https://github.com/luca-medeiros/lang-segment-anything，"
-            "需要 CUDA 版 PyTorch）；若用 SAM 3，見 "
-            "https://github.com/facebookresearch/sam3"),
-    KO("마스크 생성에 실패했습니다: Python 패키지가 없습니다. "
-       "lang-segment-anything 을 설치하세요(pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, CUDA PyTorch 필요). SAM 3 은 "
-       "https://github.com/facebookresearch/sam3 을 보세요."),
-    DE("Die Maskenerzeugung ist fehlgeschlagen: die Python-Pakete fehlen. "
-       "Installieren Sie lang-segment-anything (pip install git+https://"
-       "github.com/luca-medeiros/lang-segment-anything, braucht CUDA-PyTorch), "
-       "oder für SAM 3: https://github.com/facebookresearch/sam3"),
-    FR("La génération des masques a échoué : les paquets Python manquent. "
-       "Installez lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, qui a besoin de PyTorch CUDA), ou "
-       "pour SAM 3 : https://github.com/facebookresearch/sam3"),
-    ES("Falló la generación de máscaras: faltan los paquetes de Python. Instala "
-       "lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, que necesita PyTorch con CUDA), o "
-       "para SAM 3: https://github.com/facebookresearch/sam3"),
-    PT("A geração de máscaras falhou: faltam os pacotes de Python. Instale o "
-       "lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, que precisa de PyTorch com CUDA), "
-       "ou para o SAM 3: https://github.com/facebookresearch/sam3"),
-    IT("La generazione delle maschere non è riuscita: mancano i pacchetti "
-       "Python. Installi lang-segment-anything (pip install git+https://"
-       "github.com/luca-medeiros/lang-segment-anything, richiede PyTorch CUDA), "
-       "oppure per SAM 3: https://github.com/facebookresearch/sam3"),
-    NL("Het maken van de maskers is mislukt: de Python-pakketten ontbreken. "
-       "Installeer lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, met CUDA-PyTorch), of voor SAM 3: "
-       "https://github.com/facebookresearch/sam3"),
-    RU("Не удалось создать маски: отсутствуют пакеты Python. Установите "
-       "lang-segment-anything (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, нужен PyTorch с CUDA), либо для "
-       "SAM 3: https://github.com/facebookresearch/sam3"),
-    TR("Maske üretimi başarısız oldu: Python paketleri eksik. "
-       "lang-segment-anything kurun (pip install git+https://github.com/"
-       "luca-medeiros/lang-segment-anything, CUDA'lı PyTorch ister) ya da SAM 3 "
-       "için: https://github.com/facebookresearch/sam3"));
 
 SS_MSG(err_no_builtin_segmentation,
     EN("This build has no built-in segmentation (-DSS_BUILD_SAM=OFF)."),
@@ -3298,6 +4285,31 @@ SS_MSG(sfm_settings_changed,
     TR("çıktı klasöründeki yeniden kurma yapıldığından beri ayarlar değişti "
        "({0}); yeniden kuruluyor"));
 
+SS_MSG(frames_settings_changed,
+    EN("the frames in the output folder were extracted with other settings "
+       "({0}); extracting them again"),
+    JA("出力フォルダのフレームは別の設定で切り出されています（{0}）。"
+       "切り出し直します"),
+    ZH_HANS("输出文件夹里的帧是用别的设置抽取的（{0}），将重新抽取"),
+    ZH_HANT("輸出資料夾裡的影格是用別的設定擷取的（{0}），將重新擷取"),
+    KO("출력 폴더의 프레임은 다른 설정으로 뽑은 것입니다({0}). 다시 뽑습니다"),
+    DE("die Bilder im Ausgabeordner wurden mit anderen Einstellungen "
+       "herausgeholt ({0}); sie werden neu herausgeholt"),
+    FR("les images du dossier de sortie ont été extraites avec d'autres "
+       "réglages ({0}) ; elles sont extraites de nouveau"),
+    ES("los fotogramas de la carpeta de salida se extrajeron con otros ajustes "
+       "({0}); se extraen de nuevo"),
+    PT("os fotogramas da pasta de saída foram extraídos com outras definições "
+       "({0}); vão ser extraídos de novo"),
+    IT("i fotogrammi nella cartella di uscita sono stati estratti con altre "
+       "impostazioni ({0}); vengono estratti di nuovo"),
+    NL("de beelden in de uitvoermap zijn met andere instellingen uitgehaald "
+       "({0}); ze worden opnieuw uitgehaald"),
+    RU("кадры в папке вывода были извлечены с другими настройками ({0}); "
+       "они извлекаются заново"),
+    TR("çıktı klasöründeki kareler başka ayarlarla çıkarılmış ({0}); yeniden "
+       "çıkarılıyor"));
+
 SS_MSG(sfm_reusing_model,
     EN("{0} already holds a reconstruction; keeping it and only adding to it "
        "(tick \"Reconstruct again\" to replace it)"),
@@ -3325,6 +4337,226 @@ SS_MSG(sfm_reusing_model,
        "(чтобы заменить, включите «Реконструировать заново»)"),
     TR("{0} zaten bir yeniden kurma içeriyor; korunur ve yalnızca üzerine eklenir "
        "(değiştirmek için \"Yeniden kur\" seçeneğini işaretleyin)"));
+
+// What the plan decided for a step a run is about to reach (app/gui/
+// DatasetPlan.h). {0}, where there is one, is the settings that moved.
+SS_MSG(plan_frames_kept,
+    EN("the frames in the output folder were extracted with other settings "
+       "({0}); keeping them, as asked"),
+    JA("出力フォルダのフレームは別の設定で切り出されています（{0}）。"
+       "指示どおりそのまま使います"),
+    ZH_HANS("输出文件夹里的帧是用别的设置抽取的（{0}），按要求保留"),
+    ZH_HANT("輸出資料夾裡的影格是用別的設定擷取的（{0}），按要求保留"),
+    KO("출력 폴더의 프레임은 다른 설정으로 뽑은 것입니다({0}). 요청대로 그대로 "
+       "둡니다"),
+    DE("die Bilder im Ausgabeordner wurden mit anderen Einstellungen "
+       "herausgeholt ({0}); sie bleiben, wie verlangt"),
+    FR("les images du dossier de sortie ont été extraites avec d'autres "
+       "réglages ({0}) ; elles sont gardées, comme demandé"),
+    ES("los fotogramas de la carpeta de salida se extrajeron con otros ajustes "
+       "({0}); se conservan, como se pidió"),
+    PT("os fotogramas da pasta de saída foram extraídos com outras definições "
+       "({0}); ficam, como pedido"),
+    IT("i fotogrammi nella cartella di uscita sono stati estratti con altre "
+       "impostazioni ({0}); restano, come richiesto"),
+    NL("de beelden in de uitvoermap zijn met andere instellingen uitgehaald "
+       "({0}); ze blijven, zoals gevraagd"),
+    RU("кадры в папке вывода были извлечены с другими настройками ({0}); "
+       "они остаются, как просили"),
+    TR("çıktı klasöründeki kareler başka ayarlarla çıkarılmış ({0}); istendiği "
+       "gibi korunuyor"));
+
+SS_MSG(plan_masks_changed,
+    EN("the masks in the output folder were made with other settings ({0}); "
+       "making them again"),
+    JA("出力フォルダのマスクは別の設定で作られています（{0}）。作り直します"),
+    ZH_HANS("输出文件夹里的蒙版是用别的设置做的（{0}），将重新生成"),
+    ZH_HANT("輸出資料夾裡的遮罩是用別的設定做的（{0}），將重新產生"),
+    KO("출력 폴더의 마스크는 다른 설정으로 만든 것입니다({0}). 다시 만듭니다"),
+    DE("die Masken im Ausgabeordner wurden mit anderen Einstellungen gemacht "
+       "({0}); sie werden neu gemacht"),
+    FR("les masques du dossier de sortie ont été faits avec d'autres réglages "
+       "({0}) ; ils sont refaits"),
+    ES("las máscaras de la carpeta de salida se hicieron con otros ajustes "
+       "({0}); se rehacen"),
+    PT("as máscaras da pasta de saída foram feitas com outras definições "
+       "({0}); vão ser refeitas"),
+    IT("le maschere nella cartella di uscita sono state fatte con altre "
+       "impostazioni ({0}); vengono rifatte"),
+    NL("de maskers in de uitvoermap zijn met andere instellingen gemaakt "
+       "({0}); ze worden opnieuw gemaakt"),
+    RU("маски в папке вывода сделаны с другими настройками ({0}); они "
+       "делаются заново"),
+    TR("çıktı klasöründeki maskeler başka ayarlarla yapılmış ({0}); yeniden "
+       "yapılıyor"));
+
+SS_MSG(plan_masks_stale,
+    EN("the masks in the output folder were made from earlier frames; making "
+       "them again"),
+    JA("出力フォルダのマスクは以前のフレームから作られています。作り直します"),
+    ZH_HANS("输出文件夹里的蒙版是从之前的帧做出来的，将重新生成"),
+    ZH_HANT("輸出資料夾裡的遮罩是從之前的影格做出來的，將重新產生"),
+    KO("출력 폴더의 마스크는 예전 프레임으로 만든 것입니다. 다시 만듭니다"),
+    DE("die Masken im Ausgabeordner stammen von früheren Bildern; sie werden "
+       "neu gemacht"),
+    FR("les masques du dossier de sortie viennent d'images antérieures ; ils "
+       "sont refaits"),
+    ES("las máscaras de la carpeta de salida salen de fotogramas anteriores; "
+       "se rehacen"),
+    PT("as máscaras da pasta de saída vêm de fotogramas anteriores; vão ser "
+       "refeitas"),
+    IT("le maschere nella cartella di uscita vengono da fotogrammi precedenti; "
+       "vengono rifatte"),
+    NL("de maskers in de uitvoermap komen van eerdere beelden; ze worden "
+       "opnieuw gemaakt"),
+    RU("маски в папке вывода сделаны по прежним кадрам; они делаются заново"),
+    TR("çıktı klasöründeki maskeler önceki karelerden yapılmış; yeniden "
+       "yapılıyor"));
+
+SS_MSG(plan_model_masks_changed,
+    EN("the masks have changed since the reconstruction was built; it is kept "
+       "(tick \"Reconstruct again\" to build it with them)"),
+    JA("再構成を作ったあとでマスクが変わっています。再構成はそのまま残します"
+       "（マスクを使って作り直すには「再構成をやり直す」を有効にしてください）"),
+    ZH_HANS("重建做好之后蒙版变了，重建会保留（要用新蒙版重做请勾选"
+            "“重新重建”）"),
+    ZH_HANT("重建做好之後遮罩變了，重建會保留（要用新遮罩重做請勾選"
+            "「重新重建」）"),
+    KO("재구성을 만든 뒤로 마스크가 바뀌었습니다. 재구성은 그대로 둡니다"
+       "(새 마스크로 다시 만들려면 \"다시 재구성\" 을 켜세요)"),
+    DE("die Masken haben sich geändert, seit die Rekonstruktion gebaut wurde; "
+       "sie bleibt (\"Neu rekonstruieren\" baut sie mit ihnen neu)"),
+    FR("les masques ont changé depuis la construction de la reconstruction ; "
+       "elle est gardée (cochez « Reconstruire à nouveau » pour la refaire "
+       "avec eux)"),
+    ES("las máscaras han cambiado desde que se construyó la reconstrucción; se "
+       "conserva (marque «Reconstruir de nuevo» para rehacerla con ellas)"),
+    PT("as máscaras mudaram desde que a reconstrução foi construída; ela fica "
+       "(marque \"Reconstruir de novo\" para a refazer com elas)"),
+    IT("le maschere sono cambiate da quando è stata costruita la "
+       "ricostruzione; resta (spunta \"Ricostruisci di nuovo\" per rifarla con "
+       "esse)"),
+    NL("de maskers zijn veranderd sinds de reconstructie is gebouwd; die "
+       "blijft (vink \"Opnieuw reconstrueren\" aan om hem ermee te bouwen)"),
+    RU("маски изменились с тех пор, как была построена реконструкция; она "
+       "остаётся (чтобы построить её с ними, включите «Реконструировать "
+       "заново»)"),
+    TR("yeniden kurma yapıldığından beri maskeler değişti; korunuyor (onlarla "
+       "yeniden kurmak için \"Yeniden kur\" seçeneğini işaretleyin)"));
+
+SS_MSG(plan_model_kept,
+    EN("the reconstruction in the output folder was built with other settings "
+       "({0}); keeping it, as asked"),
+    JA("出力フォルダの再構成結果は別の設定で作られています（{0}）。"
+       "指示どおりそのまま使います"),
+    ZH_HANS("输出文件夹里的重建结果是用别的设置做的（{0}），按要求保留"),
+    ZH_HANT("輸出資料夾裡的重建結果是用別的設定做的（{0}），按要求保留"),
+    KO("출력 폴더의 재구성 결과는 다른 설정으로 만든 것입니다({0}). 요청대로 "
+       "그대로 둡니다"),
+    DE("die Rekonstruktion im Ausgabeordner wurde mit anderen Einstellungen "
+       "gebaut ({0}); sie bleibt, wie verlangt"),
+    FR("la reconstruction du dossier de sortie a été construite avec d'autres "
+       "réglages ({0}) ; elle est gardée, comme demandé"),
+    ES("la reconstrucción de la carpeta de salida se construyó con otros "
+       "ajustes ({0}); se conserva, como se pidió"),
+    PT("a reconstrução da pasta de saída foi construída com outras definições "
+       "({0}); fica, como pedido"),
+    IT("la ricostruzione nella cartella di uscita è stata costruita con altre "
+       "impostazioni ({0}); resta, come richiesto"),
+    NL("de reconstructie in de uitvoermap is met andere instellingen gebouwd "
+       "({0}); die blijft, zoals gevraagd"),
+    RU("реконструкция в папке вывода построена с другими настройками ({0}); "
+       "она остаётся, как просили"),
+    TR("çıktı klasöründeki yeniden kurma başka ayarlarla yapılmış ({0}); "
+       "istendiği gibi korunuyor"));
+
+SS_MSG(plan_model_stale,
+    EN("the frames have changed since the reconstruction was built; building "
+       "it again"),
+    JA("再構成を作ったあとでフレームが変わっています。作り直します"),
+    ZH_HANS("重建做好之后帧变了，将重新重建"),
+    ZH_HANT("重建做好之後影格變了，將重新重建"),
+    KO("재구성을 만든 뒤로 프레임이 바뀌었습니다. 다시 만듭니다"),
+    DE("die Bilder haben sich geändert, seit die Rekonstruktion gebaut wurde; "
+       "sie wird neu gebaut"),
+    FR("les images ont changé depuis la construction de la reconstruction ; "
+       "elle est refaite"),
+    ES("los fotogramas han cambiado desde que se construyó la reconstrucción; "
+       "se rehace"),
+    PT("os fotogramas mudaram desde que a reconstrução foi construída; vai ser "
+       "refeita"),
+    IT("i fotogrammi sono cambiati da quando è stata costruita la "
+       "ricostruzione; viene rifatta"),
+    NL("de beelden zijn veranderd sinds de reconstructie is gebouwd; die wordt "
+       "opnieuw gemaakt"),
+    RU("кадры изменились с тех пор, как была построена реконструкция; она "
+       "строится заново"),
+    TR("yeniden kurma yapıldığından beri kareler değişti; yeniden kuruluyor"));
+
+SS_MSG(plan_geometry_current,
+    EN("the depth and normal maps are up to date; nothing to estimate"),
+    JA("深度と法線のマップは最新です。推定するものはありません"),
+    ZH_HANS("深度图和法线图都是最新的，没有需要估计的"),
+    ZH_HANT("深度圖和法線圖都是最新的，沒有需要估計的"),
+    KO("깊이와 법선 맵이 최신입니다. 추정할 것이 없습니다"),
+    DE("die Tiefen- und Normalenkarten sind aktuell; nichts zu schätzen"),
+    FR("les cartes de profondeur et de normales sont à jour ; rien à estimer"),
+    ES("los mapas de profundidad y normales están al día; nada que estimar"),
+    PT("os mapas de profundidade e normais estão atualizados; nada a estimar"),
+    IT("le mappe di profondità e normali sono aggiornate; niente da stimare"),
+    NL("de diepte- en normaalkaarten zijn bijgewerkt; niets te schatten"),
+    RU("карты глубины и нормалей актуальны; оценивать нечего"),
+    TR("derinlik ve normal haritaları güncel; kestirilecek bir şey yok"));
+
+SS_MSG(plan_geometry_changed,
+    EN("the depth and normal maps were made with other settings ({0}); "
+       "estimating them again"),
+    JA("深度と法線のマップは別の設定で作られています（{0}）。推定し直します"),
+    ZH_HANS("深度图和法线图是用别的设置做的（{0}），将重新估计"),
+    ZH_HANT("深度圖和法線圖是用別的設定做的（{0}），將重新估計"),
+    KO("깊이와 법선 맵은 다른 설정으로 만든 것입니다({0}). 다시 추정합니다"),
+    DE("die Tiefen- und Normalenkarten wurden mit anderen Einstellungen "
+       "gemacht ({0}); sie werden neu geschätzt"),
+    FR("les cartes de profondeur et de normales ont été faites avec d'autres "
+       "réglages ({0}) ; elles sont réestimées"),
+    ES("los mapas de profundidad y normales se hicieron con otros ajustes "
+       "({0}); se vuelven a estimar"),
+    PT("os mapas de profundidade e normais foram feitos com outras definições "
+       "({0}); vão ser estimados de novo"),
+    IT("le mappe di profondità e normali sono state fatte con altre "
+       "impostazioni ({0}); vengono stimate di nuovo"),
+    NL("de diepte- en normaalkaarten zijn met andere instellingen gemaakt "
+       "({0}); ze worden opnieuw geschat"),
+    RU("карты глубины и нормалей сделаны с другими настройками ({0}); они "
+       "оцениваются заново"),
+    TR("derinlik ve normal haritaları başka ayarlarla yapılmış ({0}); yeniden "
+       "kestiriliyor"));
+
+SS_MSG(plan_geometry_stale,
+    EN("the frames or the reconstruction under the depth and normal maps have "
+       "changed; estimating them again"),
+    JA("深度と法線のマップのもとになったフレームか再構成が変わっています。"
+       "推定し直します"),
+    ZH_HANS("深度图和法线图所依据的帧或重建变了，将重新估计"),
+    ZH_HANT("深度圖和法線圖所依據的影格或重建變了，將重新估計"),
+    KO("깊이와 법선 맵의 바탕이 된 프레임이나 재구성이 바뀌었습니다. 다시 "
+       "추정합니다"),
+    DE("die Bilder oder die Rekonstruktion unter den Tiefen- und "
+       "Normalenkarten haben sich geändert; sie werden neu geschätzt"),
+    FR("les images ou la reconstruction sous les cartes de profondeur et de "
+       "normales ont changé ; elles sont réestimées"),
+    ES("han cambiado los fotogramas o la reconstrucción de los que salen los "
+       "mapas de profundidad y normales; se vuelven a estimar"),
+    PT("mudaram os fotogramas ou a reconstrução de que saem os mapas de "
+       "profundidade e normais; vão ser estimados de novo"),
+    IT("sono cambiati i fotogrammi o la ricostruzione da cui vengono le mappe "
+       "di profondità e normali; vengono stimate di nuovo"),
+    NL("de beelden of de reconstructie onder de diepte- en normaalkaarten zijn "
+       "veranderd; ze worden opnieuw geschat"),
+    RU("изменились кадры или реконструкция, по которым сделаны карты глубины "
+       "и нормалей; они оцениваются заново"),
+    TR("derinlik ve normal haritalarının dayandığı kareler ya da yeniden kurma "
+       "değişti; yeniden kestiriliyor"));
 
 SS_MSG(err_no_geometry_module,
     EN("This build cannot estimate depth and normals (-DSS_BUILD_SAM=OFF); use "
@@ -3396,6 +4628,147 @@ SS_MSG(err_geometry_failed,
        "завершена, и на ней можно обучать как есть."),
     TR("derinlik ve normal kestirimi başarısız oldu (günlüğe bakın). Yeniden "
        "kurmanın kendisi tamamlandı ve olduğu gibi eğitilebilir."));
+
+SS_MSG(progressive_stage,
+    EN("Progressive resolution: 1/{0} of the loaded size from about step {1}"),
+    JA("段階的な解像度: 約ステップ {1} から読み込みサイズの 1/{0}"),
+    ZH_HANS("渐进分辨率：约从第 {1} 步起为加载尺寸的 1/{0}"),
+    ZH_HANT("漸進解析度：約從第 {1} 步起為載入尺寸的 1/{0}"),
+    KO("점진적 해상도: 약 {1}단계부터 불러온 크기의 1/{0}"),
+    DE("Schrittweise Auflösung: 1/{0} der geladenen Größe ab etwa Schritt {1}"),
+    FR("Résolution progressive : 1/{0} de la taille chargée à partir de l'étape {1} environ"),
+    ES("Resolución progresiva: 1/{0} del tamaño cargado desde el paso {1} aproximadamente"),
+    PT("Resolução progressiva: 1/{0} do tamanho carregado a partir do passo {1} aproximadamente"),
+    IT("Risoluzione progressiva: 1/{0} della dimensione caricata dal passo {1} circa"),
+    NL("Oplopende resolutie: 1/{0} van de geladen grootte vanaf ongeveer stap {1}"),
+    RU("Постепенное разрешение: 1/{0} загруженного размера примерно с шага {1}"),
+    TR("Kademeli çözünürlük: yaklaşık {1}. adımdan itibaren yüklenen boyutun 1/{0}'i"));
+SS_MSG(progressive_stage_full,
+    EN("Progressive resolution: the full loaded size from about step {0}"),
+    JA("段階的な解像度: 約ステップ {0} から読み込みサイズのまま"),
+    ZH_HANS("渐进分辨率：约从第 {0} 步起为完整加载尺寸"),
+    ZH_HANT("漸進解析度：約從第 {0} 步起為完整載入尺寸"),
+    KO("점진적 해상도: 약 {0}단계부터 불러온 원래 크기"),
+    DE("Schrittweise Auflösung: volle geladene Größe ab etwa Schritt {0}"),
+    FR("Résolution progressive : pleine taille chargée à partir de l'étape {0} environ"),
+    ES("Resolución progresiva: tamaño cargado completo desde el paso {0} aproximadamente"),
+    PT("Resolução progressiva: tamanho carregado completo a partir do passo {0} aproximadamente"),
+    IT("Risoluzione progressiva: dimensione caricata piena dal passo {0} circa"),
+    NL("Oplopende resolutie: volledige geladen grootte vanaf ongeveer stap {0}"),
+    RU("Постепенное разрешение: полный загруженный размер примерно с шага {0}"),
+    TR("Kademeli çözünürlük: yaklaşık {0}. adımdan itibaren yüklenen tam boyut"));
+SS_MSG(progressive_now,
+    EN("Training resolution is now 1/{0} of the loaded size (step {1})"),
+    JA("学習解像度は読み込みサイズの 1/{0} になりました（ステップ {1}）"),
+    ZH_HANS("训练分辨率现为加载尺寸的 1/{0}（第 {1} 步）"),
+    ZH_HANT("訓練解析度現為載入尺寸的 1/{0}（第 {1} 步）"),
+    KO("학습 해상도가 이제 불러온 크기의 1/{0}입니다({1}단계)"),
+    DE("Die Trainingsauflösung ist jetzt 1/{0} der geladenen Größe (Schritt {1})"),
+    FR("La résolution d'entraînement est maintenant 1/{0} de la taille chargée (étape {1})"),
+    ES("La resolución de entrenamiento es ahora 1/{0} del tamaño cargado (paso {1})"),
+    PT("A resolução de treino agora é 1/{0} do tamanho carregado (passo {1})"),
+    IT("La risoluzione di addestramento è ora 1/{0} della dimensione caricata (passo {1})"),
+    NL("De trainingsresolutie is nu 1/{0} van de geladen grootte (stap {1})"),
+    RU("Разрешение обучения теперь 1/{0} загруженного размера (шаг {1})"),
+    TR("Eğitim çözünürlüğü artık yüklenen boyutun 1/{0}'i ({1}. adım)"));
+SS_MSG(progressive_now_full,
+    EN("Training resolution is now the full loaded size (step {0})"),
+    JA("学習解像度は読み込みサイズのままになりました（ステップ {0}）"),
+    ZH_HANS("训练分辨率现为完整加载尺寸（第 {0} 步）"),
+    ZH_HANT("訓練解析度現為完整載入尺寸（第 {0} 步）"),
+    KO("학습 해상도가 이제 불러온 원래 크기입니다({0}단계)"),
+    DE("Die Trainingsauflösung ist jetzt die volle geladene Größe (Schritt {0})"),
+    FR("La résolution d'entraînement est maintenant la pleine taille chargée (étape {0})"),
+    ES("La resolución de entrenamiento es ahora el tamaño cargado completo (paso {0})"),
+    PT("A resolução de treino agora é o tamanho carregado completo (passo {0})"),
+    IT("La risoluzione di addestramento è ora la dimensione caricata piena (passo {0})"),
+    NL("De trainingsresolutie is nu de volledige geladen grootte (stap {0})"),
+    RU("Разрешение обучения теперь равно полному загруженному размеру (шаг {0})"),
+    TR("Eğitim çözünürlüğü artık yüklenen tam boyut ({0}. adım)"));
+SS_MSG(splat_budget_seed,
+    EN("Splat budget: from {0} starting splats to a maximum of {1}"),
+    JA("スプラット予算: 開始時の {0} 個から最大 {1} 個まで"),
+    ZH_HANS("泼溅预算：从初始 {0} 个到最多 {1} 个"),
+    ZH_HANT("潑濺預算：從初始 {0} 個到最多 {1} 個"),
+    KO("스플랫 예산: 시작 {0}개에서 최대 {1}개까지"),
+    DE("Splat-Budget: von {0} Start-Splats bis zu höchstens {1}"),
+    FR("Budget de splats : de {0} splats de départ jusqu'à {1} au plus"),
+    ES("Presupuesto de splats: de {0} splats iniciales hasta un máximo de {1}"),
+    PT("Orçamento de splats: de {0} splats iniciais até no máximo {1}"),
+    IT("Budget di splat: da {0} splat iniziali fino a un massimo di {1}"),
+    NL("Splatbudget: van {0} start-splats tot hoogstens {1}"),
+    RU("Бюджет сплатов: от {0} начальных сплатов до максимума {1}"),
+    TR("Splat bütçesi: {0} başlangıç splat'inden en çok {1} değerine"));
+SS_MSG(splat_budget_stage,
+    EN("Splat budget: up to {0} splats from about step {1}"),
+    JA("スプラット予算: 約ステップ {1} から最大 {0} 個"),
+    ZH_HANS("泼溅预算：约从第 {1} 步起最多 {0} 个"),
+    ZH_HANT("潑濺預算：約從第 {1} 步起最多 {0} 個"),
+    KO("스플랫 예산: 약 {1}단계부터 최대 {0}개"),
+    DE("Splat-Budget: bis zu {0} Splats ab etwa Schritt {1}"),
+    FR("Budget de splats : jusqu'à {0} splats à partir de l'étape {1} environ"),
+    ES("Presupuesto de splats: hasta {0} splats desde el paso {1} aproximadamente"),
+    PT("Orçamento de splats: até {0} splats a partir do passo {1} aproximadamente"),
+    IT("Budget di splat: fino a {0} splat dal passo {1} circa"),
+    NL("Splatbudget: tot {0} splats vanaf ongeveer stap {1}"),
+    RU("Бюджет сплатов: до {0} сплатов примерно с шага {1}"),
+    TR("Splat bütçesi: yaklaşık {1}. adımdan itibaren en çok {0} splat"));
+SS_MSG(splat_budget_late,
+    EN("The splat budget rises to {0} at step {1}, but splats stop growing at step {2}, so the extra budget goes unused"),
+    JA("スプラット予算はステップ {1} で {0} に上がりますが、スプラットの増加はステップ {2} で止まるため、増えた分は使われません"),
+    ZH_HANS("泼溅预算在第 {1} 步升到 {0}，但泼溅在第 {2} 步就停止增长，多出的预算不会被用到"),
+    ZH_HANT("潑濺預算在第 {1} 步升到 {0}，但潑濺在第 {2} 步就停止增長，多出的預算不會被用到"),
+    KO("스플랫 예산이 {1}단계에서 {0}(으)로 오르지만 스플랫 증가는 {2}단계에서 멈추므로 늘어난 예산은 쓰이지 않습니다"),
+    DE("Das Splat-Budget steigt bei Schritt {1} auf {0}, aber die Splats hören bei Schritt {2} auf zu wachsen; das zusätzliche Budget bleibt ungenutzt"),
+    FR("Le budget de splats passe à {0} à l'étape {1}, mais les splats cessent de croître à l'étape {2} : le budget supplémentaire restera inutilisé"),
+    ES("El presupuesto de splats sube a {0} en el paso {1}, pero los splats dejan de crecer en el paso {2}, así que el presupuesto extra no se usará"),
+    PT("O orçamento de splats sobe para {0} no passo {1}, mas os splats param de crescer no passo {2}, então o orçamento extra não será usado"),
+    IT("Il budget di splat sale a {0} al passo {1}, ma gli splat smettono di crescere al passo {2}, quindi il budget in più resta inutilizzato"),
+    NL("Het splatbudget stijgt bij stap {1} naar {0}, maar de splats groeien vanaf stap {2} niet meer, dus het extra budget blijft ongebruikt"),
+    RU("Бюджет сплатов вырастает до {0} на шаге {1}, но рост сплатов прекращается на шаге {2}, так что добавленный бюджет не будет использован"),
+    TR("Splat bütçesi {1}. adımda {0} değerine çıkıyor, ancak splat'ler {2}. adımda büyümeyi bırakıyor; ek bütçe kullanılmayacak"));
+SS_MSG(perf_log_started,
+    EN("Logging performance stats to {0}"),
+    JA("性能の統計を {0} に記録しています"),
+    ZH_HANS("正在将性能统计记录到 {0}"),
+    ZH_HANT("正在將效能統計記錄到 {0}"),
+    KO("성능 통계를 {0}에 기록하는 중"),
+    DE("Leistungsdaten werden in {0} protokolliert"),
+    FR("Statistiques de performance enregistrées dans {0}"),
+    ES("Registrando estadísticas de rendimiento en {0}"),
+    PT("Registrando estatísticas de desempenho em {0}"),
+    IT("Registrazione delle statistiche delle prestazioni in {0}"),
+    NL("Prestatiestatistieken worden vastgelegd in {0}"),
+    RU("Статистика производительности записывается в {0}"),
+    TR("Performans istatistikleri {0} konumuna kaydediliyor"));
+SS_MSG(perf_log_failed,
+    EN("Could not write performance stats to {0}; training continues without them"),
+    JA("性能の統計を {0} に書き込めませんでした。統計なしで学習を続けます"),
+    ZH_HANS("无法将性能统计写入 {0}；训练将在不记录的情况下继续"),
+    ZH_HANT("無法將效能統計寫入 {0}；訓練將在不記錄的情況下繼續"),
+    KO("성능 통계를 {0}에 쓸 수 없습니다. 통계 없이 학습을 계속합니다"),
+    DE("Leistungsdaten konnten nicht in {0} geschrieben werden; das Training läuft ohne sie weiter"),
+    FR("Impossible d'écrire les statistiques de performance dans {0} ; l'entraînement continue sans elles"),
+    ES("No se pudieron escribir las estadísticas de rendimiento en {0}; el entrenamiento continúa sin ellas"),
+    PT("Não foi possível gravar as estatísticas de desempenho em {0}; o treinamento continua sem elas"),
+    IT("Impossibile scrivere le statistiche delle prestazioni in {0}; l'addestramento continua senza"),
+    NL("Kon geen prestatiestatistieken schrijven naar {0}; de training gaat zonder door"),
+    RU("Не удалось записать статистику производительности в {0}; обучение продолжится без неё"),
+    TR("Performans istatistikleri {0} konumuna yazılamadı; eğitim onlarsız sürüyor"));
+SS_MSG(perf_log_report,
+    EN("Performance stats saved. For a report, run: python tools/perf/perf_report.py \"{0}\""),
+    JA("性能の統計を保存しました。レポートを作るには次を実行します: python tools/perf/perf_report.py \"{0}\""),
+    ZH_HANS("性能统计已保存。如需报告，请运行：python tools/perf/perf_report.py \"{0}\""),
+    ZH_HANT("效能統計已儲存。如需報告，請執行：python tools/perf/perf_report.py \"{0}\""),
+    KO("성능 통계를 저장했습니다. 보고서를 만들려면 다음을 실행하세요: python tools/perf/perf_report.py \"{0}\""),
+    DE("Leistungsdaten gespeichert. Für einen Bericht ausführen: python tools/perf/perf_report.py \"{0}\""),
+    FR("Statistiques de performance enregistrées. Pour un rapport, exécutez : python tools/perf/perf_report.py \"{0}\""),
+    ES("Estadísticas de rendimiento guardadas. Para un informe, ejecute: python tools/perf/perf_report.py \"{0}\""),
+    PT("Estatísticas de desempenho salvas. Para um relatório, execute: python tools/perf/perf_report.py \"{0}\""),
+    IT("Statistiche delle prestazioni salvate. Per un rapporto, eseguire: python tools/perf/perf_report.py \"{0}\""),
+    NL("Prestatiestatistieken opgeslagen. Voor een rapport, voer uit: python tools/perf/perf_report.py \"{0}\""),
+    RU("Статистика производительности сохранена. Для отчёта выполните: python tools/perf/perf_report.py \"{0}\""),
+    TR("Performans istatistikleri kaydedildi. Rapor için şunu çalıştırın: python tools/perf/perf_report.py \"{0}\""));
 
 }  // namespace log
 }  // namespace msg

@@ -134,7 +134,7 @@ inline void launch_projection_projection_fused_bwd_kernel(
 void projection_3dgs_backward(
     // fwd inputs
     const int64_t num_splats,
-    const int max_sh_degree,
+    const ColorBasis color,
     const std::vector<DeviceTensorFloatND> &splats_world,
     TorchTensorView viewmats,  // [C, 4, 4]
     TorchTensorView intrins,   // [C, 4], fx, fy, cx, cy
@@ -160,6 +160,7 @@ void projection_3dgs_backward(
     const int sh_value_bits,
     const int64_t sh_bounds_stride
 ) {
+    const int max_sh_degree = sh_only_degree(color, "projection_3dgs_backward");
     int sh_degree = Vanilla3DGS<0>::WorldBuffer(splats_world).sh_degree();
     sh_degree = min(sh_degree, max_sh_degree);
     const uint8_t* vp = sh_value_packed.has_value()
@@ -238,7 +239,7 @@ void projection_3dgs_shader_backward(
 void projection_mip_backward(
     // fwd inputs
     const int64_t num_splats,
-    const int max_sh_degree,
+    const ColorBasis color,
     const std::vector<DeviceTensorFloatND> &splats_world,
     TorchTensorView viewmats,  // [C, 4, 4]
     TorchTensorView intrins,   // [C, 4], fx, fy, cx, cy
@@ -264,6 +265,7 @@ void projection_mip_backward(
     const int sh_value_bits,
     const int64_t sh_bounds_stride
 ) {
+    const int max_sh_degree = sh_only_degree(color, "projection_mip_backward");
     int sh_degree = MipSplatting<0>::WorldBuffer(splats_world).sh_degree();
     sh_degree = min(sh_degree, max_sh_degree);
     const uint8_t* vp = sh_value_packed.has_value()
@@ -290,7 +292,7 @@ void projection_mip_backward(
 void projection_3dgut_backward(
     // fwd inputs
     const int64_t num_splats,
-    const int max_sh_degree,
+    const ColorBasis color,
     const std::vector<DeviceTensorFloatND> &splats_world,
     TorchTensorView viewmats,  // [C, 4, 4]
     TorchTensorView intrins,   // [C, 4], fx, fy, cx, cy
@@ -316,6 +318,7 @@ void projection_3dgut_backward(
     const int sh_value_bits,
     const int64_t sh_bounds_stride
 ) {
+    const int max_sh_degree = sh_only_degree(color, "projection_3dgut_backward");
     int sh_degree = Vanilla3DGUT<0>::WorldBuffer(splats_world).sh_degree();
     sh_degree = min(sh_degree, max_sh_degree);
     const uint8_t* vp = sh_value_packed.has_value()

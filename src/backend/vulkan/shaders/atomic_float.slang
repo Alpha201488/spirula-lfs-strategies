@@ -36,9 +36,41 @@ void atomic_add_f32(float* addr, float v) {
 
 #else
 
+#ifdef SS_XCHG_FLOAT_ADD  // Windows builds (SpirvShaders.cmake)
+
+// Set on AMD's Windows driver (amd_windows_emulated_fadd). The ID must match
+// kXchgFloatAddSpecId in VulkanPipelines.cpp and stay clear of the 0..n-1
+// that each kernel's own constants take in declaration order.
+[vk::constant_id(1000)]
+const bool kXchgFloatAdd = false;
+
+// Needs shaderBufferFloat32Atomics. AMD's Windows compiler loses the index of a
+// float pointer reinterpreted as uint*, so its CAS loop hit the array base
+// (issue #23). Not inlined: slangc 2026.12 aborts at 290 call sites.
+[noinline]
+void atomic_add_f32_xchg(float* addr, float v) {
+    float carry = v;
+    for (;;) {
+        float cur;
+        InterlockedExchange(addr[0], 0.0f, cur);
+        float back;  // whatever another thread deposited meanwhile
+        InterlockedExchange(addr[0], cur + carry, back);
+        if (back == 0.0f) break;
+        carry = back;
+    }
+}
+
+#endif
+
 [ForceInline]
 void atomic_add_f32(float* addr, float v) {
     if (v == 0.0f) return;
+#ifdef SS_XCHG_FLOAT_ADD
+    if (kXchgFloatAdd) {
+        atomic_add_f32_xchg(addr, v);
+        return;
+    }
+#endif
     uint* w = (uint*)addr;
     uint expected = w[0];
     for (;;) {

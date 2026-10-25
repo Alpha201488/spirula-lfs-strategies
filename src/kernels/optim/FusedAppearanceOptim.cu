@@ -100,13 +100,17 @@ void fused_adam_step(
     int32_t step, DeviceVector<int32_t> per_splat_steps,
     float l2_reg,
     float l2_reg_offset,
+    SbOptimCells sb,
     float grad_scale, bool zero_grad
 ) {
+    sh_only_cells(sb, "fused_adam_step");
     int64_t param_numel = param.numel();
     if (param_numel == 0 || num_splats == 0)
         return;
     int stride = (int)(param_numel / num_splats);
 
+    // l2_reg weighs each RGB coefficient of a row alike (its channel mean, averaged over splats), so an
+    // SH row's penalty per coefficient does not depend on the degree.
     auto kfn = zero_grad ? fused_adam_with_steps_kernel<true>
                          : fused_adam_with_steps_kernel<false>;
     kfn<<<_LAUNCH_ARGS_1D(num_splats*stride, 256)>>>(
@@ -116,7 +120,7 @@ void fused_adam_step(
         exp_avg_sq.data_ptr(),
         lr,
         step, per_splat_steps.data_ptr(),
-        2.0f*l2_reg/(float)(num_splats*stride),
+        2.0f*l2_reg/(float)(num_splats*3),
         l2_reg_offset,
         grad_scale,
         num_splats*stride,
@@ -291,8 +295,10 @@ void fused_adam_step_quantized(
     float l2_reg_offset,
     int bits,                           // 4 or 8 -- selects QuantizedAdamState<BITS, 256>
     ColorTrustState color_trust,
+    SbOptimCells sb,
     float grad_scale, bool zero_grad
 ) {
+    sh_only_cells(sb, "fused_adam_step_quantized");
     int64_t param_numel = param.numel();
     if (param_numel == 0 || num_splats == 0)
         return;
@@ -302,7 +308,7 @@ void fused_adam_step_quantized(
     #define _ARGS_TAIL \
         param.data_ptr(), grad.data_ptr(), packed, quant_bounds, \
         lr, step, per_splat_steps.data_ptr(), \
-        2.0f*l2_reg/(float)(num_splats*stride), l2_reg_offset, \
+        2.0f*l2_reg/(float)(num_splats*3), l2_reg_offset, \
         grad_scale, color_trust, \
         num_splats*stride, stride
 
@@ -509,8 +515,10 @@ void fused_adam_step_quantized_value(
     int optim_bits,                     // 4 or 8
     int value_bits,                     // 8 or 16
     ColorTrustState color_trust,
+    SbOptimCells sb,
     float grad_scale, bool zero_grad
 ) {
+    sh_only_cells(sb, "fused_adam_step_quantized_value");
     if (param_numel == 0 || num_splats == 0)
         return;
     int stride = (int)(param_numel / num_splats);
@@ -519,7 +527,7 @@ void fused_adam_step_quantized_value(
     #define _ARGS_TAIL_QQ \
         grad.data_ptr(), grad_q_packed, grad_q_bounds, optim_packed, optim_bounds, value_packed, value_bounds, \
         lr, step, per_splat_steps.data_ptr(), \
-        2.0f*l2_reg/(float)(num_splats*stride), l2_reg_offset, \
+        2.0f*l2_reg/(float)(num_splats*3), l2_reg_offset, \
         grad_scale, color_trust, \
         num_splats*stride, stride
 

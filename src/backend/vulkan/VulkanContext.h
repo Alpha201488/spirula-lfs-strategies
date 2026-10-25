@@ -21,19 +21,21 @@ namespace vk {
 // kernel behaves identically on either path.
 struct Capabilities {
     bool float32_atomic_add = false;  // VK_EXT_shader_atomic_float
+    // The CAS-loop blobs' exchange-based add (shaders/atomic_float.slang), for
+    // AMD's Windows driver, which miscompiles their CAS.
+    bool xchg_float_add = false;
     bool shader_int64 = false;        // shaderInt64 (else ".noint64" blobs)
     bool shader_int8 = false;         // shaderInt8 + storageBuffer8BitAccess
                                       // (picks the native ".int8" blobs)
     bool memory_budget = false;       // VK_EXT_memory_budget (usage reporting)
     bool timestamps = false;
     double timestamp_period_ns = 0.0;
-    uint32_t subgroup_size = 0;       // advertised default; never assumed 32
-    // Non-zero when VK_EXT_subgroup_size_control is enabled: every compute
-    // pipeline is created with this REQUIRED subgroup size + full subgroups,
-    // pinning WaveGetLaneCount() to a launch-time constant. Essential on
-    // Intel (ANV), whose default is a VARYING SIMD width that breaks
-    // tid/WaveGetLaneCount() subgroup indexing.
-    uint32_t required_subgroup_size = 0;
+    uint32_t subgroup_size = 0;       // advertised default
+    // Non-zero with VK_EXT_subgroup_size_control: each pipeline requires a width
+    // in this range, chosen per kernel (VulkanPipelines.cpp). Unpinned, Intel's
+    // width varies per dispatch and breaks tid / WaveGetLaneCount() indexing.
+    uint32_t subgroup_min = 0, subgroup_max = 0;
+    uint32_t subgroup_force = 0;      // SS_VK_SUBGROUP: one width for every kernel
     uint32_t max_push_constants = 128;
     uint32_t max_workgroup_invocations = 0;
     uint32_t max_shared_memory = 0;
@@ -100,6 +102,7 @@ private:
     VkSemaphore _timeline = VK_NULL_HANDLE;
     uint64_t _last_value = 0;
     bool _poll_waits = false;
+    bool _cpu_device = false;
     std::mutex _submit_mutex;
     Capabilities _caps;
     std::string _device_name;

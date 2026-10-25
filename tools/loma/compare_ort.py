@@ -5,8 +5,8 @@ Both sides read the same .onnx files, so a disagreement here is ours. Dump our
 side first, then point this at the same image and checkpoints:
 
     pip install onnx onnxruntime pillow numpy
-    ./build/loma_test --image A.jpg --out /tmp/a.bin --max-image-size 1600
-    ./build/loma_test --image B.jpg --out /tmp/b.bin --max-image-size 1600
+    ./build_vulkan/loma_test --image A.jpg --out /tmp/a.bin --max-image-size 1600
+    ./build_vulkan/loma_test --image B.jpg --out /tmp/b.bin --max-image-size 1600
     python3 tools/loma/compare_ort.py --image A.jpg --ours /tmp/a.bin
     python3 tools/loma/compare_ort.py --image A.jpg --ours /tmp/a.bin \\
         --image2 B.jpg --ours2 /tmp/b.bin --matches /tmp/m.bin

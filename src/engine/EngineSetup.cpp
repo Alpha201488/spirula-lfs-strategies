@@ -15,7 +15,8 @@ void set_data_3dgs(
     TorchTensorView scales,
     TorchTensorView opacities,
     TorchTensorView features_dc,
-    TorchTensorView features_sh
+    TorchTensorView features_sh,
+    int sb_lobes
 ) {
     int64_t max_num_splats = std::get<2>(means)[0];
     if (std::get<2>(quats)[0] != max_num_splats ||
@@ -29,9 +30,16 @@ void set_data_3dgs(
 
     engine().cur_num_splats = num_splats;
     engine().max_num_splats = max_num_splats;
+    DevicePool::global().set_splat_counts(engine().cur_num_splats, engine().max_num_splats);
 
     auto sh_shape = std::get<2>(features_sh);
     engine().num_sh = (sh_shape.size() >= 2) ? (int)sh_shape[1] : 0;
+    if (sb_lobes < 0 || 2 * sb_lobes > engine().num_sh)
+        throw std::runtime_error("setData3DGS: a features_sh row of " +
+                                 std::to_string(engine().num_sh) +
+                                 " coefficients cannot hold " +
+                                 std::to_string(sb_lobes) + " lobes");
+    engine().sb_lobes = sb_lobes;
 
     // Splats are set once and persist on device; subsequent calls are no-ops.
     if (engine().world.initialized) return;
@@ -42,10 +50,41 @@ void set_data_3dgs(
     engine().world.opacities   = _hv_to_dv<float>(PoolSlot::WorldOpacities, opacities);
     engine().world.features_dc = _hv_to_dv<float3>(PoolSlot::WorldFeaturesDc, features_dc);
     engine().world.features_sh = _hv_to_dt2d<float3>(PoolSlot::WorldFeaturesSh, features_sh);
+    engine().world.features_sh_seeded = false;
+    if (const float* h = (const float*)std::get<0>(features_sh);
+        h && !backend::is_device_pointer(h)) {
+        const int64_t n = max_num_splats * 3 * (int64_t)engine().num_sh;
+        for (int64_t i = 0; i < n && !engine().world.features_sh_seeded; i++)
+            engine().world.features_sh_seeded = h[i] != 0.0f;
+    }
 
     engine().world.initialized = true;
 }
 
+
+void engine_set_region(TorchTensorView program, TorchTensorView field_bvh,
+                       TorchTensorView field_seeds, TorchTensorView camera_bvh,
+                       TorchTensorView camera_seeds, TorchTensorView pattern,
+                       float outside_weight, float outside_opacity_decay) {
+    auto& r = engine().region;
+    r = EngineState::Region{};
+    if (std::get<0>(program) == 0) return;
+    // [n, 6, 4] floats arrive as float4 rows.
+    auto as_float4 = [](TorchTensorView tv) {
+        if (std::get<0>(tv) == 0) return tv;
+        int64_t n = 1;
+        for (int64_t d : std::get<2>(tv)) n *= d;
+        return TorchTensorView(std::get<0>(tv), 4, {n / 4, 4});
+    };
+    r.program = _hv_to_dv<float4>(PoolSlot::EngRegionProgram, as_float4(program));
+    r.field_bvh = _hv_to_dv<float4>(PoolSlot::EngRegionFieldBvh, as_float4(field_bvh));
+    r.field_seeds = _hv_to_dv<float4>(PoolSlot::EngRegionFieldSeeds, as_float4(field_seeds));
+    r.camera_bvh = _hv_to_dv<float4>(PoolSlot::EngRegionCameraBvh, as_float4(camera_bvh));
+    r.camera_seeds = _hv_to_dv<float4>(PoolSlot::EngRegionCameraSeeds, as_float4(camera_seeds));
+    r.pattern = _hv_to_dv<float4>(PoolSlot::EngRegionPattern, as_float4(pattern));
+    r.outside = outside_weight;
+    r.opacity_decay = outside_opacity_decay;
+}
 
 void set_camera_params(
     int width,
@@ -87,6 +126,21 @@ void set_camera_params(
 }
 
 
+// An 8-bit image the loss can read as it is stays 8-bit on the device, a
+// quarter of the float copy. A device source is copied too: the data
+// manager may reuse its buffer for the next batch while this one trains.
+static TorchTensorView _upload_gt_rgb(const TorchTensorView& src) {
+    const uint64_t ptr = std::get<0>(src);
+    if (ptr == 0) return TorchTensorView();
+    if (std::get<1>(src) != 1 || engine().color_space.image_enabled)
+        return _dt3d_tv(_hv_to_dt3d_gt<float3>(src, PoolSlot::GtRgb, "rgb"));
+    size_t n = 1;
+    for (int64_t d : std::get<2>(src)) n *= (size_t)d;
+    uint8_t* dst = DevicePool::global().acquire<uint8_t>(PoolSlot::GtRgb, n);
+    backend::memcpy_sync(dst, (const void*)ptr, n, backend::MemcpyKind::Auto);
+    return TorchTensorView((uint64_t)dst, 1, std::get<2>(src));
+}
+
 void set_training_data(
     TorchTensorView gt_rgb,
     TorchTensorView gt_depth,
@@ -94,7 +148,7 @@ void set_training_data(
     TorchTensorView gt_alpha,
     bool input_depth_is_ray_depth
 ) {
-    engine().gt.rgb    = _hv_to_dt3d_gt<float3>(gt_rgb,    PoolSlot::GtRgb,    "rgb");
+    engine().gt.rgb    = _upload_gt_rgb(gt_rgb);
     engine().gt.depth  = _hv_to_dt3d_gt<float>(gt_depth,   PoolSlot::GtDepth,  "depth");
     engine().gt.normal = _hv_to_dt3d_gt<float3>(gt_normal, PoolSlot::GtNormal, "normal");
     // gt_alpha: small bool/uint8 buffer (the external mask). No conversion;

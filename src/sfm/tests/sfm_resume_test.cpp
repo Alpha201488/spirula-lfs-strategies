@@ -64,6 +64,24 @@ static void testSignatures(int& fails) {
         parseCameraOverride("cam0=opencv-fisheye", OverrideKind::Model, c.camera.overrides);
         check(stageSignature(c, CMD_MATCH) != mat0, "a per-group lens moves matching", fails);
     }
+    // A rig's mates are matched too, so the rig is part of what matching made.
+    {
+        SfmConfig c = base;
+        RigDef d;
+        parseRigArg("cam0,cam1", d);
+        c.rigs.push_back(d);
+        const std::string with_rig = stageSignature(c, CMD_MATCH);
+        check(with_rig != mat0, "a rig moves matching", fails);
+        check(stageSignature(c, CMD_EXTRACT) == ext0, "a rig leaves extraction", fails);
+        parseRigArg("dual-fisheye=cam0,cam1", c.rigs[0]);
+        check(stageSignature(c, CMD_MATCH) != with_rig, "which way its lenses face moves it",
+              fails);
+        c.rig_pairs = false;
+        SfmConfig off = base;
+        off.rig_pairs = false;
+        check(stageSignature(c, CMD_MATCH) == stageSignature(off, CMD_MATCH),
+              "without rig pairs a rig leaves matching", fails);
+    }
     // How fast the stage runs is not what it produces.
     {
         SfmConfig c = base;
@@ -184,16 +202,33 @@ static void testPairsAndFeatures(const fs::path& dir, int& fails) {
     writeFeatures(feat.string(), fs_);
     uint32_t count = 0;
     check(peekFeatures(feat.string(), count) && count == 50, "a whole feature file probes", fails);
-    check(!fs::exists(feat.string() + ".part"), "the write leaves no part file", fails);
-    {
-        const uintmax_t whole = fs::file_size(feat);
-        std::vector<char> bytes(whole);
-        std::ifstream(feat, std::ios::binary).read(bytes.data(), (std::streamsize)whole);
-        std::ofstream torn(feat, std::ios::binary | std::ios::trunc);
-        torn.write(bytes.data(), (std::streamsize)whole - 100);
-    }
+    bool part_left = false;
+    for (const auto& e : fs::directory_iterator(dir))
+        part_left |= e.path().filename().string().rfind("one.bin.part", 0) == 0;
+    check(!part_left, "the write leaves no part file", fails);
+    const uintmax_t whole = fs::file_size(feat);
+    std::vector<char> bytes(whole);
+    std::ifstream(feat, std::ios::binary).read(bytes.data(), (std::streamsize)whole);
+    std::ofstream(feat, std::ios::binary | std::ios::trunc)
+        .write(bytes.data(), (std::streamsize)whole - 100);
     count = 0;
     check(!peekFeatures(feat.string(), count), "a truncated feature file is refused", fails);
+    {
+        std::ofstream oversize(feat, std::ios::binary | std::ios::trunc);
+        oversize.write(bytes.data(), (std::streamsize)whole);
+        oversize.write(bytes.data(), 100);
+    }
+    count = 0;
+    check(!peekFeatures(feat.string(), count), "an oversize feature file is refused", fails);
+
+    // Colors, a camera id and scores exercise every optional v6 section.
+    fs_.colors.assign(50 * 3, 9);
+    fs_.exif_camera = "cam";
+    for (Keypoint& k : fs_.keypoints) k.response = 1.0f;
+    writeFeatures(feat.string(), fs_);
+    count = 0;
+    check(peekFeatures(feat.string(), count) && count == 50,
+          "a feature file with every optional section probes", fails);
 }
 
 static int cmdResumeTest(int, char**) {

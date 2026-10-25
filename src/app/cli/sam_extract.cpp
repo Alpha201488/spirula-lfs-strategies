@@ -1,38 +1,33 @@
-// `spirula-sam extract` -- pull the sharpest frames out of a video, and
-// optionally mask them.
+// `spirula-sam extract` -- the sharpest frames of a video, optionally masked.
 //
-// The native replacement for reference/scripts/extract_frames.py, with the
-// OpenCV/ffmpeg/PyTorch stack replaced by this tree: decode is Vulkan Video,
-// the motion-blur metric is a compute shader, and masking is SAM on the same
-// device. Only the JPEG/PNG encode stays on the CPU, on a pool of worker
-// threads, because that is what it is good at.
-//
-// The frame-selection arithmetic is deliberately identical to the Python's
-// (a window of `keep` frames, one written every `skip`), so a dataset
-// extracted either way has the same file names for the same source frames --
-// which is also what lets the GUI fall back to ffmpeg + FrameSelect without
-// the output changing.
-//
-// This file is compiled only with -DSS_ENABLE_PATENTED=ON; the dispatcher
-// in sam_main.cpp explains the fallback when it is not.
+// Decode is Vulkan Video where the build and device have it and ffmpeg where
+// they do not (app/FrameDecode.h). Selection is extract_frames.py's -- a
+// window of `keep` frames, one written every `skip` -- so every decoder names
+// the same source frames alike.
 //
 //   spirula-sam extract clip.mp4 --skip 10
 //   spirula-sam extract clip.mp4 --skip 10 --model sam3-f16.ggml --text "person; car"
-//   spirula-sam extract dish.mov --model sam3-f16.ggml --text food \
-//                      --neg-text "cooked food" --mask-keep subject
 
+#include "app/FfmpegVideo.h"
 #include "app/FrameExtract.h"
+#include "app/LogLuts.h"
 #include "app/Tools.h"
+#include "app/cli/ModelLicense.h"
 #include "i18n/catalog/Cli.h"
 #include "i18n/catalog/Data.h"
 #include "i18n/catalog/SamHelp.h"
 #include "nn/core/Log.h"
+#include "birefnet/BiRefNet.h"
 #include "sam/Masking.h"
+#ifdef SS_TOOL_SFM
+#include "sfm/core/Telemetry.h"
+#endif
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 namespace fs = std::filesystem;
@@ -53,7 +48,7 @@ void set_env(const char* key, const char* value) {
 
 // A row of `--help`: identifier on the left, translated sentence on the right,
 // wrapped by i18n::wrap so a language without spaces still breaks.
-void help_row(const char* flags, const spirula::i18n::Msg& m) {
+void help_row(const char* flags, const std::string& text) {
     constexpr int kCol = 25;
     std::string left = std::string("  ") + flags;
     if (spirula::i18n::display_width(left) >= kCol) {
@@ -61,10 +56,14 @@ void help_row(const char* flags, const spirula::i18n::Msg& m) {
         left.clear();
     }
     left = spirula::i18n::pad_to(left, kCol);
-    for (const std::string& line : spirula::i18n::wrap(m.get(), 86 - kCol)) {
+    for (const std::string& line : spirula::i18n::wrap(text, 86 - kCol)) {
         std::fprintf(stderr, "%s%s\n", left.c_str(), line.c_str());
         left.assign(kCol, ' ');
     }
+}
+
+void help_row(const char* flags, const spirula::i18n::Msg& m) {
+    help_row(flags, std::string(m.get()));
 }
 
 void usage() {
@@ -77,12 +76,27 @@ void usage() {
     help_row("-s, --skip <n>", H::xh_skip);
     help_row("-k, --keep <n>", H::xh_keep);
     help_row("-n, --max-frames <n>", H::xh_max_frames);
+    help_row("    --start <time>", H::xh_start);
+    help_row("    --end <time>", H::xh_end);
     help_row("-q, --quality <0..100>", H::xh_quality);
     help_row("-r, --rotate <deg>", H::xh_rotate);
+    help_row("    --no-autorotate", H::xh_no_autorotate);
     help_row("    --scale <f>", H::xh_scale);
+    std::string luts;
+    for (const app::BuiltinLut& b : app::builtin_luts())
+        luts += (luts.empty() ? "" : ", ") + std::string(b.id);
+    help_row("    --lut <file|name>", spirula::i18n::format(H::xh_lut, {luts}));
     help_row("    --track <i>", H::xh_track);
     help_row("    --sync", H::xh_sync);
+    help_row("    --adaptive", H::xh_adaptive);
+    help_row("    --adaptive-range <f>", H::xh_adaptive_range);
+    help_row("    --blur-reject <f>", H::xh_blur_reject);
+    help_row("    --similar <n>", H::xh_similar);
+    help_row("    --skipped-dir <dir>", H::xh_skipped_dir);
+    help_row("    --report <file>", H::xh_report);
     help_row("    --threads <n>", H::xh_threads);
+    help_row("    --decoder <d>", H::xh_decoder);
+    help_row("    --ffmpeg <exe>", H::xh_ffmpeg);
 
     std::fprintf(stderr, "\n%s\n", H::xh_360_section.get());
     help_row("    --360 <mode>", H::xh_360);
@@ -90,7 +104,11 @@ void usage() {
     help_row("    --360-orient <y,p,r>", H::xh_360_orient);
 
     std::fprintf(stderr, "\n%s\n", H::xh_masking.get());
+    for (const std::string& l : spirula::i18n::wrap(H::model_kinds.get(), 76))
+        std::fprintf(stderr, "  %s\n", l.c_str());
     help_row("    --model <file>", H::xh_model);
+    help_row("    --detector <id>", H::opt_detector);
+    help_row("    --detector-threshold <f>", H::opt_detector_threshold);
     help_row("    --text <phrases>", H::xh_text);
     help_row("    --neg-text <ph>", H::xh_neg_text);
     help_row("    --mask-mode <m>", H::xh_mask_mode);
@@ -104,26 +122,57 @@ void usage() {
     help_row("    --dilate-ratio <f>", H::mask_dilate);
     help_row("    --overlay", H::xh_overlay);
 
-    std::fprintf(stderr, "\n%s --device <index|name>  --profile  --validate\n",
+    std::fprintf(stderr, "\n%s --device <index|name|auto|-1|uuid:hex>  --profile  "
+                         "--validate\n",
                  H::label_common.get());
+}
+
+// Seconds, or [[h:]m:]s with a fraction.
+bool parse_seconds(const char* text, double& out) {
+    double total = 0.0;
+    int parts = 0;
+    for (const char* p = text; *p;) {
+        char* end = nullptr;
+        const double v = std::strtod(p, &end);
+        if (end == p || !(v >= 0.0) || ++parts > 3) return false;
+        total = total * 60.0 + v;
+        p = end;
+        if (*p == ':') p++;
+        else if (*p) return false;
+    }
+    if (parts == 0) return false;
+    out = total;
+    return true;
 }
 
 struct Options {
     std::string input;
     std::string out_dir, mask_dir;
     int    skip = 1, keep = -1, max_frames = 0;
+    double clip_start = 0.0, clip_end = 0.0;
     int    quality = 95, rotate = 0;
+    bool   auto_rotate = true;
     float  scale = 1.0f;
+    std::string lut;
     int    track = -1;
     bool   sync = false;
+    bool   adaptive = false;
+    float  adaptive_range = 4.0f;
+    float  blur_reject = 0.0f;
+    int    similar = 0;
+    std::string skipped_dir;
+    std::string report;
     int    threads = 0;
+    app::FrameDecoder decoder = app::FrameDecoder::Auto;
+    std::string ffmpeg = "ffmpeg";
 
     std::string pano_mode = "faces";
     app::Pano360Options pano;
 
-    std::string model, text, neg_text, device;
+    std::string model, text, neg_text, device, detector;
+    float  detector_threshold = 0.3f;   // sam::MaskOptions, same default
     std::string mask_mode = "video";
-    bool   keep_subject = false;
+    std::optional<bool> keep_subject;   // unset: BiRefNet keeps, SAM removes
     int    detect_every = 1, memory_frames = 0, max_size = 1600;
     float  threshold = 0.5f, nms = 0.1f;
     float  dilate_ratio = 0.05f;   // sam::MaskOptions, same default
@@ -148,12 +197,52 @@ bool parse_args(int argc, char** argv, Options& o) {
         else if (a == "-s" || a == "--skip") o.skip = std::atoi(next("--skip"));
         else if (a == "-k" || a == "--keep") o.keep = std::atoi(next("--keep"));
         else if (a == "-n" || a == "--max-frames") o.max_frames = std::atoi(next("--max-frames"));
+        else if (a == "--start" || a == "--end") {
+            const char* v = next(a.c_str());
+            double t = 0.0;
+            if (!parse_seconds(v, t)) {
+                std::fprintf(stderr, "%s\n",
+                             spirula::i18n::format(
+                                 spirula::i18n::msg::cli::sam_unexpected_argument,
+                                 {a + " " + v}).c_str());
+                return false;
+            }
+            (a == "--start" ? o.clip_start : o.clip_end) = t;
+        }
         else if (a == "-q" || a == "--quality") o.quality = std::atoi(next("--quality"));
         else if (a == "-r" || a == "--rotate") o.rotate = std::atoi(next("--rotate"));
+        else if (a == "--no-autorotate") o.auto_rotate = false;
+        else if (a == "--autorotate") o.auto_rotate = true;
         else if (a == "--scale") o.scale = std::strtof(next("--scale"), nullptr);
+        else if (a == "--lut") o.lut = next("--lut");
         else if (a == "--track") o.track = std::atoi(next("--track"));
         else if (a == "--sync") o.sync = true;
+        else if (a == "--adaptive") o.adaptive = true;
+        else if (a == "--adaptive-range")
+            o.adaptive_range = std::strtof(next("--adaptive-range"), nullptr);
+        else if (a == "--blur-reject")
+            o.blur_reject = std::strtof(next("--blur-reject"), nullptr);
+        else if (a == "--similar")
+            o.similar = std::atoi(next("--similar"));
+        else if (a == "--skipped-dir")
+            o.skipped_dir = next("--skipped-dir");
+        else if (a == "--report")
+            o.report = next("--report");
         else if (a == "--threads") o.threads = std::atoi(next("--threads"));
+        else if (a == "--decoder") {
+            const std::string d = next("--decoder");
+            if (d == "auto") o.decoder = app::FrameDecoder::Auto;
+            else if (d == "builtin") o.decoder = app::FrameDecoder::Builtin;
+            else if (d == "ffmpeg") o.decoder = app::FrameDecoder::Ffmpeg;
+            else {
+                std::fprintf(stderr, "%s\n",
+                             spirula::i18n::format(
+                                 spirula::i18n::msg::cli::sam_unexpected_argument,
+                                 {"--decoder " + d}).c_str());
+                return false;
+            }
+        }
+        else if (a == "--ffmpeg") o.ffmpeg = next("--ffmpeg");
         else if (a == "--360") o.pano_mode = next("--360");
         else if (a == "--360-size") o.pano.size = std::atoi(next("--360-size"));
         else if (a == "--360-orient") {
@@ -172,6 +261,9 @@ bool parse_args(int argc, char** argv, Options& o) {
         else if (a == "--neg-text") o.neg_text = next("--neg-text");
         else if (a == "--mask-mode") o.mask_mode = next("--mask-mode");
         else if (a == "--mask-keep") o.keep_subject = std::strcmp(next("--mask-keep"), "subject") == 0;
+        else if (a == "--detector") o.detector = next("--detector");
+        else if (a == "--detector-threshold")
+            o.detector_threshold = std::strtof(next("--detector-threshold"), nullptr);
         else if (a == "--mask-out") o.mask_dir = next("--mask-out");
         else if (a == "--detect-every") o.detect_every = std::atoi(next("--detect-every"));
         else if (a == "--memory-frames") o.memory_frames = std::atoi(next("--memory-frames"));
@@ -223,12 +315,13 @@ int sam_cli_extract(int argc, char** argv) {
         usage();
         return 2;
     }
-    // The decoder and the masker each reach vk::Context::get() on their own,
-    // so the device and the diagnostic switches are handed over the way the
-    // context reads them rather than plumbed through two option structs.
+    // The device is NOT set here: a native selection is explicit in the job
+    // below, which freezes it before the first decode or model load. Writing
+    // SS_VK_DEVICE would leak the choice into unrelated children.
     if (o.validate) set_env("SS_VK_VALIDATION", "1");
     if (o.profile) set_env("SS_PROFILE", "1");
-    if (!o.device.empty()) set_env("SS_VK_DEVICE", o.device.c_str());
+
+    if (!o.model.empty() && !app::require_model_license(o.model)) return 2;
 
     const fs::path input(o.input);
     const fs::path base = o.out_dir.empty()
@@ -239,24 +332,54 @@ int sam_cli_extract(int argc, char** argv) {
     job.input = o.input;
     job.image_dir = base.string();
     job.mask_dir = o.mask_dir;
+    // The one device request, from the one flag: the job freezes it before the
+    // decoder probe, so the decoder, the masker and the trackers agree.
+    job.device = o.device;
     job.skip = o.skip;
     job.keep = o.keep;
     job.max_frames = o.max_frames;
+    job.clip_start = o.clip_start;
+    job.clip_end = o.clip_end;
     job.quality = o.quality;
     job.rotate = o.rotate;
+    job.auto_rotate = o.auto_rotate;
     job.scale = o.scale;
+    if (o.lut == "auto") job.lut = app::detect_log_lut(o.input);
+    else if (app::find_builtin_lut(o.lut)) job.lut = app::builtin_lut_spec(o.lut);
+    else job.lut = o.lut;
     job.track = o.track;
     job.sync_tracks = o.sync;
+    job.adaptive = o.adaptive;
+    job.adaptive_range = o.adaptive_range;
+    job.blur_reject = o.blur_reject;
+    job.similar_bits = o.similar;
+    job.skipped_dir = o.skipped_dir;
     job.threads = o.threads;
+    job.decoder = o.decoder;
+    job.ffmpeg_exe = o.ffmpeg;
     job.write_overlay = o.overlay;
     // A 360 file is recognised by its packing, not by its name, and only then
     // is there anything for --360 to select.
     if (o.pano_mode != "off") {
+        std::vector<std::pair<int, int>> tracks;
+#ifdef SS_HAVE_VIDEO
         std::string err;
-        const std::vector<std::pair<int, int>> tracks =
-            app::video_track_sizes(o.input, err);
+        tracks = app::video_track_sizes(o.input, err);
+#endif
+        if (tracks.empty()) {
+            app::VideoFacts facts;
+            const std::atomic<bool> never{false};
+            if (app::ffmpeg_probe_video(o.ffmpeg, o.input, facts, never))
+                tracks = facts.tracks;
+        }
+        app::Pano360Meta meta;
+#ifdef SS_TOOL_SFM
+        const sfm::VideoProjection pr = sfm::video_projection(o.input);
+        meta = app::Pano360Meta{pr.name, pr.mode};
+#endif
         if (tracks.size() == 2 && tracks[0] == tracks[1] &&
-            app::eac360_detect(2, tracks[0].first, tracks[0].second, job.eac)) {
+            app::pano360_detect(2, tracks[0].first, tracks[0].second, meta,
+                                job.eac)) {
             o.pano.mode = o.pano_mode == "equirect" ? app::Pano360Mode::Equirect
                                                     : app::Pano360Mode::Faces;
             job.views = app::pano360_views(job.eac, o.pano);
@@ -264,7 +387,7 @@ int sam_cli_extract(int argc, char** argv) {
                          job.eac.track_w, job.eac.track_h, job.views.size(),
                          job.views[0].width, job.views[0].height);
         } else {
-            job.eac = app::Eac360Layout{};
+            job.eac = app::Pano360Layout{};
         }
     }
     if (!o.model.empty()) {
@@ -273,7 +396,10 @@ int sam_cli_extract(int argc, char** argv) {
         job.mask.text = o.text;
         job.mask.neg_text = o.neg_text;
         job.mask.video = o.mask_mode != "image";
-        job.mask.keep_prompted = o.keep_subject;
+        job.mask.keep_prompted = o.keep_subject.value_or(
+            birefnet::find_model_source(o.model) || birefnet::is_checkpoint(o.model));
+        job.mask.detector = o.detector;
+        job.mask.detector_threshold = o.detector_threshold;
         job.mask.threshold = o.threshold;
         job.mask.nms = o.nms;
         job.mask.dilate_ratio = o.dilate_ratio;
@@ -285,6 +411,28 @@ int sam_cli_extract(int argc, char** argv) {
 
     app::FrameExtractSinks sinks;
     sinks.log = [](const std::string& l) { std::fprintf(stderr, "%s\n", l.c_str()); };
+    // One line a chosen frame, for a script: English and stable on purpose.
+    FILE* report = nullptr;
+    if (!o.report.empty()) {
+        std::error_code ec;
+        const fs::path dir = fs::path(o.report).parent_path();
+        if (!dir.empty()) fs::create_directories(dir, ec);
+        report = std::fopen(o.report.c_str(), "w");
+        if (!report) {
+            std::fprintf(stderr, "%s\n",
+                         spirula::i18n::format(spirula::i18n::msg::cli::sam_report_unwritable,
+                                               {o.report}).c_str());
+            return 1;
+        }
+    }
+    if (report) {
+        std::fprintf(report, "frame,edge_width_px,blur_px,verdict\n");
+        sinks.judged = [report](const app::FramePick& p, const nn::Image&) {
+            static const char* const kVerdict[] = {"kept", "blurry", "similar"};
+            std::fprintf(report, "%lld,%.2f,%.2f,%s\n", (long long)p.index, p.width, p.blur,
+                         kVerdict[(int)p.verdict]);
+        };
+    }
 
     app::FrameExtractStats stats;
     std::string error;
@@ -295,6 +443,7 @@ int sam_cli_extract(int argc, char** argv) {
                                            {error}).c_str());
         rc = 1;
     }
+    if (report) std::fclose(report);
     std::printf("%s", app::format_extract_stats(stats, base.string(),
                                                 !o.model.empty()).c_str());
     if (stats.write_failures) {

@@ -12,6 +12,7 @@
 // GUI (gui/); this file adds CLI parsing, --help, progress printing and the
 // web viewer wiring.
 
+#include "app/DeviceIssue.h"
 #include "app/Tools.h"
 #include "app/TrainerCore.h"
 #include "app/webviewer/Viewer.h"
@@ -21,10 +22,12 @@
 #include "i18n/catalog/TrainFields.h"
 
 #include <algorithm>
+#include <atomic>
+#include <charconv>
 #include <chrono>
 #include <cmath>
+#include <csignal>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <stdexcept>
@@ -33,6 +36,13 @@
 #include <thread>
 #include <vector>
 #include "core/Env.h"
+#ifdef _WIN32
+#include <io.h>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>   // NOMINMAX comes from cmake/SsOptions.cmake
+#else
+#include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 
@@ -40,6 +50,27 @@ using namespace spirula;
 
 namespace cmsg = spirula::i18n::msg::cli;
 using spirula::i18n::format;
+
+// Ctrl-C during training stops after the step and saves a resumable checkpoint.
+// A second one is the user saying they meant it: the default action ends the process.
+static std::atomic<std::atomic<bool>*> g_train_stop{nullptr};
+static std::atomic<bool> g_train_interrupted{false};
+static std::string g_train_stopping;   // formatted before the handler can run
+
+extern "C" void trainOnInterrupt(int sig) {
+    std::atomic<bool>* stop = g_train_stop.load();
+    if (g_train_interrupted.exchange(true) || !stop) {
+        std::signal(sig, SIG_DFL);
+        std::raise(sig);
+        return;
+    }
+    stop->store(true);
+#ifdef _WIN32
+    _write(2, g_train_stopping.data(), (unsigned)g_train_stopping.size());
+#else
+    if (::write(2, g_train_stopping.data(), g_train_stopping.size()) < 0) {}
+#endif
+}
 
 
 // ===========================================================================
@@ -103,11 +134,11 @@ void consume(std::array<T, N>& out, const std::string& key, int argc, char** arg
     }
 }
 
-// Choices validation for string fields. `choices` is "a|b|c" ('' free-form);
-// a lone "none" marks an optional free-form string.
+// Choices validation for string fields. `choices` is "a|b|c", or one of the
+// free-form spellings train_choices_free_form() knows.
 void check_choices(const std::string& value, const std::string& key, const char* choices) {
+    if (train_choices_free_form(choices)) return;
     std::string ch = choices;
-    if (ch.empty() || ch == "none") return;
     std::string want = value.empty() ? "none" : value;
     size_t pos = 0;
     while (pos <= ch.size()) {
@@ -219,36 +250,85 @@ std::string help_summary(const char* text, size_t max_columns = 110) {
 
 // ---- Compute device listing / selection -----------------------------------
 
-// Applies --device (index or case-sensitive name substring) through the
-// backend-neutral device API, then prints the device table VkSplat-style
-// (all visible devices, '*' on the one in use).
-void select_and_print_devices(const std::string& requested) {
+// A Windows console renders ANSI colour only once asked to; a pipe or a file
+// gets plain text.
+bool stderr_takes_color() {
+#ifdef _WIN32
+    if (!_isatty(_fileno(stderr))) return false;
+    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
+    DWORD mode = 0;
+    if (!GetConsoleMode(h, &mode)) return false;
+    return (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) ||
+           SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+#else
+    return isatty(fileno(stderr));
+#endif
+}
+
+// In orange, on stderr: it has to survive `> train.log`.
+void warn_device_issue(const backend::DeviceInfo& d) {
+    const app::DeviceIssueText t = app::device_issue_text(d.issue);
+    if (!t.title) return;
+    const bool color = stderr_takes_color();
+    const char* bold = color ? "\x1b[1;38;5;208m" : "";
+    const char* on = color ? "\x1b[38;5;208m" : "";
+    const char* off = color ? "\x1b[0m" : "";
+    std::fprintf(stderr, "%s%s%s\n", bold, t.title->get(), off);
+    for (const std::string& line : i18n::wrap(format(*t.body, {d.name}), 76))
+        std::fprintf(stderr, "%s  %s%s\n", on, line.c_str(), off);
+    std::fprintf(stderr, "%s  %s%s\n", on,
+                 format(cmsg::details_line, {t.url}).c_str(), off);
+    std::fflush(stderr);
+}
+
+// Applies --device through the backend-neutral device API, then prints the
+// device table VkSplat-style (all visible devices, '*' on the one in use).
+// Vulkan takes the shared selector forms, CUDA only a nonnegative ordinal.
+void select_and_print_devices(const std::string& requested, bool requested_set) {
+    const bool explicit_request = requested_set || !requested.empty();
     int n = backend::device_count();
     if (n == 0) {
-        if (!requested.empty())
+        if (explicit_request)
             throw std::runtime_error("--device: no compute devices found");
         return;  // let the backend report its own error on first use
     }
-    if (!requested.empty()) {
-        char* end = nullptr;
-        long idx = std::strtol(requested.c_str(), &end, 10);
-        int want = -1;
-        if (end && *end == '\0') {
-            want = (int)idx;
-        } else {
-            for (int i = 0; i < n && want < 0; i++) {
-                backend::DeviceInfo d = backend::device_info(i);
-                if (d.usable &&
-                    std::string(d.name).find(requested) != std::string::npos)
-                    want = i;
-            }
+    if (explicit_request) {
+#ifdef SS_BACKEND_VULKAN
+        const std::string selector = requested.empty() ? "auto" : requested;
+        if (!backend::device_select_identity(selector.c_str())) {
+            std::string detail = backend::device_selection_error();
+            if (detail.empty()) detail = "device selection failed";
+            throw std::runtime_error("--device " + selector + ": " + detail);
         }
-        if (want < 0 || !backend::device_select(want))
+#else
+        // CUDA accepts only a nonnegative ordinal here; from_chars rejects
+        // names, `auto`, UUIDs and negative spellings.
+        int want = -1;
+        const char* b = requested.c_str();
+        const char* e = b + requested.size();
+        const std::from_chars_result r = std::from_chars(b, e, want);
+        if (b == e || *b == '-' || r.ec != std::errc() || r.ptr != e)
             throw std::runtime_error(
                 "--device " + requested +
-                ": no usable device matches (see the device list printed by "
-                "a run without --device)");
+                ": expected a CUDA device index (see --help)");
+        if (!backend::device_select(want))
+            throw std::runtime_error(
+                "--device " + requested +
+                ": no usable CUDA device matches (see the device list printed "
+                "by a run without --device)");
+#endif
     }
+#ifdef SS_BACKEND_VULKAN
+    // Pin implicit Auto/environment selection before the engine can create its
+    // own Vulkan context; the UUID, not a second ordinal lookup, is carried.
+    const std::string resolved = backend::device_current_selector();
+    if (!resolved.empty() &&
+        !backend::device_select_identity(resolved.c_str())) {
+        std::string detail = backend::device_selection_error();
+        if (detail.empty()) detail = "device selection failed";
+        throw std::runtime_error("--device " + resolved + ": " + detail);
+    }
+#endif
     int cur = backend::device_current();
     std::printf("%s\n", cmsg::devices_header.get());
     for (int i = 0; i < n; i++) {
@@ -260,8 +340,12 @@ void select_and_print_devices(const std::string& requested) {
         std::printf("  %c [%d] %s (%s, %llu MB)%s\n", i == cur ? '*' : ' ',
                     i, d.name, d.type,
                     (unsigned long long)(d.vram_bytes >> 20), note.c_str());
+        if (!d.uuid.empty())
+            std::printf("      %s\n",
+                        format(cmsg::device_uuid_line, {d.uuid}).c_str());
     }
     std::fflush(stdout);
+    if (cur >= 0) warn_device_issue(backend::device_info(cur));
 }
 
 // `max_tier` is a rank into kTrainTiers: 0 lists only the flags a first run
@@ -282,8 +366,13 @@ void print_help(const char* argv0, const TrainConfig& c, int max_tier) {
         std::printf("  %-18s %s\n", p.name, t ? t->help->get() : "");
     }
     std::printf("\n%s\n", cmsg::train_app_flags_header.get());
-    std::printf("  --device <index|name substring>\n      %s\n",
+#ifdef SS_BACKEND_VULKAN
+    std::printf("  --device <index|name|auto|uuid:hex>\n      %s\n",
                 cmsg::train_device_help.get());
+#else
+    std::printf("  --device <index>\n      %s\n",
+                cmsg::train_device_help_cuda.get());
+#endif
     std::printf("\n%s\n", cmsg::train_flags_header.get());
 
     // Pass 1: how many flags each heading has left after the tier filter, so
@@ -314,7 +403,7 @@ void print_help(const char* argv0, const TrainConfig& c, int max_tier) {
         for (auto& ck : key_disp) if (ck == '_') ck = '-';                     \
         std::printf("  --%-38s [%s]%s%s\n      %s\n", key_disp.c_str(),        \
                     value_str(c.member).c_str(),                               \
-                    (ch.empty() || ch == "none") ? "" : (" {" + ch + "}").c_str(), \
+                    train_choices_free_form(choices) ? "" : (" {" + ch + "}").c_str(), \
                     "", h.c_str());                                            \
     }
     SS_CONFIG_FIELDS(SS_PRINT_HELP)
@@ -325,16 +414,15 @@ void print_help(const char* argv0, const TrainConfig& c, int max_tier) {
 }
 
 
-// Debug dump for numeric verification against the Python dataparser /
-// trainer camera algebra (SS_DUMP_CAMERAS=<path> env). Full precision.
+// Debug dump of the parsed and post-split camera algebra (SS_DUMP_CAMERAS=<path>).
 void dump_cameras_json(const char* path, const ParsedDataset& ds,
                        const PostSplitCameras& post) {
     FILE* f = std::fopen(path, "w");
     if (!f) throw std::runtime_error(std::string("cannot write ") + path);
-    auto arr_f = [&](const char* k, const std::vector<float>& v) {
+    auto arr_f = [&](const char* k, const auto& v) {
         std::fprintf(f, "\"%s\": [", k);
         for (size_t i = 0; i < v.size(); i++)
-            std::fprintf(f, "%s%.9g", i ? "," : "", v[i]);
+            std::fprintf(f, "%s%.9g", i ? "," : "", (double)v[i]);
         std::fprintf(f, "]");
     };
     auto arr_i = [&](const char* k, const std::vector<int32_t>& v) {
@@ -362,9 +450,8 @@ void dump_cameras_json(const char* path, const ParsedDataset& ds,
     arr_f("dist_coeffs", post.dist_coeffs);     std::fprintf(f, ",\n");
     arr_f("input_intrins", post.input_intrins); std::fprintf(f, ",\n");
     arr_f("input_dist_coeffs", post.input_dist_coeffs); std::fprintf(f, ",\n");
-    std::vector<float> t2n(ds.train_to_normalized.begin(), ds.train_to_normalized.end());
-    arr_f("train_to_normalized", t2n);          std::fprintf(f, ",\n");
-    std::vector<float> pts_head(ds.points.xyz.begin(),
+    arr_f("train_to_normalized", ds.train_to_normalized); std::fprintf(f, ",\n");
+    std::vector<double> pts_head(ds.points.xyz.begin(),
         ds.points.xyz.begin() + std::min<size_t>(ds.points.xyz.size(), 30));
     arr_f("points_head", pts_head);
     std::fprintf(f, "\n}\n");
@@ -395,6 +482,7 @@ int spirula_train_main(int argc, char** argv) {
         }
 
         std::string device_flag;
+        bool device_set = false;
         for (int i = argi; i < argc; i++) {
             std::string arg = argv[i];
             if (arg == "--help" || arg == "-h") {
@@ -408,10 +496,15 @@ int spirula_train_main(int argc, char** argv) {
             if (arg.rfind("--", 0) != 0)
                 throw std::runtime_error("unexpected argument: " + arg + " (flags are --key value)");
             // App-level flag, not part of the generated training config.
-            if (arg.rfind("--device=", 0) == 0) { device_flag = arg.substr(9); continue; }
+            if (arg.rfind("--device=", 0) == 0) {
+                device_flag = arg.substr(9);
+                device_set = true;
+                continue;
+            }
             if (arg == "--device") {
                 if (i + 1 >= argc) throw std::runtime_error("--device: missing value");
                 device_flag = argv[++i];
+                device_set = true;
                 continue;
             }
             // --key=value form: re-parse via a 2-token mini-argv. Tuple
@@ -454,7 +547,7 @@ int spirula_train_main(int argc, char** argv) {
         SS_CONFIG_REQUIRED_FIELDS(SS_CHECK_REQUIRED)
 #undef SS_CHECK_REQUIRED
 
-        select_and_print_devices(device_flag);
+        select_and_print_devices(device_flag, device_set);
 
         // ---- Session -------------------------------------------------------
         TrainerSession session;
@@ -503,15 +596,35 @@ int spirula_train_main(int argc, char** argv) {
                                           (long long)p.num_splats,
                                           format_duration(session.elapsed_seconds()),
                                           format_duration(session.eta_seconds())}).c_str());
-                for (const char* k : {"rgb_loss", "ssim", "psnr"}) {
+                for (const char* k : {"rgb_loss", "ssim", "delta_e", "flip", "psnr"}) {
                     auto it = p.losses.find(k);
                     if (it != p.losses.end()) std::printf("  %s=%.4g", k, it->second);
+                }
+                for (const char* k : {"num_dead", "num_relocated", "num_added"}) {
+                    auto it = p.losses.find(k);
+                    if (it != p.losses.end()) std::printf("  %s=%lld", k, (long long)it->second);
                 }
                 std::printf("\n");
                 std::fflush(stdout);
             }
         };
+        const bool stop_on_interrupt = cfg.steps_per_save != 0;
+        if (stop_on_interrupt) {
+            g_train_stopping = std::string("\n") + cmsg::train_stopping.get() + "\n";
+            g_train_stop.store(&session.stop_requested);
+            std::signal(SIGINT, trainOnInterrupt);
+        }
         session.train(cb);
+        if (stop_on_interrupt) {
+            std::signal(SIGINT, SIG_DFL);
+            g_train_stop.store(nullptr);
+        }
+        if (g_train_interrupted.load()) {
+            std::printf("%s\n", format(cmsg::train_stopped_resume,
+                                       {(long long)session.cur_step.load(), cfg.num_iterations,
+                                        fs::absolute(session.out_dir).string()}).c_str());
+            return 130;   // the shell's convention for SIGINT, 128 + 2
+        }
         // Held-out eval. Replaces the engine's DataManager, so nothing may
         // train afterwards -- and the viewer, which only reads splats, is
         // unaffected. TODO: early stopping on the validation split.

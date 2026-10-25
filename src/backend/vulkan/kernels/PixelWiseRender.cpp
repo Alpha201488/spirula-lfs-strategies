@@ -20,11 +20,19 @@ static_assert(sizeof(BlendBgParams) == 4 * 8 + 2 * 4, "layout");
 
 // Mirrors BlendBgNoiseParams.
 struct BlendBgNoiseParams {
-    uint64_t rgb, transmittance, out_rgb;
+    uint64_t rgb, transmittance, out_rgb, exponent_by_cam, cam_indices;
     float randomize_weight;
-    uint32_t seed, HW, total, wgs_per_row, W, blocky;
+    uint32_t seed, HW, total, wgs_per_row, W, blocky, block_px, match_luma;
 };
-static_assert(sizeof(BlendBgNoiseParams) == 3 * 8 + 7 * 4 + 4 /*pad*/,
+static_assert(sizeof(BlendBgNoiseParams) == 5 * 8 + 9 * 4 + 4 /*pad*/, "layout");
+
+// Mirrors BlendBgColorParams.
+struct BlendBgColorParams {
+    uint64_t rgb, transmittance, out_rgb;
+    float bg_r, bg_g, bg_b;
+    uint32_t total, wgs_per_row;
+};
+static_assert(sizeof(BlendBgColorParams) == 3 * 8 + 5 * 4 + 4 /*pad*/,
               "layout");
 
 // Mirrors RgbToSrgbParams.
@@ -69,10 +77,13 @@ void blend_background_noise_forward(
     int transfer,
     bool is_linear,
     bool blocky,
+    unsigned block_px,
     DeviceTensor3D<float3> rgb,
     DeviceTensor3D<float> transmittance,
     float randomize_weight,
     uint32_t seed,
+    const float* exponent_by_cam,
+    const int32_t* cam_indices,
     DeviceTensor3D<float3> out_rgb
 ) {
     const int64_t hw = rgb.size<1>() * rgb.size<2>();
@@ -81,16 +92,40 @@ void blend_background_noise_forward(
     p.rgb = (uint64_t)rgb.data_ptr();
     p.transmittance = (uint64_t)transmittance.data_ptr();
     p.out_rgb = (uint64_t)out_rgb.data_ptr();
+    p.exponent_by_cam = (uint64_t)exponent_by_cam;
+    p.cam_indices = (uint64_t)cam_indices;
+    p.match_luma = exponent_by_cam ? 1u : 0u;
     p.randomize_weight = randomize_weight;
     p.seed = seed;
     p.HW = (uint32_t)hw;
     p.total = (uint32_t)total;
     p.W = (uint32_t)rgb.size<2>();
     p.blocky = blocky ? 1u : 0u;
+    p.block_px = (uint32_t)block_px;
     vkk::dispatch_flat("pixel_wise_render.blend_background_noise_fwd",
                        backend::vk::SpecList{(uint32_t)transfer,
                                              is_linear ? 1u : 0u},
                        total, 128, &p, sizeof(p), &p.wgs_per_row);
+}
+
+void blend_background_color_forward(
+    DeviceTensor3D<float3> rgb,
+    DeviceTensor3D<float> transmittance,
+    float3 background,
+    DeviceTensor3D<float3> out_rgb
+) {
+    const int64_t total = rgb.size<0>() * rgb.size<1>() * rgb.size<2>();
+    BlendBgColorParams p{};
+    p.rgb = (uint64_t)rgb.data_ptr();
+    p.transmittance = (uint64_t)transmittance.data_ptr();
+    p.out_rgb = (uint64_t)out_rgb.data_ptr();
+    p.bg_r = background.x;
+    p.bg_g = background.y;
+    p.bg_b = background.z;
+    p.total = (uint32_t)total;
+    vkk::dispatch_flat("pixel_wise_render.blend_background_color_fwd",
+                       backend::vk::SpecList{}, total, 128, &p, sizeof(p),
+                       &p.wgs_per_row);
 }
 
 void working_to_display_forward(

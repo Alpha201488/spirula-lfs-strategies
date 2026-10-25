@@ -1,5 +1,6 @@
 #pragma once
-// Entry points for VK_KHR_video_queue / VK_KHR_video_decode_*.
+// Entry points for VK_KHR_video_queue, VK_KHR_video_decode_* and
+// VK_KHR_video_encode_*.
 //
 // The Vulkan loader does not export extension entry points, so they are
 // resolved from the device and passed around as a table. One instance, filled
@@ -26,12 +27,21 @@ struct VideoApi {
     PFN_vkCmdEndVideoCodingKHR                        cmdEndCoding = nullptr;
     PFN_vkCmdControlVideoCodingKHR                    cmdControlCoding = nullptr;
     PFN_vkCmdDecodeVideoKHR                           cmdDecode = nullptr;
+    PFN_vkCmdEncodeVideoKHR                           cmdEncode = nullptr;
+    PFN_vkGetEncodedVideoSessionParametersKHR         getEncodedParameters = nullptr;
 
     bool complete() const {
         return getCapabilities && getFormatProperties && createSession && destroySession &&
                getSessionMemoryRequirements && bindSessionMemory && createParameters &&
                destroyParameters && cmdBeginCoding && cmdEndCoding && cmdControlCoding &&
                cmdDecode;
+    }
+    // What VideoEncoder.cpp needs beside the session calls.
+    bool encode_complete() const {
+        return getCapabilities && getFormatProperties && createSession && destroySession &&
+               getSessionMemoryRequirements && bindSessionMemory && createParameters &&
+               destroyParameters && cmdBeginCoding && cmdEndCoding && cmdControlCoding &&
+               cmdEncode && getEncodedParameters;
     }
 };
 

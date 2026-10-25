@@ -629,6 +629,49 @@ SS_MSG(camera_fit_to_image,
     TR("'{0}' {1}, ama kamerası {2} diyor. Eğitim {3} çözünürlüğünde "
        "yapılacak. Bu ikili için sonraki iletiler bastırılıyor."));
 
+SS_MSG(camera_image_transposed,
+    EN("'{0}' is {1} and its camera {2} -- each is the other turned a quarter. "
+       "A reconstruction and the run that reads it must take the photos' EXIF "
+       "orientation the same way; see `--exif-orientation`."),
+    JA("'{0}' は {1}、カメラは {2} で、互いに 90 度回した関係です。復元結果と"
+       "それを読む実行は、写真の EXIF 回転情報を同じように扱う必要があります。"
+       "`--exif-orientation` を確認してください。"),
+    ZH_HANS("'{0}' 是 {1}，其相机是 {2}：二者正好相差 90 度。重建结果与读取它的"
+            "这次运行必须以同样的方式对待照片的 EXIF 方向，参见 "
+            "`--exif-orientation`。"),
+    ZH_HANT("'{0}' 是 {1}，其相機是 {2}：兩者正好相差 90 度。重建結果與讀取它的"
+            "這次執行必須以同樣的方式對待照片的 EXIF 方向，參見 "
+            "`--exif-orientation`。"),
+    KO("'{0}' 은(는) {1}, 카메라는 {2} 로 서로 90도 돌아간 관계입니다. 복원 결과와 "
+       "그것을 읽는 실행은 사진의 EXIF 방향을 같은 방식으로 다뤄야 합니다. "
+       "`--exif-orientation` 을 확인하세요."),
+    DE("'{0}' ist {1}, seine Kamera {2} -- das eine ist das andere um eine "
+       "Vierteldrehung gedreht. Eine Rekonstruktion und der Lauf, der sie "
+       "liest, müssen die EXIF-Ausrichtung der Fotos gleich behandeln; siehe "
+       "`--exif-orientation`."),
+    FR("'{0}' est {1} et sa caméra {2} : l'un est l'autre tourné d'un quart de "
+       "tour. Une reconstruction et le run qui la lit doivent traiter de la "
+       "même façon l'orientation EXIF des photos ; voir `--exif-orientation`."),
+    ES("'{0}' es {1} y su cámara {2}: cada uno es el otro girado un cuarto de "
+       "vuelta. Una reconstrucción y la ejecución que la lee deben tratar igual "
+       "la orientación EXIF de las fotos; vea `--exif-orientation`."),
+    PT("'{0}' é {1} e a sua câmara {2}: um é o outro rodado um quarto de volta. "
+       "Uma reconstrução e a execução que a lê têm de tratar da mesma forma a "
+       "orientação EXIF das fotos; veja `--exif-orientation`."),
+    IT("'{0}' è {1} e la sua camera {2}: l'uno è l'altro ruotato di un quarto. "
+       "Una ricostruzione e l'esecuzione che la legge devono trattare allo "
+       "stesso modo l'orientamento EXIF delle foto; vedi `--exif-orientation`."),
+    NL("'{0}' is {1} en zijn camera {2} -- de een is de ander een kwartslag "
+       "gedraaid. Een reconstructie en de run die hem leest moeten de "
+       "EXIF-oriëntatie van de foto's op dezelfde manier opvatten; zie "
+       "`--exif-orientation`."),
+    RU("'{0}' имеет размер {1}, а его камера {2}: одно есть другое, повёрнутое "
+       "на четверть оборота. Реконструкция и запуск, который её читает, должны "
+       "одинаково понимать ориентацию EXIF снимков; см. `--exif-orientation`."),
+    TR("'{0}' {1}, kamerası {2}: biri diğerinin çeyrek tur döndürülmüş hâli. "
+       "Bir yeniden oluşturma ile onu okuyan çalıştırma, fotoğrafların EXIF "
+       "yönlendirmesini aynı şekilde ele almalı; bkz. `--exif-orientation`."));
+
 SS_MSG(camera_image_aspect,
     EN("'{0}' is {1} and its camera {2} -- a different shape, not just a "
        "different size. Check that the images belong to this reconstruction."),
@@ -805,6 +848,82 @@ SS_MSG(normal_shape_mismatch,
        "büyütülüyor (çift doğrusal). Sonraki normal haritası uyarıları "
        "bastırılıyor."));
 
+SS_MSG(mask_image_aspect,
+    EN("mask '{0}' is {1} and its image {2} -- a different shape, not just a "
+       "different size. It is stretched onto the image; check that it belongs "
+       "to it."),
+    JA("マスク '{0}' は {1}、画像は {2} で、大きさだけでなく縦横比も違います。"
+       "画像に合わせて引き伸ばします。この画像のマスクか確認してください。"),
+    ZH_HANS("蒙版 '{0}' 是 {1}，其图像是 {2}：不只是尺寸不同，长宽比也不同。"
+            "将把它拉伸到图像上；请确认它属于该图像。"),
+    ZH_HANT("遮罩 '{0}' 是 {1}，其影像是 {2}：不只是尺寸不同，長寬比也不同。"
+            "將把它拉伸到影像上；請確認它屬於該影像。"),
+    KO("마스크 '{0}' 은(는) {1}, 이미지는 {2} 입니다. 크기뿐 아니라 가로세로 "
+       "비율도 다릅니다. 이미지에 맞춰 늘립니다. 이 이미지의 마스크인지 "
+       "확인하세요."),
+    DE("Maske '{0}' ist {1}, ihr Bild {2} -- nicht nur eine andere Größe, "
+       "sondern ein anderes Seitenverhältnis. Sie wird auf das Bild gestreckt; "
+       "prüfen Sie, ob sie zu ihm gehört."),
+    FR("le masque '{0}' fait {1} et son image {2} : le rapport d'aspect "
+       "diffère, pas seulement la taille. Il est étiré sur l'image ; vérifiez "
+       "qu'il lui correspond."),
+    ES("la máscara '{0}' es de {1} y su imagen de {2}: cambia la relación de "
+       "aspecto, no solo el tamaño. Se estira sobre la imagen; compruebe que "
+       "le corresponde."),
+    PT("a máscara '{0}' é {1} e a sua imagem {2}: muda a proporção, não apenas "
+       "o tamanho. Ela é esticada sobre a imagem; verifique se pertence a ela."),
+    IT("la maschera '{0}' è {1} e la sua immagine {2}: cambia il rapporto "
+       "d'aspetto, non solo la dimensione. Viene stirata sull'immagine; "
+       "verifica che le appartenga."),
+    NL("masker '{0}' is {1} en zijn beeld {2}: een andere beeldverhouding, "
+       "niet alleen een ander formaat. Het wordt over het beeld uitgerekt; "
+       "controleer of het erbij hoort."),
+    RU("маска '{0}' имеет размер {1}, а её изображение {2}: отличается не "
+       "только размер, но и соотношение сторон. Она растягивается по "
+       "изображению; проверьте, что она к нему относится."),
+    TR("'{0}' maskesi {1}, görüntüsü ise {2}: yalnızca boyut değil, en-boy "
+       "oranı da farklı. Görüntüye uyacak şekilde geriliyor; bu görüntüye ait "
+       "olduğunu doğrulayın."));
+
+SS_MSG(random_init_no_spread,
+    EN("Cannot size the random seed points: the cameras do not spread around "
+       "{0} (--random-init-center). Pick another centre, or give the dataset a "
+       "point cloud."),
+    JA("ランダム初期点の大きさを決められません。カメラが {0}（--random-init-c"
+       "enter）の周りに広がっていません。別の中心を選ぶか、データセットに点群"
+       "を用意してください。"),
+    ZH_HANS("无法确定随机初始点的范围：相机没有分布在 {0}（--random-init-cent"
+            "er）周围。请换一个中心，或为数据集提供点云。"),
+    ZH_HANT("無法決定隨機初始點的範圍：相機沒有分布在 {0}（--random-init-cent"
+            "er）周圍。請換一個中心，或為資料集提供點雲。"),
+    KO("무작위 초기 점의 크기를 정할 수 없습니다. 카메라가 {0}(--random-init-"
+       "center) 주위에 퍼져 있지 않습니다. 다른 중심을 고르거나 데이터셋에 점"
+       "군을 넣으세요."),
+    DE("Die zufälligen Startpunkte lassen sich nicht bemessen: Die Kameras "
+       "streuen nicht um {0} (--random-init-center). Wählen Sie eine andere "
+       "Mitte, oder geben Sie dem Datensatz eine Punktwolke."),
+    FR("Impossible de dimensionner les points de départ aléatoires : les "
+       "caméras ne s'étalent pas autour de {0} (--random-init-center). "
+       "Choisissez un autre centre, ou fournissez un nuage de points."),
+    ES("No se pueden dimensionar los puntos iniciales aleatorios: las cámaras "
+       "no se dispersan en torno a {0} (--random-init-center). Elija otro "
+       "centro o dé al conjunto una nube de puntos."),
+    PT("Não é possível dimensionar os pontos iniciais aleatórios: as câmeras "
+       "não se dispersam em torno de {0} (--random-init-center). Escolha outro "
+       "centro ou dê ao conjunto uma nuvem de pontos."),
+    IT("Impossibile dimensionare i punti iniziali casuali: le camere non si "
+       "disperdono attorno a {0} (--random-init-center). Scegliete un altro "
+       "centro, oppure fornite una nuvola di punti."),
+    NL("De willekeurige beginpunten zijn niet af te meten: de camera's "
+       "spreiden niet rond {0} (--random-init-center). Kies een ander midden, "
+       "of geef de dataset een puntenwolk."),
+    RU("Невозможно задать размер случайных начальных точек: камеры не "
+       "разбросаны вокруг {0} (--random-init-center). Выберите другой центр "
+       "или добавьте в набор облако точек."),
+    TR("Rastgele başlangıç noktaları boyutlandırılamıyor: kameralar {0} "
+       "(--random-init-center) çevresine yayılmıyor. Başka bir merkez seçin ya "
+       "da veri kümesine bir nokta bulutu verin."));
+
 // Redrawn in place on one line, so it stays short.
 SS_MSG(loading_images,
     EN("Loading images {0}/{1}"),
@@ -857,6 +976,36 @@ SS_MSG(xs_measured,
     NL("gemeten beelden"),
     RU("измерено кадров"),
     TR("ölçülen kare"));
+
+SS_MSG(xs_analyzed,
+    EN("frames analyzed for motion"),
+    JA("動きを解析したフレーム"),
+    ZH_HANS("已分析运动的帧"),
+    ZH_HANT("已分析運動的影格"),
+    KO("움직임을 분석한 프레임"),
+    DE("auf Bewegung geprüfte Einzelbilder"),
+    FR("images analysées pour le mouvement"),
+    ES("fotogramas analizados en movimiento"),
+    PT("quadros analisados quanto ao movimento"),
+    IT("fotogrammi analizzati per il movimento"),
+    NL("op beweging geanalyseerde beelden"),
+    RU("кадров проанализировано на движение"),
+    TR("hareket için incelenen kare"));
+
+SS_MSG(xs_motion,
+    EN("motion pass"),
+    JA("動き解析パス"),
+    ZH_HANS("运动分析遍"),
+    ZH_HANT("運動分析階段"),
+    KO("움직임 분석 패스"),
+    DE("Bewegungsdurchlauf"),
+    FR("passe de mouvement"),
+    ES("pasada de movimiento"),
+    PT("passagem de movimento"),
+    IT("passaggio di movimento"),
+    NL("bewegingsdoorloop"),
+    RU("проход по движению"),
+    TR("hareket geçişi"));
 
 SS_MSG(xs_written,
     EN("frames written"),
@@ -1088,32 +1237,19 @@ SS_MSG(write_failures,
 // ===========================================================================
 
 SS_MSG(vk_device_lacks_features,
-    EN("the requested device '{0}' does not have the features this needs "
-       "(Vulkan 1.2 with bufferDeviceAddress and timelineSemaphore)"),
-    JA("指定されたデバイス '{0}' には必要な機能がありません"
-       "（Vulkan 1.2 と bufferDeviceAddress、timelineSemaphore）"),
-    ZH_HANS("所选设备 '{0}' 不具备所需特性（Vulkan 1.2，且需 bufferDeviceAddress "
-            "与 timelineSemaphore）"),
-    ZH_HANT("所選裝置 '{0}' 不具備所需特性（Vulkan 1.2，且需 bufferDeviceAddress "
-            "與 timelineSemaphore）"),
-    KO("요청한 장치 '{0}' 에는 필요한 기능이 없습니다"
-       "(Vulkan 1.2 와 bufferDeviceAddress, timelineSemaphore)"),
-    DE("das angeforderte Gerät '{0}' hat die benötigten Funktionen nicht "
-       "(Vulkan 1.2 mit bufferDeviceAddress und timelineSemaphore)"),
-    FR("le périphérique demandé '{0}' n'a pas les fonctions nécessaires "
-       "(Vulkan 1.2 avec bufferDeviceAddress et timelineSemaphore)"),
-    ES("el dispositivo solicitado '{0}' no tiene las funciones necesarias "
-       "(Vulkan 1.2 con bufferDeviceAddress y timelineSemaphore)"),
-    PT("o dispositivo pedido '{0}' não tem os recursos necessários (Vulkan 1.2 "
-       "com bufferDeviceAddress e timelineSemaphore)"),
-    IT("il dispositivo richiesto '{0}' non ha le funzioni necessarie (Vulkan "
-       "1.2 con bufferDeviceAddress e timelineSemaphore)"),
-    NL("het gevraagde apparaat '{0}' heeft de benodigde functies niet (Vulkan "
-       "1.2 met bufferDeviceAddress en timelineSemaphore)"),
-    RU("у запрошенного устройства '{0}' нет нужных возможностей (Vulkan 1.2 с "
-       "bufferDeviceAddress и timelineSemaphore)"),
-    TR("istenen aygıt '{0}' gereken özelliklere sahip değil (bufferDeviceAddress "
-       "ve timelineSemaphore ile Vulkan 1.2)"));
+    EN("the requested device '{0}' does not have the features this needs ({1})"),
+    JA("指定されたデバイス '{0}' には必要な機能がありません（{1}）"),
+    ZH_HANS("所选设备 '{0}' 不具备所需特性（{1}）"),
+    ZH_HANT("所選裝置 '{0}' 不具備所需特性（{1}）"),
+    KO("요청한 장치 '{0}' 에는 필요한 기능이 없습니다({1})"),
+    DE("das angeforderte Gerät '{0}' hat die benötigten Funktionen nicht ({1})"),
+    FR("le périphérique demandé '{0}' n'a pas les fonctions nécessaires ({1})"),
+    ES("el dispositivo solicitado '{0}' no tiene las funciones necesarias ({1})"),
+    PT("o dispositivo pedido '{0}' não tem os recursos necessários ({1})"),
+    IT("il dispositivo richiesto '{0}' non ha le funzioni necessarie ({1})"),
+    NL("het gevraagde apparaat '{0}' heeft de benodigde functies niet ({1})"),
+    RU("у запрошенного устройства '{0}' нет нужных возможностей ({1})"),
+    TR("istenen aygıt '{0}' gereken özelliklere sahip değil ({1})"));
 
 // ===========================================================================
 // Decode faults
@@ -1158,6 +1294,28 @@ SS_MSG(file_unreadable,
     RU("Не удалось "
        "прочитать {0}"),
     TR("{0} okunamadı"));
+
+SS_MSG(seed_cloud_empty,
+    EN("Seed point cloud is empty: {0}"), JA("初期点群が空です: {0}"),
+    ZH_HANS("初始化点云为空：{0}"), ZH_HANT("初始化點雲為空：{0}"),
+    KO("초기 점 구름이 비어 있습니다: {0}"), DE("Startpunktwolke ist leer: {0}"),
+    FR("Le nuage initial est vide : {0}"), ES("La nube inicial está vacía: {0}"),
+    PT("A nuvem inicial está vazia: {0}"), IT("La nuvola iniziale è vuota: {0}"),
+    NL("Startpuntenwolk is leeg: {0}"), RU("Начальное облако точек пусто: {0}"),
+    TR("Başlangıç nokta bulutu boş: {0}"));
+SS_MSG(seed_cloud_nonfinite,
+    EN("Seed point cloud has non-finite coordinates: {0}"),
+    JA("初期点群に有限でない座標があります: {0}"),
+    ZH_HANS("初始化点云含非有限坐标：{0}"), ZH_HANT("初始化點雲含非有限座標：{0}"),
+    KO("초기 점 구름에 유한하지 않은 좌표가 있습니다: {0}"),
+    DE("Startpunktwolke enthält nicht-endliche Koordinaten: {0}"),
+    FR("Le nuage initial contient des coordonnées non finies : {0}"),
+    ES("La nube inicial contiene coordenadas no finitas: {0}"),
+    PT("A nuvem inicial contém coordenadas não finitas: {0}"),
+    IT("La nuvola iniziale contiene coordinate non finite: {0}"),
+    NL("Startpuntenwolk bevat niet-eindige coördinaten: {0}"),
+    RU("Начальное облако содержит неконечные координаты: {0}"),
+    TR("Başlangıç bulutunda sonlu olmayan koordinatlar var: {0}"));
 
 }  // namespace data
 }  // namespace msg

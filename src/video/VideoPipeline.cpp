@@ -58,6 +58,9 @@ const VideoApi& video_api() {
         a.cmdControlCoding =
             (PFN_vkCmdControlVideoCodingKHR)get("vkCmdControlVideoCodingKHR");
         a.cmdDecode = (PFN_vkCmdDecodeVideoKHR)get("vkCmdDecodeVideoKHR");
+        a.cmdEncode = (PFN_vkCmdEncodeVideoKHR)get("vkCmdEncodeVideoKHR");
+        a.getEncodedParameters = (PFN_vkGetEncodedVideoSessionParametersKHR)get(
+            "vkGetEncodedVideoSessionParametersKHR");
         // Physical-device queries are instance-level.
         a.getCapabilities = (PFN_vkGetPhysicalDeviceVideoCapabilitiesKHR)vkGetInstanceProcAddr(
             ctx.instance(), "vkGetPhysicalDeviceVideoCapabilitiesKHR");
@@ -195,17 +198,24 @@ void color_matrix(int matrix_coefficients, bool full_range, int bit_depth, int h
 }
 
 // Shader parameter blocks (must mirror src/video/shaders/video.slang).
+// YuvParams is at the 128 bytes every device can push, hence `shift` inside
+// `flags` there.
 struct YuvParams {
     float m0[4], m1[4], m2[4];
     vk::DevicePtr out, luma, cb, cr;
     uint32_t out_w, out_h, src_w, src_h;
-    uint32_t luma_stride, chroma_stride, flags, shift;
+    uint32_t luma_stride, chroma_stride, flags;
     float inv_sx, inv_sy;
     uint32_t groups_per_row;
+    vk::DevicePtr lut;   // kLutHeader floats, then the table
 };
+static_assert(sizeof(YuvParams) <= 128, "YuvParams must fit the minimum push block");
+constexpr uint32_t kYuvShiftAt = 8;
+constexpr uint32_t kYuvLut = 1u << 16;
+constexpr int kLutHeader = 8;   // size, min[3], (size-1)/(max-min)[3], pad
 struct ThumbParams {
     vk::DevicePtr out, luma;
-    uint32_t src_w, src_h, luma_stride, size, flags, shift, groups_per_row;
+    uint32_t src_w, src_h, luma_stride, out_w, out_h, flags, shift, groups_per_row;
 };
 struct VarianceParams {
     vk::DevicePtr out, thumb;
@@ -230,6 +240,7 @@ struct Picture {
     int64_t  poc = 0;
     double   pts = 0.0;
     int64_t  decode_index = 0;
+    int64_t  display_index = 0;
     bool     metric_queued = false;
 };
 
@@ -265,7 +276,7 @@ struct VideoPipeline::Impl {
 
     VkImage        dpb_image = VK_NULL_HANDLE;
     VkDeviceMemory dpb_mem = VK_NULL_HANDLE;
-    std::vector<VkImageView> dpb_views;
+    VkImageView    dpb_view = VK_NULL_HANDLE;
     bool dpb_ready = false;
 
     struct BsBuf {
@@ -283,14 +294,17 @@ struct VideoPipeline::Impl {
     std::vector<int>     dpb_pin;      // DPB slot -> pool index, or -1
 
     std::vector<int> ready;            // pool indices awaiting output
-    int64_t out_index = 0;
     int64_t decoded = 0;
     bool    eos = false;
 
     // Conversion scratch.
     vk::DevicePtr luma_buf = 0, chroma_buf = 0, chroma2_buf = 0;
-    vk::DevicePtr thumb_buf = 0, metric_buf = 0, rgb_buf = 0;
+    vk::DevicePtr thumb_buf = 0, metric_buf = 0, rgb_buf = 0, gray_buf = 0;
+    VkDeviceSize gray_capacity = 0;
     VkDeviceSize  rgb_capacity = 0;
+    vk::DevicePtr lut_buf = 0;
+    VkDeviceSize  lut_capacity = 0;
+    uint64_t      lut_serial = 0;
     std::vector<float> metrics;
     std::vector<int>   metric_pending;
 
@@ -309,6 +323,7 @@ struct VideoPipeline::Impl {
     void releasePool(int idx);
     void copyPlanes(int idx);
     bool ensureRgb(VkDeviceSize bytes);
+    bool ensureLut(const ConvertOpts& opts);
     uint32_t planeFlags() const;
 };
 
@@ -365,8 +380,7 @@ VideoPipeline::Impl::~Impl() {
         if (p.image) vkDestroyImage(dev, p.image, nullptr);
         if (p.mem) vkFreeMemory(dev, p.mem, nullptr);
     }
-    for (VkImageView v : dpb_views)
-        if (v) vkDestroyImageView(dev, v, nullptr);
+    if (dpb_view) vkDestroyImageView(dev, dpb_view, nullptr);
     if (dpb_image) vkDestroyImage(dev, dpb_image, nullptr);
     if (dpb_mem) vkFreeMemory(dev, dpb_mem, nullptr);
     for (auto& b : bs) {
@@ -378,12 +392,20 @@ VideoPipeline::Impl::~Impl() {
     for (VkDeviceMemory m : session_mem) vkFreeMemory(dev, m, nullptr);
     if (vtimeline) vkDestroySemaphore(dev, vtimeline, nullptr);
     if (vpool) vkDestroyCommandPool(dev, vpool, nullptr);
-    for (vk::DevicePtr p : {luma_buf, chroma_buf, chroma2_buf, thumb_buf, metric_buf, rgb_buf})
+    for (vk::DevicePtr p : {luma_buf, chroma_buf, chroma2_buf, thumb_buf, metric_buf,
+                            rgb_buf, gray_buf, lut_buf})
         if (p) vk::device_free(p);
 }
 
 bool VideoPipeline::open(const std::string& path, int track, int lookahead,
                          std::string& error) {
+    std::unique_ptr<Demuxer> demux = open_demuxer(path, error);
+    if (!demux) return false;
+    return open(std::move(demux), path, track, lookahead, error);
+}
+
+bool VideoPipeline::open(std::unique_ptr<Demuxer> demux, const std::string& path,
+                         int track, int lookahead, std::string& error) {
     NN_ENSURE_EMBEDDED_MODULES(video);
     Impl& s = *impl_;
     const std::string why = availability();
@@ -392,8 +414,7 @@ bool VideoPipeline::open(const std::string& path, int track, int lookahead,
         return false;
     }
 
-    s.demux = open_demuxer(path, error);
-    if (!s.demux) return false;
+    s.demux = std::move(demux);
     if (track < 0) track = 0;
     if (track >= (int)s.demux->tracks().size()) {
         error = "'" + path + "' has " + std::to_string(s.demux->tracks().size()) +
@@ -725,12 +746,17 @@ bool VideoPipeline::Impl::createImages(int lookahead, std::string& error) {
         error = "cannot allocate the video reference picture buffer";
         return false;
     }
-    dpb_views.resize(fmt.max_dpb_slots);
-    for (uint32_t i = 0; i < fmt.max_dpb_slots; ++i)
-        if (!create_view(dpb_image, dpb_format, i, dpb_views[i])) {
-            error = "cannot create a DPB image view";
-            return false;
-        }
+    // One 2D-array view, slot chosen by baseArrayLayer: a 2D view per layer
+    // decoded inter frames wrong on AMD's Windows driver (R9700, 26.Q3).
+    VkImageViewCreateInfo dpb_vci{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    dpb_vci.image = dpb_image;
+    dpb_vci.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    dpb_vci.format = dpb_format;
+    dpb_vci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, fmt.max_dpb_slots};
+    if (vkCreateImageView(dev, &dpb_vci, nullptr, &dpb_view) != VK_SUCCESS) {
+        error = "cannot create a DPB image view";
+        return false;
+    }
     dpb_pin.assign(fmt.max_dpb_slots, -1);
 
     // Output pictures: enough for the reorder queue, the caller's window, the
@@ -938,11 +964,11 @@ bool VideoPipeline::Impl::recordDecode(int pool_idx, const PictureInfo& pi,
                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr,
                          (uint32_t)barriers.size(), barriers.data());
 
-    auto picture_resource = [&](VkImageView view) {
+    auto picture_resource = [&](VkImageView view, uint32_t layer = 0) {
         VkVideoPictureResourceInfoKHR pr{VK_STRUCTURE_TYPE_VIDEO_PICTURE_RESOURCE_INFO_KHR};
         pr.codedOffset = {0, 0};
         pr.codedExtent = coded;
-        pr.baseArrayLayer = 0;
+        pr.baseArrayLayer = layer;
         pr.imageViewBinding = view;
         return pr;
     };
@@ -955,9 +981,10 @@ bool VideoPipeline::Impl::recordDecode(int pool_idx, const PictureInfo& pi,
     std::vector<VkVideoReferenceSlotInfoKHR>   begin_slots;
     begin_res.reserve(pi.refs.size() + 1);
     begin_slots.reserve(pi.refs.size() + 1);
-    for (const auto& r : pi.refs) begin_res.push_back(picture_resource(dpb_views[(size_t)r.slot]));
+    for (const auto& r : pi.refs)
+        begin_res.push_back(picture_resource(dpb_view, (uint32_t)r.slot));
     if (pi.setup_slot >= 0)
-        begin_res.push_back(picture_resource(dpb_views[(size_t)pi.setup_slot]));
+        begin_res.push_back(picture_resource(dpb_view, (uint32_t)pi.setup_slot));
     for (size_t i = 0; i < pi.refs.size(); ++i) {
         VkVideoReferenceSlotInfoKHR sl{VK_STRUCTURE_TYPE_VIDEO_REFERENCE_SLOT_INFO_KHR};
         sl.slotIndex = pi.refs[i].slot;
@@ -1142,6 +1169,7 @@ bool VideoPipeline::Impl::decodeNext(std::string& error) {
         if (src >= 0) {
             ++pool[(size_t)src].refs;
             pool[(size_t)src].pts = pkt.pts;
+            pool[(size_t)src].display_index = pkt.display_index;
             ready.push_back(src);
         }
         codec->commitFrame();
@@ -1164,6 +1192,7 @@ bool VideoPipeline::Impl::decodeNext(std::string& error) {
     p.poc = pi.poc;
     p.pts = pkt.pts;
     p.decode_index = pkt.index;
+    p.display_index = pkt.display_index;
 
     // Pin the pool image while a DPB slot still refers to it (AV1 replays
     // pictures with show_existing_frame; H.264/H.265 never do).
@@ -1209,13 +1238,33 @@ bool VideoPipeline::next(FrameHandle& out, std::string& error) {
             const int idx = s.ready[best];
             s.ready.erase(s.ready.begin() + (ptrdiff_t)best);
             out.slot = idx;
-            out.index = s.out_index++;
+            out.index = s.pool[(size_t)idx].display_index;
             out.pts = s.pool[(size_t)idx].pts;
             return true;
         }
         if (s.eos) return false;
         if (!s.decodeNext(error)) return false;
     }
+}
+
+bool VideoPipeline::seek(int64_t index, int64_t& landed, std::string& error) {
+    Impl& s = *impl_;
+    error.clear();
+    // Asked before anything is torn down, so a container that cannot seek
+    // leaves the pipeline exactly where it was.
+    if (!s.demux->seekSync(index, landed, error)) return false;
+    // The reorder queue and the DPB hold pictures of the GOP being left, and
+    // the codec's reference state describes it; all three go.
+    for (int idx : s.ready) s.releasePool(idx);
+    s.ready.clear();
+    for (int& pin : s.dpb_pin) {
+        if (pin >= 0) s.releasePool(pin);
+        pin = -1;
+    }
+    s.codec->flush();
+    s.more_in_packet = false;
+    s.eos = false;
+    return true;
 }
 
 void VideoPipeline::release(FrameHandle& h) {
@@ -1288,7 +1337,8 @@ void VideoPipeline::queueSharpness(const FrameHandle& h) {
     tp.src_w = (uint32_t)s.fmt.width;
     tp.src_h = (uint32_t)s.fmt.height;
     tp.luma_stride = s.coded.width;
-    tp.size = kThumbSize;
+    tp.out_w = kThumbSize;
+    tp.out_h = kThumbSize;
     tp.flags = s.planeFlags();
     tp.shift = (uint32_t)s.planes.shift;
     vk::Stream::get().dispatchFlat("video.luma_thumbnail", {}, (int64_t)kThumbSize * kThumbSize,
@@ -1329,12 +1379,75 @@ void VideoPipeline::outputSize(const ConvertOpts& opts, int& w, int& h) const {
     h = sh;
 }
 
+bool VideoPipeline::Impl::ensureLut(const ConvertOpts& opts) {
+    if (lut_buf && lut_serial == opts.lut_serial) return true;
+    const size_t n = (size_t)opts.lut_size;
+    std::vector<float> block(kLutHeader + n * n * n * 3, 0.0f);
+    block[0] = (float)n;
+    for (int c = 0; c < 3; c++) {
+        block[1 + c] = opts.lut_min[c];
+        block[4 + c] = (float)(n - 1) / (opts.lut_max[c] - opts.lut_min[c]);
+    }
+    std::memcpy(block.data() + kLutHeader, opts.lut, n * n * n * 3 * sizeof(float));
+    const VkDeviceSize bytes = block.size() * sizeof(float);
+    if (lut_capacity < bytes) {
+        if (lut_buf) vk::device_free(lut_buf);
+        lut_buf = vk::device_alloc(bytes, "video.lut");
+        lut_capacity = lut_buf ? bytes : 0;
+        if (!lut_buf) return false;
+    }
+    vk::Stream::get().upload(lut_buf, block.data(), bytes);
+    lut_serial = opts.lut_serial;
+    return true;
+}
+
 bool VideoPipeline::Impl::ensureRgb(VkDeviceSize bytes) {
     if (rgb_buf && rgb_capacity >= bytes) return true;
     if (rgb_buf) vk::device_free(rgb_buf);
     rgb_capacity = bytes;
     rgb_buf = vk::device_alloc(bytes, "video.rgb");
     return rgb_buf != 0;
+}
+
+bool VideoPipeline::toGray(const FrameHandle& h, int w, int gh,
+                           std::vector<uint8_t>& out, std::string& error) {
+    Impl& s = *impl_;
+    if (h.slot < 0 || w <= 0 || gh <= 0) {
+        error = "toGray: invalid request";
+        return false;
+    }
+    const VkDeviceSize bytes = (VkDeviceSize)w * gh * 4;
+    if (s.gray_capacity < bytes) {
+        if (s.gray_buf) vk::device_free(s.gray_buf);
+        s.gray_buf = vk::device_alloc(bytes, "video.gray");
+        s.gray_capacity = s.gray_buf ? bytes : 0;
+    }
+    if (!s.gray_buf) {
+        error = "out of device memory for the grey frame buffer";
+        return false;
+    }
+    s.copyPlanes(h.slot);
+
+    ThumbParams tp{};
+    tp.out = s.gray_buf;
+    tp.luma = s.luma_buf;
+    tp.src_w = (uint32_t)s.fmt.width;
+    tp.src_h = (uint32_t)s.fmt.height;
+    tp.luma_stride = s.coded.width;
+    tp.out_w = (uint32_t)w;
+    tp.out_h = (uint32_t)gh;
+    tp.flags = s.planeFlags();
+    tp.shift = (uint32_t)s.planes.shift;
+    vk::Stream::get().dispatchFlat("video.luma_thumbnail", {}, (int64_t)w * gh, 256,
+                                   &tp, sizeof(tp), &tp.groups_per_row);
+
+    std::vector<float> f((size_t)w * gh);
+    vk::Stream::get().download(f.data(), s.gray_buf, bytes);
+    out.resize(f.size());
+    for (size_t i = 0; i < f.size(); i++)
+        out[i] = (uint8_t)std::min(255.0f, std::max(0.0f, f[i] + 0.5f));
+    s.pool[(size_t)h.slot].read_value = 0;
+    return true;
 }
 
 bool VideoPipeline::toImage(const FrameHandle& h, const ConvertOpts& opts, nn::Image& out,
@@ -1351,11 +1464,19 @@ bool VideoPipeline::toImage(const FrameHandle& h, const ConvertOpts& opts, nn::I
         error = "out of device memory for the RGB frame buffer";
         return false;
     }
+    const bool lut = opts.lut && opts.lut_size >= 2;
+    if (lut && !s.ensureLut(opts)) {
+        error = "out of device memory for the colour LUT";
+        return false;
+    }
 
     s.copyPlanes(h.slot);
 
     float m[3][4];
-    color_matrix(s.fmt.matrix_coefficients, s.fmt.full_range, s.fmt.bit_depth, s.fmt.height, m);
+    color_matrix(opts.matrix_coefficients >= 0 ? opts.matrix_coefficients
+                                               : s.fmt.matrix_coefficients,
+                 opts.full_range >= 0 ? opts.full_range != 0 : s.fmt.full_range,
+                 s.fmt.bit_depth, s.fmt.height, m);
 
     const int rot = ((opts.rotate % 360) + 360) % 360;
     const int sw = (rot == 90 || rot == 270) ? oh : ow;
@@ -1377,10 +1498,11 @@ bool VideoPipeline::toImage(const FrameHandle& h, const ConvertOpts& opts, nn::I
     p.src_h = (uint32_t)s.fmt.height;
     p.luma_stride = s.coded.width;
     p.chroma_stride = s.planes.sub_x ? s.coded.width / (uint32_t)s.planes.sub_x : 0;
-    p.flags = s.planeFlags() | ((uint32_t)(rot / 90) << 4);
-    p.shift = (uint32_t)s.planes.shift;
+    p.flags = s.planeFlags() | ((uint32_t)(rot / 90) << 4) |
+              ((uint32_t)s.planes.shift << kYuvShiftAt) | (lut ? kYuvLut : 0u);
     p.inv_sx = (float)s.fmt.width / (float)sw;
     p.inv_sy = (float)s.fmt.height / (float)sh;
+    p.lut = vk::or_fallback(lut ? s.lut_buf : 0);
     vk::Stream::get().dispatchFlat("video.yuv_to_rgb", {}, (int64_t)quads, 256, &p, sizeof(p),
                                    &p.groups_per_row);
 
@@ -1396,6 +1518,8 @@ bool VideoPipeline::toImage(const FrameHandle& h, const ConvertOpts& opts, nn::I
     s.pool[(size_t)h.slot].read_value = 0;
     return true;
 }
+
+uint64_t VideoPipeline::rgbDevice() const { return impl_->rgb_buf; }
 
 const std::vector<TrackInfo>& VideoPipeline::tracks() const { return impl_->demux->tracks(); }
 const TrackInfo& VideoPipeline::track() const { return impl_->track_info; }

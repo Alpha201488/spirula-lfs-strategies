@@ -32,8 +32,8 @@ way in; that tree is now read-only and this is upstream.
 
 - **Vulkan only**, like `src/sfm/`. There is no CUDA path here and there will
   not be one; the module is built by default only for `SS_BACKEND=vulkan`
-  (`SS_BUILD_SAM`), and a CUDA build keeps the `reference/scripts/mask.py`
-  subprocess.
+  (`SS_BUILD_SAM`). A build without it has no model-based masking; the
+  fixed-area stencil (`src/app/FrameMask.h`) needs no model and still works.
 - **Nothing model-agnostic belongs here.** Tensors, ops, the Vulkan runtime and
   host image I/O are `src/nn/`'s. If you find yourself adding a general kernel
   under `sam/`, it belongs one directory down — that separation is what lets a
@@ -121,12 +121,21 @@ user sees in the preview is what gets written.
   where the prompt names the subject rather than a distractor;
 - a longest-side cap on what the model sees, with the mask returned at the
   source resolution;
-- **clicked objects** (`MaskOptions::seeds`), described below.
+- **clicked objects** (`MaskOptions::seeds`), described below;
+- **a second mask, for feature extraction only** (`MaskOptions::feature_text`,
+  "sky; cloud"): matched from the same backbone pass -- the same Grounding
+  DINO pass, on SAM 2 -- with no margin, and written to `feature_masks/`,
+  which the reconstruction intersects with `masks/` and training never reads;
+- **two models that are not SAM**: `MaskOptions::detector` pairs a SAM
+  checkpoint with Grounding DINO (`src/gdino/`), which finds every phrase's
+  boxes in one pass for SAM to cut out -- text on SAM 2, lang-segment-anything
+  style, re-detected on every frame; and a BiRefNet checkpoint as
+  `MaskOptions::model` (`src/birefnet/`) masks the main subject with no prompt
+  at all. Both reach the same union, margin and polarity as SAM 3's matches.
 
 The text half matches `reference/scripts/mask.py`, defaults included, so a dataset masked
-either way is the same dataset. Clicks have no counterpart there —
-lang-segment-anything takes words and nothing else — and the GUI says so rather
-than dropping them.
+either way is the same dataset. Clicks have no counterpart there:
+lang-segment-anything takes words and nothing else.
 
 ### What is not a prompt
 
@@ -175,6 +184,11 @@ spirula sam segment --model sam3-q4_0.ggml --image cat.jpg --point 315,250 --out
 spirula sam track   --model sam3-q4_0.ggml --frames frames/ --out masks/ --text "person; car"
 spirula sam extract clip.mp4 --skip 30 --model sam3-q4_0.ggml --text "person"
 
+# Text on SAM 2 through Grounding DINO, and the main subject with no prompt.
+spirula sam track --model sam2.1_hiera_small_f16.ggml --detector gdino-tiny \
+    --frames frames/ --out masks/ --text "person; car"
+spirula sam track --model birefnet --frames frames/ --out masks/
+
 # Two clicked objects, the first corrected at frame 90. Works on a SAM 2
 # checkpoint, which has no text tower and no other way to be prompted.
 spirula sam track --model sam2.1_hiera_tiny_f16.ggml --frames frames/ --out masks/ \
@@ -191,7 +205,7 @@ session.encodeImage(nn::load_image("street.jpg"));   // once per frame
 sam::Result r = session.segmentConcept({.text = "yellow school bus"});
 ```
 
-Runtime knobs: `SS_NN_LOG=0..3`, `SS_VK_DEVICE=<index|name>`,
+Runtime knobs: `SS_NN_LOG=0..3`, `SS_VK_DEVICE=<index|name|auto|uuid:hex>`,
 `SS_PROFILE=1`, `SS_VK_VALIDATION=1`, `SS_NN_DEBUG_SYNC=1`.
 
 ## Checkpoints
@@ -376,8 +390,8 @@ Faithful to the reference numerics; what changed is the execution model.
 ## Tests
 
 ```bash
-./build/nn_ops_test        # every GPU kernel vs an independent CPU reference
-./build/sam_pipeline_test  # the whole library over a synthetic checkpoint
+./build_vulkan/nn_ops_test        # every GPU kernel vs an independent CPU reference
+./build_vulkan/sam_pipeline_test  # the whole library over a synthetic checkpoint
 ```
 
 `sam_pipeline_test` writes real, format-correct checkpoints at a shrunken

@@ -11,6 +11,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "sfm/core/Pose.h"
@@ -20,6 +21,45 @@ namespace sfm {
 constexpr uint32_t kNoImage = UINT32_MAX;
 constexpr uint32_t kNoRig = UINT32_MAX;
 
+// Which of a cam_from_rig's parameters bundle adjustment may move, as
+// BAProblem::Member::mask: bits 0-2 the angle-axis, 3-5 the translation. Axial:
+// the rig origin sits on the lens's own optical axis, so rotation and t.z.
+enum RigDof : uint8_t {
+    kRigDofNone = 0,
+    kRigDofRotation = 0x07,
+    kRigDofTranslation = 0x38,
+    kRigDofBaseline = 0x20,
+    kRigDofAxial = 0x27,
+    kRigDofAll = 0x3F,
+};
+
+inline constexpr const char* kRigDofNames =
+    "all, axial, baseline, rotation, translation or none";
+
+inline bool parseRigDof(const std::string& s, uint8_t& out) {
+    static const std::pair<const char*, uint8_t> kNames[] = {
+        {"all", kRigDofAll},           {"axial", kRigDofAxial},
+        {"baseline", kRigDofBaseline}, {"rotation", kRigDofRotation},
+        {"translation", kRigDofTranslation}, {"none", kRigDofNone}};
+    for (const auto& n : kNames)
+        if (s == n.first) {
+            out = n.second;
+            return true;
+        }
+    return false;
+}
+
+inline const char* rigDofName(uint8_t dof) {
+    switch (dof) {
+        case kRigDofAxial: return "axial";
+        case kRigDofBaseline: return "baseline";
+        case kRigDofRotation: return "rotation";
+        case kRigDofTranslation: return "translation";
+        case kRigDofNone: return "none";
+        default: return "all";
+    }
+}
+
 // One member as the user describes it: a path prefix under the image
 // directory, and optionally the extrinsic it is known to have.
 struct RigMemberDef {
@@ -27,6 +67,7 @@ struct RigMemberDef {
     bool has_ext = false;
     Pose ext;             // cam_from_rig, in the user's units
     bool ext_fixed = true;
+    uint8_t dof = kRigDofAll;
 };
 
 // Members are path prefixes; with `captures` they are relative to each of
@@ -36,11 +77,38 @@ struct RigDef {
     std::string name;
     std::vector<RigMemberDef> members;
     std::vector<std::string> captures;  // "*" = every top-level folder
+    std::string kind;                   // "" or "dual-fisheye" (applyRigKind)
 };
+
+// Back-to-back fisheyes: Insta360 X, DJI Osmo 360 and a PortalCam's two
+// fisheyes calibrate 0.8-1.4 degrees from this (docs/notes/sfm-rig-constraints.md).
+inline Pose dualFisheyeNominal() {
+    return {Mat3{-1, 0, 0, 0, 1, 0, 0, 0, -1}, {0, 0, 0}};
+}
+
+// Fills in what a kind says about the first members where the definition does
+// not: a dual fisheye is two lenses turned 180 degrees about the image's
+// vertical, the baseline between them their only translation. "" or the error.
+inline std::string applyRigKind(RigDef& d) {
+    if (d.kind.empty()) return {};
+    if (d.kind != "dual-fisheye") return "unknown rig kind '" + d.kind + "' (dual-fisheye)";
+    if (d.members.size() < 2) return "rig kind dual-fisheye needs two members";
+    RigMemberDef& a = d.members[0];
+    RigMemberDef& b = d.members[1];
+    if (!a.has_ext && !b.has_ext) {
+        a.has_ext = b.has_ext = true;
+        a.ext = {mat3Identity(), {0, 0, 0}};
+        b.ext = dualFisheyeNominal();
+        a.ext_fixed = b.ext_fixed = false;
+        b.dof = kRigDofAxial;
+    }
+    return {};
+}
 
 // The rig resolved against a database: image ids per frame.
 struct RigSpec {
     std::string name;
+    std::string kind;
     std::vector<RigMemberDef> members;
     std::vector<std::vector<uint32_t>> frames;  // frames[f][m], kNoImage where absent
     std::vector<std::string> frame_keys;        // what the images of a frame share
@@ -101,6 +169,7 @@ struct RigTable {
         for (const RigSpec& rig : rigs) {
             RigSpec s;
             s.name = rig.name;
+            s.kind = rig.kind;
             s.members = rig.members;
             for (size_t f = 0; f < rig.frames.size(); f++) {
                 std::vector<uint32_t> fr(rig.members.size(), kNoImage);
@@ -134,10 +203,16 @@ struct RigTable {
     }
 };
 
-// `--rig [CAPTURES:]MEMBERS`, both comma-separated prefixes: `cam0,cam1`,
-// `vid1,vid2:cam0,cam1`, `*:cam0,cam1`. "" on success.
-inline std::string parseRigArg(const std::string& v, RigDef& out) {
+// `--rig [KIND=][CAPTURES:]MEMBERS`, both comma-separated prefixes:
+// `cam0,cam1`, `vid1,vid2:cam0,cam1`, `*:cam0,cam1`, `dual-fisheye=cam0,cam1`.
+// "" on success.
+inline std::string parseRigArg(const std::string& arg, RigDef& out) {
     out = RigDef{};
+    std::string v = arg;
+    if (v.compare(0, 13, "dual-fisheye=") == 0) {
+        out.kind = "dual-fisheye";
+        v.erase(0, 13);
+    }
     auto split = [](const std::string& s, std::vector<std::string>& into) {
         for (size_t i = 0;;) {
             size_t c = s.find(',', i);
@@ -163,7 +238,7 @@ inline std::string parseRigArg(const std::string& v, RigDef& out) {
         out.members.push_back(m);
     }
     if (out.members.size() < 2) return "--rig '" + v + "': a rig needs at least two members";
-    return {};
+    return applyRigKind(out);
 }
 
 // ---- resolving definitions against image names ----------------------------
@@ -196,13 +271,9 @@ inline RigTable buildRigTable(const std::vector<std::string>& names,
     for (const RigDef& d : defs) {
         if (d.members.size() < 2)
             throw std::runtime_error("rig " + d.name + ": a rig needs at least two members");
-        size_t known = 0;
-        for (const RigMemberDef& m : d.members) known += m.has_ext ? 1 : 0;
-        if (known && known != d.members.size())
-            throw std::runtime_error("rig " + d.name +
-                                     ": extrinsics were given for some members but not all");
         RigSpec s;
         s.name = d.name.empty() ? "rig" + std::to_string(out.rigs.size()) : d.name;
+        s.kind = d.kind;
         s.members = d.members;
         // The captures the members are relative to: the ones named, every
         // top-level folder for "*", or the one empty capture (absolute members).

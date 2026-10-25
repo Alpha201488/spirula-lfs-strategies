@@ -85,7 +85,9 @@ void add_polygon(MeshData& mesh, const std::vector<int>& poly) {
 }
 
 // ===========================================================================
-// PLY
+// PLY -- ascii and binary either endianness, any property order, float or
+// double positions and normals, uchar or float colors with or without alpha,
+// s,t / u,v / texture_u,texture_v UVs, polygons fan-triangulated.
 // ===========================================================================
 
 struct PlyProp {
@@ -365,7 +367,8 @@ bool read_ply(const std::string& path, MeshData& out, std::string& error) {
 }
 
 // ===========================================================================
-// OBJ
+// OBJ -- v / vn / vt / f in every index form, negative (relative) indices,
+// polygons fan-triangulated, the first map_Kd of the .mtl as the texture.
 // ===========================================================================
 
 // The first map_Kd of an .mtl, resolved against the .mtl's own directory.
@@ -541,7 +544,9 @@ bool read_obj(const std::string& path, MeshData& out, std::string& error) {
 }
 
 // ===========================================================================
-// glTF / GLB
+// glTF / GLB -- POSITION / NORMAL / COLOR_0 / TEXCOORD_0 / indices in every
+// component type the spec allows, every primitive of every mesh merged into
+// one with node transforms applied. Draco, sparse accessors, animation: no.
 // ===========================================================================
 
 struct GltfBuffers {
@@ -1017,6 +1022,68 @@ bool read_gltf(const std::string& path, MeshData& out, std::string& error) {
     return true;
 }
 
+// ===========================================================================
+// STL (binary and ASCII)
+//
+// Geometry only, and one triangle is three vertices of its own: the file says
+// nothing about which of them are the same point, so nothing here welds them.
+// ===========================================================================
+
+void stl_add_face(MeshData& out, const float v[9], const float n[3]) {
+    const int base = (int)out.V.size();
+    for (int i = 0; i < 3; ++i) {
+        out.V.push_back({v[3*i], v[3*i+1], v[3*i+2]});
+        out.N.push_back({n[0], n[1], n[2]});
+    }
+    out.F.push_back({base, base + 1, base + 2});
+}
+
+bool read_stl(const std::string& path, MeshData& out, std::string& error) {
+    bool ok = false;
+    const std::string blob = read_file(path, true, &ok);
+    if (!ok) { error = "cannot open " + path; return false; }
+
+    // Binary when the triangle count in the header accounts for the whole
+    // file: an ASCII STL also starts with "solid", so the size is the test.
+    if (blob.size() >= 84) {
+        uint32_t n = 0;
+        std::memcpy(&n, blob.data() + 80, 4);
+        if ((uint64_t)n * 50u + 84u == (uint64_t)blob.size()) {
+            out.V.reserve((size_t)n * 3);
+            out.F.reserve(n);
+            for (uint32_t t = 0; t < n; ++t) {
+                const char* p = blob.data() + 84 + (size_t)t * 50;
+                float nrm[3], v[9];
+                std::memcpy(nrm, p, 12);
+                std::memcpy(v, p + 12, 36);
+                stl_add_face(out, v, nrm);
+            }
+            return true;
+        }
+    }
+
+    std::istringstream in(blob);
+    std::string word;
+    float nrm[3] = {0, 0, 0}, v[9];
+    int got = 0;
+    while (in >> word) {
+        for (char& c : word) c = (char)std::tolower((unsigned char)c);
+        if (word == "facet") {
+            if (!(in >> word)) break;               // "normal"
+            in >> nrm[0] >> nrm[1] >> nrm[2];
+            got = 0;
+        } else if (word == "vertex") {
+            if (got <= 6) in >> v[got] >> v[got+1] >> v[got+2];
+            else { float junk; in >> junk >> junk >> junk; }
+            got += 3;
+        } else if (word == "endfacet") {
+            if (got == 9) stl_add_face(out, v, nrm);
+        }
+    }
+    if (out.F.empty()) { error = path + " holds no STL triangles"; return false; }
+    return true;
+}
+
 }  // namespace
 
 // ===========================================================================
@@ -1025,7 +1092,8 @@ bool read_gltf(const std::string& path, MeshData& out, std::string& error) {
 
 bool is_mesh_path(const std::string& path) {
     const std::string e = lower_ext(path);
-    return e == ".ply" || e == ".obj" || e == ".gltf" || e == ".glb";
+    return e == ".ply" || e == ".obj" || e == ".gltf" || e == ".glb" ||
+           e == ".stl";
 }
 
 bool ply_is_mesh(const std::string& path) {
@@ -1058,6 +1126,7 @@ bool read_mesh(const std::string& path, MeshData& out, std::string& error) {
     bool ok;
     if (e == ".ply") ok = read_ply(path, out, error);
     else if (e == ".obj") ok = read_obj(path, out, error);
+    else if (e == ".stl") ok = read_stl(path, out, error);
     else if (e == ".gltf" || e == ".glb") ok = read_gltf(path, out, error);
     else { error = "unsupported mesh format '" + e + "'"; return false; }
     if (!ok) return false;

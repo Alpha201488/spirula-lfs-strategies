@@ -961,7 +961,8 @@ std::vector<int> build_uv_atlas(MeshData& mesh, UVAtlasConfig& cfg) {
                 done_faces.push_back(std::move(chart_faces[ci]));
                 continue;
             }
-            auto& faces = chart_faces[ci];
+            // moved out, not referenced: the emplace_backs below reallocate chart_faces
+            std::vector<int> faces = std::move(chart_faces[ci]);
             if (faces.size() <= 1) {
                 // terminally degenerate (zero-area triangle): park it on a
                 // zero-size point so export stays valid
@@ -1005,7 +1006,6 @@ std::vector<int> build_uv_atlas(MeshData& mesh, UVAtlasConfig& cfg) {
             chart_faces.emplace_back(order2.begin() + half, order2.end());
             next.push_back(ia);
             next.push_back(ia + 1);
-            faces.clear();
         }
         pending.swap(next);
     }

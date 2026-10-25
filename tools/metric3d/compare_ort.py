@@ -6,7 +6,7 @@ ours. Run the C++ side with SS_METRIC3D_DUMP=<dir> to get one .npy per stage,
 then point this at the same input.
 
     pip install onnx onnxruntime numpy
-    SS_METRIC3D_DUMP=/tmp/ours ./build/metric3d_test --model metric3d-vit-large \
+    SS_METRIC3D_DUMP=/tmp/ours ./build_vulkan/metric3d_test --model metric3d-vit-large \
         --image street.jpg --max-size 616
     python3 tools/metric3d/compare_ort.py --onnx ~/.cache/spirula-studio/models/\
 metric3d-vit-large-fp16.onnx --ours /tmp/ours

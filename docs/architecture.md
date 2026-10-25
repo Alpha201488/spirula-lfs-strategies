@@ -43,6 +43,12 @@ repo: read `src/backend/README.md`, then `src/backend/vulkan/README.md`.
 | dataset parsing (native) | `src/data/parsers/{Colmap,Nerfstudio,Metashape}Parser.cpp`, `DatasetCommon.cpp`, `DatasetParser.h` |
 | image cache / prefetch / warp | `src/data/DataManager.cpp` |
 | training session orchestration | `src/app/TrainerCore.cpp` — the single training driver, shared by the CLI and the GUI |
+| saved presets | `src/app/gui/PresetFile.{h,cpp}` — the file header, folder and probe every kind shares; `TrainPreset`, `DatasetPreset` and `MeshPreset` add one hand-written field table each |
+| batch processing | `src/app/gui/BatchProcess.{h,cpp}` — the rows, the pre-flight and the plan they expand into. The driver is `GuiApp::advance_batch()`, which reuses the three live runners rather than being a fourth |
+| telling somebody a queue is over | `src/app/gui/CommandRunner.{h,cpp}` runs the command, `gui::command_argv()` (Subprocess.h) builds its argv with `{message}` replaced by a summary that carries nothing a JSON payload would have to escape |
+| the input list a dataset run takes | `src/app/gui/SourceList.{h,cpp}` — one answer to "which lens is this capture", shared by the New Dataset screen and a batch row |
+| what a meshing run writes | `src/mesh/MeshExport.{h,cpp}` — the writers, which colors each format can carry, and the plan a request for several of them expands into. `src/app/gui/MeshJob.h` is the GUI's side of the same request |
+| reading a mesh back | `src/mesh/MeshImport.cpp` (every front end but one) and `viewer/src/viewer.cpp` (the WASM viewer, whose constraints are genuinely different) |
 | the actual training step | `Engine*.cpp`, entered via `engine_train_step_managed` |
 | kernels | `src/kernels/**/*.cu` (CUDA) + `src/backend/vulkan/shaders/*.slang` + `src/backend/vulkan/kernels/*.cpp` |
 | web viewer client | `src/app/webviewer/viewer.html` — single source, embedded into the engine library at build time; every front end serves the same bytes |
@@ -57,8 +63,9 @@ and the gates survive as golden-value regression tests
 
 Nothing is left in Python. Checkpoint resume and its layout adaptation are
 native (`src/checkpoint/`), and so is the eval pass
-(`src/app/EvalMetrics.{h,cpp}`) except LPIPS, which needs AlexNet + VGG16 and
-is a hand-run tool over the saved eval PNGs (`reference/python/eval_lpips.py`).
+(`src/app/EvalMetrics.{h,cpp}`), LPIPS included: AlexNet + VGG16 run on the
+inference layer (`src/lpips/`). A build without that layer leaves LPIPS to a
+hand-run tool over the saved eval PNGs (`reference/python/eval_lpips.py`).
 
 ## The engine
 
@@ -106,3 +113,11 @@ branches: `Primitive.cuh`, `Primitive3DGS.cuh`, `Primitive3DGUT.cuh`,
 parameters. This is what makes `src/instantiations/` (111 generated instantiation TUs)
 necessary on the CUDA side, and what maps to Slang specialization constants on
 the Vulkan side.
+
+The view-dependent colour is an axis of its own, orthogonal to the primitive:
+a `ColorBasis` (`core/ColorBasis.h`) says what one splat's colour row holds --
+SH bands, then spherical-beta lobes -- and travels with the row through the
+engine and the launch APIs. On Vulkan the projection family evaluates it in
+one place, `backend/vulkan/shaders/view_color.slang`, with the lobe count a
+specialization constant like the SH degree; the CUDA kernels take SH only and
+refuse lobes. [notes/spherical-beta.md](notes/spherical-beta.md).

@@ -27,13 +27,19 @@
 // one message therefore share an ID too -- wrap one in ImGui::PushID() exactly
 // as you would for two identical literals.
 
+#include "app/gui/Automation.h"
 #include "app/gui/Layout.h"
 #include "i18n/Message.h"
 
 #include "imgui.h"
 #include "imgui_stdlib.h"
 
+#include <algorithm>
+#include <climits>
+#include <cstddef>
 #include <cfloat>
+#include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -65,6 +71,17 @@ inline const char* label(const std::string& text, const Msg& m) {
     return label(text.c_str(), m.id);
 }
 
+// ImGui's combo reports no label to the item hooks (Automation.h), so a script
+// could not find it by its message id. The id is taken first: an open popup
+// moves ImGui's last item.
+template <class Draw>
+inline bool named_combo(const char* label, Draw&& draw) {
+    const ImGuiID id = ImGui::GetID(label);
+    const bool r = draw();
+    ::gui::automation::name_item(id, label);
+    return r;
+}
+
 // Msg* list -> the const char*[] ImGui's Combo wants.
 inline const std::vector<const char*>& items(
         std::initializer_list<const Msg*> ms) {
@@ -72,6 +89,94 @@ inline const std::vector<const char*>& items(
     v.clear();
     for (const Msg* m : ms) v.push_back(m->get());
     return v;
+}
+
+// "10000000" and "1000000" look alike, so an integer of five digits or more
+// is shown as "10,000,000", while it is typed too. Parsing skips the commas.
+inline int group_digits(const char* s, int cursor, std::string& out) {
+    std::string digits;
+    int before = 0;
+    for (int i = 0; s[i]; i++) {
+        if (s[i] < '0' || s[i] > '9') continue;
+        digits += s[i];
+        if (i < cursor) before++;
+    }
+    out = s[0] == '-' ? "-" : "";
+    int pos = (int)out.size();
+    const size_t n = digits.size();
+    for (size_t i = 0; i < n; i++) {
+        if (i && n >= 5 && (n - i) % 3 == 0) out += ',';
+        out += digits[i];
+        if ((int)i < before) pos = (int)out.size();
+    }
+    return pos;
+}
+
+inline int int_field_callback(ImGuiInputTextCallbackData* d) {
+    if (d->EventFlag == ImGuiInputTextFlags_CallbackCharFilter) {
+        const ImWchar c = d->EventChar;
+        return !((c >= '0' && c <= '9') || c == '-' || c == ',');
+    }
+    std::string out;
+    const int pos = group_digits(d->Buf, d->CursorPos, out);
+    if (out != d->Buf) {
+        d->DeleteChars(0, d->BufTextLen);
+        d->InsertChars(0, out.c_str());
+    }
+    d->CursorPos = d->SelectionStart = d->SelectionEnd = pos;
+    return 0;
+}
+
+// ImGui::InputInt's layout and IDs, so automation finds the same widgets.
+inline bool input_int(const char* label, int* v, int step, int step_fast) {
+    std::string text;
+    group_digits(std::to_string(*v).c_str(), 0, text);
+    char buf[32];
+    std::snprintf(buf, sizeof buf, "%s", text.c_str());
+    const ImGuiInputTextFlags flags = ImGuiInputTextFlags_AutoSelectAll |
+                                      ImGuiInputTextFlags_CallbackCharFilter |
+                                      ImGuiInputTextFlags_CallbackEdit;
+    const float button = ImGui::GetFrameHeight();
+    const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
+    if (step) {
+        ImGui::BeginGroup();
+        ImGui::PushID(label);
+        ImGui::SetNextItemWidth(std::max(1.0f, ImGui::CalcItemWidth() - (button + gap) * 2));
+    }
+    bool changed = false;
+    if (ImGui::InputText(step ? "" : label, buf, sizeof buf, flags, int_field_callback)) {
+        long long parsed = 0;
+        bool any = false;
+        for (const char* p = buf; *p; p++) {
+            if (*p < '0' || *p > '9') continue;
+            parsed = std::min(parsed * 10 + (*p - '0'), (long long)INT_MAX + 1);
+            any = true;
+        }
+        if (buf[0] == '-') parsed = -parsed;
+        const int nv = (int)std::clamp(parsed, (long long)INT_MIN, (long long)INT_MAX);
+        if (any && nv != *v) { *v = nv; changed = true; }
+    }
+    if (step) {
+        const ImGuiStyle& st = ImGui::GetStyle();
+        const int d = ImGui::GetIO().KeyCtrl && step_fast ? step_fast : step;
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(st.FramePadding.y, st.FramePadding.y));
+        ImGui::PushItemFlag(ImGuiItemFlags_ButtonRepeat, true);
+        ImGui::SameLine(0, gap);
+        if (ImGui::Button("-", ImVec2(button, button))) { *v -= d; changed = true; }
+        ImGui::SameLine(0, gap);
+        if (ImGui::Button("+", ImVec2(button, button))) { *v += d; changed = true; }
+        ImGui::PopItemFlag();
+        ImGui::PopStyleVar();
+        const char* end = std::strstr(label, "##");
+        if (!end) end = label + std::strlen(label);
+        if (end != label) {
+            ImGui::SameLine(0, gap);
+            ImGui::TextUnformatted(label, end);
+        }
+        ImGui::PopID();
+        ImGui::EndGroup();
+    }
+    return changed;
 }
 
 }  // namespace detail
@@ -106,6 +211,11 @@ inline void TextDisabledWrapped(const Msg& m) {
 }
 inline void TextDisabled(const Msg& m, std::initializer_list<Arg> a) {
     ImGui::TextDisabled("%s", format(m, a).c_str());
+}
+inline void TextDisabledWrapped(const Msg& m, std::initializer_list<Arg> a) {
+    ImGui::PushTextWrapPos();
+    ImGui::TextDisabled("%s", format(m, a).c_str());
+    ImGui::PopTextWrapPos();
 }
 
 inline void TextColored(const ImVec4& c, const Msg& m) {
@@ -198,6 +308,14 @@ inline void SetTooltip(const Msg& m, std::initializer_list<Arg> a) {
     ImGui::SetTooltip("%s", format(m, a).c_str());
 }
 inline void SetTooltipRaw(const char* s) { ImGui::SetTooltip("%s", s); }
+// SetTooltip for a sentence or more: wrapped at help_on_hover's width.
+inline void SetTooltipWrapped(const Msg& m) {
+    if (!ImGui::BeginTooltip()) return;
+    ImGui::PushTextWrapPos(gui::px(420.0f));
+    ImGui::TextUnformatted(m.get());
+    ImGui::PopTextWrapPos();
+    ImGui::EndTooltip();
+}
 inline void SetTooltipRaw(const std::string& s) { ImGui::SetTooltip("%s", s.c_str()); }
 
 // ---------------------------------------------------------------------------
@@ -211,12 +329,62 @@ inline bool Button(const Msg& m, std::initializer_list<Arg> a,
                    const ImVec2& size = ImVec2(0, 0)) {
     return ImGui::Button(detail::label(format(m, a), m), size);
 }
+// The key in the corner of the button it belongs to: a modal grammar nobody
+// can see is a modal grammar nobody uses. Drawn over the last item.
+inline void corner_key(const char* key) {
+    if (!key || !*key) return;
+    const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float tw = ImGui::CalcTextSize(key).x;
+    if (tw + 2.0f * st.FramePadding.x > b.x - a.x) return;   // no room
+    ImGui::GetWindowDrawList()->AddText(
+        ImVec2(b.x - st.FramePadding.x - tw, a.y + st.FramePadding.y),
+        IM_COL32(255, 255, 255, 90), key);
+}
+// A button with its key in the corner, drawn pressed while `on`.
+inline bool KeyButton(const Msg& m, float w, const char* key, bool on = false) {
+    if (on) {
+        const ImVec4 c = ImGui::GetStyle().Colors[ImGuiCol_ButtonActive];
+        ImGui::PushStyleColor(ImGuiCol_Button, c);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, c);
+    }
+    const bool hit = ImGui::Button(detail::label(m), ImVec2(w, 0));
+    if (on) ImGui::PopStyleColor(2);
+    corner_key(key);
+    return hit;
+}
+namespace detail {
+inline bool toggle_button(const char* label, bool* v) {
+    const bool on = *v;
+    const ImVec4* c = ImGui::GetStyle().Colors;
+    ImGui::PushStyleColor(ImGuiCol_Button, on ? c[ImGuiCol_ButtonActive] : c[ImGuiCol_FrameBg]);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                          on ? c[ImGuiCol_ButtonActive] : c[ImGuiCol_FrameBgHovered]);
+    ImGui::PushStyleColor(ImGuiCol_Text, on ? c[ImGuiCol_Text] : c[ImGuiCol_TextDisabled]);
+    const bool hit = ImGui::Button(label);
+    ImGui::PopStyleColor(3);
+    if (hit) *v = !on;
+    return hit;
+}
+}  // namespace detail
+// A switch drawn as a button whose label is what it switches: pressed while
+// on, greyed while off. Tighter than a checkbox in a row of several.
+inline bool ToggleButton(const Msg& m, bool* v) {
+    return detail::toggle_button(detail::label(m), v);
+}
+inline bool ToggleButton(const Msg& m, std::initializer_list<Arg> a, bool* v) {
+    return detail::toggle_button(detail::label(format(m, a), m), v);
+}
 inline bool SmallButton(const Msg& m) {
     return ImGui::SmallButton(detail::label(m));
 }
 // A button whose face is punctuation or a glyph ("...", "<"), not a word.
 inline bool ButtonRaw(const char* id, const ImVec2& size = ImVec2(0, 0)) {
     return ImGui::Button(id, size);
+}
+// An arrow, which has no words to translate.
+inline bool ArrowButtonRaw(const char* id, ImGuiDir dir) {
+    return ImGui::ArrowButton(id, dir);
 }
 // A region that holds the mouse without drawing anything: a canvas that is
 // dragged on, which without an item under it would drag the window instead.
@@ -226,6 +394,9 @@ inline bool InvisibleButtonRaw(const char* id, const ImVec2& size,
 }
 inline bool Checkbox(const Msg& m, bool* v) {
     return ImGui::Checkbox(detail::label(m), v);
+}
+inline bool Checkbox(const Msg& m, std::initializer_list<Arg> a, bool* v) {
+    return ImGui::Checkbox(detail::label(format(m, a), m), v);
 }
 inline bool CheckboxRaw(const char* id, bool* v) {
     return ImGui::Checkbox(id, v);
@@ -244,6 +415,10 @@ inline bool SelectableRaw(const std::string& s, bool selected = false) {
 }
 inline bool SelectableRaw(const char* s, bool selected, ImGuiSelectableFlags f) {
     return ImGui::Selectable(s, selected, f);
+}
+inline bool SelectableRaw(const char* s, bool selected, ImGuiSelectableFlags f,
+                          const ImVec2& size) {
+    return ImGui::Selectable(s, selected, f, size);
 }
 inline bool RadioButtonRaw(const char* s, bool active) {
     return ImGui::RadioButton(s, active);
@@ -277,10 +452,21 @@ inline bool MenuItem(const Msg& m, std::initializer_list<Arg> a) {
 inline bool MenuItemRaw(const char* s, bool selected = false) {
     return ImGui::MenuItem(s, nullptr, selected);
 }
+// ... and one with a dim note where a shortcut would go. No defaults, so a
+// two-argument call cannot convert the note to `selected`.
+inline bool MenuItemRaw(const char* s, const char* note, bool selected, bool enabled) {
+    return ImGui::MenuItem(s, note, selected, enabled);
+}
+inline bool BeginTabItem(const Msg& m, ImGuiTabItemFlags flags = 0) {
+    return ImGui::BeginTabItem(detail::label(m), nullptr, flags);
+}
 inline bool CollapsingHeader(const Msg& m, ImGuiTreeNodeFlags flags = 0) {
     return ImGui::CollapsingHeader(detail::label(m), flags);
 }
 inline bool TreeNode(const Msg& m) { return ImGui::TreeNode(detail::label(m)); }
+inline bool TreeNode(const Msg& m, std::initializer_list<Arg> a) {
+    return ImGui::TreeNode(detail::label(format(m, a), m));
+}
 inline void SeparatorText(const Msg& m) {
     ImGui::SeparatorText(detail::label(m));
 }
@@ -304,7 +490,8 @@ inline bool BeginPopupModalRaw(const char* title, bool* open = nullptr,
 
 inline bool Combo(const Msg& m, int* cur, std::initializer_list<const Msg*> its) {
     const auto& v = detail::items(its);
-    return ImGui::Combo(detail::label(m), cur, v.data(), (int)v.size());
+    const char* l = detail::label(m);
+    return detail::named_combo(l, [&] { return ImGui::Combo(l, cur, v.data(), (int)v.size()); });
 }
 inline bool ComboRaw(const char* id, int* cur, const char* const items[],
                      int count) {
@@ -323,11 +510,12 @@ inline bool ComboRaw(const char* id, int* cur, const std::vector<const Msg*>& it
     for (const Msg* m : its) v.push_back(m->get());
     return ImGui::Combo(id, cur, v.data(), (int)v.size());
 }
-inline bool BeginCombo(const Msg& m, const char* preview) {
-    return ImGui::BeginCombo(detail::label(m), preview);
+inline bool BeginCombo(const Msg& m, const char* preview, ImGuiComboFlags flags = 0) {
+    const char* l = detail::label(m);
+    return detail::named_combo(l, [&] { return ImGui::BeginCombo(l, preview, flags); });
 }
-inline bool BeginComboRaw(const char* id, const char* preview) {
-    return ImGui::BeginCombo(id, preview);
+inline bool BeginComboRaw(const char* id, const char* preview, ImGuiComboFlags flags = 0) {
+    return ImGui::BeginCombo(id, preview, flags);
 }
 
 inline bool SliderInt(const Msg& m, int* v, int lo, int hi) {
@@ -352,11 +540,15 @@ inline bool SliderFloat3(const Msg& m, float v[3], float lo, float hi,
                          const char* fmt = "%.3f") {
     return ImGui::SliderFloat3(detail::label(m), v, lo, hi, fmt);
 }
+inline bool ColorEdit3Raw(const char* id, float v[3],
+                          ImGuiColorEditFlags flags = 0) {
+    return ImGui::ColorEdit3(id, v, flags);
+}
 inline bool InputInt(const Msg& m, int* v, int step = 0, int step_fast = 0) {
-    return ImGui::InputInt(detail::label(m), v, step, step_fast);
+    return detail::input_int(detail::label(m), v, step, step_fast);
 }
 inline bool InputIntRaw(const char* id, int* v) {
-    return ImGui::InputInt(id, v, 0, 0);
+    return detail::input_int(id, v, 0, 0);
 }
 inline bool InputFloat(const Msg& m, float* v, float step = 0.0f,
                        float step_fast = 0.0f, const char* fmt = "%.3f") {
@@ -401,9 +593,53 @@ inline bool InputTextWithHintRaw(const char* id, const Msg& hint,
 inline bool InputFloatRaw(const char* id, float* v, const char* fmt) {
     return ImGui::InputFloat(id, v, 0.0f, 0.0f, fmt);
 }
+inline bool InputFloatRaw(const char* id, float* v, float step, float step_fast,
+                          const char* fmt) {
+    return ImGui::InputFloat(id, v, step, step_fast, fmt);
+}
+inline bool InputDoubleRaw(const char* id, double* v, double step,
+                           double step_fast, const char* fmt) {
+    return ImGui::InputDouble(id, v, step, step_fast, fmt);
+}
+inline bool InputInt2Raw(const char* id, int v[2], ImGuiInputTextFlags flags = 0) {
+    return ImGui::InputInt2(id, v, flags);
+}
+inline bool InputInt2(const Msg& m, int v[2], ImGuiInputTextFlags flags = 0) {
+    return ImGui::InputInt2(detail::label(m), v, flags);
+}
+inline bool InputDouble(const Msg& m, double* v, const char* fmt) {
+    return ImGui::InputDouble(detail::label(m), v, 0.0, 0.0, fmt);
+}
+inline bool DragFloatRaw(const char* id, float* v, float speed, float lo,
+                         float hi, const char* fmt) {
+    return ImGui::DragFloat(id, v, speed, lo, hi, fmt);
+}
+inline bool DragFloat3Raw(const char* id, float v[3], float speed, const char* fmt) {
+    return ImGui::DragFloat3(id, v, speed, 0.0f, 0.0f, fmt);
+}
+// Doubles, for coordinates a geo-referenced model puts beyond float's reach.
+inline bool DragDoubleNRaw(const char* id, double* v, int n, float speed, double lo,
+                           double hi, const char* fmt) {
+    return ImGui::DragScalarN(id, ImGuiDataType_Double, v, n, speed, &lo, &hi, fmt);
+}
 inline bool InputTextHintBufRaw(const char* id, const Msg& hint, char* buf,
                                 size_t buf_size) {
     return ImGui::InputTextWithHint(id, hint.get(), buf, buf_size);
+}
+// A box for text the CALLER sizes, because it grows with what is in it.
+inline bool InputTextMultilineRaw(const char* id, std::string* v,
+                                  const ImVec2& size,
+                                  ImGuiInputTextFlags flags = 0) {
+    return ImGui::InputTextMultiline(id, v, size, flags);
+}
+// The example an empty multi-line box shows: ImGui draws a hint for the
+// one-line field and not for this one, so it is drawn where that one's goes.
+inline void hint_over_last_item_raw(const char* example) {
+    const ImVec2 at = ImGui::GetItemRectMin();
+    const ImVec2 pad = ImGui::GetStyle().FramePadding;
+    ImGui::GetWindowDrawList()->AddText(
+        ImVec2(at.x + pad.x, at.y + pad.y),
+        ImGui::GetColorU32(ImGuiCol_TextDisabled), example);
 }
 
 // ---------------------------------------------------------------------------

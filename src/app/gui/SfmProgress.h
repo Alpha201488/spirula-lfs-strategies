@@ -3,8 +3,8 @@
 // The reader for what a running reconstruction writes about itself.
 //
 // The other half of sfm/core/Progress.h: the GUI passes `--progress-dir` to its
-// own child and polls the three files that appear there. Each is written whole
-// and renamed, so a read either gets the previous snapshot or this one.
+// own child and polls atomic snapshots. Dense versions 5/6 reference a flushed,
+// immutable prefix of an append-only point file.
 //
 // Polling rather than watching on purpose -- two files at 2 Hz is a pair of
 // stats, and an inotify/ReadDirectoryChangesW pair is a portability problem for
@@ -12,6 +12,7 @@
 
 #include "data/DatasetParser.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -24,9 +25,12 @@ namespace gui {
 struct LiveModel {
     ParsedDataset ds;
     PostSplitCameras post;
+    std::vector<uint32_t> ids;  // per camera of `ds`; empty before version 4
     uint32_t n_images = 0;      // in the capture
     uint32_t n_registered = 0;  // ... and in the model
     uint64_t n_points = 0;      // before subsampling
+    bool provisional = false;
+    bool filtered = false;
     bool empty() const { return n_registered == 0 && ds.points.num() == 0; }
 };
 
@@ -48,6 +52,16 @@ struct PairMatrix {
         const size_t i = (size_t)r * bins + c;
         return r < bins && c < bins && i < v.size() ? v[i] : 0;
     }
+};
+
+// The images one cell of the map stands for: rows [r0, r1) against columns
+// [c0, c1). One image each until the capture outgrows the map.
+struct PairBlock {
+    uint32_t r0 = 0, r1 = 0, c0 = 0, c1 = 0;
+    bool operator==(const PairBlock& o) const {
+        return r0 == o.r0 && r1 == o.r1 && c0 == o.c0 && c1 == o.c1;
+    }
+    bool operator!=(const PairBlock& o) const { return !(*this == o); }
 };
 
 // Where the run is and how it ended (sfm/core/Progress.h, status.bin). What
@@ -84,7 +98,16 @@ float mapping_fraction(int64_t done, int64_t total);
 // `dir` is the --progress-dir the child was given. All return false when the
 // file is absent, unfinished or not newer than `mtime` -- which the caller
 // keeps, so a poll that finds nothing new costs one stat.
-bool read_live_model(const std::string& dir, int64_t& mtime, LiveModel& out);
+bool read_live_model(const std::string& dir, int64_t& mtime, LiveModel& out,
+                     uint64_t point_memory_budget = 0);
+
+// The similarity (row-major 3x4 [sR | t]) taking `from`'s normalized frame onto
+// `to`'s, fitted to the cameras both hold. False when too few are shared or they
+// disagree: a seed retry is a new model, not a moved one.
+bool snapshot_motion(const LiveModel& from, const LiveModel& to, float S[12]);
+
+// The cameras' mean up axis, unit, in the snapshot's normalized frame.
+bool snapshot_up(const LiveModel& m, float up[3]);
 bool read_pair_matrix(const std::string& dir, int64_t& mtime, PairMatrix& out);
 
 // The same matrix from a finished `matches.bin`, which is what a run leaves

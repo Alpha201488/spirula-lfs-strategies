@@ -47,11 +47,15 @@ void rasterize_to_pixels_eval3d_bwd_kernel_wrapper(
     const float *__restrict__ v_render_Ts, // [..., image_height, image_width, 1]
     const float *__restrict__ v_median, // [..., image_height, image_width, 1], optional
     RenderOutput::Buffer v_distortions_output_buffer,
+    const float v_dist_rgb_per_depth,
     // grad inputs
     typename SplatPrimitive::WorldBuffer v_splat_wbuffer,
     typename SplatPrimitive::ScreenBuffer v_splat_sbuffer,
     float *__restrict__ o_accum_weight,
     float *__restrict__ o_accum_weight_den,
+    float *__restrict__ o_max_weight,
+    const float max_weight_scale,
+    const float kernel_cut,
     float *__restrict__ v_viewmats // [B, C, 4, 4]
 );
 
@@ -88,11 +92,14 @@ inline void launch_rasterize_to_pixels_eval3d_bwd_kernel(
     const DeviceTensor3D<float> v_render_Ts, // [..., image_height, image_width, 1]
     const DeviceTensor3D<float> v_median, // [..., image_height, image_width], optional
     RenderOutput::Tensor v_distortion_outputs,
+    float v_dist_rgb_per_depth,
     // outputs
     typename SplatPrimitive::WorldBuffer v_splat_wbuffer,
     typename SplatPrimitive::ScreenBuffer v_splat_sbuffer,
     float* o_accum_weight,
     float* o_accum_weight_den,
+    float* o_max_weight,
+    float max_weight_scale,
     DeviceTensor2D<float> v_viewmats
 ) {
     // See RasterizationBwd.cu: splat_wbuffer.size() returns max_num_splats
@@ -126,8 +133,10 @@ inline void launch_rasterize_to_pixels_eval3d_bwd_kernel(
             v_render_outputs, v_render_Ts.data_ptr(), \
             output_median ? v_median.data_ptr() : nullptr, \
             v_distortion_outputs.has_value() ? v_distortion_outputs : RenderOutput::Buffer(), \
+            v_dist_rgb_per_depth, \
             v_splat_wbuffer, v_splat_sbuffer, \
             o_accum_weight, o_accum_weight_den, \
+            o_max_weight, max_weight_scale, 0.0f, \
             v_viewmats.data_ptr() \
         )
 
@@ -182,11 +191,14 @@ inline std::tuple<
     std::optional<RenderOutput::TensorTuple> distortion_fwd_outputs_tuple,
     DeviceTensor3D<float> loss_map,  // [..., image_height, image_width, 1]
     DeviceTensor3D<float> accum_weight_map,  // [I, H, W]
+    DeviceVector<float> max_weight,
+    float max_weight_scale,
     // gradients of outputs
     RenderOutput::TensorTuple v_render_outputs,
     const DeviceTensor3D<float> v_render_Ts, // [..., image_height, image_width, 1]
     const DeviceTensor3D<float> v_median, // [..., image_height, image_width], optional
     std::optional<RenderOutput::TensorTuple> v_distortion_outputs_tuple,
+    float v_dist_rgb_per_depth,
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_w,
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_s,
     bool need_viewmat_grad
@@ -235,9 +247,10 @@ inline std::tuple<
         distortion_fwd_outputs, loss_map, accum_weight_map,
         v_render_outputs, v_render_Ts,
         v_median,
-        v_distortion_outputs,
+        v_distortion_outputs, v_dist_rgb_per_depth,
         v_splats_w.value(), v_splats_s.value(),
         aw, aw_den,
+        max_weight.data_ptr(), max_weight_scale,
         v_viewmats_buf
     );
 
@@ -279,11 +292,14 @@ inline std::tuple<
     std::optional<RenderOutput::TensorTuple> distortion_fwd_outputs,
     DeviceTensor3D<float> loss_map,  // [..., image_height, image_width, 1]
     DeviceTensor3D<float> accum_weight_map,  // [I, H, W]
+    DeviceVector<float> max_weight,
+    float max_weight_scale,
     // gradients of outputs
     RenderOutput::TensorTuple v_render_outputs,
     const DeviceTensor3D<float> v_render_Ts, // [..., image_height, image_width, 1]
     const DeviceTensor3D<float> v_median, // [..., image_height, image_width], optional
     std::optional<RenderOutput::TensorTuple> v_distortion_outputs,
+    float v_dist_rgb_per_depth,  // used when v_distortion_outputs has no rgb
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_w,
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_s,
     bool need_viewmat_grad
@@ -296,7 +312,9 @@ inline std::tuple<
         image_width, image_height, tile_offsets, flatten_ids,
         macro_log2,
         render_Ts, last_ids, render_outputs, distortion_fwd_outputs, loss_map, accum_weight_map,
-        v_render_outputs, v_render_Ts, v_median, v_distortion_outputs, v_splats_w, v_splats_s,
+        max_weight, max_weight_scale,
+        v_render_outputs, v_render_Ts, v_median, v_distortion_outputs,
+        v_dist_rgb_per_depth, v_splats_w, v_splats_s,
         need_viewmat_grad
     );
     return std::make_tuple(v_splats_w_1, v_splats_s_1, v_viewmats, accum_weight);
@@ -340,11 +358,16 @@ std::tuple<
     DeviceTensor3D<float> loss_map,  // [..., image_height, image_width, 1]
     DeviceTensor3D<float> accum_weight_map,  // [I, H, W]
     DensifyAccumMode accum_mode,
+    // [num_splats] running peak of alpha * T, atomic-maxed times
+    // max_weight_scale; empty to skip.
+    DeviceVector<float> max_weight,
+    float max_weight_scale,
     // gradients of outputs
     RenderOutput::TensorTuple v_render_outputs,
     const DeviceTensor3D<float> v_render_Ts, // [..., image_height, image_width, 1]
     const DeviceTensor3D<float> v_median, // [..., image_height, image_width], optional
     std::optional<RenderOutput::TensorTuple> v_distortion_outputs,
+    float v_dist_rgb_per_depth,  // used when v_distortion_outputs has no rgb
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_w,
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_s,
     bool need_viewmat_grad
@@ -374,7 +397,9 @@ std::tuple<
         image_width, image_height, tile_offsets, flatten_ids,
         macro_log2,
         render_Ts, last_ids, render_outputs, distortion_fwd_outputs, loss_map, accum_weight_map,
-        v_render_outputs, v_render_Ts, v_median, v_distortion_outputs, v_splats_w, v_splats_s,
+        max_weight, max_weight_scale,
+        v_render_outputs, v_render_Ts, v_median, v_distortion_outputs,
+        v_dist_rgb_per_depth, v_splats_w, v_splats_s,
         need_viewmat_grad
     );
 }

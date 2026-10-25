@@ -1,11 +1,10 @@
 # Runs one slangc invocation, retrying it a few times before giving up.
 #
-# slangc dies intermittently when several copies run at once -- 0xC0000005, or
-# "aborted due to internal error", on a *varying* subset of the blobs, and only
-# on Windows so far. cmake/SsNn.cmake serializes its own (much smaller) shader
-# set for the same crash. This set is 680 blobs and serializing it costs the
-# better part of an hour, so retry instead -- after a wait that grows each
-# time, since an immediate re-run sits in the same burst that killed the first.
+# slangc dies intermittently when several copies run at once (0xC0000005, or
+# "aborted due to internal error"), only on Windows so far. Serializing all
+# 680 blobs costs the better part of an hour, so retry after a growing wait,
+# and hold a lock while retrying: the int8 projection_bwd blobs otherwise
+# retry together and kill each other every time, while either alone compiles.
 #
 # The command arrives as one string with '|' between arguments, because -D
 # cannot carry a list through to a script.
@@ -18,6 +17,10 @@ list(LENGTH _backoff _retries)
 math(EXPR _attempts "${_retries} + 1")
 
 foreach(_attempt RANGE ${_retries})
+    if(_attempt GREATER 0)
+        file(LOCK "${CMAKE_CURRENT_BINARY_DIR}/slangc_retry.lock" GUARD PROCESS
+             TIMEOUT 3600 RESULT_VARIABLE _lock)
+    endif()
     execute_process(COMMAND ${_cmd} RESULT_VARIABLE _rv
                     OUTPUT_VARIABLE _out ERROR_VARIABLE _err)
     if(_rv EQUAL 0)
@@ -28,6 +31,9 @@ foreach(_attempt RANGE ${_retries})
             message("${_err}")
         endif()
         return()
+    endif()
+    if(_attempt GREATER 0)
+        file(LOCK "${CMAKE_CURRENT_BINARY_DIR}/slangc_retry.lock" RELEASE)
     endif()
     if(_attempt LESS _retries)
         list(GET _backoff ${_attempt} _wait)

@@ -55,6 +55,13 @@ void readback_f(std::vector<float>& acc, const float* d, int64_t n) {
 
 // qadam cells: BITS=16 -> one u32 word (u16 | s16<<16); BITS=8 -> one
 // halfword (u8 | s8<<8). Emits two codes per cell.
+void readback_i(std::vector<int32_t>& acc, const int32_t* d, int64_t n) {
+    size_t off = acc.size();
+    acc.resize(off + n);
+    backend::memcpy_sync(acc.data() + off, d, n * sizeof(int32_t),
+                         MemcpyKind::DeviceToHost);
+}
+
 void readback_qadam(std::vector<int32_t>& acc, const uint8_t* d,
                     int64_t cells, int bits) {
     std::vector<uint8_t> raw(cells * (bits == 16 ? 4 : 2));
@@ -248,7 +255,7 @@ int main(int argc, char** argv) {
             auto fn = cfg.prim == 0   ? projection_3dgs_packed_forward
                       : cfg.prim == 1 ? projection_mip_packed_forward
                                       : projection_3dgut_packed_forward;
-            auto out = fn(N, cfg.max_deg, splats_fwd, ttv(d_vm, {C, 16}),
+            auto out = fn(N, ColorBasis{cfg.max_deg, 0}, splats_fwd, ttv(d_vm, {C, 16}),
                           ttv(d_intr, {C, 4}), W, H, cams[cfg.cam],
                           dist_fixture::kTierNames[cfg.dist],
                           dist_tv(cfg.dist), radii, q_val_packed,
@@ -262,7 +269,7 @@ int main(int argc, char** argv) {
             auto fn = cfg.prim == 0   ? projection_3dgs_forward
                       : cfg.prim == 1 ? projection_mip_forward
                                       : projection_3dgut_forward;
-            auto out = fn(N, cfg.max_deg, splats_fwd, ttv(d_vm, {C, 16}),
+            auto out = fn(N, ColorBasis{cfg.max_deg, 0}, splats_fwd, ttv(d_vm, {C, 16}),
                           ttv(d_intr, {C, 4}), W, H, cams[cfg.cam],
                           dist_fixture::kTierNames[cfg.dist],
                           dist_tv(cfg.dist), radii, q_val_packed,
@@ -364,6 +371,13 @@ int main(int argc, char** argv) {
         } else {
             step = (int32_t)10;
         }
+        std::vector<int32_t> vis(N);
+        for (auto& v : vis) v = (int32_t)((rng() % 50u) | ((rng() % 30u) << 16));
+        uint32_t* d_visit = (uint32_t*)upload(vis);
+        SplatVisitState visit;
+        visit.counters = d_visit;
+        visit.skip_unrendered_reg = cfg.per_splat_steps;
+
         float* d_ds = nullptr;
         DeviceVector<float> densify_score;
         if (cfg.densify) {
@@ -388,15 +402,16 @@ int main(int argc, char** argv) {
             if (cfg.packed && call == 1)
                 backend::memcpy_sync(gauss_ids.data_ptr(), gauss_host.data(),
                                      n_isect * 4, MemcpyKind::HostToDevice);
-            fn(N, cfg.max_deg, splats, ttv(d_vm, {C, 16}),
+            fn(N, ColorBasis{cfg.max_deg, 0}, splats, ttv(d_vm, {C, 16}),
                ttv(d_intr, {C, 4}), W, H, cams[cfg.cam],
                dist_fixture::kTierNames[cfg.dist], dist_tv(cfg.dist),
                cam_ids, gauss_ids, aabb_2d, v_world,
                v_screen, g1_world, g2_world, shq_tv, shq_b_tv, shv_tv,
-               shv_b_tv, non_sh, radii, densify_score,
+               shv_b_tv, non_sh, visit, radii, densify_score,
                /*lr_means=*/1.6e-4f, /*lr_quats=*/1e-3f, /*lr_scales=*/5e-3f,
                /*lr_opacs=*/5e-2f, /*lr_features_dc=*/2.5e-3f,
-               /*lr_features_sh=*/1.25e-4f, /*max_gauss_ratio=*/10.f,
+               /*lr_features_sh=*/1.25e-4f, /*lr_features_sb=*/2.5e-3f,
+               /*max_gauss_ratio=*/10.f,
                /*scale_reg=*/0.1f, /*mcmc_op=*/0.01f, /*mcmc_scale=*/0.01f,
                /*erank=*/0.1f, /*erank_s3=*/0.02f, /*quat_norm=*/0.01f,
                /*dc_reg=*/0.02f, /*sh_reg=*/0.05f,
@@ -442,6 +457,7 @@ int main(int argc, char** argv) {
         }
         if (cfg.densify)
             readback_f(acc_f, d_ds, N);
+        readback_i(acc_c, (const int32_t*)d_visit, N);
     }
 
     if (dumping) {

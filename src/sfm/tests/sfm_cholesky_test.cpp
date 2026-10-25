@@ -63,9 +63,7 @@ int selftestChol(uint32_t n, SolverOptions opt) {
     packReals(tmp, b.data(), n, real);
     solver.ctx().upload(solver.bufG(), tmp.data(), tmp.size());
 
-    VkCommandBuffer cb = solver.ctx().begin();
-    solver.recordCholesky(cb);
-    solver.ctx().submit(cb);
+    solver.cholesky();
 
     std::vector<uint8_t> raw(n * realSize(real));
     solver.ctx().download(solver.bufG(), raw.data(), raw.size());
@@ -142,9 +140,12 @@ int benchDispatch(SolverOptions opt) {
             auto t0 = std::chrono::steady_clock::now();
             for (int r = -5; r < reps; r++) {
                 if (r == 0) t0 = std::chrono::steady_clock::now();
-                VkCommandBuffer cb = solver.ctx().begin();
-                if (mode) solver.recordCholesky(cb);
-                solver.ctx().submit(cb);
+                if (mode) {
+                    solver.cholesky();
+                } else {
+                    VkCommandBuffer cb = solver.ctx().begin();
+                    solver.ctx().submit(cb);
+                }
             }
             t[mode] = 1e3 *
                       std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() /
