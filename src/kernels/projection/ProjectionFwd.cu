@@ -238,7 +238,7 @@ std::tuple<
     #define LAUNCH(n) if (sh_degree == (n)) \
         return launch_projection_fused_fwd_kernel<MipSplatting<n>>( \
             num_splats, in_splats, vm, intr, C, image_width, image_height, cmt(camera_model), cdt(distortion), dist_coeffs, radii, \
-            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride,
+            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride, \
             nullptr, 0);
     LAUNCH(3) LAUNCH(2) LAUNCH(1) LAUNCH(0) LAUNCH(4)
     #undef LAUNCH
@@ -284,7 +284,7 @@ std::tuple<
     #define LAUNCH(n) if (sh_degree == (n)) \
         return launch_projection_fused_fwd_kernel<Vanilla3DGUT<n>>( \
             num_splats, in_splats, vm, intr, C, image_width, image_height, cmt(camera_model), cdt(distortion), dist_coeffs, radii, \
-            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride,
+            vp, vb, num_sh_buffer, sh_value_bits, sh_bounds_stride, \
             nullptr, 0);
     LAUNCH(3) LAUNCH(2) LAUNCH(1) LAUNCH(0) LAUNCH(4)
     #undef LAUNCH
