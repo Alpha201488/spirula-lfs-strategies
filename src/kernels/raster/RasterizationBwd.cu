@@ -2,6 +2,9 @@
 
 #include <core/Common.cuh>
 
+// Shader3DGS (GaussianShader) rasterization backward: CUDA-only path.
+#include "primitives/Primitive3DGSShader.cuh"
+
 
 
 template <

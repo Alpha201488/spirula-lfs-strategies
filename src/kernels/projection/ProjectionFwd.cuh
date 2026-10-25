@@ -10,7 +10,6 @@
 
 #include "primitives/Primitive3DGS.cuh"
 #include "primitives/Primitive3DGUT.cuh"
-#include "primitives/Primitive3DGSShader.cuh"  // Shader3DGS (GaussianShader) used by ProjectionFwd.cu
 
 
 /* == AUTO HEADER GENERATOR - DO NOT EDIT THIS LINE OR ANYTHING BELOW THIS LINE == */

@@ -5,6 +5,9 @@
 #include <core/Common.cuh>
 #include <optional>
 
+// Shader3DGS (GaussianShader) projection backward: CUDA-only path.
+#include "primitives/Primitive3DGSShader.cuh"
+
 #include <cooperative_groups.h>
 namespace cg = cooperative_groups;
 

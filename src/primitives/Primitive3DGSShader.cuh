@@ -39,6 +39,32 @@ namespace SlangHarmonics {
 #include "primitives/Primitive3DGS.cuh"
 
 // ---------------------------------------------------------------------------
+// float3 arithmetic helpers. core/Common.cuh provides the full float2/3/4
+// operator set, but under SLANG_PRELUDE_EXPORT (defined by the CUDA slang
+// generated headers this file includes) it only instantiates vec-scalar and
+// inplace-vec-vec operators. The Shader3DGS shading code additionally needs
+// unary minus / vec-vec / inplace-vec-scalar, which are defined here only in
+// that mode so no redefinition happens on non-SLANG builds.
+// ---------------------------------------------------------------------------
+#ifdef SLANG_PRELUDE_EXPORT
+__device__ __forceinline__ float3 operator-(const float3 &a) {
+    return make_float3(-a.x, -a.y, -a.z);
+}
+__device__ __forceinline__ float3 operator+(const float3 &a, const float3 &b) {
+    return make_float3(a.x + b.x, a.y + b.y, a.z + b.z);
+}
+__device__ __forceinline__ float3 operator-(const float3 &a, const float3 &b) {
+    return make_float3(a.x - b.x, a.y - b.y, a.z - b.z);
+}
+__device__ __forceinline__ float3 operator*(const float3 &a, const float3 &b) {
+    return make_float3(a.x * b.x, a.y * b.y, a.z * b.z);
+}
+__device__ __forceinline__ float3 operator*=(float3 &a, float s) {
+    a.x *= s; a.y *= s; a.z *= s; return a;
+}
+#endif  // SLANG_PRELUDE_EXPORT
+
+// ---------------------------------------------------------------------------
 // Environment cube-map helpers (shared by forward / backward).
 //
 // Layout: 6 faces of env_size x env_size x 3 floats, faces ordered
@@ -47,7 +73,7 @@ namespace SlangHarmonics {
 // ---------------------------------------------------------------------------
 namespace ShaderEnv {
 
-inline __device__ __forceinline__ float3 env_face_uv(const float3& d, int& face, float& u, float& v) {
+__device__ __forceinline__ float3 env_face_uv(const float3& d, int& face, float& u, float& v) {
     // Returns the dominant axis magnitude; picks face + UV for direction d.
     const float ax = fabsf(d.x), ay = fabsf(d.y), az = fabsf(d.z);
     float ma;
@@ -75,7 +101,7 @@ inline __device__ __forceinline__ float3 env_face_uv(const float3& d, int& face,
 
 // Bilinear sample of one face row. Clamps at the face border (no cross-face
 // filtering -- fine for a first-order envmap).
-inline __device__ __forceinline__ float3 sample_face(const float* __restrict__ env,
+__device__ __forceinline__ float3 sample_face(const float* __restrict__ env,
                                                      int env_size, int face,
                                                      float u, float v) {
     const float px = u * (float)env_size - 0.5f;
@@ -100,7 +126,7 @@ inline __device__ __forceinline__ float3 sample_face(const float* __restrict__ e
 // Directional sample: picks the face, bilinear-samples, and applies a
 // first-order roughness attenuation (rough surfaces spread the highlight, so
 // the peak value drops). A full GGX pre-filtered mip chain is staged later.
-inline __device__ __forceinline__ float3 sample_envmap(const float* __restrict__ env,
+__device__ __forceinline__ float3 sample_envmap(const float* __restrict__ env,
                                                        int env_size,
                                                        const float3& r,
                                                        float roughness) {
@@ -115,7 +141,7 @@ inline __device__ __forceinline__ float3 sample_envmap(const float* __restrict__
 
 // Shortest-axis normal of a Gaussian: the local axis with the smallest log
 // scale, rotated into world space by the quat. quat layout wxyz.
-inline __device__ __forceinline__ float3 shortest_axis_normal(float3 scale_log,
+__device__ __forceinline__ float3 shortest_axis_normal(float3 scale_log,
                                                               float4 quat) {
     int axis = 0;
     if (scale_log.y < scale_log.x) axis = 1;
@@ -303,8 +329,10 @@ struct _Base3DGSShader : public _Base3DGS<sh_degree, antialiased> {
             // GaussianShader shading: c = c_d + s .* L_s + c_r, where c_d is the
             // SH-DC diffuse colour and c_r the high-order SH residual
             // (sh_full - c_d).
-            const float3 c_d = max(make_float3(0.2820948f) * this->features_dc
-                                   + make_float3(0.5f), make_float3(0.0f));
+            const float3 c_d = make_float3(
+                fmaxf(0.2820948f * this->features_dc.x + 0.5f, 0.0f),
+                fmaxf(0.2820948f * this->features_dc.y + 0.5f, 0.0f),
+                fmaxf(0.2820948f * this->features_dc.z + 0.5f, 0.0f));
             const float3 c_r = sh_full - c_d;
 
             // Shortest-axis normal (world) + residual (staged: zero for now).

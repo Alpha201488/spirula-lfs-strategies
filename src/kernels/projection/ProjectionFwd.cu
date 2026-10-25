@@ -4,6 +4,9 @@
 
 #include <core/Common.cuh>
 
+// Shader3DGS (GaussianShader) projection: CUDA-only path.
+#include "primitives/Primitive3DGSShader.cuh"
+
 #include <cooperative_groups.h>
 namespace cg = cooperative_groups;
 
