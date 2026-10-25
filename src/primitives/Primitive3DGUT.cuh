@@ -55,7 +55,13 @@ struct Vanilla3DGUT : public _BasePrimitive3DGUT<sh_degree> {
             float2*  sh_bounds = nullptr,
             int64_t  sh_base   = 0,
             int64_t  sh_bounds_stride = 256,
-            int64_t  sh_pair_pitch = 0
+            int64_t  sh_pair_pitch = 0,
+            // GaussianShader envmap: accepted for signature compatibility with
+            // the upstream ProjectionFwd_kernel.cuh call sites (which pass
+            // envmap/env_size). The reflection path is handled exclusively by
+            // the Shader3DGS entry points, so these are deliberately ignored.
+            const float* envmap = nullptr,
+            int env_size = 0
         ) {
             float2 xy;
             float depth;
