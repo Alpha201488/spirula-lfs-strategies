@@ -16,25 +16,25 @@ template void rasterize_to_pixels_eval3d_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGUT<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGUT<0>::ScreenBuffer splat_sbuffer,
-    const float *__restrict__ viewmats, // [B, C, 4, 4]
-    const float4 *__restrict__ intrins,  // [B, C, 4], fx, fy, cx, cy
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
-    const uint2 *__restrict__ aabb,   // [..., N] packed AABB
+    const uint2 *__restrict__ aabb,   
     const uint32_t image_width,
     const uint32_t image_height,
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, ...]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids, // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids, 
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -51,25 +51,25 @@ template void rasterize_to_pixels_eval3d_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGUT<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGUT<0>::ScreenBuffer splat_sbuffer,
-    const float *__restrict__ viewmats, // [B, C, 4, 4]
-    const float4 *__restrict__ intrins,  // [B, C, 4], fx, fy, cx, cy
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
-    const uint2 *__restrict__ aabb,   // [..., N] packed AABB
+    const uint2 *__restrict__ aabb,   
     const uint32_t image_width,
     const uint32_t image_height,
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, ...]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids, // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids, 
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -86,25 +86,25 @@ template void rasterize_to_pixels_eval3d_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGUT<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGUT<0>::ScreenBuffer splat_sbuffer,
-    const float *__restrict__ viewmats, // [B, C, 4, 4]
-    const float4 *__restrict__ intrins,  // [B, C, 4], fx, fy, cx, cy
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
-    const uint2 *__restrict__ aabb,   // [..., N] packed AABB
+    const uint2 *__restrict__ aabb,   
     const uint32_t image_width,
     const uint32_t image_height,
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, ...]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids, // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids, 
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );

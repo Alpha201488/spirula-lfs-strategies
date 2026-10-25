@@ -14,7 +14,7 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGS<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGS<0>::ScreenBuffer splat_sbuffer,
     const uint32_t image_width,
@@ -22,13 +22,13 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, 3]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids,        // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids,        
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -43,7 +43,7 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGS<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGS<0>::ScreenBuffer splat_sbuffer,
     const uint32_t image_width,
@@ -51,13 +51,13 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, 3]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids,        // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids,        
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -72,7 +72,7 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGS<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGS<0>::ScreenBuffer splat_sbuffer,
     const uint32_t image_width,
@@ -80,13 +80,13 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, 3]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids,        // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids,        
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -101,7 +101,7 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGS<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGS<0>::ScreenBuffer splat_sbuffer,
     const uint32_t image_width,
@@ -109,13 +109,13 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, 3]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids,        // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids,        
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -130,7 +130,7 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGS<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGS<0>::ScreenBuffer splat_sbuffer,
     const uint32_t image_width,
@@ -138,13 +138,13 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, 3]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids,        // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids,        
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -159,7 +159,7 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGS<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGS<0>::ScreenBuffer splat_sbuffer,
     const uint32_t image_width,
@@ -167,13 +167,13 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, 3]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids,        // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids,        
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -188,7 +188,7 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGS<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGS<0>::ScreenBuffer splat_sbuffer,
     const uint32_t image_width,
@@ -196,13 +196,13 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, 3]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids,        // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids,        
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -217,7 +217,7 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGS<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGS<0>::ScreenBuffer splat_sbuffer,
     const uint32_t image_width,
@@ -225,13 +225,13 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, 3]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids,        // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids,        
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );
@@ -246,7 +246,7 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t I,
     const uint32_t N,
     const uint32_t n_isects,
-    const uint32_t *__restrict__ gaussian_ids,  // [nnz] optional, for packed mode
+    const uint32_t *__restrict__ gaussian_ids,  
     const Vanilla3DGS<0>::WorldBuffer splat_wbuffer,
     const Vanilla3DGS<0>::ScreenBuffer splat_sbuffer,
     const uint32_t image_width,
@@ -254,13 +254,13 @@ template void rasterize_to_pixels_fwd_kernel_wrapper<
     const uint32_t tile_width,
     const uint32_t tile_height,
     const int macro_log2,
-    const int32_t *__restrict__ tile_offsets, // [I, tile_height, tile_width]
-    const int32_t *__restrict__ flatten_ids,  // [n_isects]
-    RenderOutput::Buffer render_colors, // [I, image_height, image_width, 3]
-    float *__restrict__ render_Ts, // [I, image_height, image_width, 1]
-    int32_t *__restrict__ last_ids,        // [I, image_height, image_width]
-    RenderOutput::Buffer render_distortions, // [I, image_height, image_width, ...]
-    float *__restrict__ render_median, // [I, image_height, image_width, 1], optional
+    const int32_t *__restrict__ tile_offsets, 
+    const int32_t *__restrict__ flatten_ids,  
+    RenderOutput::Buffer render_colors, 
+    float *__restrict__ render_Ts, 
+    int32_t *__restrict__ last_ids,        
+    RenderOutput::Buffer render_distortions, 
+    float *__restrict__ render_median, 
     const SplatScoreRender score,
     const float kernel_cut
 );

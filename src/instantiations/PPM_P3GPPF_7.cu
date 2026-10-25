@@ -12,13 +12,13 @@ template void projection_packed_mask_kernel_wrapper<
     cudaStream_t stream,
     const uint32_t C,
     const uint32_t N,
-    Vanilla3DGS<3>::WorldBuffer splats_world,  // [N, ...]
-    const float *__restrict__ viewmats, // [C, 4, 4]
-    const float4 *__restrict__ intrins,  // [C, 4], fx, fy, cx, cy
+    Vanilla3DGS<3>::WorldBuffer splats_world,  
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
     const uint32_t image_width,
     const uint32_t image_height,
-    // outputs
+    
     uint32_t *__restrict__ mask_bits,
     int32_t *__restrict__ block_counts,
     const uint8_t* __restrict__ sh_value_packed,
@@ -36,13 +36,13 @@ template void projection_packed_mask_kernel_wrapper<
     cudaStream_t stream,
     const uint32_t C,
     const uint32_t N,
-    Vanilla3DGS<3>::WorldBuffer splats_world,  // [N, ...]
-    const float *__restrict__ viewmats, // [C, 4, 4]
-    const float4 *__restrict__ intrins,  // [C, 4], fx, fy, cx, cy
+    Vanilla3DGS<3>::WorldBuffer splats_world,  
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
     const uint32_t image_width,
     const uint32_t image_height,
-    // outputs
+    
     uint32_t *__restrict__ mask_bits,
     int32_t *__restrict__ block_counts,
     const uint8_t* __restrict__ sh_value_packed,
@@ -60,13 +60,13 @@ template void projection_packed_mask_kernel_wrapper<
     cudaStream_t stream,
     const uint32_t C,
     const uint32_t N,
-    Vanilla3DGS<3>::WorldBuffer splats_world,  // [N, ...]
-    const float *__restrict__ viewmats, // [C, 4, 4]
-    const float4 *__restrict__ intrins,  // [C, 4], fx, fy, cx, cy
+    Vanilla3DGS<3>::WorldBuffer splats_world,  
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
     const uint32_t image_width,
     const uint32_t image_height,
-    // outputs
+    
     uint32_t *__restrict__ mask_bits,
     int32_t *__restrict__ block_counts,
     const uint8_t* __restrict__ sh_value_packed,
@@ -84,13 +84,13 @@ template void projection_packed_mask_kernel_wrapper<
     cudaStream_t stream,
     const uint32_t C,
     const uint32_t N,
-    Vanilla3DGS<3>::WorldBuffer splats_world,  // [N, ...]
-    const float *__restrict__ viewmats, // [C, 4, 4]
-    const float4 *__restrict__ intrins,  // [C, 4], fx, fy, cx, cy
+    Vanilla3DGS<3>::WorldBuffer splats_world,  
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
     const uint32_t image_width,
     const uint32_t image_height,
-    // outputs
+    
     uint32_t *__restrict__ mask_bits,
     int32_t *__restrict__ block_counts,
     const uint8_t* __restrict__ sh_value_packed,
@@ -108,13 +108,13 @@ template void projection_packed_mask_kernel_wrapper<
     cudaStream_t stream,
     const uint32_t C,
     const uint32_t N,
-    Vanilla3DGS<3>::WorldBuffer splats_world,  // [N, ...]
-    const float *__restrict__ viewmats, // [C, 4, 4]
-    const float4 *__restrict__ intrins,  // [C, 4], fx, fy, cx, cy
+    Vanilla3DGS<3>::WorldBuffer splats_world,  
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
     const uint32_t image_width,
     const uint32_t image_height,
-    // outputs
+    
     uint32_t *__restrict__ mask_bits,
     int32_t *__restrict__ block_counts,
     const uint8_t* __restrict__ sh_value_packed,
@@ -132,13 +132,13 @@ template void projection_packed_mask_kernel_wrapper<
     cudaStream_t stream,
     const uint32_t C,
     const uint32_t N,
-    Vanilla3DGS<3>::WorldBuffer splats_world,  // [N, ...]
-    const float *__restrict__ viewmats, // [C, 4, 4]
-    const float4 *__restrict__ intrins,  // [C, 4], fx, fy, cx, cy
+    Vanilla3DGS<3>::WorldBuffer splats_world,  
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
     const uint32_t image_width,
     const uint32_t image_height,
-    // outputs
+    
     uint32_t *__restrict__ mask_bits,
     int32_t *__restrict__ block_counts,
     const uint8_t* __restrict__ sh_value_packed,
@@ -156,13 +156,13 @@ template void projection_packed_mask_kernel_wrapper<
     cudaStream_t stream,
     const uint32_t C,
     const uint32_t N,
-    Vanilla3DGS<3>::WorldBuffer splats_world,  // [N, ...]
-    const float *__restrict__ viewmats, // [C, 4, 4]
-    const float4 *__restrict__ intrins,  // [C, 4], fx, fy, cx, cy
+    Vanilla3DGS<3>::WorldBuffer splats_world,  
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
     const uint32_t image_width,
     const uint32_t image_height,
-    // outputs
+    
     uint32_t *__restrict__ mask_bits,
     int32_t *__restrict__ block_counts,
     const uint8_t* __restrict__ sh_value_packed,
@@ -180,13 +180,13 @@ template void projection_packed_mask_kernel_wrapper<
     cudaStream_t stream,
     const uint32_t C,
     const uint32_t N,
-    MipSplatting<3>::WorldBuffer splats_world,  // [N, ...]
-    const float *__restrict__ viewmats, // [C, 4, 4]
-    const float4 *__restrict__ intrins,  // [C, 4], fx, fy, cx, cy
+    MipSplatting<3>::WorldBuffer splats_world,  
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
     const uint32_t image_width,
     const uint32_t image_height,
-    // outputs
+    
     uint32_t *__restrict__ mask_bits,
     int32_t *__restrict__ block_counts,
     const uint8_t* __restrict__ sh_value_packed,
@@ -204,13 +204,13 @@ template void projection_packed_mask_kernel_wrapper<
     cudaStream_t stream,
     const uint32_t C,
     const uint32_t N,
-    MipSplatting<3>::WorldBuffer splats_world,  // [N, ...]
-    const float *__restrict__ viewmats, // [C, 4, 4]
-    const float4 *__restrict__ intrins,  // [C, 4], fx, fy, cx, cy
+    MipSplatting<3>::WorldBuffer splats_world,  
+    const float *__restrict__ viewmats, 
+    const float4 *__restrict__ intrins,  
     const CameraDistortionCoeffsBuffer dist_coeffs_buffer,
     const uint32_t image_width,
     const uint32_t image_height,
-    // outputs
+    
     uint32_t *__restrict__ mask_bits,
     int32_t *__restrict__ block_counts,
     const uint8_t* __restrict__ sh_value_packed,

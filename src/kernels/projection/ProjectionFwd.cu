@@ -32,7 +32,12 @@ void projection_fused_fwd_kernel_wrapper(
     // sh_bounds_stride: cells per value-quant bound. 0 (default) = per-splat
     // block (256 * 3 * num_sh_buffer cells/bound, matching FPBO allocation).
     // 256 = per-cell block (non-FPBO value-quant allocation).
-    const int64_t sh_bounds_stride
+    const int64_t sh_bounds_stride,
+    // GaussianShader envmap (null disables the shading path). Must mirror the
+    // definition in ProjectionFwd_kernel.cuh (the explicit instantiations in
+    // src/instantiations/PF_P3GPF*.cu are generated from this declaration).
+    const float* __restrict__ envmap,
+    const int env_size
 );
 
 

@@ -50,15 +50,34 @@ def extract_kernel_definition(header_src: Path, kernel_name: str):
     header_src = SRC_DIR / header_src
     src = open(header_src, "r").read()
 
+    # Strip // comments first: the old non-greedy pattern could be cut short
+    # by a ");" or ";" inside a comment (e.g. "cells/bound);"), silently
+    # dropping trailing parameters (sh_bounds_stride, envmap, env_size) and
+    # producing instantiations that no longer match the template.
+    src_nc = re.sub(r"//[^\n]*", "", src)
+
     pattern = re.compile(
-        f"""(void\\s+{kernel_name}(.*?)\\)\\s*;)""",
+        f"""(void\\s+{kernel_name}(.*?)\\)\\s*(\\{{|;))""",
         re.MULTILINE | re.VERBOSE | re.DOTALL
     )
 
-    matches = pattern.findall(src)
+    matches = pattern.findall(src_nc)
     assert len(matches) == 1, matches
 
-    return matches[0][0]
+    decl = matches[0][0]
+    if decl.endswith("{"):
+        # Template definition (has a body): keep the signature, drop the
+        # opening brace.
+        decl = decl[:-1].rstrip() + ";"
+
+    # Explicit instantiations must not carry default arguments; remove any
+    # "= expr" so generated files list every parameter by type.
+    params = re.search(r"\((.*)\)", decl, re.S)
+    if params:
+        stripped = re.sub(r"\s*=\s*[^,()]+", "", params.group(1))
+        decl = decl[:params.start(1)] + stripped + decl[params.end(1):]
+
+    return decl
 
 
 # Every file emitted this run, so the stale ones can be pruned at the end. A
