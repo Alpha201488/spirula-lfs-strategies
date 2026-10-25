@@ -363,11 +363,18 @@ std::tuple<
     DistortionType dist_type,  // distortion channel set (None/D/RGB_D)
     DeviceTensor3D<float> accum_weight_map,  // [I, H, W]
     DensifyAccumMode accum_mode,
+    // [num_splats] running peak of alpha * T, atomic-maxed times
+    // max_weight_scale; empty to skip.
+    DeviceVector<float> max_weight,
+    float max_weight_scale,
+    // Primitive3DGS::kernel_vis: > 0 cut and renormalized, 0 the full gaussian
+    float kernel_cut,
     // gradients of outputs
     RenderOutput::TensorTuple v_render_outputs,
     const DeviceTensor3D<float> v_render_Ts,
     const DeviceTensor3D<float> v_median,  // [I, H, W], optional
     std::optional<RenderOutput::TensorTuple> v_distortion_outputs,
+    float v_dist_rgb_per_depth,  // used when v_distortion_outputs has no rgb
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_w,
     std::optional<std::vector<DeviceTensorFloatND>> v_splats_s
 ) {
@@ -376,7 +383,8 @@ std::tuple<
         image_width, image_height, tile_offsets, flatten_ids,
         macro_log2,
         render_Ts, last_ids, render_outputs_tuple, distortion_fwd_outputs,
-        dist_type, accum_weight_map, accum_mode, v_render_outputs, v_render_Ts,
-        v_median, v_distortion_outputs, v_splats_w, v_splats_s
+        dist_type, accum_weight_map, accum_mode, max_weight, max_weight_scale, kernel_cut,
+        v_render_outputs, v_render_Ts,
+        v_median, v_distortion_outputs, v_dist_rgb_per_depth, v_splats_w, v_splats_s
     );
 }

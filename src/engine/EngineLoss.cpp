@@ -261,10 +261,14 @@ static void _engine_raster_proj_backward(
                 dist_type,
                 accum_weight_map,
                 accum_mode,
+                engine().max_weight.value,
+                engine().max_weight.step_scale,
+                engine().fwd.kernel_cut,
                 v_render_outputs,
                 v_render_Ts,
                 v_median,
                 v_distortion_opt,  // gradient w.r.t. distortion image
+                v_dist_rgb_per_depth,
                 std::make_optional(v_splats_w),
                 std::nullopt
             );
