@@ -243,8 +243,10 @@ struct _Base3DGSShader : public _Base3DGS<sh_degree, antialiased> {
 
         static __device__ __forceinline__ World zero() {
             World w;
-            w = static_cast<typename _Base3DGS<sh_degree, antialiased>::World&>(
-                _Base3DGS<sh_degree, antialiased>::World::zero());
+            // base zero() returns a temporary: bind through the const-ref
+            // World::operator=(const base::World&), not a cast to a non-const
+            // reference (nvcc: "expression must be an lvalue").
+            w = _Base3DGS<sh_degree, antialiased>::World::zero();
             w.features_tint = make_float3(1.0f, 1.0f, 1.0f);
             w.features_roughness = 0.5f;
             w.features_normal_res = make_float3(0.0f, 0.0f, 0.0f);
