@@ -259,21 +259,27 @@ struct _Base3DGSShader : public _Base3DGS<sh_degree, antialiased> {
         }
 
         __device__ __forceinline__ void load(WorldBuffer &buffer, int64_t i) {
-            _Base3DGS<sh_degree, antialiased>::World::load(buffer, i);
+            // WorldBuffer is a layout-mirror of the base's (TensorArray<9> vs
+            // TensorArray<6>, slots 0-5 identical); rebind through the base
+            // reference type so the inherited loader can read the shared slots.
+            _Base3DGS<sh_degree, antialiased>::World::load(
+                reinterpret_cast<typename _Base3DGS<sh_degree, antialiased>::WorldBuffer&>(buffer), i);
             features_tint = buffer.features_tint(i);
             features_roughness = buffer.features_roughness(i);
             features_normal_res = buffer.features_normal_res(i);
         }
 
         __device__ __forceinline__ void atomicLoad(WorldBuffer &buffer, int64_t i) {
-            _Base3DGS<sh_degree, antialiased>::World::atomicLoad(buffer, i);
+            _Base3DGS<sh_degree, antialiased>::World::atomicLoad(
+                reinterpret_cast<typename _Base3DGS<sh_degree, antialiased>::WorldBuffer&>(buffer), i);
             if (&buffer.features_tint(0)) features_tint += buffer.features_tint(i);
             if (&buffer.features_roughness(0)) features_roughness += buffer.features_roughness(i);
             if (&buffer.features_normal_res(0)) features_normal_res += buffer.features_normal_res(i);
         }
 
         __device__ __forceinline__ void atomicStore(WorldBuffer &buffer, int64_t i) const {
-            _Base3DGS<sh_degree, antialiased>::World::atomicStore(buffer, i);
+            _Base3DGS<sh_degree, antialiased>::World::atomicStore(
+                reinterpret_cast<typename _Base3DGS<sh_degree, antialiased>::WorldBuffer&>(buffer), i);
             if (&buffer.features_tint(0)) atomicAddFVec(&buffer.features_tint(i), features_tint);
             if (&buffer.features_roughness(0)) atomicAdd(&buffer.features_roughness(i), features_roughness);
             if (&buffer.features_normal_res(0)) atomicAddFVec(&buffer.features_normal_res(i), features_normal_res);
