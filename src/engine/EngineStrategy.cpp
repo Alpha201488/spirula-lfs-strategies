@@ -254,8 +254,7 @@ void _accumulate_edge_scores(const DensifyConfig& cfg) {
     // per-sub-batch allocation (GPU-side reads are silent garbage; the D2H
     // copies in the CPU exploration path fault). Guard on the render tensor
     // spanning all cameras.
-    const auto& rshape = std::get<2>(renders);
-    if (rshape.empty() || rshape[0] != (int64_t)C)
+    if (rgb.size<0>() != (int64_t)C)
         return;
 
     // flat view over the [C,4] c2w viewmat table for the kernel
@@ -339,15 +338,15 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
     auto& cam = engine().camera;
     if (cam.num <= 0 || cam.width <= 1 || cam.height <= 1) return;
     const auto& renders = engine().fwd.renders;
-    if (std::get<0>(renders).data_ptr() == nullptr ||
+    const auto& rrgb = std::get<0>(renders);
+    if (rrgb.data_ptr() == nullptr ||
         std::get<0>(engine().gt.rgb) == 0)
         return;
     // split_batch renders only the current sub-batch of cameras: the full-C
     // cam_idx indexing below would read past the render buffer and fault the
     // D2H copies (invalid argument -> CHECK_DEVICE_ERROR -> exit). Skip
     // exploration unless the render tensor spans all cameras.
-    const auto& rshape = std::get<2>(renders);
-    if (rshape.empty() || rshape[0] != (int64_t)cam.num)
+    if (rrgb.size<0>() != (int64_t)cam.num)
         return;
 
     const int C = cam.num;
