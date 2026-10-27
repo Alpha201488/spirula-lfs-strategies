@@ -167,13 +167,13 @@ jobs:
 
       - name: Smoke
         shell: cmd
-        run: build\spirula.exe train --help
+        run: build_cuda\spirula.exe train --help
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: spirula-strategy-port-windows-cuda
           path: |
-            build/spirula.exe
-            build/spirula.map
+            build_cuda/spirula.exe
+            build_cuda/spirula.map
           retention-days: 30
