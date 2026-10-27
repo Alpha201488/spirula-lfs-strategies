@@ -934,6 +934,17 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     // never exceed cap.
     int64_t n_replace = std::min<int64_t>(n_pruned, n_grow_base);
     n_replace = std::min<int64_t>(n_replace, selectable);
+    // Physical-pool guardrail: the append fallback (quantized optimizer state)
+    // writes replacement children at cur..cur+n_replace-1, and even the
+    // slot-reuse path folds n_replace into cur_num_splats below. With the pool
+    // full (cur == max_num_splats == cap) the un-guarded count used to write
+    // past the end of the allocated splat buffers, corrupting memory and
+    // hanging/crashing at a random later step (user report: mrnf crashes at
+    // cap, 3/3 runs at 600/12000/13400 steps; revised strategy succeeds with
+    // identical config). Never let replacement push the high-water mark past
+    // the pool.
+    n_replace = std::min<int64_t>(
+        n_replace, std::max<int64_t>(0, engine().max_num_splats - cur));
     int64_t n_grow = std::min<int64_t>(
         std::max<int64_t>(0, n_grow_base - n_replace),
         std::max<int64_t>(0, cap - cur));
@@ -1041,8 +1052,14 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
         int64_t keep_old = std::max<int64_t>(0, cap - added);
         if (keep_old < cur) {
             float q = (float)keep_old / (float)cur;
+            // Quantile over the live prefix only: score_scratch is a
+            // full-pool buffer (size == max_num_splats), and running the
+            // quantile over stale/uninitialized slots past `cur` used to
+            // pollute the threshold and cull wrong splats once the pool was
+            // full.
             quantile_of_abs_of_finite_elements_tensor(
-                st.score_scratch, q, false, st.sum_scratch);
+                _float_view(st.score_scratch.data_ptr(), cur),
+                q, false, st.sum_scratch);
             float thr = _host_sum(st.sum_scratch);
             // keep = score >= thr
             strat_mask_ge_tensor(cur, st.score_scratch, thr, st.mask_b.data_ptr());
