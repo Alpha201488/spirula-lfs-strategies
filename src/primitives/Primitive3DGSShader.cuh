@@ -563,11 +563,14 @@ struct _Base3DGSShader : public _Base3DGS<sh_degree, antialiased> {
 
     struct FragmentBwd : public FragmentFwd {
         FragmentBwd() = default;
-        __device__ FragmentBwd(const typename _Base3DGS<sh_degree, antialiased>::Screen& other) {
-            _Base3DGS<sh_degree, antialiased>::Screen::operator=(other);
+        // Accept the innermost base Screen: _Base3DGS::Screen::zero() (via
+        // inheritance) yields _BasePrimitive3DGS::Screen, and a two-step
+        // user-defined conversion to FragmentBwd is illegal.
+        __device__ FragmentBwd(const typename _BasePrimitive3DGS<sh_degree>::Screen& other) {
+            _BasePrimitive3DGS<sh_degree>::Screen::operator=(other);
         }
-        __device__ FragmentBwd& operator=(const typename _Base3DGS<sh_degree, antialiased>::Screen& other) {
-            _Base3DGS<sh_degree, antialiased>::Screen::operator=(other);
+        __device__ FragmentBwd& operator=(const typename _BasePrimitive3DGS<sh_degree>::Screen& other) {
+            _BasePrimitive3DGS<sh_degree>::Screen::operator=(other);
             return *this;
         }
 
