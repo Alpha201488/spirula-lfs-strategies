@@ -498,8 +498,9 @@ struct _Base3DGSShader : public _Base3DGS<sh_degree, antialiased> {
         }
 
         __device__ __forceinline__ float evaluate_alpha(
-            float px, float py
+            float px, float py, float kernel_cut = 0.f
         ) const {
+            (void)kernel_cut;  // Shader path: full gaussian (no cut/renorm yet)
             float2 delta = {this->xy.x - px, this->xy.y - py};
             float sigma = 0.5f * (this->conic.x * delta.x * delta.x +
                                     this->conic.z * delta.y * delta.y) +
@@ -511,8 +512,9 @@ struct _Base3DGSShader : public _Base3DGS<sh_degree, antialiased> {
 
         __device__ __forceinline__ void evaluate_alpha_vjp(
             float px, float py, float v_alpha,
-            FragmentFwd& v_frag
+            FragmentFwd& v_frag, float kernel_cut = 0.f
         ) const {
+            (void)kernel_cut;  // Shader path: full gaussian (no cut/renorm yet)
             float2 delta = {this->xy.x - px, this->xy.y - py};
             float sigma = 0.5f * (this->conic.x * delta.x * delta.x +
                                     this->conic.z * delta.y * delta.y) +
@@ -536,15 +538,17 @@ struct _Base3DGSShader : public _Base3DGS<sh_degree, antialiased> {
         }
 
         __device__ __forceinline__ RenderOutput evaluate_color(
-            float px, float py
+            float px, float py, float kernel_cut = 0.f
         ) const {
+            (void)kernel_cut;
             return { this->rgb, this->depth, make_float3(0.0f) };
         }
 
         __device__ __forceinline__ void evaluate_color_vjp(
             float px, float py, RenderOutput v_render,
-            FragmentFwd& v_frag
+            FragmentFwd& v_frag, float kernel_cut = 0.f
         ) const {
+            (void)kernel_cut;
             v_frag.rgb += v_render.rgb;
             v_frag.depth += v_render.depth;
         }
