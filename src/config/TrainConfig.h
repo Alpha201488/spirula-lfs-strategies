@@ -220,9 +220,6 @@ inline bool train_choices_free_form(const char* choices) {
     X(bool, use_shader, false, "splats", "basic", "GaussianShader reflective model") \
     X(float, shader_roughness_scale, 1.0f, "splats", "expert", "")           \
     X(int, shader_diffuse_only_iters, 3000, "splats", "expert", "")          \
-    X(float, shader_normal_loss_weight, 0.01f, "loss", "expert", "")          \
-    X(float, shader_sparse_loss_weight, 0.001f, "loss", "expert", "")         \
-    X(float, shader_reg_loss_weight, 0.001f, "loss", "expert", "")            \
                                                                              \
     /* ==== detail -- how many splats there are and where they go ==== */    \
     X(std::string, quality, "medium", "detail", "basic", "low|medium|high|ultra") \
@@ -283,6 +280,9 @@ inline bool train_choices_free_form(const char* choices) {
     X(float, mrnf_max_screen_share, 0.3f, "densify", "basic", "")            \
                                                                              \
     /* ==== loss -- how the render is compared against the photo ==== */     \
+    X(float, shader_normal_loss_weight, 0.01f, "loss", "expert", "")          \
+    X(float, shader_sparse_loss_weight, 0.001f, "loss", "expert", "")         \
+    X(float, shader_reg_loss_weight, 0.001f, "loss", "expert", "")            \
     X(float, ssim_lambda, 0.2f, "loss", "basic", "")                         \
     X(std::string, perceptual_loss, "ssim_blur_tolerant", "loss", "advanced", "ssim|ssim_blur_tolerant|s_cielab|flip") \
     X(float, l1_weight, 1.0f, "loss", "basic", "")                           \
