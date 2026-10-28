@@ -373,26 +373,45 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
     if (rrgb.data_ptr() == nullptr ||
         std::get<0>(engine().gt.rgb) == 0)
         return;
-    // split_batch renders only the current sub-batch of cameras: the full-C
-    // cam_idx indexing below would read past the render buffer and fault the
-    // D2H copies (invalid argument -> CHECK_DEVICE_ERROR -> exit). Skip
-    // exploration unless the render tensor spans all cameras.
-    if (rrgb.size<0>() != (int64_t)cam.num)
-        return;
+    // Sample the camera whose render is actually present in the fwd buffer,
+    // with copy sizes derived from the render tensor's own shape. cam.* is
+    // global metadata and may not match the rendered resolution (training
+    // frame scaling) or the per-step camera count (split_batch renders one
+    // camera at a time). Indexing by cam.num / cam.width / cam.height walked
+    // past the allocation and the first D->H copy tripped a sticky "invalid
+    // argument" (user crash at [explore] copy1_render), corrupting every
+    // later CUDA call. The render buffer is [batch, H, W] float3.
+    const int64_t C = cam.num;
+    const int64_t rend_batch = (int64_t)rrgb.size<0>();
+    const int64_t rend_h = (int64_t)rrgb.size<1>();
+    const int64_t rend_w = (int64_t)rrgb.size<2>();
+    if (rend_batch <= 0 || rend_h <= 1 || rend_w <= 1) return;
+    const int64_t W = rend_w, H = rend_h;
+    const int64_t npix = W * H;
+    const int64_t cam_idx = std::min<int64_t>(
+        (int64_t)(st.explore_sample_count % rend_batch),
+        std::max<int64_t>(0, C - 1));
+    // GT must be able to provide the same camera: under split_batch the GT
+    // tensor is sliced per camera ([1, H, W, 3]); if its batch is smaller
+    // than cam_idx or its resolution differs from the render, skip this view.
+    {
+        const auto& gshape = std::get<2>(engine().gt.rgb);
+        int64_t g_batch = 0, g_h = 0, g_w = 0;
+        if (gshape.size() >= 4) {
+            g_batch = gshape[0]; g_h = gshape[1]; g_w = gshape[2];
+        }
+        if (g_batch <= 0 || g_h * g_w != npix || g_batch < cam_idx + 1)
+            return;
+    }
 
-    const int C = cam.num;
-    const int W = cam.width, H = cam.height;
-    const int cam_idx = (int)(st.explore_sample_count % C);
-    const size_t npix = (size_t)H * (size_t)W;
-
-    st.explore_render.resize(npix * 3);
-    st.explore_target.resize(npix * 3);
-    st.explore_err_map.resize(npix);
+    st.explore_render.resize((size_t)npix * 3);
+    st.explore_target.resize((size_t)npix * 3);
+    st.explore_err_map.resize((size_t)npix);
 
     const float3* rsrc = (const float3*)std::get<0>(renders).data_ptr()
-        + (int64_t)cam_idx * (int64_t)npix;
+        + cam_idx * npix;
     const float3* gsrc = (const float3*)std::get<0>(engine().gt.rgb)
-        + (int64_t)cam_idx * (int64_t)npix;
+        + cam_idx * npix;
     backend::memcpy_sync(st.explore_render.data(), rsrc,
                          npix * 3 * sizeof(float),
                          backend::MemcpyKind::DeviceToHost);
