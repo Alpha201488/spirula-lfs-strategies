@@ -320,6 +320,7 @@ struct DensifyConfig {
     int   mrnf_far_seed_dose           = 2000;    // far_seed_dose
     bool  mrnf_explore_starvation_weighting = true;
     bool  mrnf_explore                 = false;   // LFS seed-view explore, error map kept in CPU RAM
+    int   mrnf_explore_views           = 16;      // views gathered per refine window (split_batch: spread over sub-cameras)
     float mrnf_growth_ratio_pow        = 0.75f;   // growth_ratio_pow
     float mrnf_max_screen_share        = 0.3f;    // max_screen_share
 };

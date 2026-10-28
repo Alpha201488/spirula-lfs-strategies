@@ -331,6 +331,10 @@ void engine_init_color_space(
 // Returns: number of splats added (0 if no densification this step)
 int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg);
 
+// LFS seed-view exploration: capture the currently rendered sub-camera into
+// the refine window (split_batch only; called from the sub-camera train loop).
+void _explore_capture_subview(const DensifyConfig& cfg, int64_t k, int64_t B);
+
 // --- Fused training step (set_camera + set_training + forward + loss/bwd + optim + densify) ---
 //
 // Bilagrid + PPISP entries in `cfg` are no-ops when the corresponding

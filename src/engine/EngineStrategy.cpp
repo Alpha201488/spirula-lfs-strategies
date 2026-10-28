@@ -363,88 +363,29 @@ void _accumulate_error_scores(const DensifyConfig& cfg, int64_t cur) {
 // budget is untouched -- the point of the feature. Called once per refine
 // step (not per train step) to keep the D->H copies cheap; each call adds
 // one more view to the window.
-void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
+// Copy the current view's render+target, build the CPU error map, then
+// project every splat into the view and fold the median-normalized scores
+// into the windowed sum. cam_idx selects the camera inside the copied
+// tables; W/H/npix come from the render tensor itself (cam.* metadata may
+// not match the rendered resolution under training frame scaling).
+static void _explore_project_and_accumulate(
+    const DensifyConfig& cfg, int64_t cur,
+    int64_t cam_idx, int64_t W, int64_t H, int64_t npix) {
     StrategyState& st = S();
-    if (!cfg.mrnf_explore || cur <= 0) return;
     auto& cam = engine().camera;
-    if (cam.num <= 0 || cam.width <= 1 || cam.height <= 1) return;
-    const auto& renders = engine().fwd.renders;
-    const auto& rrgb = std::get<0>(renders);
-    if (rrgb.data_ptr() == nullptr ||
-        std::get<0>(engine().gt.rgb) == 0)
-        return;
-    // Sample the camera whose render is actually present in the fwd buffer,
-    // with copy sizes derived from the render tensor's own shape. cam.* is
-    // global metadata and may not match the rendered resolution (training
-    // frame scaling) or the per-step camera count (split_batch renders one
-    // camera at a time). Indexing by cam.num / cam.width / cam.height walked
-    // past the allocation and the first D->H copy tripped a sticky "invalid
-    // argument" (user crash at [explore] copy1_render), corrupting every
-    // later CUDA call. The render buffer is [batch, H, W] float3.
-    const int64_t C = cam.num;
-    const int64_t rend_batch = (int64_t)rrgb.size<0>();
-    const int64_t rend_h = (int64_t)rrgb.size<1>();
-    const int64_t rend_w = (int64_t)rrgb.size<2>();
-    if (rend_batch <= 0 || rend_h <= 1 || rend_w <= 1) return;
-    const int64_t W = rend_w, H = rend_h;
-    const int64_t npix = W * H;
-    const int64_t cam_idx = std::min<int64_t>(
-        (int64_t)(st.explore_sample_count % rend_batch),
-        std::max<int64_t>(0, C - 1));
-    // GT must be able to provide the same camera: under split_batch the GT
-    // tensor is sliced per camera ([1, H, W, 3]); if its batch is smaller
-    // than cam_idx or its resolution differs from the render, skip this view.
-    {
-        const auto& gshape = std::get<2>(engine().gt.rgb);
-        int64_t g_batch = 0, g_h = 0, g_w = 0;
-        if (gshape.size() >= 4) {
-            g_batch = gshape[0]; g_h = gshape[1]; g_w = gshape[2];
-        }
-        if (g_batch <= 0 || g_h * g_w != npix || g_batch < cam_idx + 1)
-            return;
-    }
 
-    st.explore_render.resize((size_t)npix * 3);
-    st.explore_target.resize((size_t)npix * 3);
-    st.explore_err_map.resize((size_t)npix);
-
-    const float3* rsrc = (const float3*)std::get<0>(renders).data_ptr()
-        + cam_idx * npix;
-    const float3* gsrc = (const float3*)std::get<0>(engine().gt.rgb)
-        + cam_idx * npix;
-    backend::memcpy_sync(st.explore_render.data(), rsrc,
-                         npix * 3 * sizeof(float),
-                         backend::MemcpyKind::DeviceToHost);
-    _probe("[explore] copy1_render");
-    backend::memcpy_sync(st.explore_target.data(), gsrc,
-                         npix * 3 * sizeof(float),
-                         backend::MemcpyKind::DeviceToHost);
-    _probe("[explore] copy2_target");
-
-    // CPU error map: mean absolute per-channel error
-    {
-        const float* r = st.explore_render.data();
-        const float* t = st.explore_target.data();
-        float* e = st.explore_err_map.data();
-        for (size_t p = 0; p < npix; ++p) {
-            e[p] = (std::fabs(r[3*p+0] - t[3*p+0]) +
-                    std::fabs(r[3*p+1] - t[3*p+1]) +
-                    std::fabs(r[3*p+2] - t[3*p+2])) * (1.0f / 3.0f);
-        }
-    }
-
-    // Project every splat into this view (same c2w math as the edge kernel)
-    // and gather the local 5-point error average. The projection is CPU-side
-    // (the whole point of the CPU-RAM path), so the device arrays it reads
-    // must first be copied DeviceToHost -- dereferencing the CUDA UVA device
-    // pointers from host code faults with an access violation.
     st.explore_view_scores.resize((size_t)cur);
-    st.explore_means.resize((size_t)cur);
-    backend::memcpy_sync(st.explore_means.data(),
-                         engine().world.means.data_ptr(),
-                         (size_t)cur * sizeof(float3),
-                         backend::MemcpyKind::DeviceToHost);
-    _probe("[explore] copy3_means");
+    if (st.explore_means.size() != (size_t)cur) {
+        // Splat table changed (new refine window): re-fetch the means. The
+        // D->H copy is the big one (~N*12 B); reused across views in-window.
+        st.explore_means.resize((size_t)cur);
+        backend::memcpy_sync(st.explore_means.data(),
+                             engine().world.means.data_ptr(),
+                             (size_t)cur * sizeof(float3),
+                             backend::MemcpyKind::DeviceToHost);
+        _probe("[explore] copy3_means");
+    }
+    const int64_t C = cam.num;
     st.explore_viewmats.resize((size_t)C * 4);
     backend::memcpy_sync(st.explore_viewmats.data(), cam.viewmats.data_ptr(),
                          (size_t)C * 4 * sizeof(float4),
@@ -458,7 +399,7 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
     const float4* viewmats = st.explore_viewmats.data();
     const float4* intrins  = st.explore_intrins.data();
     const float3* means    = st.explore_means.data();
-    const float4* vm = viewmats + (int64_t)cam_idx * 4;
+    const float4* vm = viewmats + cam_idx * 4;
     const float3 t0 = make_float3(vm[3].x, vm[3].y, vm[3].z);
     const float3 R0 = make_float3(vm[0].x, vm[0].y, vm[0].z);
     const float3 R1 = make_float3(vm[1].x, vm[1].y, vm[1].z);
@@ -505,6 +446,116 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
     for (int64_t i = 0; i < cur; ++i)
         st.explore_score_sum[(size_t)i] += out[i];
     st.explore_sample_count++;
+}
+
+// Copy the forward render + GT slice currently holding camera cam_idx and
+// add one view to the window.
+static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
+                                  int64_t cam_idx, int64_t rend_batch,
+                                  int64_t W, int64_t H) {
+    StrategyState& st = S();
+    const int64_t npix = W * H;
+    const auto& renders = engine().fwd.renders;
+    const auto& rrgb = std::get<0>(renders);
+    // GT must be able to provide the same camera: its batch must cover
+    // cam_idx and its resolution must match the render, else skip the view.
+    {
+        const auto& gshape = std::get<2>(engine().gt.rgb);
+        int64_t g_batch = 0, g_h = 0, g_w = 0;
+        if (gshape.size() >= 4) {
+            g_batch = gshape[0]; g_h = gshape[1]; g_w = gshape[2];
+        }
+        if (g_batch <= 0 || g_h * g_w != npix || g_batch < cam_idx + 1)
+            return;
+    }
+    st.explore_render.resize((size_t)npix * 3);
+    st.explore_target.resize((size_t)npix * 3);
+    st.explore_err_map.resize((size_t)npix);
+
+    const float3* rsrc = (const float3*)std::get<0>(renders).data_ptr()
+        + cam_idx * npix;
+    const float3* gsrc = (const float3*)std::get<0>(engine().gt.rgb)
+        + cam_idx * npix;
+    backend::memcpy_sync(st.explore_render.data(), rsrc,
+                         npix * 3 * sizeof(float),
+                         backend::MemcpyKind::DeviceToHost);
+    _probe("[explore] copy1_render");
+    backend::memcpy_sync(st.explore_target.data(), gsrc,
+                         npix * 3 * sizeof(float),
+                         backend::MemcpyKind::DeviceToHost);
+    _probe("[explore] copy2_target");
+
+    // CPU error map: mean absolute per-channel error
+    {
+        const float* r = st.explore_render.data();
+        const float* t = st.explore_target.data();
+        float* e = st.explore_err_map.data();
+        for (size_t p = 0; p < (size_t)npix; ++p) {
+            e[p] = (std::fabs(r[3*p+0] - t[3*p+0]) +
+                    std::fabs(r[3*p+1] - t[3*p+1]) +
+                    std::fabs(r[3*p+2] - t[3*p+2])) * (1.0f / 3.0f);
+        }
+    }
+    _explore_project_and_accumulate(cfg, cur, cam_idx, W, H, npix);
+}
+
+// Full-batch entry (classic behavior): called once per refine step; rotates
+// the gathered view over the cameras present in the render buffer.
+void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
+    StrategyState& st = S();
+    if (!cfg.mrnf_explore || cur <= 0) return;
+    auto& cam = engine().camera;
+    if (cam.num <= 0 || cam.width <= 1 || cam.height <= 1) return;
+    const auto& renders = engine().fwd.renders;
+    const auto& rrgb = std::get<0>(renders);
+    if (rrgb.data_ptr() == nullptr ||
+        std::get<0>(engine().gt.rgb) == 0)
+        return;
+    // Copy sizes/index derive from the render tensor's own shape. cam.* is
+    // global metadata and may not match the rendered resolution (training
+    // frame scaling) or the per-step camera count (split_batch renders one
+    // camera at a time). Indexing by cam.num / cam.width / cam.height walked
+    // past the allocation and the first D->H copy tripped a sticky "invalid
+    // argument" (user crash at [explore] copy1_render), corrupting every
+    // later CUDA call. The render buffer is [batch, H, W] float3.
+    const int64_t rend_batch = (int64_t)rrgb.size<0>();
+    const int64_t rend_h = (int64_t)rrgb.size<1>();
+    const int64_t rend_w = (int64_t)rrgb.size<2>();
+    if (rend_batch <= 0 || rend_h <= 1 || rend_w <= 1) return;
+    const int64_t W = rend_w, H = rend_h;
+    const int64_t cam_idx = std::min<int64_t>(
+        (int64_t)(st.explore_sample_count % rend_batch),
+        std::max<int64_t>(0, cam.num - 1));
+    _explore_capture_view(cfg, cur, cam_idx, rend_batch, W, H);
+}
+
+// Split-batch entry: called from the sub-camera loop while each camera's
+// render is still in the forward buffer. Gathers at most cfg.mrnf_explore_views
+// views per refine window, spread uniformly over the sub-batch (stride), with
+// the window offset rotated per refine so consecutive windows cover different
+// cameras. The end-of-step densify then modulates growth from this spread
+// instead of being locked to the last sub-camera of the step.
+void _explore_capture_subview(const DensifyConfig& cfg, int64_t k, int64_t B) {
+    StrategyState& st = S();
+    if (!cfg.mrnf_explore || st.id != StrategyId::Mrnf) return;
+    const int64_t views = std::max<int64_t>(1, cfg.mrnf_explore_views);
+    if (st.explore_sample_count >= views) return;   // window full
+    const auto& renders = engine().fwd.renders;
+    const auto& rrgb = std::get<0>(renders);
+    if (rrgb.data_ptr() == nullptr ||
+        std::get<0>(engine().gt.rgb) == 0)
+        return;
+    const int64_t rend_batch = (int64_t)rrgb.size<0>();
+    const int64_t rend_h = (int64_t)rrgb.size<1>();
+    const int64_t rend_w = (int64_t)rrgb.size<2>();
+    if (rend_batch <= 0 || rend_h <= 1 || rend_w <= 1) return;
+    const int64_t stride = std::max<int64_t>(1, B / views);
+    const int64_t start = (int64_t)(st.refine_count % stride);
+    if ((k - start) % stride != 0) return;           // spread over sub-cams
+    const int64_t cur = engine().cur_num_splats;
+    if (cur <= 0) return;
+    const int64_t cam_idx = 0;                       // renders holds this camera
+    _explore_capture_view(cfg, cur, cam_idx, rend_batch, rend_w, rend_h);
 }
 
 // ---- common zero-out of the accumulation window at refine time ----
@@ -1341,8 +1392,12 @@ int engine_strategy_densify(int step, int max_steps, const DensifyConfig& cfg) {
     _accumulate_error_scores(cfg, cur);
     if (st.id == StrategyId::IgsPlus || st.id == StrategyId::Mrnf)
         _accumulate_edge_scores(cfg);
-    // seed-view explore (CPU RAM): one more view per refine step
-    if (do_densify && st.id == StrategyId::Mrnf)
+    // seed-view explore (CPU RAM): under split_batch the views were already
+    // gathered per sub-camera inside the train loop (_explore_capture_subview),
+    // so only fall back to the classic full-batch single-view gather when the
+    // window is empty (non-split steps / single-camera batches).
+    if (do_densify && st.id == StrategyId::Mrnf &&
+        st.explore_sample_count == 0)
         _accumulate_explore_cpu(cfg, cur);
 
     if (!do_densify)

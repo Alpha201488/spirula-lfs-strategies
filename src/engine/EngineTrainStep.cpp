@@ -508,6 +508,15 @@ static std::map<std::string, float> _engine_train_step_split_one_per_camera(
             _fold_accum_weight(accum_weight_sum, N_splats);
         }
 
+        // LFS seed-view explore: capture this sub-camera while its render is
+        // still in the forward buffer (a spread of views per refine window,
+        // throttled inside _explore_capture_subview). Without this the
+        // end-of-step densify would only ever see the LAST sub-camera of the
+        // step, locking exploration to a single fixed view.
+        if (cfg.densify.mrnf_explore &&
+            engine().strategy.id == StrategyId::Mrnf)
+            _explore_capture_subview(cfg.densify, k, B);
+
         // Aggregate loss values across sub-batches as a mean.
         if (k == 0) {
             agg = std::move(ld);
