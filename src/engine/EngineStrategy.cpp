@@ -50,35 +50,6 @@
 
 namespace {
 
-// Debug probe: append one line to spirula_explore_debug.log in the CWD so the
-// GUI (no console) can still surface which D2H copy in the mrnf explore path
-// tripped first. backend::last_error() is backend-agnostic (cudaGetLastError
-// semantics under CUDA, no-op under other backends) and needs no CUDA header.
-// On a sticky error the probe records FAIL + reason and aborts, so the crash
-// report (CrashLog) fires at the exact failing copy instead of far downstream.
-void _probe(const char* msg) {
-    const char* err = backend::last_error();
-    FILE* f = std::fopen("spirula_explore_debug.log", "a");
-    if (f) {
-        std::fprintf(f, "%s %s%s%s\n", msg, err ? "FAIL" : "ok",
-                     err ? ": " : "", err ? err : "");
-        std::fclose(f);
-    }
-    if (err) std::abort();
-}
-
-void _probe2(const char* msg, long long a, long long b, long long c) {
-    const char* err = backend::last_error();
-    FILE* f = std::fopen("spirula_explore_debug.log", "a");
-    if (f) {
-        std::fprintf(f, "%s %s n1=%lld n2=%lld n3=%lld%s%s\n", msg,
-                     err ? "FAIL" : "ok", a, b, c,
-                     err ? ": " : "", err ? err : "");
-        std::fclose(f);
-    }
-    if (err) std::abort();
-}
-
 // ---- tiny helpers (same idiom as EngineDensify.cpp) ----
 template<typename T>
 inline DeviceVector<T> _dv(const TorchTensorView& tv) {
@@ -476,6 +447,7 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
         + cam_idx * npix;
     const float3* gsrc = (const float3*)std::get<0>(engine().gt.rgb)
         + cam_idx * npix;
+    _probe2("[explore] copy0_pre", cam_idx, npix, rend_batch);
     backend::memcpy_sync(st.explore_render.data(), rsrc,
                          npix * 3 * sizeof(float),
                          backend::MemcpyKind::DeviceToHost);
@@ -1320,6 +1292,36 @@ int64_t _densify_mcmc(int step, const DensifyConfig& cfg,
 }
 
 }  // namespace
+
+// Debug probe (global so EngineTrainStep.cpp can call it too): append one
+// line to spirula_explore_debug.log in the CWD so the GUI (no console) can
+// still surface which stage tripped first. backend::last_error() is
+// backend-agnostic (cudaGetLastError semantics under CUDA, no-op under other
+// backends) and needs no CUDA header. On a sticky error the probe records
+// FAIL + reason and aborts, so the crash report (CrashLog) fires at the exact
+// failing stage instead of far downstream.
+void _probe(const char* msg) {
+    const char* err = backend::last_error();
+    FILE* f = std::fopen("spirula_explore_debug.log", "a");
+    if (f) {
+        std::fprintf(f, "%s %s%s%s\n", msg, err ? "FAIL" : "ok",
+                     err ? ": " : "", err ? err : "");
+        std::fclose(f);
+    }
+    if (err) std::abort();
+}
+
+void _probe2(const char* msg, long long a, long long b, long long c) {
+    const char* err = backend::last_error();
+    FILE* f = std::fopen("spirula_explore_debug.log", "a");
+    if (f) {
+        std::fprintf(f, "%s %s n1=%lld n2=%lld n3=%lld%s%s\n", msg,
+                     err ? "FAIL" : "ok", a, b, c,
+                     err ? ": " : "", err ? err : "");
+        std::fclose(f);
+    }
+    if (err) std::abort();
+}
 
 // Cross-TU entry declared in Engine.h: the split-batch train loop (a
 // different TU) calls this to capture explore views. The implementation

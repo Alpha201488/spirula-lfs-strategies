@@ -335,6 +335,11 @@ int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg);
 // the refine window (split_batch only; called from the sub-camera train loop).
 void _explore_capture_subview(const DensifyConfig& cfg, int64_t k, int64_t B);
 
+// Debug probes (spirula_explore_debug.log): query backend::last_error() and
+// abort on a sticky error. _probe2 additionally prints n1/n2/n3.
+void _probe(const char* msg);
+void _probe2(const char* msg, long long a, long long b, long long c);
+
 // --- Fused training step (set_camera + set_training + forward + loss/bwd + optim + densify) ---
 //
 // Bilagrid + PPISP entries in `cfg` are no-ops when the corresponding
