@@ -67,6 +67,18 @@ void _probe(const char* msg) {
     if (err) std::abort();
 }
 
+void _probe2(const char* msg, long long a, long long b, long long c) {
+    const char* err = backend::last_error();
+    FILE* f = std::fopen("spirula_explore_debug.log", "a");
+    if (f) {
+        std::fprintf(f, "%s %s n1=%lld n2=%lld n3=%lld%s%s\n", msg,
+                     err ? "FAIL" : "ok", a, b, c,
+                     err ? ": " : "", err ? err : "");
+        std::fclose(f);
+    }
+    if (err) std::abort();
+}
+
 // ---- tiny helpers (same idiom as EngineDensify.cpp) ----
 template<typename T>
 inline DeviceVector<T> _dv(const TorchTensorView& tv) {
@@ -868,6 +880,7 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     // ---- camera hull (far field) ----
     _update_camera_hull(st);
     bool far_ok = st.camera_hull_valid;
+    _probe2("[mrnf] hull", far_ok ? 1 : 0, (long long)(st.orbit_radius * 100.0f), step);
 
     // ---- prune: opacity / collapsed scale / degenerate rotation ----
     strat_prune_mask_tensor(cur, b.opacities, b.scales, b.quats,
@@ -878,6 +891,7 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     int64_t n_pruned = _host_count(st.count_scratch);
     if (n_pruned > 0)
         _free_slots(b, st.idx_scratch, n_pruned, sh_stride);
+    _probe2("[mrnf] prune", n_pruned, cur, cap);
 
     // ---- far-field mask + starvation ----
     int64_t n_far = 0;
@@ -895,6 +909,7 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     } else {
         st.far_starvation = 1.0f;
     }
+    _probe2("[mrnf] far", n_far, (long long)(st.far_starvation * 100.0f), far_ok ? 1 : 0);
 
     // ---- error + edge-guidance score (MRNF edge_guidance_factor) ----
     DeviceVector<float>& err = st.error_scores;
@@ -907,6 +922,7 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
                              (size_t)cur * sizeof(float),
                              backend::MemcpyKind::DeviceToDevice);
     }
+    _probe2("[mrnf] score", cur, have_edge ? 1 : 0, 0);
     strat_ew_clamp_min_inplace_tensor(cur, st.score_scratch, 1e-12f);
 
     // ---- LFS explore modulation (CPU-RAM seed-view scores) ----
@@ -928,6 +944,7 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     _zero_count(st.count_scratch);
     strat_count_nonzero_tensor(cur, st.score_scratch, st.count_scratch);
     int64_t selectable = _host_count(st.count_scratch);
+    _probe2("[mrnf] selectable", selectable, cur, 0);
 
     // ---- growth target (LFS fill pacing) ----
     // LFS (mrnf.cpp) grows at full grow_fraction from the very first refine
@@ -954,6 +971,7 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
         strat_mask_count_tensor(cur, st.mask_b.data_ptr(), st.count_scratch);
         active = _host_count(st.count_scratch);
     }
+    _probe2("[mrnf] active", active, cur, cap);
 
     int64_t n_grow_base =
         (int64_t)std::lround((float)active * cfg.mrnf_grow_fraction);
@@ -987,9 +1005,11 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
         std::max<int64_t>(0, n_grow_base - n_replace),
         std::max<int64_t>(0, cap - cur));
     n_grow = std::min<int64_t>(n_grow, selectable);
+    _probe2("[mrnf] budget", n_grow_base, n_replace, n_grow);
 
     // ---- replace pruned first (LFS replace_pruned) ----
     int64_t added = 0;
+    int64_t n_free = 0;
     if (n_replace > 0) {
         _sample_scores(cur, st.idx_scratch, n_replace,
                        (uint32_t)(0x85ebca6bu ^ (uint32_t)step), nullptr);
@@ -999,7 +1019,7 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
         _zero_count(st.count_scratch);
         strat_extract_indices_tensor(cur, st.mask_b.data_ptr(),
                                      st.idx_scratch2, st.count_scratch);
-        int64_t n_free = _host_count(st.count_scratch);
+        n_free = _host_count(st.count_scratch);
         n_replace = std::min<int64_t>(n_replace, n_free);
         if (n_replace > 0) {
             int64_t r = _las_split_into(b, st.idx_scratch, st.idx_scratch2,
@@ -1015,6 +1035,7 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
             }
         }
     }
+    _probe2("[mrnf] replace_done", n_replace, n_free, added);
 
     // ---- grow (append) ----
     int64_t n_append_grow = n_grow - n_replace;
@@ -1039,16 +1060,18 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
             added += n_append_grow;
         }
     }
+    _probe2("[mrnf] grow_done", n_append_grow, added, cur + added);
 
     // ---- far-field seeds (LFS far_seed_dose, scaled by starvation) ----
     int64_t n_far_grow = 0;
+    int64_t n_far_draw = 0;
     if (far_ok && n_far > 0 && cfg.mrnf_far_seed_dose > 0) {
         n_far_grow = (int64_t)std::lround(
             (float)cfg.mrnf_far_seed_dose * st.far_starvation);
         n_far_grow = std::min<int64_t>(n_far_grow, n_grow);
     }
     if (far_ok && n_far_grow > 0 && (cur + added) < cap) {
-        int64_t n_far_draw = std::min<int64_t>(n_far_grow, cap - (cur + added));
+        n_far_draw = std::min<int64_t>(n_far_grow, cap - (cur + added));
         n_far_draw = std::min<int64_t>(n_far_draw, n_far);
         if (n_far_draw > 0) {
             strat_mask_apply_inplace_tensor(cur, st.score_scratch,
@@ -1074,6 +1097,7 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
             }
         }
     }
+    _probe2("[mrnf] farseed_done", n_far_draw, added, cur + added);
 
     // ---- far decay (LFS apply_decay, applied globally per refine window;
     //      far splats additionally decay by mrnf_far_decay_scale) ----
@@ -1112,8 +1136,10 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
         }
     }
 
+    _probe2("[mrnf] cap_done", new_cur, cap, added);
     _zero_densify_window();
     st.refine_count++;
+    _probe2("[mrnf] exit", added, cur + added, st.refine_count);
     return added;
 }
 
