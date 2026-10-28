@@ -34,6 +34,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "engine/Engine.h"
+#include <iostream>
 #include "engine/EngineCommon.h"
 #include "engine/EngineState.h"
 #include "engine/EngineStrategy.h"
@@ -365,9 +366,13 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
     backend::memcpy_sync(st.explore_render.data(), rsrc,
                          npix * 3 * sizeof(float),
                          backend::MemcpyKind::DeviceToHost);
+    std::cerr << "[explore] copy1_render ok\n";
+    CHECK_DEVICE_ERROR(cudaGetLastError());
     backend::memcpy_sync(st.explore_target.data(), gsrc,
                          npix * 3 * sizeof(float),
                          backend::MemcpyKind::DeviceToHost);
+    std::cerr << "[explore] copy2_target ok\n";
+    CHECK_DEVICE_ERROR(cudaGetLastError());
 
     // CPU error map: mean absolute per-channel error
     {
@@ -392,14 +397,20 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
                          engine().world.means.data_ptr(),
                          (size_t)cur * sizeof(float3),
                          backend::MemcpyKind::DeviceToHost);
+    std::cerr << "[explore] copy3_means ok\n";
+    CHECK_DEVICE_ERROR(cudaGetLastError());
     st.explore_viewmats.resize((size_t)C * 4);
     backend::memcpy_sync(st.explore_viewmats.data(), cam.viewmats.data_ptr(),
                          (size_t)C * 4 * sizeof(float4),
                          backend::MemcpyKind::DeviceToHost);
+    std::cerr << "[explore] copy4_viewmats ok\n";
+    CHECK_DEVICE_ERROR(cudaGetLastError());
     st.explore_intrins.resize((size_t)C);
     backend::memcpy_sync(st.explore_intrins.data(), cam.intrins.data_ptr(),
                          (size_t)C * sizeof(float4),
                          backend::MemcpyKind::DeviceToHost);
+    std::cerr << "[explore] copy5_intrins ok\n";
+    CHECK_DEVICE_ERROR(cudaGetLastError());
     const float4* viewmats = st.explore_viewmats.data();
     const float4* intrins  = st.explore_intrins.data();
     const float3* means    = st.explore_means.data();
