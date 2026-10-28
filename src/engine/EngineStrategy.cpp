@@ -44,10 +44,28 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
 namespace {
+
+// Debug probe: append one line to spirula_explore_debug.log in the CWD so the
+// GUI (no console) can still surface which D2H copy in the mrnf explore path
+// tripped first. backend::last_error() is backend-agnostic (cudaGetLastError
+// semantics under CUDA, no-op under other backends) and needs no CUDA header.
+// On a sticky error the probe records FAIL + reason and aborts, so the crash
+// report (CrashLog) fires at the exact failing copy instead of far downstream.
+void _probe(const char* msg) {
+    const char* err = backend::last_error();
+    FILE* f = std::fopen("spirula_explore_debug.log", "a");
+    if (f) {
+        std::fprintf(f, "%s %s%s%s\n", msg, err ? "FAIL" : "ok",
+                     err ? ": " : "", err ? err : "");
+        std::fclose(f);
+    }
+    if (err) std::abort();
+}
 
 // ---- tiny helpers (same idiom as EngineDensify.cpp) ----
 template<typename T>
@@ -366,13 +384,11 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
     backend::memcpy_sync(st.explore_render.data(), rsrc,
                          npix * 3 * sizeof(float),
                          backend::MemcpyKind::DeviceToHost);
-    std::cerr << "[explore] copy1_render ok\n";
-    CHECK_DEVICE_ERROR(cudaGetLastError());
+    _probe("[explore] copy1_render");
     backend::memcpy_sync(st.explore_target.data(), gsrc,
                          npix * 3 * sizeof(float),
                          backend::MemcpyKind::DeviceToHost);
-    std::cerr << "[explore] copy2_target ok\n";
-    CHECK_DEVICE_ERROR(cudaGetLastError());
+    _probe("[explore] copy2_target");
 
     // CPU error map: mean absolute per-channel error
     {
@@ -397,20 +413,17 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
                          engine().world.means.data_ptr(),
                          (size_t)cur * sizeof(float3),
                          backend::MemcpyKind::DeviceToHost);
-    std::cerr << "[explore] copy3_means ok\n";
-    CHECK_DEVICE_ERROR(cudaGetLastError());
+    _probe("[explore] copy3_means");
     st.explore_viewmats.resize((size_t)C * 4);
     backend::memcpy_sync(st.explore_viewmats.data(), cam.viewmats.data_ptr(),
                          (size_t)C * 4 * sizeof(float4),
                          backend::MemcpyKind::DeviceToHost);
-    std::cerr << "[explore] copy4_viewmats ok\n";
-    CHECK_DEVICE_ERROR(cudaGetLastError());
+    _probe("[explore] copy4_viewmats");
     st.explore_intrins.resize((size_t)C);
     backend::memcpy_sync(st.explore_intrins.data(), cam.intrins.data_ptr(),
                          (size_t)C * sizeof(float4),
                          backend::MemcpyKind::DeviceToHost);
-    std::cerr << "[explore] copy5_intrins ok\n";
-    CHECK_DEVICE_ERROR(cudaGetLastError());
+    _probe("[explore] copy5_intrins");
     const float4* viewmats = st.explore_viewmats.data();
     const float4* intrins  = st.explore_intrins.data();
     const float3* means    = st.explore_means.data();
