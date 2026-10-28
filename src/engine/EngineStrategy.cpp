@@ -535,7 +535,7 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
 // the window offset rotated per refine so consecutive windows cover different
 // cameras. The end-of-step densify then modulates growth from this spread
 // instead of being locked to the last sub-camera of the step.
-void _explore_capture_subview(const DensifyConfig& cfg, int64_t k, int64_t B) {
+void _explore_capture_subview_impl(const DensifyConfig& cfg, int64_t k, int64_t B) {
     StrategyState& st = S();
     if (!cfg.mrnf_explore || st.id != StrategyId::Mrnf) return;
     const int64_t views = std::max<int64_t>(1, cfg.mrnf_explore_views);
@@ -1320,6 +1320,14 @@ int64_t _densify_mcmc(int step, const DensifyConfig& cfg,
 }
 
 }  // namespace
+
+// Cross-TU entry declared in Engine.h: the split-batch train loop (a
+// different TU) calls this to capture explore views. The implementation
+// lives in the file-local namespace above (and so cannot be called across
+// TUs); forward to it here.
+void _explore_capture_subview(const DensifyConfig& cfg, int64_t k, int64_t B) {
+    _explore_capture_subview_impl(cfg, k, B);
+}
 
 // ======================= public API =======================
 
