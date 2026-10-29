@@ -702,6 +702,7 @@ std::map<std::string, float> engine_train_step(
     TorchTensorView bilagrid_cam_indices,
     const EngineStepConfig& cfg
 ) {
+    _probe2("[train] step_enter", step, cfg.optim.split_batch ? 1 : 0, 0);
     if (cfg.optim.split_batch) {
         return _engine_train_step_split_one_per_camera(
             step, max_steps, std::move(primitive), sh_degree, packed,

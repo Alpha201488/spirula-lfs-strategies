@@ -426,6 +426,7 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
                                   int64_t W, int64_t H) {
     StrategyState& st = S();
     const int64_t npix = W * H;
+    _probe2("[explore] view_enter", cam_idx, npix, rend_batch);
     const auto& renders = engine().fwd.renders;
     const auto& rrgb = std::get<0>(renders);
     // GT must be able to provide the same camera: its batch must cover
@@ -447,7 +448,29 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
         + cam_idx * npix;
     const float3* gsrc = (const float3*)std::get<0>(engine().gt.rgb)
         + cam_idx * npix;
-    _probe2("[explore] copy0_pre", cam_idx, npix, rend_batch);
+    // Pointer-attribute check: a DtoH copy fails with "invalid argument" when
+    // src is not a device pointer (or dst is not a host pointer). Print the
+    // attributes of both ends and abort BEFORE the copy so the log shows which
+    // end is bad.
+    {
+        const bool src_dev = backend::is_device_pointer((const void*)rsrc);
+        const bool dst_host_ok =
+            !backend::is_device_pointer((const void*)st.explore_render.data());
+        _probe2("[explore] copy0_pre", cam_idx, npix, rend_batch);
+        if (!src_dev || !dst_host_ok) {
+            FILE* f = std::fopen("spirula_explore_debug.log", "a");
+            if (f) {
+                std::fprintf(f,
+                    "[explore] PTRBAD src=%p src_dev=%d dst=%p dst_host=%d "
+                    "npix=%lld cam_idx=%lld rend_batch=%lld\n",
+                    (const void*)rsrc, (int)src_dev,
+                    (const void*)st.explore_render.data(), (int)dst_host_ok,
+                    (long long)npix, (long long)cam_idx, (long long)rend_batch);
+                std::fclose(f);
+            }
+            std::abort();
+        }
+    }
     backend::memcpy_sync(st.explore_render.data(), rsrc,
                          npix * 3 * sizeof(float),
                          backend::MemcpyKind::DeviceToHost);
