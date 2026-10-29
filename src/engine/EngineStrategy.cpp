@@ -527,17 +527,44 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
                 if (!backend::last_error()) { best = mid; lo = mid; }
                 else hi = mid;
             }
+            // Control experiment: allocate a fresh need-size buffer via the
+            // same pool path and copy need bytes from it. If this succeeds,
+            // the pool/driver can hand out and copy 24.9MB fine, so the
+            // mismatch lives in the "renders.rgb" slot itself; if it fails,
+            // the global allocator/driver rejects this size.
+            void* ctrl_dev = nullptr;
+            const char* ctrl_err = "not-run";
+            int ctrl_ok = 0;
+            {
+                const size_t need = (size_t)(npix * 3 * sizeof(float));
+                ctrl_dev = DevicePool::global().acquire_dynamic(
+                    VramCategory::Image, "explore.ctrl", need,
+                    PoolPhase::None);
+                if (ctrl_dev) {
+                    backend::memset_sync(ctrl_dev, 0, need);
+                    float ctrl[8];
+                    backend::memcpy_sync(ctrl, ctrl_dev, sizeof(ctrl),
+                                         backend::MemcpyKind::DeviceToHost);
+                    const char* e3 = backend::last_error();
+                    ctrl_ok = (e3 == nullptr);
+                    ctrl_err = e3 ? e3 : "-";
+                } else {
+                    ctrl_err = "alloc-null";
+                }
+            }
             FILE* f = std::fopen("spirula_explore_debug.log", "a");
             if (f) {
                 std::fprintf(f,
                     "[explore] COPYFAIL err=%s tiny_ok=%d tiny_err=%s "
                     "src=%p dst=%p npix=%lld need=%lld rend_batch=%lld "
-                    "max_ok_bytes=%lld\n",
+                    "max_ok_bytes=%lld ctrl_ok=%d ctrl_err=%s ctrl_dev=%p\n",
                     e ? e : "?", (int)(e2 == nullptr), e2 ? e2 : "-",
                     (const void*)rsrc, (const void*)st.explore_render.data(),
                     (long long)npix,
                     (long long)(npix * 3 * (int64_t)sizeof(float)),
-                    (long long)rend_batch, (long long)best);
+                    (long long)rend_batch, (long long)best,
+                    ctrl_ok, ctrl_err ? ctrl_err : "-",
+                    (const void*)ctrl_dev);
                 std::fclose(f);
             }
             std::abort();
