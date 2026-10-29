@@ -429,6 +429,30 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
     _probe2("[explore] view_enter", cam_idx, npix, rend_batch);
     const auto& renders = engine().fwd.renders;
     const auto& rrgb = std::get<0>(renders);
+    // Diagnostic: the render buffer's real allocation is exactly half of the
+    // shape metadata (max_ok_bytes = npix*3*4/2 = 12,441,600), which points at
+    // progressive-resolution rendering (divisor>1) or an asymmetric scaled
+    // resolution. Print the tensor shape and camera metadata so the mismatch
+    // can be matched to a code path.
+    {
+        FILE* f = std::fopen("spirula_explore_debug.log", "a");
+        if (f) {
+            const auto& gsh = std::get<2>(engine().gt.rgb);
+            std::fprintf(f,
+                "[explore] shape_meta s0=%lld s1=%lld s2=%lld cam_w=%lld "
+                "cam_h=%lld cam_n=%lld divisor=%lld gs0=%lld gs1=%lld gs2=%lld\n",
+                (long long)rrgb.size<0>(), (long long)rrgb.size<1>(),
+                (long long)rrgb.size<2>(),
+                (long long)engine().camera.width,
+                (long long)engine().camera.height,
+                (long long)engine().camera.num,
+                (long long)engine_train_resolution_divisor(),
+                gsh.size() > 0 ? (long long)gsh[0] : -1,
+                gsh.size() > 1 ? (long long)gsh[1] : -1,
+                gsh.size() > 2 ? (long long)gsh[2] : -1);
+            std::fclose(f);
+        }
+    }
     // GT must be able to provide the same camera: its batch must cover
     // cam_idx and its resolution must match the render, else skip the view.
     {
