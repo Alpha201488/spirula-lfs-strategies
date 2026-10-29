@@ -554,6 +554,22 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
             }
             FILE* f = std::fopen("spirula_explore_debug.log", "a");
             if (f) {
+                // Re-acquire the renders.rgb slot with the full need; compare
+                // the returned pointer with rsrc. If the slot's cap already
+                // covers need it returns the same pointer (rsrc alive in a
+                // >=need allocation) with re_same=1; if cap is smaller it
+                // reallocates and re_same=0, proving rsrc was a stale pointer
+                // to an older smaller allocation.
+                void* re = DevicePool::global().acquire_dynamic(
+                    VramCategory::Image, "renders.rgb",
+                    (size_t)(npix * 3 * sizeof(float)), PoolPhase::None);
+                std::fprintf(f,
+                    "[explore] REACQ same=%d ptr=%p rsrc=%p\n",
+                    (int)(re == (void*)rsrc), (const void*)re,
+                    (const void*)rsrc);
+                std::fclose(f);
+            }
+            if (f) {
                 std::fprintf(f,
                     "[explore] COPYFAIL err=%s tiny_ok=%d tiny_err=%s "
                     "src=%p dst=%p npix=%lld need=%lld rend_batch=%lld "
