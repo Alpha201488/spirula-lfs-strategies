@@ -487,16 +487,33 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
             backend::memcpy_sync(&tiny, rsrc, sizeof(float),
                                  backend::MemcpyKind::DeviceToHost);
             const char* e2 = backend::last_error();
+            // tiny_ok==1 told us src is alive but the big copy overruns its
+            // allocation. Binary-search the largest D2H size that succeeds
+            // from this src: it measures the allocation the pointer actually
+            // belongs to (12MB => wrong buffer (explore_gpu slot), ~23.1MB
+            // => render allocated at scaled resolution, ~24.9MB => driver
+            // side issue instead).
+            size_t lo = 0, hi = (size_t)(npix * 3 * sizeof(float)), best = 0;
+            std::vector<float> probe((size_t)npix * 3);
+            for (int pass = 0; pass < 9; ++pass) {
+                const size_t mid = lo + (hi - lo) / 2;
+                if (mid == 0) break;
+                backend::memcpy_sync(probe.data(), rsrc, mid,
+                                     backend::MemcpyKind::DeviceToHost);
+                if (!backend::last_error()) { best = mid; lo = mid; }
+                else hi = mid;
+            }
             FILE* f = std::fopen("spirula_explore_debug.log", "a");
             if (f) {
                 std::fprintf(f,
                     "[explore] COPYFAIL err=%s tiny_ok=%d tiny_err=%s "
-                    "src=%p dst=%p npix=%lld need=%lld rend_batch=%lld\n",
+                    "src=%p dst=%p npix=%lld need=%lld rend_batch=%lld "
+                    "max_ok_bytes=%lld\n",
                     e ? e : "?", (int)(e2 == nullptr), e2 ? e2 : "-",
                     (const void*)rsrc, (const void*)st.explore_render.data(),
                     (long long)npix,
                     (long long)(npix * 3 * (int64_t)sizeof(float)),
-                    (long long)rend_batch);
+                    (long long)rend_batch, (long long)best);
                 std::fclose(f);
             }
             std::abort();
