@@ -601,10 +601,31 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
         }
     }
     _probe("[explore] copy1_render");
-    backend::memcpy_sync(st.explore_target.data(), gsrc,
-                         npix * 3 * sizeof(float),
-                         backend::MemcpyKind::DeviceToHost);
-    _probe("[explore] copy2_target");
+    // GT may be stored packed 8-bit (3 bytes/pixel) when uploaded straight
+    // from an 8-bit image: _upload_gt_rgb keeps the buffer at n bytes
+    // (TorchTensorView dims==1 marks that path). A float3 copy then overruns
+    // it (copy2_target invalid argument). Copy the packed bytes and upconvert
+    // to float; when GT is float3 (color-space path) copy as float3.
+    const bool gt_8bit = (std::get<1>(engine().gt.rgb) == 1);
+    if (gt_8bit) {
+        const uint8_t* g8 =
+            (const uint8_t*)std::get<0>(engine().gt.rgb) +
+            (size_t)cam_idx * (size_t)npix * 3;
+        std::vector<uint8_t> gtmp((size_t)npix * 3);
+        backend::memcpy_sync(gtmp.data(), g8, (size_t)npix * 3,
+                             backend::MemcpyKind::DeviceToHost);
+        _probe("[explore] copy2_target_8bit");
+        for (size_t p = 0; p < (size_t)npix; ++p) {
+            st.explore_target[3*p+0] = gtmp[3*p+0] * (1.0f / 255.0f);
+            st.explore_target[3*p+1] = gtmp[3*p+1] * (1.0f / 255.0f);
+            st.explore_target[3*p+2] = gtmp[3*p+2] * (1.0f / 255.0f);
+        }
+    } else {
+        backend::memcpy_sync(st.explore_target.data(), gsrc,
+                             npix * 3 * sizeof(float),
+                             backend::MemcpyKind::DeviceToHost);
+        _probe("[explore] copy2_target");
+    }
 
     // CPU error map: mean absolute per-channel error
     {
