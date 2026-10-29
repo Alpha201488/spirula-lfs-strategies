@@ -241,7 +241,13 @@ void _accumulate_edge_scores(const DensifyConfig& cfg) {
     StrategyState& st = S();
     auto& cam = engine().camera;
     auto& renders = engine().fwd.renders;
-    auto rgb = std::get<0>(renders);
+    // Use the pre-appearance F32 render: fwd.renders.rgb may be re-pointed at
+    // an FP16 post buffer (6B/pixel) while edge scoring reads float3
+    // (12B/pixel), which overruns that allocation on both GPU and D2H paths.
+    const DeviceTensor3D<float3>& rgb =
+        engine().fwd.raw_rgb.data_ptr() != nullptr
+            ? engine().fwd.raw_rgb
+            : std::get<0>(renders);
     auto& rTs = engine().fwd.render_Ts;
     int64_t cur = engine().cur_num_splats;
     if (cur <= 0) return;
@@ -427,8 +433,16 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
     StrategyState& st = S();
     const int64_t npix = W * H;
     _probe2("[explore] view_enter", cam_idx, npix, rend_batch);
-    const auto& renders = engine().fwd.renders;
-    const auto& rrgb = std::get<0>(renders);
+    // Read the pre-appearance F32 render when available. Under F16 image
+    // output, fwd.renders.rgb is re-pointed at an FP16 appearance post buffer
+    // (6 bytes/pixel half3); explore assumes float3 (12 bytes/pixel) and its
+    // D2H copy then overruns that allocation — the 600-step "copy1_render
+    // invalid argument" (max_ok_bytes was exactly half of need). raw_rgb stays
+    // the full-resolution F32 buffer the rasterizer wrote.
+    const DeviceTensor3D<float3>& rrgb =
+        engine().fwd.raw_rgb.data_ptr() != nullptr
+            ? engine().fwd.raw_rgb
+            : std::get<0>(engine().fwd.renders);
     // Diagnostic: the render buffer's real allocation is exactly half of the
     // shape metadata (max_ok_bytes = npix*3*4/2 = 12,441,600), which points at
     // progressive-resolution rendering (divisor>1) or an asymmetric scaled
@@ -468,7 +482,7 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
     st.explore_target.resize((size_t)npix * 3);
     st.explore_err_map.resize((size_t)npix);
 
-    const float3* rsrc = (const float3*)std::get<0>(renders).data_ptr()
+    const float3* rsrc = (const float3*)rrgb.data_ptr()
         + cam_idx * npix;
     const float3* gsrc = (const float3*)std::get<0>(engine().gt.rgb)
         + cam_idx * npix;
@@ -613,8 +627,13 @@ void _accumulate_explore_cpu(const DensifyConfig& cfg, int64_t cur) {
     if (!cfg.mrnf_explore || cur <= 0) return;
     auto& cam = engine().camera;
     if (cam.num <= 0 || cam.width <= 1 || cam.height <= 1) return;
-    const auto& renders = engine().fwd.renders;
-    const auto& rrgb = std::get<0>(renders);
+    // Use the pre-appearance F32 render (raw_rgb) when available: under F16
+    // output, fwd.renders.rgb is re-pointed at an FP16 post buffer and explore
+    // would overrun it (copy1_render invalid argument at step 600).
+    const DeviceTensor3D<float3>& rrgb =
+        engine().fwd.raw_rgb.data_ptr() != nullptr
+            ? engine().fwd.raw_rgb
+            : std::get<0>(engine().fwd.renders);
     if (rrgb.data_ptr() == nullptr ||
         std::get<0>(engine().gt.rgb) == 0)
         return;
@@ -647,8 +666,13 @@ void _explore_capture_subview_impl(const DensifyConfig& cfg, int64_t k, int64_t 
     if (!cfg.mrnf_explore || st.id != StrategyId::Mrnf) return;
     const int64_t views = std::max<int64_t>(1, cfg.mrnf_explore_views);
     if (st.explore_sample_count >= views) return;   // window full
-    const auto& renders = engine().fwd.renders;
-    const auto& rrgb = std::get<0>(renders);
+    // Use the pre-appearance F32 render (raw_rgb) when available: under F16
+    // output, fwd.renders.rgb is re-pointed at an FP16 post buffer and explore
+    // would overrun it (copy1_render invalid argument at step 600).
+    const DeviceTensor3D<float3>& rrgb =
+        engine().fwd.raw_rgb.data_ptr() != nullptr
+            ? engine().fwd.raw_rgb
+            : std::get<0>(engine().fwd.renders);
     if (rrgb.data_ptr() == nullptr ||
         std::get<0>(engine().gt.rgb) == 0)
         return;
