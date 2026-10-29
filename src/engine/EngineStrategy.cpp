@@ -474,6 +474,34 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
     backend::memcpy_sync(st.explore_render.data(), rsrc,
                          npix * 3 * sizeof(float),
                          backend::MemcpyKind::DeviceToHost);
+    {
+        // copy1_render has repeatedly FAILed with "invalid argument" even
+        // though view_enter (last_error before any of this) was clean and
+        // is_device_pointer said src is device memory. Distinguish a dead
+        // src pointer (arena/pool realloc, address reused by a smaller
+        // allocation) from a size overrun by probing a 4-byte D2H from the
+        // same src right after the big copy fails.
+        const char* e = backend::last_error();
+        if (e) {
+            float tiny = 0.0f;
+            backend::memcpy_sync(&tiny, rsrc, sizeof(float),
+                                 backend::MemcpyKind::DeviceToHost);
+            const char* e2 = backend::last_error();
+            FILE* f = std::fopen("spirula_explore_debug.log", "a");
+            if (f) {
+                std::fprintf(f,
+                    "[explore] COPYFAIL err=%s tiny_ok=%d tiny_err=%s "
+                    "src=%p dst=%p npix=%lld need=%lld rend_batch=%lld\n",
+                    e ? e : "?", (int)(e2 == nullptr), e2 ? e2 : "-",
+                    (const void*)rsrc, (const void*)st.explore_render.data(),
+                    (long long)npix,
+                    (long long)(npix * 3 * (int64_t)sizeof(float)),
+                    (long long)rend_batch);
+                std::fclose(f);
+            }
+            std::abort();
+        }
+    }
     _probe("[explore] copy1_render");
     backend::memcpy_sync(st.explore_target.data(), gsrc,
                          npix * 3 * sizeof(float),
