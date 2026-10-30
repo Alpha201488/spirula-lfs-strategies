@@ -360,19 +360,16 @@ static void _explore_project_and_accumulate(
                              engine().world.means.data_ptr(),
                              (size_t)cur * sizeof(float3),
                              backend::MemcpyKind::DeviceToHost);
-        _probe("[explore] copy3_means");
     }
     const int64_t C = cam.num;
     st.explore_viewmats.resize((size_t)C * 4);
     backend::memcpy_sync(st.explore_viewmats.data(), cam.viewmats.data_ptr(),
                          (size_t)C * 4 * sizeof(float4),
                          backend::MemcpyKind::DeviceToHost);
-    _probe("[explore] copy4_viewmats");
     st.explore_intrins.resize((size_t)C);
     backend::memcpy_sync(st.explore_intrins.data(), cam.intrins.data_ptr(),
                          (size_t)C * sizeof(float4),
                          backend::MemcpyKind::DeviceToHost);
-    _probe("[explore] copy5_intrins");
     const float4* viewmats = st.explore_viewmats.data();
     const float4* intrins  = st.explore_intrins.data();
     const float3* means    = st.explore_means.data();
@@ -432,7 +429,6 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
                                   int64_t W, int64_t H) {
     StrategyState& st = S();
     const int64_t npix = W * H;
-    _probe2("[explore] view_enter", cam_idx, npix, rend_batch);
     // Read the pre-appearance F32 render when available. Under F16 image
     // output, fwd.renders.rgb is re-pointed at an FP16 appearance post buffer
     // (6 bytes/pixel half3); explore assumes float3 (12 bytes/pixel) and its
@@ -443,30 +439,6 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
         engine().fwd.raw_rgb.data_ptr() != nullptr
             ? engine().fwd.raw_rgb
             : std::get<0>(engine().fwd.renders);
-    // Diagnostic: the render buffer's real allocation is exactly half of the
-    // shape metadata (max_ok_bytes = npix*3*4/2 = 12,441,600), which points at
-    // progressive-resolution rendering (divisor>1) or an asymmetric scaled
-    // resolution. Print the tensor shape and camera metadata so the mismatch
-    // can be matched to a code path.
-    {
-        FILE* f = std::fopen("spirula_explore_debug.log", "a");
-        if (f) {
-            const auto& gsh = std::get<2>(engine().gt.rgb);
-            std::fprintf(f,
-                "[explore] shape_meta s0=%lld s1=%lld s2=%lld cam_w=%lld "
-                "cam_h=%lld cam_n=%lld divisor=%lld gs0=%lld gs1=%lld gs2=%lld\n",
-                (long long)rrgb.size<0>(), (long long)rrgb.size<1>(),
-                (long long)rrgb.size<2>(),
-                (long long)engine().camera.width,
-                (long long)engine().camera.height,
-                (long long)engine().camera.num,
-                (long long)engine_train_resolution_divisor(),
-                gsh.size() > 0 ? (long long)gsh[0] : -1,
-                gsh.size() > 1 ? (long long)gsh[1] : -1,
-                gsh.size() > 2 ? (long long)gsh[2] : -1);
-            std::fclose(f);
-        }
-    }
     // GT must be able to provide the same camera: its batch must cover
     // cam_idx and its resolution must match the render, else skip the view.
     {
@@ -494,113 +466,15 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
         const bool src_dev = backend::is_device_pointer((const void*)rsrc);
         const bool dst_host_ok =
             !backend::is_device_pointer((const void*)st.explore_render.data());
-        _probe2("[explore] copy0_pre", cam_idx, npix, rend_batch);
         if (!src_dev || !dst_host_ok) {
-            FILE* f = std::fopen("spirula_explore_debug.log", "a");
-            if (f) {
-                std::fprintf(f,
-                    "[explore] PTRBAD src=%p src_dev=%d dst=%p dst_host=%d "
-                    "npix=%lld cam_idx=%lld rend_batch=%lld\n",
-                    (const void*)rsrc, (int)src_dev,
-                    (const void*)st.explore_render.data(), (int)dst_host_ok,
-                    (long long)npix, (long long)cam_idx, (long long)rend_batch);
-                std::fclose(f);
-            }
             std::abort();
         }
     }
     backend::memcpy_sync(st.explore_render.data(), rsrc,
                          npix * 3 * sizeof(float),
                          backend::MemcpyKind::DeviceToHost);
-    {
-        // copy1_render has repeatedly FAILed with "invalid argument" even
-        // though view_enter (last_error before any of this) was clean and
-        // is_device_pointer said src is device memory. Distinguish a dead
-        // src pointer (arena/pool realloc, address reused by a smaller
-        // allocation) from a size overrun by probing a 4-byte D2H from the
-        // same src right after the big copy fails.
-        const char* e = backend::last_error();
-        if (e) {
-            float tiny = 0.0f;
-            backend::memcpy_sync(&tiny, rsrc, sizeof(float),
-                                 backend::MemcpyKind::DeviceToHost);
-            const char* e2 = backend::last_error();
-            // tiny_ok==1 told us src is alive but the big copy overruns its
-            // allocation. Binary-search the largest D2H size that succeeds
-            // from this src: it measures the allocation the pointer actually
-            // belongs to (12MB => wrong buffer (explore_gpu slot), ~23.1MB
-            // => render allocated at scaled resolution, ~24.9MB => driver
-            // side issue instead).
-            size_t lo = 0, hi = (size_t)(npix * 3 * sizeof(float)), best = 0;
-            std::vector<float> probe((size_t)npix * 3);
-            for (int pass = 0; pass < 9; ++pass) {
-                const size_t mid = lo + (hi - lo) / 2;
-                if (mid == 0) break;
-                backend::memcpy_sync(probe.data(), rsrc, mid,
-                                     backend::MemcpyKind::DeviceToHost);
-                if (!backend::last_error()) { best = mid; lo = mid; }
-                else hi = mid;
-            }
-            // Control experiment: allocate a fresh need-size buffer via the
-            // same pool path and copy need bytes from it. If this succeeds,
-            // the pool/driver can hand out and copy 24.9MB fine, so the
-            // mismatch lives in the "renders.rgb" slot itself; if it fails,
-            // the global allocator/driver rejects this size.
-            void* ctrl_dev = nullptr;
-            const char* ctrl_err = "not-run";
-            int ctrl_ok = 0;
-            {
-                const size_t need = (size_t)(npix * 3 * sizeof(float));
-                ctrl_dev = DevicePool::global().acquire_dynamic(
-                    VramCategory::Image, "explore.ctrl", need,
-                    PoolPhase::None);
-                if (ctrl_dev) {
-                    backend::memset_sync(ctrl_dev, 0, need);
-                    float ctrl[8];
-                    backend::memcpy_sync(ctrl, ctrl_dev, sizeof(ctrl),
-                                         backend::MemcpyKind::DeviceToHost);
-                    const char* e3 = backend::last_error();
-                    ctrl_ok = (e3 == nullptr);
-                    ctrl_err = e3 ? e3 : "-";
-                } else {
-                    ctrl_err = "alloc-null";
-                }
-            }
-            FILE* f = std::fopen("spirula_explore_debug.log", "a");
-            if (f) {
-                // Re-acquire the renders.rgb slot with the full need; compare
-                // the returned pointer with rsrc. If the slot's cap already
-                // covers need it returns the same pointer (rsrc alive in a
-                // >=need allocation) with re_same=1; if cap is smaller it
-                // reallocates and re_same=0, proving rsrc was a stale pointer
-                // to an older smaller allocation.
-                void* re = DevicePool::global().acquire_dynamic(
-                    VramCategory::Image, "renders.rgb",
-                    (size_t)(npix * 3 * sizeof(float)), PoolPhase::None);
-                std::fprintf(f,
-                    "[explore] REACQ same=%d ptr=%p rsrc=%p\n",
-                    (int)(re == (void*)rsrc), (const void*)re,
-                    (const void*)rsrc);
-                std::fclose(f);
-            }
-            if (f) {
-                std::fprintf(f,
-                    "[explore] COPYFAIL err=%s tiny_ok=%d tiny_err=%s "
-                    "src=%p dst=%p npix=%lld need=%lld rend_batch=%lld "
-                    "max_ok_bytes=%lld ctrl_ok=%d ctrl_err=%s ctrl_dev=%p\n",
-                    e ? e : "?", (int)(e2 == nullptr), e2 ? e2 : "-",
-                    (const void*)rsrc, (const void*)st.explore_render.data(),
-                    (long long)npix,
-                    (long long)(npix * 3 * (int64_t)sizeof(float)),
-                    (long long)rend_batch, (long long)best,
-                    ctrl_ok, ctrl_err ? ctrl_err : "-",
-                    (const void*)ctrl_dev);
-                std::fclose(f);
-            }
-            std::abort();
-        }
-    }
-    _probe("[explore] copy1_render");
+    if (backend::last_error())
+        std::abort();
     // GT may be stored packed 8-bit (3 bytes/pixel) when uploaded straight
     // from an 8-bit image: _upload_gt_rgb keeps the buffer at n bytes
     // (TorchTensorView dims==1 marks that path). A float3 copy then overruns
@@ -614,7 +488,8 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
         std::vector<uint8_t> gtmp((size_t)npix * 3);
         backend::memcpy_sync(gtmp.data(), g8, (size_t)npix * 3,
                              backend::MemcpyKind::DeviceToHost);
-        _probe("[explore] copy2_target_8bit");
+        if (backend::last_error())
+            std::abort();
         for (size_t p = 0; p < (size_t)npix; ++p) {
             st.explore_target[3*p+0] = gtmp[3*p+0] * (1.0f / 255.0f);
             st.explore_target[3*p+1] = gtmp[3*p+1] * (1.0f / 255.0f);
@@ -624,7 +499,8 @@ static void _explore_capture_view(const DensifyConfig& cfg, int64_t cur,
         backend::memcpy_sync(st.explore_target.data(), gsrc,
                              npix * 3 * sizeof(float),
                              backend::MemcpyKind::DeviceToHost);
-        _probe("[explore] copy2_target");
+        if (backend::last_error())
+            std::abort();
     }
 
     // CPU error map: mean absolute per-channel error
@@ -1102,7 +978,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     // ---- camera hull (far field) ----
     _update_camera_hull(st);
     bool far_ok = st.camera_hull_valid;
-    _probe2("[mrnf] hull", far_ok ? 1 : 0, (long long)(st.orbit_radius * 100.0f), step);
 
     // ---- prune: opacity / collapsed scale / degenerate rotation ----
     strat_prune_mask_tensor(cur, b.opacities, b.scales, b.quats,
@@ -1113,7 +988,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     int64_t n_pruned = _host_count(st.count_scratch);
     if (n_pruned > 0)
         _free_slots(b, st.idx_scratch, n_pruned, sh_stride);
-    _probe2("[mrnf] prune", n_pruned, cur, cap);
 
     // ---- far-field mask + starvation ----
     int64_t n_far = 0;
@@ -1131,7 +1005,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     } else {
         st.far_starvation = 1.0f;
     }
-    _probe2("[mrnf] far", n_far, (long long)(st.far_starvation * 100.0f), far_ok ? 1 : 0);
 
     // ---- error + edge-guidance score (MRNF edge_guidance_factor) ----
     DeviceVector<float>& err = st.error_scores;
@@ -1144,7 +1017,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
                              (size_t)cur * sizeof(float),
                              backend::MemcpyKind::DeviceToDevice);
     }
-    _probe2("[mrnf] score", cur, have_edge ? 1 : 0, 0);
     strat_ew_clamp_min_inplace_tensor(cur, st.score_scratch, 1e-12f);
 
     // ---- LFS explore modulation (CPU-RAM seed-view scores) ----
@@ -1166,7 +1038,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
     _zero_count(st.count_scratch);
     strat_count_nonzero_tensor(cur, st.score_scratch, st.count_scratch);
     int64_t selectable = _host_count(st.count_scratch);
-    _probe2("[mrnf] selectable", selectable, cur, 0);
 
     // ---- growth target (LFS fill pacing) ----
     // LFS (mrnf.cpp) grows at full grow_fraction from the very first refine
@@ -1193,7 +1064,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
         strat_mask_count_tensor(cur, st.mask_b.data_ptr(), st.count_scratch);
         active = _host_count(st.count_scratch);
     }
-    _probe2("[mrnf] active", active, cur, cap);
 
     int64_t n_grow_base =
         (int64_t)std::lround((float)active * cfg.mrnf_grow_fraction);
@@ -1227,7 +1097,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
         std::max<int64_t>(0, n_grow_base - n_replace),
         std::max<int64_t>(0, cap - cur));
     n_grow = std::min<int64_t>(n_grow, selectable);
-    _probe2("[mrnf] budget", n_grow_base, n_replace, n_grow);
 
     // ---- replace pruned first (LFS replace_pruned) ----
     int64_t added = 0;
@@ -1257,7 +1126,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
             }
         }
     }
-    _probe2("[mrnf] replace_done", n_replace, n_free, added);
 
     // ---- grow (append) ----
     int64_t n_append_grow = n_grow - n_replace;
@@ -1282,7 +1150,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
             added += n_append_grow;
         }
     }
-    _probe2("[mrnf] grow_done", n_append_grow, added, cur + added);
 
     // ---- far-field seeds (LFS far_seed_dose, scaled by starvation) ----
     int64_t n_far_grow = 0;
@@ -1319,7 +1186,6 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
             }
         }
     }
-    _probe2("[mrnf] farseed_done", n_far_draw, added, cur + added);
 
     // ---- far decay (LFS apply_decay, applied globally per refine window;
     //      far splats additionally decay by mrnf_far_decay_scale) ----
@@ -1357,11 +1223,8 @@ int64_t _densify_mrnf(int step, const DensifyConfig& cfg,
             strat_mask_apply_inplace_tensor(cur, opac_view, st.mask_b.data_ptr());
         }
     }
-
-    _probe2("[mrnf] cap_done", new_cur, cap, added);
     _zero_densify_window();
     st.refine_count++;
-    _probe2("[mrnf] exit", added, cur + added, st.refine_count);
     return added;
 }
 
@@ -1472,36 +1335,6 @@ int64_t _densify_mcmc(int step, const DensifyConfig& cfg,
 }
 
 }  // namespace
-
-// Debug probe (global so EngineTrainStep.cpp can call it too): append one
-// line to spirula_explore_debug.log in the CWD so the GUI (no console) can
-// still surface which stage tripped first. backend::last_error() is
-// backend-agnostic (cudaGetLastError semantics under CUDA, no-op under other
-// backends) and needs no CUDA header. On a sticky error the probe records
-// FAIL + reason and aborts, so the crash report (CrashLog) fires at the exact
-// failing stage instead of far downstream.
-void _probe(const char* msg) {
-    const char* err = backend::last_error();
-    FILE* f = std::fopen("spirula_explore_debug.log", "a");
-    if (f) {
-        std::fprintf(f, "%s %s%s%s\n", msg, err ? "FAIL" : "ok",
-                     err ? ": " : "", err ? err : "");
-        std::fclose(f);
-    }
-    if (err) std::abort();
-}
-
-void _probe2(const char* msg, long long a, long long b, long long c) {
-    const char* err = backend::last_error();
-    FILE* f = std::fopen("spirula_explore_debug.log", "a");
-    if (f) {
-        std::fprintf(f, "%s %s n1=%lld n2=%lld n3=%lld%s%s\n", msg,
-                     err ? "FAIL" : "ok", a, b, c,
-                     err ? ": " : "", err ? err : "");
-        std::fclose(f);
-    }
-    if (err) std::abort();
-}
 
 // Cross-TU entry declared in Engine.h: the split-batch train loop (a
 // different TU) calls this to capture explore views. The implementation

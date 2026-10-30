@@ -499,7 +499,6 @@ static std::map<std::string, float> _engine_train_step_split_one_per_camera(
 
         auto ld = _engine_step_fwd_bwd_only(
             step, max_steps, primitive, sh_degree, packed, bgi_k, cfg_sub);
-        _probe2("[train] fwd_bwd", k, B, 0);
 
         // Accumulate per-sub-batch accum_weight (per-splat densification
         // score from raster_bwd). engine().fwd.accum_weight points at the
@@ -508,7 +507,6 @@ static std::map<std::string, float> _engine_train_step_split_one_per_camera(
         if (engine().fwd.accum_weight.data_ptr() != nullptr) {
             _fold_accum_weight(accum_weight_sum, N_splats);
         }
-        _probe2("[train] accum_fold", k, B, 0);
 
         // LFS seed-view explore: capture this sub-camera while its render is
         // still in the forward buffer (a spread of views per refine window,
@@ -517,7 +515,6 @@ static std::map<std::string, float> _engine_train_step_split_one_per_camera(
         // step, locking exploration to a single fixed view.
         if (cfg.densify.mrnf_explore &&
             engine().strategy.id == StrategyId::Mrnf) {
-            _probe2("[train] explore_pre", k, B, 0);
             _explore_capture_subview(cfg.densify, k, B);
         }
 
@@ -702,7 +699,6 @@ std::map<std::string, float> engine_train_step(
     TorchTensorView bilagrid_cam_indices,
     const EngineStepConfig& cfg
 ) {
-    _probe2("[train] step_enter", step, cfg.optim.split_batch ? 1 : 0, 0);
     if (cfg.optim.split_batch) {
         return _engine_train_step_split_one_per_camera(
             step, max_steps, std::move(primitive), sh_degree, packed,
