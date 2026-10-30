@@ -601,6 +601,16 @@ void _zero_densify_window() {
                              S().edge_score_sum.size() * sizeof(float));
         S().edge_view_count = 0;
     }
+    // Reset the explore view window too. Without this, explore_sample_count
+    // stays >0 forever after the first refine, freezing explore to the first
+    // window's camera(s) — view starvation: only one camera's error map ever
+    // drives densify scoring. Clearing here re-opens the window so the next
+    // refine gathers fresh views (1 per window non-split, up to
+    // mrnf_explore_views split-batch, offset rotated by refine_count).
+    if (!S().explore_score_sum.empty()) {
+        S().explore_score_sum.assign(S().explore_score_sum.size(), 0.0f);
+        S().explore_sample_count = 0;
+    }
 }
 
 // ---- shared splat-parameter bundle (same idiom as engine_densify_step) ----
