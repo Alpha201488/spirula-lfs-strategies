@@ -269,11 +269,24 @@ SplatCloud read_splat_ply(const std::string& path, bool want_sh) {
     out.features_dc.resize((size_t)n * 3);
     if (K > 0) out.features_sh.assign((size_t)n * K * 3, 0.0f);
 
+    // Standard vs legacy file format (probed below): standard 3DGS PLY holds
+    // activated scale/opacity; our legacy exports held raw log/logit.
+    bool standard = true;
+
     auto take = [&](int64_t i, const float* v) {
         out.means[i*3+0] = v[cx]; out.means[i*3+1] = v[cy]; out.means[i*3+2] = v[cz];
         for (int k = 0; k < 4; k++) out.quats[i*4+k] = v[cq[k]];
-        for (int k = 0; k < 3; k++) out.scales[i*3+k] = v[cs[k]];
-        out.opacities[i] = v[co];
+        if (standard) {
+            // File holds activated values: invert to the engine's log/logit.
+            for (int k = 0; k < 3; k++)
+                out.scales[i*3+k] = std::log(std::max(v[cs[k]], 1e-12f));
+            const float o = std::min(std::max(v[co], 1e-6f), 1.0f - 1e-6f);
+            out.opacities[i] = std::log(o / (1.0f - o));
+        } else {
+            // Legacy engine export: raw log scale / logit opacity, verbatim.
+            for (int k = 0; k < 3; k++) out.scales[i*3+k] = v[cs[k]];
+            out.opacities[i] = v[co];
+        }
         for (int k = 0; k < 3; k++) out.features_dc[i*3+k] = v[cd[k]];
         // Channel-major in the file, coefficient-major in the engine.
         for (int ch = 0; ch < 3 && K_sh > 0; ch++)
@@ -284,6 +297,45 @@ SplatCloud read_splat_ply(const std::string& path, bool want_sh) {
             for (int l = 0; l < L; l++)
                 lobes[l * sb::kLobeFloats + f] = v[csb[(size_t)(f * L + l)]];
     };
+
+    // Format detection. The standard 3DGS PLY stores activated values — scale
+    // > 0 (real radius) and opacity in [0,1]. Pre-fix exports from this
+    // engine wrote the raw log scale / logit opacity (scale often <= 0). Probe
+    // the leading rows; for a standard file we invert scale/opacity back to
+    // the engine's log/logit space below, legacy files are taken verbatim.
+    // rot_0..3 is (w,x,y,z) in both layouts, same as the engine's, so quats
+    // never need conversion.
+    {
+        const int64_t probe = std::min<int64_t>(n, 1024);
+        f.clear();
+        f.seekg(h.data_start);
+        std::vector<float> pv(h.props.size());
+        int64_t ok_s = 0, ok_o = 0, seen = 0;
+        if (h.ascii) {
+            for (int64_t i = 0; i < probe; i++) {
+                for (size_t k = 0; k < h.props.size(); k++)
+                    if (!(f >> pv[k])) { seen = i; i = probe; break; }
+                if (i >= probe) break;
+                seen++;
+                if (pv[cs[0]] > 0.f && pv[cs[1]] > 0.f && pv[cs[2]] > 0.f) ok_s++;
+                const float o = pv[co];
+                if (o >= 0.f && o <= 1.f) ok_o++;
+            }
+        } else {
+            std::vector<uint8_t> raw((size_t)h.row_bytes * (size_t)probe);
+            f.read((char*)raw.data(), (std::streamsize)probe * (int64_t)h.row_bytes);
+            for (int64_t i = 0; i < probe; i++) {
+                const uint8_t* r = raw.data() + (size_t)i * h.row_bytes;
+                for (size_t k = 0; k < h.props.size(); k++)
+                    pv[k] = read_scalar(r, h.props[k]);
+                seen++;
+                if (pv[cs[0]] > 0.f && pv[cs[1]] > 0.f && pv[cs[2]] > 0.f) ok_s++;
+                const float o = pv[co];
+                if (o >= 0.f && o <= 1.f) ok_o++;
+            }
+        }
+        standard = seen > 0 && ok_s >= seen * 95 / 100 && ok_o >= seen * 95 / 100;
+    }
 
     if (h.ascii) {
         f.clear();
@@ -366,8 +418,14 @@ void write_splat_ply(const SplatCloud& c, const std::string& path,
         for (int a = 0; a < 3; a++) row[p++] = c.features_dc[(size_t)i * 3 + a];
         if (K > 0) splat_ply_put_rest(rest, basis, row + p);
         p += 3 * (int)K;
-        row[p++] = c.opacities[(size_t)i];
-        for (int a = 0; a < 3; a++) row[p++] = scale[a];
+        // Standard 3DGS PLY stores the activated values: opacity in [0,1]
+        // (sigmoid of the engine's logit), scale as the real radius (exp of the
+        // engine's log). Writing raw log/logit made third-party viewers render
+        // every Gaussian with a negative/oversized extent — the scene "explodes"
+        // as soon as the camera turns. rot_0..3 stays (w,x,y,z), the engine's
+        // own layout, so the plain array copy below is already correct.
+        row[p++] = 1.0f / (1.0f + std::exp(-c.opacities[(size_t)i]));
+        for (int a = 0; a < 3; a++) row[p++] = std::exp(scale[a]);
         for (int a = 0; a < 4; a++) row[p++] = quat[a];
         if (++rows == kRowsPerFlush) flush();
     }

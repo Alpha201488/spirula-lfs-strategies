@@ -358,9 +358,16 @@ void engine_save_checkpoint(
                 spirula::splat_ply_put_rest(rest, basis, row + p);
                 p += 3 * K;
             }
-            row[p++] = h_opacities[i];
-            row[p++] = h_scales[i].x; row[p++] = h_scales[i].y; row[p++] = h_scales[i].z;
-            row[p++] = h_quats[i].x; row[p++] = h_quats[i].y; row[p++] = h_quats[i].z; row[p++] = h_quats[i].w;
+            row[p++] = 1.0f / (1.0f + std::exp(-h_opacities[i]));
+            row[p++] = std::exp(h_scales[i].x);
+            row[p++] = std::exp(h_scales[i].y);
+            row[p++] = std::exp(h_scales[i].z);
+            // Standard 3DGS PLY rot_0..3 = (w, x, y, z); the engine stores
+            // exactly that order. Writing .x,.y,.z,.w here scrambled every
+            // orientation in third-party viewers (rotations explode as the
+            // camera turns).
+            row[p++] = h_quats[i].w; row[p++] = h_quats[i].x;
+            row[p++] = h_quats[i].y; row[p++] = h_quats[i].z;
             rows_in_buf++;
             if (rows_in_buf == ROWS_PER_FLUSH) flush();
         }
